@@ -157,7 +157,7 @@ if (project == rootProject) {
 // to enforce precommit checks like forbidden apis, as well as setup publishing
 if (project != rootProject) {
   apply plugin: 'elasticsearch.build'
-  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'elasticsearch.publish'
 
   allprojects {
     targetCompatibility = 10

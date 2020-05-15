@@ -123,7 +123,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder(name);
             NamedAnalyzer indexAnalyzer = null;
@@ -353,7 +353,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     /**
      * Builder for {@link CompletionFieldMapper}
      */
-    public static class Builder extends FieldMapper.Builder<Builder, CompletionFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private int maxInputLength = Defaults.DEFAULT_MAX_INPUT_LENGTH;
         private ContextMappings contextMappings = null;

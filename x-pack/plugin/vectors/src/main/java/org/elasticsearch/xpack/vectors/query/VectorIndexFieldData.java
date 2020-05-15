@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -26,12 +25,31 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 
-public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
+public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
+
+    protected final Index index;
+    protected final String fieldName;
     private final boolean isDense;
 
-    public VectorDVIndexFieldData(Index index, String fieldName, boolean isDense) {
-        super(index, fieldName);
+    public VectorIndexFieldData(Index index, String fieldName, boolean isDense) {
         this.isDense = isDense;
+        this.index = index;
+        this.fieldName = fieldName;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     @Override
@@ -65,7 +83,7 @@ public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements I
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             final String fieldName = fieldType.name();
-            return new VectorDVIndexFieldData(indexSettings.getIndex(), fieldName, isDense);
+            return new VectorIndexFieldData(indexSettings.getIndex(), fieldName, isDense);
         }
 
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -104,7 +105,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
         final Map<String, HttpHandler> handlers = new HashMap<>(2);
-        handlers.put("/", new GoogleCloudStorageBlobStoreHttpHandler("bucket"));
+        handlers.put("/", new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleCloudStorageBlobStoreHttpHandler("bucket")));
         handlers.put("/token", new FakeOAuth2HttpHandler());
         return Collections.unmodifiableMap(handlers);
     }
@@ -239,7 +240,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, clusterService) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
-                        return new GoogleCloudStorageBlobStore("bucket", "test", storageService) {
+                        return new GoogleCloudStorageBlobStore("bucket", "test", metadata.name(), storageService) {
                             @Override
                             long getLargeBlobThresholdInBytes() {
                                 return ByteSizeUnit.MB.toBytes(1);
@@ -294,6 +295,26 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
             return exchange.getRequestURI().toString().startsWith("/batch/") == false;
+        }
+    }
+
+    /**
+     * HTTP handler that keeps track of requests performed against GCP.
+     */
+    @SuppressForbidden(reason = "this tests uses a HttpServer to emulate an GCS endpoint")
+    private static class GoogleCloudStorageStatsCollectorHttpHandler extends HttpStatsCollectorHandler {
+
+        GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public void maybeTrack(final String request) {
+            if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
+                trackRequest("LIST");
+            } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
+                trackRequest("GET");
+            }
         }
     }
 }

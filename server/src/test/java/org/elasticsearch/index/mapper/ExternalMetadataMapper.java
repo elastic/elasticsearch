@@ -74,7 +74,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         context.doc().add(new StringField(FIELD_NAME, FIELD_VALUE, Store.YES));
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, ExternalMetadataMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         protected Builder() {
             super(FIELD_NAME, FIELD_TYPE, FIELD_TYPE);
@@ -90,7 +90,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
 
         @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                        ParserContext parserContext) throws MapperParsingException {
             return new Builder();
         }

@@ -31,15 +31,19 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -49,21 +53,68 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.function.Function;
 
-public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData implements IndexOrdinalsFieldData {
+public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
 
+    public static class Builder implements IndexFieldData.Builder {
+        private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+
+        public Builder() {
+            this(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        }
+
+        public Builder(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
+            this.scriptFunction = scriptFunction;
+        }
+
+        @Override
+        public SortedSetOrdinalsIndexFieldData build(
+            IndexSettings indexSettings,
+            MappedFieldType fieldType,
+            IndexFieldDataCache cache,
+            CircuitBreakerService breakerService,
+            MapperService mapperService
+        ) {
+            final String fieldName = fieldType.name();
+            return new SortedSetOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
+        }
+    }
+
+    protected final Index index;
+    protected final String fieldName;
     private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
-    private static final Logger logger = LogManager.getLogger(SortedSetDVOrdinalsIndexFieldData.class);
+    private static final Logger logger = LogManager.getLogger(SortedSetOrdinalsIndexFieldData.class);
 
-    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName,
-            CircuitBreakerService breakerService, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
-        super(indexSettings.getIndex(), fieldName);
+    public SortedSetOrdinalsIndexFieldData(
+        IndexSettings indexSettings,
+        IndexFieldDataCache cache,
+        String fieldName,
+        CircuitBreakerService breakerService,
+        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+    ) {
+        this.index = indexSettings.getIndex();
+        this.fieldName = fieldName;
         this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
         this.scriptFunction = scriptFunction;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 
     @Override
@@ -93,7 +144,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public LeafOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetDVBytesLeafFieldData(context.reader(), fieldName, scriptFunction);
+        return new SortedSetBytesLeafFieldData(context.reader(), fieldName, scriptFunction);
     }
 
     @Override

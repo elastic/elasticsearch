@@ -76,7 +76,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices, true);
         }
         final String[] allIndices = mergeIndiceNames(concreteIndices, remoteClusterIndices);
         final int totalNumRequest = concreteIndices.length + remoteClusterIndices.size();

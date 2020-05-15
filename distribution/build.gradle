@@ -37,7 +37,7 @@ apply plugin: 'elasticsearch.testclusters'
 // Concatenates the dependencies CSV files into a single file
 task generateDependenciesReport(type: ConcatFilesTask) {
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
-  headerLine = "name,version,url,license"
+  headerLine = "name,version,url,license,sourceURL"
   target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 }
 

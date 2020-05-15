@@ -52,7 +52,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -78,7 +78,7 @@ public class NumberFieldMapper extends FieldMapper {
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, NumberFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private Boolean ignoreMalformed;
         private Boolean coerce;
@@ -146,7 +146,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -963,7 +963,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(type.numericType());
+            return new SortedNumericIndexFieldData.Builder(type.numericType());
         }
 
         @Override

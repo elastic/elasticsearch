@@ -24,7 +24,6 @@ public final class HistoryStoreField {
      * Calculates the correct history index name for a given time
      */
     public static String getHistoryIndexNameForTime(ZonedDateTime time, ClusterState state) {
-        //null only allowed for testing
         if (state == null || state.nodes().getMinNodeVersion().onOrAfter(Version.V_7_7_0)) {
             return INDEX_PREFIX_WITH_TEMPLATE + indexTimeFormat.format(time);
         } else {

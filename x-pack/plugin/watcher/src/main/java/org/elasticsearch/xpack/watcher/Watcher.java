@@ -242,6 +242,10 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         this.settings = settings;
         this.transportClient = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
+
+        if (enabled && transportClient == false) {
+            validAutoCreateIndex(settings, logger);
+        }
     }
 
     // overridable by tests
@@ -256,10 +260,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        if (enabled && transportClient == false) {
-            validAutoCreateIndex(settings, logger, clusterService.state());
-        }
-
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -602,7 +602,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         module.addIndexOperationListener(listener);
     }
 
-    static void validAutoCreateIndex(Settings settings, Logger logger, ClusterState clusterState) {
+    static void validAutoCreateIndex(Settings settings, Logger logger) {
         String value = settings.get("action.auto_create_index");
         if (value == null) {
             return;
@@ -624,14 +624,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         indices.add(".watches");
         indices.add(".triggered_watches");
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, clusterState));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), clusterState));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), clusterState));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), clusterState));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), clusterState));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), clusterState));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), clusterState));
-        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), clusterState));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now, null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(2), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(3), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(4), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(5), null));
+        indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(6), null));
         for (String index : indices) {
             boolean matched = false;
             for (String match : matches) {

@@ -53,7 +53,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesPattern;
 
 public class IndexMetadataTests extends ESTestCase {
 

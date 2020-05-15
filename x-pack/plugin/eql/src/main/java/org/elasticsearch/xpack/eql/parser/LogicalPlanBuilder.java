@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
-import org.elasticsearch.xpack.eql.session.EmptyExecutable;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -92,12 +91,6 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         KeyedFilter until;
 
-        if (ctx.until != null) {
-            until = visitJoinTerm(ctx.until, parentJoinKeys);
-        } else {
-            until = defaultUntil(source);
-        }
-
         int numberOfKeys = -1;
         List<KeyedFilter> queries = new ArrayList<>(ctx.joinTerm().size());
 
@@ -114,8 +107,15 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                     throw new ParsingException(src, "Inconsistent number of join keys specified; expected [{}] but found [{}]", expected,
                             found);
                 }
-                queries.add(joinTerm);
             }
+            queries.add(joinTerm);
+        }
+
+        // until is already parsed through joinTerm() above
+        if (ctx.until != null) {
+            until = queries.remove(queries.size() - 1);
+        } else {
+            until = defaultUntil(source);
         }
 
         return new Join(source, queries, until, fieldTimestamp());
@@ -126,7 +126,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         // create a dummy keyed filter
         String notUsed = "<not-used>";
         Attribute tsField = new FieldAttribute(source, notUsed, new UnsupportedEsField(notUsed, notUsed));
-        return new KeyedFilter(source, new LocalRelation(source, new EmptyExecutable(emptyList())), emptyList(), tsField);
+        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), tsField);
     }
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
@@ -148,16 +148,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         TimeValue maxSpan = visitSequenceParams(ctx.sequenceParams());
 
         KeyedFilter until;
-        // TODO: unify this with the code from Join if the grammar gets aligned
-        if (ctx.until != null) {
-            until = visitSequenceTerm(ctx.until, parentJoinKeys);
-        } else {
-            until = defaultUntil(source);
-        }
-
         int numberOfKeys = -1;
         List<KeyedFilter> queries = new ArrayList<>(ctx.sequenceTerm().size());
 
+        // TODO: unify this with the code from Join if the grammar gets aligned
         for (SequenceTermContext sequenceTermCtx : ctx.sequenceTerm()) {
             KeyedFilter sequenceTerm = visitSequenceTerm(sequenceTermCtx, parentJoinKeys);
             int keySize = sequenceTerm.keys().size();
@@ -173,6 +167,13 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
             queries.add(sequenceTerm);
+        }
+
+        // until is already parsed through sequenceTerm() above
+        if (ctx.until != null) {
+            until = queries.remove(queries.size() - 1);
+        } else {
+            until = defaultUntil(source);
         }
 
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp());

@@ -103,11 +103,17 @@ public class AbstractNativeProcessTests extends ESTestCase {
     }
 
     public void testStart_DoNotDetectCrashWhenProcessIsBeingKilled() throws Exception {
-        try (AbstractNativeProcess process = new TestNativeProcess()) {
+        AbstractNativeProcess process = new TestNativeProcess();
+        try {
             process.start(executorService);
             process.kill();
+        } finally {
+            // It is critical that this comes after kill() but before close(), otherwise we
+            // would not be accurately simulating a kill().  This is why try-with-resources
+            // is not used in this case.
             mockNativeProcessLoggingStreamEnds.countDown();
             // Not detecting a crash is confirmed in terminateExecutorService()
+            process.close();
         }
     }
 

@@ -43,9 +43,9 @@ public class NativeControllerTests extends ESTestCase {
 
     public void testStartProcessCommand() throws IOException {
 
-        NamedPipeHelper namedPipeHelper = mock(NamedPipeHelper.class);
-        InputStream logStream = mock(InputStream.class);
-        CountDownLatch mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
+        final NamedPipeHelper namedPipeHelper = mock(NamedPipeHelper.class);
+        final InputStream logStream = mock(InputStream.class);
+        final CountDownLatch mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
         doAnswer(
             invocationOnMock -> {
                 mockNativeProcessLoggingStreamEnds.await();

@@ -97,7 +97,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
         Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
-        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), .0f, finalListener, isTimedOutSupplier, true);
+        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
 
         assertFalse(succeeded.get());
     }

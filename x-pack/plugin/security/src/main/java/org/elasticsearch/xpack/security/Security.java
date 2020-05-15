@@ -366,12 +366,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                         NamedXContentRegistry xContentRegistry, Environment environment,
                                         IndexNameExpressionResolver expressionResolver,
                                         SSLService sslService, XPackLicenseState licenseState) throws Exception {
+        // needed by processors
+        this.licenseState.set(licenseState);
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
 
         this.sslService.set(sslService);
-        this.licenseState.set(licenseState);
 
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.

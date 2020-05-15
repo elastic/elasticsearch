@@ -20,7 +20,7 @@ import org.elasticsearch.gradle.info.BuildParams
  */
 
 apply plugin: 'nebula.optional-base'
-apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'elasticsearch.publish'
 
 archivesBaseName = 'elasticsearch-core'
 

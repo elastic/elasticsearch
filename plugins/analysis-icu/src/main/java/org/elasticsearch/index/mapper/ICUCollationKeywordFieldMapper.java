@@ -221,7 +221,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ICUCollationKeywordFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private String rules = null;
         private String language = null;
         private String country = null;
@@ -481,7 +481,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);

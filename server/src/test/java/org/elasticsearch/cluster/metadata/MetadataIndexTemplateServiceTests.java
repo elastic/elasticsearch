@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -778,6 +779,74 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
+    }
+
+    public void testAddInvalidTemplate() throws Exception {
+        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("a"), null,
+            Arrays.asList("good", "bad"), null, null, null);
+        ComponentTemplate ct = new ComponentTemplate(new Template(Settings.EMPTY, null, null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        CountDownLatch ctLatch = new CountDownLatch(1);
+        service.putComponentTemplate("api", randomBoolean(), "good", TimeValue.timeValueSeconds(5), ct,
+            ActionListener.wrap(r -> ctLatch.countDown(), e -> {
+                logger.error("unexpected error", e);
+                fail("unexpected error");
+            }));
+        ctLatch.await(5, TimeUnit.SECONDS);
+        InvalidIndexTemplateException e = expectThrows(InvalidIndexTemplateException.class,
+            () -> {
+                CountDownLatch latch = new CountDownLatch(1);
+                AtomicReference<Exception> err = new AtomicReference<>();
+                service.putIndexTemplateV2("api", randomBoolean(), "template", TimeValue.timeValueSeconds(30), template,
+                    ActionListener.wrap(r -> fail("should have failed!"), exception -> {
+                        err.set(exception);
+                        latch.countDown();
+                    }));
+                latch.await(5, TimeUnit.SECONDS);
+                if (err.get() != null) {
+                    throw err.get();
+                }
+            });
+
+        assertThat(e.name(), equalTo("template"));
+        assertThat(e.getMessage(), containsString("index template [template] specifies " +
+            "component templates [bad] that do not exist"));
+    }
+
+    public void testRemoveComponentTemplateInUse() throws Exception {
+        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("a"), null,
+            Collections.singletonList("ct"), null, null, null);
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        CountDownLatch ctLatch = new CountDownLatch(1);
+        service.putComponentTemplate("api", false, "ct", TimeValue.timeValueSeconds(5), ct,
+            ActionListener.wrap(r -> ctLatch.countDown(), e -> fail("unexpected error")));
+        ctLatch.await(5, TimeUnit.SECONDS);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        service.putIndexTemplateV2("api", false, "template", TimeValue.timeValueSeconds(30), template,
+            ActionListener.wrap(r -> latch.countDown(), e -> fail("unexpected error")));
+        latch.await(5, TimeUnit.SECONDS);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> {
+                AtomicReference<Exception> err = new AtomicReference<>();
+                CountDownLatch errLatch = new CountDownLatch(1);
+                service.removeComponentTemplate("c*", TimeValue.timeValueSeconds(30),
+                    ActionListener.wrap(r -> fail("should have failed!"), exception -> {
+                        err.set(exception);
+                        errLatch.countDown();
+                    }));
+                errLatch.await(5, TimeUnit.SECONDS);
+                if (err.get() != null) {
+                    throw err.get();
+                }
+            });
+
+        assertThat(e.getMessage(),
+            containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]"));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

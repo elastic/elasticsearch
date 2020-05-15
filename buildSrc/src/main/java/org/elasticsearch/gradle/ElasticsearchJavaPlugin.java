@@ -58,7 +58,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -498,7 +497,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 throw new UncheckedIOException(e);
             }
 
-            // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+            // remove compiled classes from the Javadoc classpath:
+            // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
             javadoc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath());
             /*
              * Generate docs using html5 to suppress a warning from `javadoc`

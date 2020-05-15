@@ -39,19 +39,8 @@ import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
-import org.gradle.api.tasks.compile.JavaCompile;
-import org.gradle.api.tasks.javadoc.Javadoc;
-import org.gradle.external.javadoc.CoreJavadocOptions;
-import org.gradle.internal.jvm.Jvm;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.Callable;
 
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;

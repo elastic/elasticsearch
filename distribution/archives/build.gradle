@@ -327,6 +327,7 @@ subprojects {
 configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
+  apply plugin: 'elasticsearch.yaml-test'
 
   group = "org.elasticsearch.distribution.integ-test-zip"
 
@@ -336,7 +337,7 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
     }
   }
 
-  integTest {
+  yamlTest {
     dependsOn assemble
   }
 

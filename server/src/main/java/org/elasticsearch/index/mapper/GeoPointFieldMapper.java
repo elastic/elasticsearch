@@ -49,7 +49,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
         implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldMapper, GeoPointFieldType> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldType> {
         public Builder(String name) {
             super(name, new GeoPointFieldType(), new GeoPointFieldType());
             builder = this;

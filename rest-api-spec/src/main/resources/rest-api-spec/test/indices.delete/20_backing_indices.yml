@@ -55,7 +55,7 @@ setup:
   - is_false: ''
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: "*"
   - match: { 0.name: simple-data-stream }
   - match: { 0.timestamp_field: '@timestamp' }

@@ -51,7 +51,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 
@@ -307,7 +307,7 @@ public class IndexMetadataTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
         assertThat(
             e.getMessage(),
-            matchesPattern("Failed to parse value \\[" + numberOfShards + "\\] for setting \\[index.number_of_shards] must be >= 1"));
+            equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1"));
     }
 
     public void testMissingNumberOfReplicas() {
@@ -328,8 +328,8 @@ public class IndexMetadataTests extends ESTestCase {
             expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
         assertThat(
             e.getMessage(),
-            matchesPattern(
-                "Failed to parse value \\[" + numberOfReplicas + "\\] for setting \\[index.number_of_replicas] must be >= 0"));
+            equalTo(
+                "Failed to parse value [" + numberOfReplicas + "] for setting [index.number_of_replicas] must be >= 0"));
     }
 
 }

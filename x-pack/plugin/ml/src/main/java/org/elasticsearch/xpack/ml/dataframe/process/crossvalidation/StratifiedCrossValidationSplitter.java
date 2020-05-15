@@ -57,7 +57,7 @@ public class StratifiedCrossValidationSplitter implements CrossValidationSplitte
             throw new IllegalStateException("Unknown class [" + classValue + "]; expected one of " + classSamples.keySet());
         }
 
-        // We use ensure the target sample count is at least 1 as if the cardinality
+        // We ensure the target sample count is at least 1 as if the cardinality
         // is too low we might get a target of zero and, thus, no samples of the whole class
         double targetSampleCount = Math.max(1.0, samplingRatio * sample.cardinality);
 

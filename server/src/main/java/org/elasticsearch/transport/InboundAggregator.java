@@ -37,7 +37,7 @@ import java.util.function.Supplier;
 
 public class InboundAggregator implements Releasable {
 
-    private final Supplier<CircuitBreaker> circuitBreaker;
+    private final MemoryController memoryController;
     private final Predicate<String> requestCanTripBreaker;
 
     private ReleasableBytesReference firstContent;
@@ -49,7 +49,7 @@ public class InboundAggregator implements Releasable {
 
     public InboundAggregator(Supplier<CircuitBreaker> circuitBreaker,
                              Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction) {
-        this(circuitBreaker, (Predicate<String>) actionName -> {
+        this(new MemoryController(circuitBreaker), (Predicate<String>) actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
                 throw new ActionNotFoundTransportException(actionName);
@@ -61,7 +61,12 @@ public class InboundAggregator implements Releasable {
 
     // Visible for testing
     InboundAggregator(Supplier<CircuitBreaker> circuitBreaker, Predicate<String> requestCanTripBreaker) {
-        this.circuitBreaker = circuitBreaker;
+        this(new MemoryController(circuitBreaker), requestCanTripBreaker);
+    }
+
+    // Visible for testing
+    InboundAggregator(MemoryController memoryController, Predicate<String> requestCanTripBreaker) {
+        this.memoryController = memoryController;
         this.requestCanTripBreaker = requestCanTripBreaker;
     }
 
@@ -70,8 +75,8 @@ public class InboundAggregator implements Releasable {
         assert isAggregating() == false;
         assert firstContent == null && contentAggregation == null;
         currentHeader = header;
-        if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false) {
-            initializeRequestState();
+        if (currentHeader.needsToReadVariableHeader() == false) {
+            initializeState();
         }
     }
 
@@ -79,6 +84,7 @@ public class InboundAggregator implements Releasable {
         ensureOpen();
         assert isAggregating();
         if (isShortCircuited() == false) {
+            memoryController.inboundBytesBuffered(content.length());
             if (isFirstContent()) {
                 firstContent = content.retain();
             } else {
@@ -106,15 +112,13 @@ public class InboundAggregator implements Releasable {
             releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
         }
 
-        final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
+        final BreakerControl breakerControl = new BreakerControl(memoryController);
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
         try {
             if (aggregated.getHeader().needsToReadVariableHeader()) {
                 aggregated.getHeader().finishParsingHeader(aggregated.openOrGetStreamInput());
-                if (aggregated.getHeader().isRequest()) {
-                    initializeRequestState();
-                }
+                initializeState();
             }
             if (isShortCircuited() == false) {
                 checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
@@ -184,10 +188,13 @@ public class InboundAggregator implements Releasable {
         }
     }
 
-    private void initializeRequestState() {
+    private void initializeState() {
         assert currentHeader.needsToReadVariableHeader() == false;
-        assert currentHeader.isRequest();
         if (currentHeader.isHandshake()) {
+            canTripBreaker = false;
+            return;
+        }
+        if (currentHeader.isResponse()) {
             canTripBreaker = false;
             return;
         }
@@ -201,21 +208,12 @@ public class InboundAggregator implements Releasable {
     }
 
     private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {
-        if (header.isRequest() == false) {
-            return;
-        }
         assert header.needsToReadVariableHeader() == false;
-
-        if (canTripBreaker) {
-            try {
-                circuitBreaker.get().addEstimateBytesAndMaybeBreak(contentLength, header.getActionName());
-                breakerControl.setReservedBytes(contentLength);
-            } catch (CircuitBreakingException e) {
-                shortCircuit(e);
-            }
-        } else {
-            circuitBreaker.get().addWithoutBreaking(contentLength);
+        try {
+            memoryController.transferBytesToApplicationLayer(contentLength, header.getActionName(), canTripBreaker);
             breakerControl.setReservedBytes(contentLength);
+        } catch (CircuitBreakingException e) {
+            shortCircuit(e);
         }
     }
 
@@ -223,11 +221,11 @@ public class InboundAggregator implements Releasable {
 
         private static final int CLOSED = -1;
 
-        private final Supplier<CircuitBreaker> circuitBreaker;
+        private final MemoryController memoryController;
         private final AtomicInteger bytesToRelease = new AtomicInteger(0);
 
-        private BreakerControl(Supplier<CircuitBreaker> circuitBreaker) {
-            this.circuitBreaker = circuitBreaker;
+        private BreakerControl(MemoryController memoryController) {
+            this.memoryController = memoryController;
         }
 
         private void setReservedBytes(int reservedBytes) {
@@ -240,7 +238,7 @@ public class InboundAggregator implements Releasable {
             final int toRelease = bytesToRelease.getAndSet(CLOSED);
             assert toRelease != CLOSED;
             if (toRelease > 0) {
-                circuitBreaker.get().addWithoutBreaking(-toRelease);
+                memoryController.releaseApplicationLayerBytes(toRelease);
             }
         }
     }

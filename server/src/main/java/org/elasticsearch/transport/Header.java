@@ -30,7 +30,7 @@ import java.util.Set;
 
 public class Header {
 
-    private static final String RESPONSE_NAME = "NO_ACTION_NAME_FOR_RESPONSES";
+    private static final String RESPONSE_NAME = "action_response";
 
     private final int networkMessageSize;
     private final Version version;

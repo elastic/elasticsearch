@@ -23,9 +23,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -112,9 +115,9 @@ public class InboundHandler {
                 // ignore if its null, the service logs it
                 if (handler != null) {
                     if (header.isError()) {
-                        handlerResponseError(streamInput, handler);
+                        handleResponseError(message, streamInput, handler);
                     } else {
-                        handleResponse(remoteAddress, streamInput, handler);
+                        handleResponse(message, remoteAddress, streamInput, handler);
                     }
                     // Check the entire message has been read
                     final int nextByte = streamInput.read();
@@ -184,50 +187,66 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
-                                                              final TransportResponseHandler<T> handler) {
+    private <T extends TransportResponse> void handleResponse(final InboundMessage message, InetSocketAddress remoteAddress,
+                                                              final StreamInput stream, final TransportResponseHandler<T> handler) {
         final T response;
         try {
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
         } catch (Exception e) {
-            handleException(handler, new TransportSerializationException(
-                "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
+            String msg = "Failed to deserialize response from handler [" + handler.getClass().getName() + "]";
+            handleException(message, handler, new TransportSerializationException(msg, e));
             return;
         }
+        final Releasable breakerControl = message.takeBreakerReleaseControl();
         threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                handleException(handler, new ResponseHandlerFailureTransportException(e));
+                handleException(message, handler, new ResponseHandlerFailureTransportException(e));
             }
 
             @Override
             protected void doRun() {
                 handler.handleResponse(response);
             }
+
+            @Override
+            public void onAfter() {
+                Releasables.closeWhileHandlingException(breakerControl);
+            }
         });
     }
 
-    private void handlerResponseError(StreamInput stream, final TransportResponseHandler<?> handler) {
+    private void handleResponseError(final InboundMessage message, final StreamInput stream, final TransportResponseHandler<?> handler) {
         Exception error;
         try {
             error = stream.readException();
         } catch (Exception e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
-        handleException(handler, error);
+        handleException(message, handler, error);
     }
 
-    private void handleException(final TransportResponseHandler<?> handler, Throwable error) {
+    private void handleException(final InboundMessage message, final TransportResponseHandler<?> handler, Throwable error) {
         if (!(error instanceof RemoteTransportException)) {
             error = new RemoteTransportException(error.getMessage(), error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
-        threadPool.executor(handler.executor()).execute(() -> {
-            try {
-                handler.handleException(rtx);
-            } catch (Exception e) {
+        final Releasable breakerControl = message.takeBreakerReleaseControl();
+        threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
                 logger.error(() -> new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
+            }
+
+            @Override
+            protected void doRun() {
+                handler.handleException(rtx);
+            }
+
+            @Override
+            public void onAfter() {
+                Releasables.closeWhileHandlingException(breakerControl);
             }
         });
     }

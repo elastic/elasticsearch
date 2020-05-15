@@ -45,6 +45,7 @@ public class InboundAggregatorTests extends ESTestCase {
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private final String unBreakableAction = "non_breakable_action";
     private final String unknownAction = "unknown_action";
+    private MemoryController memoryController;
     private InboundAggregator aggregator;
     private TestCircuitBreaker circuitBreaker;
 
@@ -60,14 +61,26 @@ public class InboundAggregatorTests extends ESTestCase {
             }
         };
         circuitBreaker = new TestCircuitBreaker();
-        aggregator = new InboundAggregator(() -> circuitBreaker, requestCanTripBreaker);
+        memoryController = new MemoryController(() -> circuitBreaker);
+        aggregator = new InboundAggregator(memoryController, requestCanTripBreaker);
     }
 
     public void testInboundAggregation() throws IOException {
         long requestId = randomNonNegativeLong();
-        Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
+        byte status;
+        boolean isRequest = randomBoolean();
+        if (isRequest) {
+            status = TransportStatus.setRequest((byte) 0);
+        } else {
+            status = TransportStatus.setResponse((byte) 0);
+        }
+        Header header = new Header(randomInt(), requestId, status, Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
-        header.actionName = "action_name";
+        if (isRequest) {
+            header.actionName = "action_name";
+        } else {
+            header.actionName = "action_response";
+        }
         // Initiate Message
         aggregator.headerReceived(header);
 
@@ -77,28 +90,41 @@ public class InboundAggregatorTests extends ESTestCase {
             final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
             references.add(content);
             aggregator.aggregate(content);
+            assertEquals(content.length(), memoryController.getInboundBufferedBytes());
             content.close();
         } else {
+            long bytesBuffered = 0;
             final ReleasableBytesReference content1 = ReleasableBytesReference.wrap(bytes.slice(0, 3));
             references.add(content1);
             aggregator.aggregate(content1);
+            bytesBuffered += content1.length();
+            assertEquals(bytesBuffered, memoryController.getInboundBufferedBytes());
             content1.close();
             final ReleasableBytesReference content2 = ReleasableBytesReference.wrap(bytes.slice(3, 3));
             references.add(content2);
             aggregator.aggregate(content2);
+            bytesBuffered += content2.length();
+            assertEquals(bytesBuffered, memoryController.getInboundBufferedBytes());
             content2.close();
             final ReleasableBytesReference content3 = ReleasableBytesReference.wrap(bytes.slice(6, 4));
             references.add(content3);
             aggregator.aggregate(content3);
+            bytesBuffered += content3.length();
             content3.close();
+            assertEquals(bytesBuffered, memoryController.getInboundBufferedBytes());
         }
 
         // Signal EOS
         InboundMessage aggregated = aggregator.finishAggregation();
 
+        assertEquals(0, memoryController.getInboundBufferedBytes());
         assertThat(aggregated, notNullValue());
         assertFalse(aggregated.isPing());
-        assertTrue(aggregated.getHeader().isRequest());
+        if (isRequest) {
+            assertTrue(aggregated.getHeader().isRequest());
+        } else {
+            assertTrue(aggregated.getHeader().isResponse());
+        }
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
         assertThat(aggregated.getHeader().getVersion(), equalTo(Version.CURRENT));
         for (ReleasableBytesReference reference : references) {
@@ -110,7 +136,7 @@ public class InboundAggregatorTests extends ESTestCase {
         }
     }
 
-    public void testInboundUnknownAction() throws IOException {
+    public void testInboundUnknownRequestAction() throws IOException {
         long requestId = randomNonNegativeLong();
         Header header = new Header(randomInt(), requestId, TransportStatus.setRequest((byte) 0), Version.CURRENT);
         header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());

@@ -47,11 +47,18 @@ import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -76,6 +83,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         configureTestTasks(project);
         configureJars(project);
         configureJarManifest(project);
+        configureJavadoc(project);
     }
 
     /**
@@ -474,5 +482,34 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getPluginManager().apply("nebula.info-basic");
         project.getPluginManager().apply("nebula.info-java");
         project.getPluginManager().apply("nebula.info-jar");
+    }
+
+    private static void configureJavadoc(Project project) {
+        project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
+            // only explicitly set javadoc executable if compiler JDK is different from Gradle
+            // this ensures better cacheability as setting ths input to an absolute path breaks portability
+            Path compilerJvm = BuildParams.getCompilerJavaHome().toPath();
+            Path gradleJvm = Jvm.current().getJavaHome().toPath();
+            try {
+                if (Files.isSameFile(compilerJvm, gradleJvm) == false) {
+                    javadoc.setExecutable(compilerJvm.resolve("bin/javadoc").toString());
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+            // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+            javadoc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath());
+            /*
+             * Generate docs using html5 to suppress a warning from `javadoc`
+             * that the default will change to html5 in the future.
+             */
+            CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
+            javadocOptions.addBooleanOption("html5", true);
+        });
+        // ensure javadoc task is run with 'check'
+        project.getTasks()
+            .named(LifecycleBasePlugin.CHECK_TASK_NAME)
+            .configure(t -> t.dependsOn(project.getTasks().withType(Javadoc.class)));
     }
 }

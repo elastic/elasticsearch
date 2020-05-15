@@ -62,11 +62,9 @@ public class PublishPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply("nebula.maven-base-publish");
 
-        configureJavadoc(project);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
-
     }
 
     private static String getArchivesBaseName(Project project) {
@@ -77,7 +75,6 @@ public class PublishPlugin implements Plugin<Project> {
     private static void configurePomGeneration(Project project) {
 
         TaskProvider<Task> generatePomTask = project.getTasks().register("generatePom");
-        // generatePomTask.configure(t -> t.dependsOn("generatePomFileForNebulaPublication"));
 
         maybeConfigure(project.getTasks(), LifecycleBasePlugin.ASSEMBLE_TASK_NAME, assemble -> assemble.dependsOn(generatePomTask));
 
@@ -141,36 +138,6 @@ public class PublishPlugin implements Plugin<Project> {
         scmNode.appendNode("url", BuildParams.getGitOrigin());
     }
 
-    private static void configureJavadoc(Project project) {
-        // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-        final List<File> classes = new ArrayList<>();
-        project.getTasks().withType(JavaCompile.class).configureEach(javaCompile -> classes.add(javaCompile.getDestinationDir()));
-        project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
-            // only explicitly set javadoc executable if compiler JDK is different from Gradle
-            // this ensures better cacheability as setting ths input to an absolute path breaks portability
-            Path compilerJvm = BuildParams.getCompilerJavaHome().toPath();
-            Path gradleJvm = Jvm.current().getJavaHome().toPath();
-            try {
-                if (Files.isSameFile(compilerJvm, gradleJvm) == false) {
-                    javadoc.setExecutable(compilerJvm.resolve("bin/javadoc").toString());
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            javadoc.setClasspath(javadoc.getClasspath().filter(f -> classes.contains(f) == false));
-            /*
-             * Generate docs using html5 to suppress a warning from `javadoc`
-             * that the default will change to html5 in the future.
-             */
-            CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
-            javadocOptions.addBooleanOption("html5", true);
-        });
-        // ensure javadoc task is run with 'check'
-        project.getTasks()
-            .named(LifecycleBasePlugin.CHECK_TASK_NAME)
-            .configure(t -> t.dependsOn(project.getTasks().withType(Javadoc.class)));
-    }
-
     /** Adds a javadocJar task to generate a jar containing javadocs. */
     private static void configureJavadocJar(Project project) {
         project.getPlugins().withId("elasticsearch.java", p -> {
@@ -198,5 +165,4 @@ public class PublishPlugin implements Plugin<Project> {
             maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(sourcesJarTask));
         });
     }
-
 }

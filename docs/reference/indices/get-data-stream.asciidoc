@@ -9,6 +9,20 @@ Returns information about one or more data streams.
 ////
 [source,console]
 -----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
 PUT /_data_stream/my-data-stream
 {
   "timestamp_field" : "@timestamp"
@@ -21,6 +35,7 @@ PUT /_data_stream/my-data-stream
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
+DELETE /_index_template/*
 -----------------------------------
 // TEARDOWN
 ////

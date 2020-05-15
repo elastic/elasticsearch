@@ -1,3 +1,19 @@
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [simple-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [simple-*]
+          template:
+            mappings:
+              properties:
+                @timestamp:
+                   type: date
+
 ---
 "Delete backing index on data stream":
   - skip:

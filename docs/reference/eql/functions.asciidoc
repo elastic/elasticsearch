@@ -135,8 +135,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<left>`::
@@ -153,8 +151,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 `<right>`::
@@ -171,8 +167,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 `<greedy_matching>`::
@@ -416,10 +410,6 @@ endsWith(file.name, ".dll")               // returns false
 endsWith("regsvr32.exe", file.extension)  // returns true
 endsWith("ntdll.dll", file.name)          // returns false
 
-// file.name = [ "ntdll.dll", "regsvr32.exe" ]
-endsWith(file.name, ".dll")               // returns true
-endsWith(file.name, ".exe")               // returns false
-
 // null handling
 endsWith("regsvr32.exe", null)            // returns null
 endsWith("", null)                        // returns null
@@ -448,8 +438,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::
@@ -621,8 +609,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-<<array,Array values>> are not supported.
 --
 
 *Returns:* integer or `null`
@@ -925,10 +911,6 @@ startsWith(process.name, "explorer")    // returns false
 startsWith("regsvr32.exe", process.name) // returns true
 startsWith("explorer.exe", process.name) // returns false
 
-// process.name = [ "explorer.exe", "regsvr32.exe" ]
-startsWith(process.name, "explorer")    // returns true
-startsWith(process.name, "regsvr32")    // returns false
-
 // null handling
 startsWith("regsvr32.exe", null)        // returns null
 startsWith("", null)                    // returns null
@@ -957,8 +939,6 @@ field datatypes:
 * <<constant-keyword,`constant_keyword`>>
 * <<text,`text`>> field with a <<keyword,`keyword`>> or
   <<constant-keyword,`constant_keyword`>> sub-field
-
-Fields containing <<array,array values>> use the first array item only.
 --
 
 `<substring>`::

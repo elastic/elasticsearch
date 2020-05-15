@@ -36,6 +36,9 @@ public class RestIntegTestTask extends DefaultTask {
     private static final String TESTS_CLUSTER = "tests.cluster";
     private static final String TESTS_CLUSTER_NAME = "tests.clustername";
 
+    // TODO: refactor this so that work is not done in constructor and find usages and register, not create the tasks (.create -->
+    // .register)
+    // See: https://docs.gradle.org/current/userguide/task_configuration_avoidance.html
     public RestIntegTestTask() {
         Project project = getProject();
         String name = getName();

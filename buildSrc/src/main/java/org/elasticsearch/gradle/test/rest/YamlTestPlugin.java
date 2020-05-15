@@ -23,24 +23,15 @@ import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.bundling.Zip;
-import org.gradle.plugins.ide.eclipse.model.EclipseModel;
-import org.gradle.plugins.ide.idea.model.IdeaModel;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Apply this plugin to run the YAML based REST tests. This will adda
@@ -59,32 +50,31 @@ public class YamlTestPlugin implements Plugin<Project> {
             );
         }
 
-        // project.getPluginManager().apply(JavaPlugin.class); // for the Java based runner
-        project.getPluginManager().apply(TestClustersPlugin.class); // to spin up the external cluster
-        project.getPluginManager().apply(RestResourcesPlugin.class); // to copy around the yaml tests and json spec
+        // to spin up the external cluster
+        project.getPluginManager().apply(TestClustersPlugin.class);
+        // to copy around the yaml tests and json spec
+        project.getPluginManager().apply(RestResourcesPlugin.class);
+
+        // note - source sets are not created via org.elasticsearch.gradle.util.GradleUtils.addTestSourceSet since unlike normal tests
+        // we only want the yamlTestSourceSet on the classpath by default. The yaml tests should be pure black box testing over HTTP and
+        // such it should not need the main class on the class path. Also, there are some special setup steps unique to YAML tests.
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet yamlTestSourceSet = sourceSets.create("yamlTest");
+        SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        // create task
+        // create task - note can not use .register due to the work in RestIntegTestTask's constructor :(
         RestIntegTestTask yamlTestTask = project.getTasks()
-            .create("yamlTest", RestIntegTestTask.class, task -> {
-                task.dependsOn(project.getTasks().getByName("copyRestApiSpecsTask"));
-            });
+            .create(
+                SOURCE_SET_NAME,
+                RestIntegTestTask.class,
+                task -> { task.dependsOn(project.getTasks().getByName("copyRestApiSpecsTask")); }
+            );
         yamlTestTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
         yamlTestTask.setDescription("Runs the YAML based REST tests against an external cluster");
 
         // setup task dependency
-        project.getDependencies().add("yamlTestCompile", project.project(":test:framework"));
-
-        // ensure correct dependency and execution order
-        project.getTasks().getByName("check").dependsOn(yamlTestTask);
-        Task testTask = project.getTasks().findByName("test");
-        if (testTask != null) {
-            yamlTestTask.mustRunAfter(testTask);
-        }
-        yamlTestTask.mustRunAfter(project.getTasks().getByName("precommit"));
+        project.getDependencies().add(SOURCE_SET_NAME + "Compile", project.project(":test:framework"));
 
         // setup the runner
         RestTestRunnerTask runner = (RestTestRunnerTask) project.getTasks().getByName(yamlTestTask.getName() + "Runner");
@@ -118,21 +108,19 @@ public class YamlTestPlugin implements Plugin<Project> {
             }
         });
 
-        // setup eclipse
-        EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-        List<SourceSet> eclipseSourceSets = StreamSupport.stream(eclipse.getClasspath().getSourceSets().spliterator(), false)
-            .collect(Collectors.toList());
-        eclipseSourceSets.add(yamlTestSourceSet);
-        eclipse.getClasspath().setSourceSets(eclipseSourceSets);
-        List<Configuration> plusConfiguration = new ArrayList<>(eclipse.getClasspath().getPlusConfigurations());
-        plusConfiguration.add(project.getConfigurations().getByName("yamlTestRuntimeClasspath"));
-        eclipse.getClasspath().setPlusConfigurations(plusConfiguration);
+        // setup IDE
+        GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);
 
-        // setup intellij
-        IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-        idea.getModule().getTestSourceDirs().addAll(yamlTestSourceSet.getJava().getSrcDirs());
-        idea.getModule()
-            .getScopes()
-            .put("TEST", Map.of("plus", Collections.singletonList(project.getConfigurations().getByName("yamlTestRuntimeClasspath"))));
+        // run test tasks first if they exist since they are presumably faster and less resources intensive
+        Task testTask = project.getTasks().findByName("test");
+        if (testTask != null) {
+            yamlTestTask.mustRunAfter(testTask);
+        }
+
+        // validation of the rest specification is wired to precommit, so ensure that runs first
+        yamlTestTask.mustRunAfter(project.getTasks().getByName("precommit"));
+
+        // wire this task into check
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlTestTask));
     }
 }

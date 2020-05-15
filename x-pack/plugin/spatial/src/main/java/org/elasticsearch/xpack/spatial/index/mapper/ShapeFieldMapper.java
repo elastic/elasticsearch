@@ -45,7 +45,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
-            ShapeFieldMapper, ShapeFieldType> {
+            ShapeFieldType> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);

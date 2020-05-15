@@ -12,7 +12,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.Closeable;
 import java.util.Arrays;
@@ -68,6 +72,25 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 (ContextParser<String, CancellingAggregationBuilder>) (p, c) -> {
                     throw new IllegalStateException("not implemented");
                 }).addResultReader(InternalFilter::new));
+        }
+    }
+
+    @Before
+    public void startMaintenanceService() {
+        for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
+            if (service.lifecycleState() == Lifecycle.State.STOPPED) {
+                // force the service to start again
+                service.start();
+                ClusterState state = internalCluster().clusterService().state();
+                service.clusterChanged(new ClusterChangedEvent("noop", state, state));
+            }
+        }
+    }
+
+    @After
+    public void stopMaintenanceService() {
+        for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
+            service.stop();
         }
     }
 

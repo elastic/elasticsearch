@@ -2,8 +2,8 @@
 [[paginate-search-results]]
 === Paginate search results
 
-By default, the search API returns documents for only the top 10 search
-results, starting with the first, most relevant document.
+By default, the search API returns the top 10 matching documents, 
+starting with the most-relevant document.
 
 To paginate a larger set of search results, you can use the search API's `size`
 and `from` parameters. The `from` parameter is a zero-indexed offset from

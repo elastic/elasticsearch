@@ -203,6 +203,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             } else {
                 properties = EnumSet.allOf(Property.class);
             }
+            assert licenseState.get() != null;
             return new SetSecurityUserProcessor(tag, securityContext.get(), licenseState.get(), field, properties);
         }
     }

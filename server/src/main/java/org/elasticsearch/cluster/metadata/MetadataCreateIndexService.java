@@ -82,6 +82,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -330,19 +331,14 @@ public class MetadataCreateIndexService {
             // Check to see if a v2 template matched
             final String v2Template = MetadataIndexTemplateService.findV2Template(currentState.metadata(),
                 request.index(), isHiddenFromRequest == null ? false : isHiddenFromRequest);
-            final boolean preferV2Templates = resolvePreferV2Templates(request);
 
-            if (v2Template != null && preferV2Templates) {
+            if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
                 // the index using that template and the request's specified settings
                 return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer);
             } else {
-                if (v2Template != null) {
-                    logger.debug("ignoring matching index template [{}] as [prefer_v2_templates] is set to false", v2Template);
-                }
-                // A v2 template wasn't found (or is not preferred), check the v1 templates, in the
-                // event no templates are found creation still works using the request's specified
-                // index settings
+                // A v2 template wasn't found, check the v1 templates, in the event no templates are
+                // found creation still works using the request's specified index settings
                 final List<IndexTemplateMetadata> v1Templates = MetadataIndexTemplateService.findV1Templates(currentState.metadata(),
                     request.index(), isHiddenFromRequest);
 
@@ -355,11 +351,6 @@ public class MetadataCreateIndexService {
                 return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
             }
         }
-    }
-
-    private static boolean resolvePreferV2Templates(CreateIndexClusterStateUpdateRequest request) {
-        return request.preferV2Templates() == null ?
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(request.settings()) : request.preferV2Templates();
     }
 
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
@@ -430,8 +421,7 @@ public class MetadataCreateIndexService {
     private IndexMetadata buildAndValidateTemporaryIndexMetadata(final ClusterState currentState,
                                                                  final Settings aggregatedIndexSettings,
                                                                  final CreateIndexClusterStateUpdateRequest request,
-                                                                 final int routingNumShards,
-                                                                 final boolean preferV2Templates) {
+                                                                 final int routingNumShards) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
         validateDotIndex(request.index(), currentState, isHiddenAfterTemplates);
@@ -439,7 +429,6 @@ public class MetadataCreateIndexService {
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
         settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
-        settingsBuilder.put(IndexMetadata.PREFER_V2_TEMPLATES_SETTING.getKey(), preferV2Templates);
         final Settings indexSettings = settingsBuilder.build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
@@ -470,8 +459,7 @@ public class MetadataCreateIndexService {
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates), mappings,
                 null, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            resolvePreferV2Templates(request));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
@@ -497,8 +485,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
                 mappings, null, settings, indexScopedSettings);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            resolvePreferV2Templates(request));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
@@ -531,8 +518,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, Settings.EMPTY, mappings, sourceMetadata, settings, indexScopedSettings);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards,
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING.get(sourceMetadata.getSettings()));
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
         return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),
@@ -576,6 +562,7 @@ public class MetadataCreateIndexService {
                 Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
                 Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
 
+                nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerTemplateNonProperties);
                 XContentHelper.mergeDefaults(innerTemplateNonProperties, nonProperties);
                 nonProperties = innerTemplateNonProperties;
 
@@ -590,6 +577,7 @@ public class MetadataCreateIndexService {
             Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
             Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
 
+            nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerRequestMappings);
             XContentHelper.mergeDefaults(innerRequestNonProperties, nonProperties);
             nonProperties = innerRequestNonProperties;
 
@@ -598,9 +586,99 @@ public class MetadataCreateIndexService {
             }
         }
 
-        Map<String, Object> finalMappings = new HashMap<>(nonProperties);
+        Map<String, Object> finalMappings = dedupDynamicTemplates(nonProperties);
         finalMappings.put("properties", properties);
         return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
+    }
+
+    /**
+     * Removes the already seen/processed dynamic templates from the previouslySeenMapping if they are defined (we're
+     * identifying the dynamic templates based on the name only, *not* on the full definition) in the newMapping we are about to
+     * process (and merge)
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> removeDuplicatedDynamicTemplates(Map<String, Object> previouslySeenMapping,
+                                                                        Map<String, Object> newMapping) {
+        Map<String, Object> result = new HashMap<>(previouslySeenMapping);
+        List<Map<String, Object>> newDynamicTemplates = (List<Map<String, Object>>) newMapping.get("dynamic_templates");
+        List<Map<String, Object>> previouslySeenDynamicTemplates =
+            (List<Map<String, Object>>) previouslySeenMapping.get("dynamic_templates");
+
+        List<Map<String, Object>> filteredDynamicTemplates = removeOverlapping(previouslySeenDynamicTemplates, newDynamicTemplates);
+
+        // if we removed any mappings from the previously seen ones, we'll re-add them on merge time, see
+        // {@link XContentHelper#mergeDefaults}, so update the result to contain the filtered ones
+        if (filteredDynamicTemplates != previouslySeenDynamicTemplates) {
+            result.put("dynamic_templates", filteredDynamicTemplates);
+        }
+        return result;
+    }
+
+    /**
+     * Removes all the items from the first list that are already present in the second list
+     *
+     * Similar to {@link List#removeAll(Collection)} but the list parameters are not modified.
+     *
+     * This expects both list values to be Maps of size one and the "contains" operation that will determine if a value
+     * from the second list is present in the first list (and be removed from the first list) is based on key name.
+     *
+     * eg.
+     *      removeAll([ {"key1" : {}}, {"key2" : {}} ], [ {"key1" : {}}, {"key3" : {}} ])
+     * Returns:
+     *     [ {"key2" : {}} ]
+     */
+    private static List<Map<String, Object>> removeOverlapping(List<Map<String, Object>> first, List<Map<String, Object>> second) {
+        if (first == null) {
+            return first;
+        } else {
+            validateValuesAreMapsOfSizeOne(first);
+        }
+
+        if (second == null) {
+            return first;
+        } else {
+            validateValuesAreMapsOfSizeOne(second);
+        }
+
+        Set<String> keys = second.stream()
+            .map(value -> value.keySet().iterator().next())
+            .collect(Collectors.toSet());
+
+        return first.stream().filter(value -> keys.contains(value.keySet().iterator().next()) == false).collect(toList());
+    }
+
+    private static void validateValuesAreMapsOfSizeOne(List<Map<String, Object>> second) {
+        for (Map<String, Object> map : second) {
+            // all are in the form of [ {"key1" : {}}, {"key2" : {}} ]
+            if (map.size() != 1) {
+                throw new IllegalArgumentException("unexpected argument, expected maps with one key, but got " + map);
+            }
+        }
+    }
+
+    /**
+     * Parses the `dynamic_templates` from the provided mappings, if any are configured, and returns a mappings map containing dynamic
+     * templates with unique names.
+     *
+     * The later templates in the provided mapping's `dynamic_templates` array will override the templates with the same name defined
+     * earlier in the `dynamic_templates` array.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> dedupDynamicTemplates(Map<String, Object> mappings) {
+        Objects.requireNonNull(mappings, "deduping the dynamic templates a non-null mapping");
+        Map<String, Object> results = new HashMap<>(mappings);
+        List<Map<String, Object>> dynamicTemplates = (List<Map<String, Object>>) mappings.get("dynamic_templates");
+        if (dynamicTemplates == null) {
+            return results;
+        }
+
+        LinkedHashMap<String, Map<String, Object>> dedupedDynamicTemplates = new LinkedHashMap<>(dynamicTemplates.size(), 1f);
+        for (Map<String, Object> dynamicTemplate : dynamicTemplates) {
+            dedupedDynamicTemplates.put(dynamicTemplate.keySet().iterator().next(), dynamicTemplate);
+        }
+
+        results.put("dynamic_templates", new ArrayList<>(dedupedDynamicTemplates.values()));
+        return results;
     }
 
     /**
@@ -981,7 +1059,7 @@ public class MetadataCreateIndexService {
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
-                assert indexScopedSettings.isPrivateSetting(key);
+                assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
             } else if (setting.isPrivateIndex()) {
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }

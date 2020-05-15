@@ -246,11 +246,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
-        // this is only setable internally not a registered setting!!
-    public static final String PREFER_V2_TEMPLATES_FLAG = "prefer_v2_templates";
-    public static final String SETTING_PREFER_V2_TEMPLATES = "index." + PREFER_V2_TEMPLATES_FLAG;
-    public static final Setting<Boolean> PREFER_V2_TEMPLATES_SETTING = Setting.boolSetting(SETTING_PREFER_V2_TEMPLATES, true,
-        Property.Dynamic, Property.IndexScope);
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.

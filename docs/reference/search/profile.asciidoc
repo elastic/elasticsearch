@@ -794,6 +794,9 @@ This yields the following aggregation profile output:
               "reduce_count" : 0,
               "collect" : 91456,
               "collect_count" : 4
+            },
+            "debug": {
+              "total_buckets": 4
             }
           },
           {
@@ -823,7 +826,10 @@ This yields the following aggregation profile output:
                   "initialize_count" : 1,
                   "reduce_count" : 0,
                   "collect" : 94052,
-                  "collect_count" : 4
+                  "collect_count" : 4,
+                },
+                "debug": {
+                  "total_buckets": 4
                 }
               }
             ]
@@ -848,10 +854,15 @@ The `time_in_nanos` field shows the time executed by each aggregation, and is
 inclusive of all children.  While the overall time is useful, the `breakdown` 
 field will give detailed stats about how the time was spent.
 
+Some aggregations may return expert `debug` information that describe features
+of the underlying execution of the aggregation that are 'useful for folks that
+hack on aggregations but that we don't expect to be otherwise useful. They can
+vary wildly between versions, aggregations, and aggregation execution
+strategies.
+
 ===== Timing Breakdown
 
-The `breakdown` component lists detailed timing statistics about low-level 
-Lucene execution:
+The `breakdown` component lists detailed statistics about low-level execution:
 
 [source,js]
 --------------------------------------------------

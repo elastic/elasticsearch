@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -76,15 +78,17 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
             throw new AggregationExecutionException("Registry miss-match - expected AutoDateHistogramAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((AutoDateHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, roundingInfos, valuesSource,
-            config.format(), searchContext, parent, metadata);
+        Function<Rounding, Rounding.Prepared> roundingPreparer =
+                valuesSource.roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
+        return ((AutoDateHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, roundingInfos,
+                roundingPreparer, valuesSource, config.format(), searchContext, parent, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, null, config.format(), searchContext, parent,
-            metadata);
+        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, Rounding::prepareForUnknown, null,
+                config.format(), searchContext, parent, metadata);
     }
 }

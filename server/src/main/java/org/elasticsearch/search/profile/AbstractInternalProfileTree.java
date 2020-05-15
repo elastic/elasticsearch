@@ -26,11 +26,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
-import java.util.Map;
 
 public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBreakdown<?>, E> {
 
-    protected ArrayList<PB> timings;
+    protected ArrayList<PB> breakdowns;
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
     protected ArrayList<ArrayList<Integer>> tree;
     /** A list of the original queries, keyed by index position */
@@ -42,7 +41,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     private int currentToken = 0;
 
     public AbstractInternalProfileTree() {
-        timings = new ArrayList<>(10);
+        breakdowns = new ArrayList<>(10);
         stack = new ArrayDeque<>(10);
         tree = new ArrayList<>(10);
         elements = new ArrayList<>(10);
@@ -94,14 +93,14 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      * Helper method to add a new node to the dependency tree.
      *
      * Initializes a new list in the dependency tree, saves the query and
-     * generates a new {@link QueryProfileBreakdown} to track the timings of
-     * this query
+     * generates a new {@link AbstractProfileBreakdown} to track the timings
+     * of this element.
      *
      * @param element
      *            The element to profile
      * @param token
      *            The assigned token for this element
-     * @return A ProfileBreakdown to profile this element
+     * @return A {@link AbstractProfileBreakdown} to profile this element
      */
     private PB addDependencyNode(E element, int token) {
 
@@ -111,9 +110,9 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // Save our query for lookup later
         elements.add(element);
 
-        PB queryTimings = createProfileBreakdown();
-        timings.add(token, queryTimings);
-        return queryTimings;
+        PB breakdown = createProfileBreakdown();
+        breakdowns.add(token, breakdown);
+        return breakdown;
     }
 
     protected abstract PB createProfileBreakdown();
@@ -126,14 +125,14 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
     }
 
     /**
-     * After the query has been run and profiled, we need to merge the flat timing map
+     * After the element has been run and profiled, we need to merge the flat timing map
      * with the dependency graph to build a data structure that mirrors the original
      * query tree
      *
      * @return a hierarchical representation of the profiled query tree
      */
     public List<ProfileResult> getTree() {
-        ArrayList<ProfileResult> results = new ArrayList<>(5);
+        ArrayList<ProfileResult> results = new ArrayList<>(roots.size());
         for (Integer root : roots) {
             results.add(doGetTree(root));
         }
@@ -147,8 +146,7 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
      */
     private ProfileResult doGetTree(int token) {
         E element = elements.get(token);
-        PB breakdown = timings.get(token);
-        Map<String, Long> timings = breakdown.toTimingMap();
+        PB breakdown = breakdowns.get(token);
         List<Integer> children = tree.get(token);
         List<ProfileResult> childrenProfileResults = Collections.emptyList();
 
@@ -164,7 +162,8 @@ public abstract class AbstractInternalProfileTree<PB extends AbstractProfileBrea
         // calculating the same times over and over...but worth the effort?
         String type = getTypeFromElement(element);
         String description = getDescriptionFromElement(element);
-        return new ProfileResult(type, description, timings, childrenProfileResults);
+        return new ProfileResult(type, description, breakdown.toBreakdownMap(), breakdown.toDebugMap(),
+            breakdown.toNodeTime(), childrenProfileResults);
     }
 
     protected abstract String getTypeFromElement(E element);

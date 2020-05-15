@@ -45,6 +45,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -233,6 +234,7 @@ public class MetadataIndexTemplateService {
         final Template finalTemplate = new Template(finalSettings,
             stringMappings == null ? null : new CompressedXContent(stringMappings), template.template().aliases());
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(finalTemplate, template.version(), template.metadata());
+        validate(name, finalComponentTemplate);
         logger.info("adding component template [{}]", name);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
@@ -245,6 +247,7 @@ public class MetadataIndexTemplateService {
      */
     public void removeComponentTemplate(final String name, final TimeValue masterTimeout,
                                         final ActionListener<AcknowledgedResponse> listener) {
+        validateNotInUse(clusterService.state().metadata(), name);
         clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
 
@@ -291,6 +294,33 @@ public class MetadataIndexTemplateService {
     }
 
     /**
+     * Validates that the given component template is not used by any index
+     * templates, throwing an error if it is still in use
+     */
+    static void validateNotInUse(Metadata metadata, String templateNameOrWildcard) {
+        final Set<String> matchingComponentTemplates = metadata.componentTemplates().keySet().stream()
+            .filter(name -> Regex.simpleMatch(templateNameOrWildcard, name))
+            .collect(Collectors.toSet());
+        final Set<String> componentsBeingUsed = new HashSet<>();
+        final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream()
+            .filter(e -> {
+                Set<String> intersecting = Sets.intersection(new HashSet<>(e.getValue().composedOf()), matchingComponentTemplates);
+                if (intersecting.size() > 0) {
+                    componentsBeingUsed.addAll(intersecting);
+                    return true;
+                }
+                return false;
+            })
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+
+        if (templatesStillUsing.size() > 0) {
+            throw new IllegalArgumentException("component templates " + componentsBeingUsed +
+                " cannot be removed as they are still in use by index templates " + templatesStillUsing);
+        }
+    }
+
+    /**
      * Add the given index template to the cluster state. If {@code create} is true, an
      * exception will be thrown if the component template already exists
      */
@@ -329,6 +359,16 @@ public class MetadataIndexTemplateService {
                 throw new InvalidIndexTemplateException(name, "global V2 templates may not specify the setting "
                     + IndexMetadata.INDEX_HIDDEN_SETTING.getKey());
             }
+        }
+
+        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final List<String> missingComponentTemplates = template.composedOf().stream()
+            .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
+            .collect(Collectors.toList());
+
+        if (missingComponentTemplates.size() > 0) {
+            throw new InvalidIndexTemplateException(name, "index template [" + name + "] specifies component templates " +
+                missingComponentTemplates + " that do not exist");
         }
     }
 
@@ -399,9 +439,10 @@ public class MetadataIndexTemplateService {
             final Template finalTemplate = new Template(finalSettings,
                 stringMappings == null ? null : new CompressedXContent(stringMappings), innerTemplate.aliases());
             finalIndexTemplate = new IndexTemplateV2(template.indexPatterns(), finalTemplate, template.composedOf(),
-                template.priority(), template.version(), template.metadata());
+                template.priority(), template.version(), template.metadata(), template.getDataStreamTemplate());
         }
 
+        validate(name, finalIndexTemplate);
         logger.info("adding index template [{}]", name);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
@@ -922,70 +963,117 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    private void validate(PutRequest request) {
+    private void validate(String name, ComponentTemplate template) {
+        validate(name, template.template(), Collections.emptyList());
+    }
+
+    private void validate(String name, IndexTemplateV2 template) {
+        validate(name, template.template(), template.indexPatterns());
+    }
+
+    private void validate(String name, Template template, List<String> indexPatterns) {
+        Optional<Template> maybeTemplate = Optional.ofNullable(template);
+        validate(name,
+            maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
+            indexPatterns,
+            maybeTemplate.map(Template::aliases)
+                .orElse(Collections.emptyMap())
+                .values().stream()
+                .map(MetadataIndexTemplateService::toAlias)
+                .collect(Collectors.toList()));
+    }
+
+    private static Alias toAlias(AliasMetadata aliasMeta) {
+        Alias a = new Alias(aliasMeta.alias());
+        if (aliasMeta.filter() != null) {
+            a.filter(aliasMeta.filter().string());
+        }
+        a.searchRouting(aliasMeta.searchRouting());
+        a.indexRouting(aliasMeta.indexRouting());
+        a.isHidden(aliasMeta.isHidden());
+        a.writeIndex(aliasMeta.writeIndex());
+        return a;
+    }
+
+    private void validate(PutRequest putRequest) {
+        validate(putRequest.name, putRequest.settings, putRequest.indexPatterns, putRequest.aliases);
+    }
+
+    private void validate(String name, @Nullable Settings settings, List<String> indexPatterns, List<Alias> aliases) {
         List<String> validationErrors = new ArrayList<>();
-        if (request.name.contains(" ")) {
+        if (name.contains(" ")) {
             validationErrors.add("name must not contain a space");
         }
-        if (request.name.contains(",")) {
+        if (name.contains(",")) {
             validationErrors.add("name must not contain a ','");
         }
-        if (request.name.contains("#")) {
+        if (name.contains("#")) {
             validationErrors.add("name must not contain a '#'");
         }
-        if (request.name.startsWith("_")) {
+        if (name.contains("*")) {
+            validationErrors.add("name must not contain a '*'");
+        }
+        if (name.startsWith("_")) {
             validationErrors.add("name must not start with '_'");
         }
-        if (!request.name.toLowerCase(Locale.ROOT).equals(request.name)) {
+        if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
             validationErrors.add("name must be lower cased");
         }
-        for(String indexPattern : request.indexPatterns) {
+        for(String indexPattern : indexPatterns) {
             if (indexPattern.contains(" ")) {
-                validationErrors.add("template must not contain a space");
+                validationErrors.add("index_patterns [" + indexPattern + "] must not contain a space");
             }
             if (indexPattern.contains(",")) {
-                validationErrors.add("template must not contain a ','");
+                validationErrors.add("index_pattern [" + indexPattern + "] must not contain a ','");
             }
             if (indexPattern.contains("#")) {
-                validationErrors.add("template must not contain a '#'");
+                validationErrors.add("index_pattern [" + indexPattern + "] must not contain a '#'");
+            }
+            if (indexPattern.contains(":")) {
+                validationErrors.add("index_pattern [" + indexPattern + "] must not contain a ':'");
             }
             if (indexPattern.startsWith("_")) {
-                validationErrors.add("template must not start with '_'");
+                validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (!Strings.validFileNameExcludingAstrix(indexPattern)) {
-                validationErrors.add("template must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+                validationErrors.add("index_pattern [" + indexPattern + "] must not contain the following characters " +
+                    Strings.INVALID_FILENAME_CHARS);
             }
         }
 
-        try {
-            indexScopedSettings.validate(request.settings, true); // templates must be consistent with regards to dependencies
-        } catch (IllegalArgumentException iae) {
-            validationErrors.add(iae.getMessage());
-            for (Throwable t : iae.getSuppressed()) {
-                validationErrors.add(t.getMessage());
-            }
-        }
-        List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(request.settings, true);
-        validationErrors.addAll(indexSettingsValidation);
 
-        if (request.indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
-            if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(request.settings)) {
+        if (settings != null) {
+            try {
+                // templates must be consistent with regards to dependencies
+                indexScopedSettings.validate(settings, true);
+            } catch (IllegalArgumentException iae) {
+                validationErrors.add(iae.getMessage());
+                for (Throwable t : iae.getSuppressed()) {
+                    validationErrors.add(t.getMessage());
+                }
+            }
+            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(settings, true);
+            validationErrors.addAll(indexSettingsValidation);
+        }
+
+        if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
+            if (settings != null && IndexMetadata.INDEX_HIDDEN_SETTING.exists(settings)) {
                 validationErrors.add("global templates may not specify the setting " + IndexMetadata.INDEX_HIDDEN_SETTING.getKey());
             }
         }
 
-        if (!validationErrors.isEmpty()) {
+        if (validationErrors.size() > 0) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationErrors(validationErrors);
-            throw new InvalidIndexTemplateException(request.name, validationException.getMessage());
+            throw new InvalidIndexTemplateException(name, validationException.getMessage());
         }
 
-        for (Alias alias : request.aliases) {
-            //we validate the alias only partially, as we don't know yet to which index it'll get applied to
+        for (Alias alias : aliases) {
+            // we validate the alias only partially, as we don't know yet to which index it'll get applied to
             aliasValidator.validateAliasStandalone(alias);
-            if (request.indexPatterns.contains(alias.name())) {
-                throw new IllegalArgumentException("Alias [" + alias.name() +
-                    "] cannot be the same as any pattern in [" + String.join(", ", request.indexPatterns) + "]");
+            if (indexPatterns.contains(alias.name())) {
+                throw new IllegalArgumentException("alias [" + alias.name() +
+                    "] cannot be the same as any pattern in [" + String.join(", ", indexPatterns) + "]");
             }
         }
     }

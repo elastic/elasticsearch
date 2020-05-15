@@ -44,30 +44,6 @@ public class HttpCompressionIT extends ESRestTestCase {
         "}";
 
     public void testCompressesResponseIfRequested() throws IOException {
-        Request request = new Request("GET", "/");
-        RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING);
-        request.setOptions(options);
-        Response response = client().performRequest(request);
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
-        assertThat(response.getEntity(), instanceOf(GzipDecompressingEntity.class));
-    }
-
-    public void testUncompressedResponseByDefault() throws IOException {
-        Response response = client().performRequest(new Request("GET", "/"));
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
-
-        Request request = new Request("POST", "/company/_doc/1");
-        request.setJsonEntity(SAMPLE_DOCUMENT);
-        response = client().performRequest(request);
-        assertEquals(201, response.getStatusLine().getStatusCode());
-        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
-        assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
-    }
-
-    public void testCompressesGetDocumentResponseIfRequested() throws IOException {
         Request request = new Request("POST", "/company/_doc/2");
         request.setJsonEntity(SAMPLE_DOCUMENT);
         Response response = client().performRequest(request);
@@ -88,6 +64,19 @@ public class HttpCompressionIT extends ESRestTestCase {
 
         String body = EntityUtils.toString(response.getEntity());
         assertThat(body, containsString(SAMPLE_DOCUMENT));
+    }
+
+    public void testUncompressedResponseByDefault() throws IOException {
+        Response response = client().performRequest(new Request("GET", "/"));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+
+        Request request = new Request("POST", "/company/_doc/1");
+        request.setJsonEntity(SAMPLE_DOCUMENT);
+        response = client().performRequest(request);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
     }
 
 }

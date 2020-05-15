@@ -27,6 +27,9 @@ thirdPartyAudit.enabled = false
 // This requires an additional Jar not part of build-tools
 loggerUsageCheck.enabled = false
 
+// TODO: shouldn't be part of BuildPlugin, should be tested separately
+validateNebulaPom.enabled = false
+
 task hello {
   doFirst {
     println "build plugin can be applied"

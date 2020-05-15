@@ -25,12 +25,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -56,7 +53,6 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -107,14 +103,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     @Override
     protected void masterOperation(Task task, final GetSnapshotsRequest request, final ClusterState state,
                                    final ActionListener<GetSnapshotsResponse> listener) {
-        final String[] repositories = request.repositories();
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        transportService.sendChildRequest(transportService.getLocalNode(), GetRepositoriesAction.NAME,
-            new GetRepositoriesRequest(repositories), task, TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                ActionListener.wrap(response -> getMultipleReposSnapshotInfo(snapshotsInProgress, response.repositories(),
-                    request.snapshots(), request.ignoreUnavailable(), request.verbose(), listener), listener::onFailure),
-                GetRepositoriesResponse::new));
+        getMultipleReposSnapshotInfo(state.custom(SnapshotsInProgress.TYPE), TransportGetRepositoriesAction.getRepositories(
+                state, request.repositories()), request.snapshots(), request.ignoreUnavailable(), request.verbose(), listener);
     }
 
     private void getMultipleReposSnapshotInfo(@Nullable SnapshotsInProgress snapshotsInProgress, List<RepositoryMetadata> repos,

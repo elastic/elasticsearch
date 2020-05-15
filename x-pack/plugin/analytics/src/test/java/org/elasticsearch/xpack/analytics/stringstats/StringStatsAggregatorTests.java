@@ -254,7 +254,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
 
-        Terms terms = (Terms) aggregator.buildAggregation(0L);
+        Terms terms = (Terms) aggregator.buildTopLevel();
         assertNotNull(terms);
         List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertNotNull(buckets);

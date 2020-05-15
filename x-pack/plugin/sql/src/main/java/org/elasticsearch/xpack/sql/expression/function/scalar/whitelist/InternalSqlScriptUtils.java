@@ -294,7 +294,7 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static Object dateTimeParse(String dateField, String pattern, String tzId) {
-        return DateTimeParseProcessor.process(dateField, pattern);
+        return DateTimeParseProcessor.process(dateField, pattern, ZoneId.of(tzId));
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

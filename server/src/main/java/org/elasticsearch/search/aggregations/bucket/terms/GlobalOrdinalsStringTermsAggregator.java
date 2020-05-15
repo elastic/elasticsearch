@@ -165,9 +165,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
         if (valueCount == 0) { // no context in this reader
-            return buildEmptyAggregation();
+            return new InternalAggregation[] {buildEmptyAggregation()};
         }
 
         final int size;
@@ -215,29 +216,22 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         // Get the top buckets
         final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
-        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final OrdBucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
             BytesRef scratch = new BytesRef();
             copy(lookupGlobalOrd.apply(bucket.globalOrd), scratch);
             list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0, format);
             list[i].bucketOrd = bucket.bucketOrd;
             otherDocCount -= list[i].docCount;
+            list[i].docCountError = 0;
         }
-        //replay any deferred collections
-        runDeferredCollections(survivingBucketOrds);
+        buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
 
-        //Now build the aggs
-        for (int i = 0; i < list.length; i++) {
-            StringTerms.Bucket bucket = list[i];
-            bucket.aggregations = bucket.docCount == 0 ? bucketEmptyAggregations() : bucketAggregations(bucket.bucketOrd);
-            bucket.docCountError = 0;
-        }
-
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+        return new InternalAggregation[] {
+            new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
-                otherDocCount, Arrays.asList(list), 0);
+                otherDocCount, Arrays.asList(list), 0)
+        };
     }
 
     /**

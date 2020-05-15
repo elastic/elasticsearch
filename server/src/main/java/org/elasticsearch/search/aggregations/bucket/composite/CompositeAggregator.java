@@ -133,8 +133,9 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long zeroBucket) throws IOException {
-        assert zeroBucket == 0L;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        // Composite aggregator must be at the top of the aggregation tree
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
         consumeBucketsAndMaybeBreak(queue.size());
         if (deferredCollectors != NO_OP_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
@@ -143,16 +144,23 @@ final class CompositeAggregator extends BucketsAggregator {
 
         int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
+        long[] bucketOrdsToCollect = new long[queue.size()];
+        for (int i = 0; i < queue.size(); i++) {
+            bucketOrdsToCollect[i] = i;
+        }
+        InternalAggregations[] subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
         while (queue.size() > 0) {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
-            InternalAggregations aggs = bucketAggregations(slot);
+            InternalAggregations aggs = subAggsForBuckets[slot];
             int docCount = queue.getDocCount(slot);
             buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
-            earlyTerminated, metadata());
+        return new InternalAggregation[] {
+            new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
+                    earlyTerminated, metadata())
+        };
     }
 
     @Override

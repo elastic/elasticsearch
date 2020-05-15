@@ -1,7 +1,8 @@
 [[modules-discovery-settings]]
 === Discovery and cluster formation settings
 
-Discovery and cluster formation are affected by the following settings:
+<<modules-discovery,Discovery and cluster formation>> are affected by the
+following settings:
 
 `discovery.seed_hosts`::
 +

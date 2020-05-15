@@ -176,6 +176,10 @@ include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
 include::indices/delete_template.asciidoc[]
 include::indices/reload_analyzers.asciidoc[]
+include::indices/get_index_template.asciidoc[]
+include::indices/put_index_template.asciidoc[]
+include::indices/delete_index_template.asciidoc[]
+include::indices/simulate_index_template.asciidoc[]
 
 == Cluster APIs
 
@@ -192,6 +196,9 @@ include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
 include::cluster/remote_info.asciidoc[]
+include::cluster/get_component_template.asciidoc[]
+include::cluster/put_component_template.asciidoc[]
+include::cluster/delete_component_template.asciidoc[]
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:

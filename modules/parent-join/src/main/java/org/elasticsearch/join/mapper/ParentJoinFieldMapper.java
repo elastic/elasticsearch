@@ -121,7 +121,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ParentJoinFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
         boolean eagerGlobalOrdinals = true;
 
@@ -168,7 +168,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
             checkIndexCompatibility(indexSettings, name);
 

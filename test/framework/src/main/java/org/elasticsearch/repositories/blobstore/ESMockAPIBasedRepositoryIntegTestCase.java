@@ -174,7 +174,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
 
-        final long nbDocs = randomLongBetween(100, 1000);
+        final long nbDocs = randomLongBetween(10_000L, 20_000L);
         try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
@@ -212,7 +212,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
 
-        for (String requestType : List.of("GET", "LIST", "PUT")) {
+        for (String requestType : List.of("GET", "LIST", "PUT", "POST")) {
             assertSDKCallsMatchMockCalls(sdkRequestCounts, requestType);
         }
     }

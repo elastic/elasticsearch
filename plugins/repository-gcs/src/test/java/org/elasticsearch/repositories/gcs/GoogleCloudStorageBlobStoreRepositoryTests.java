@@ -305,7 +305,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
                 trackRequest("GET");
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*", request) && isLastPart(requestHeaders)) {
-                trackRequest("PUT");
+                trackRequest("POST");
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
                 trackRequest("PUT");
             }

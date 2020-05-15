@@ -200,11 +200,6 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public boolean hasInboundException() {
-        return inboundException != null;
-    }
-
-    @Override
     public Exception getInboundException() {
         return inboundException;
     }

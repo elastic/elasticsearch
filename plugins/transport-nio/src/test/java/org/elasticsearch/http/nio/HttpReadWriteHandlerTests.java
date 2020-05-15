@@ -153,7 +153,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
             verify(transport).incomingRequest(requestCaptor.capture(), any(NioHttpChannel.class));
 
-            assertTrue(requestCaptor.getValue().hasInboundException());
+            assertNotNull(requestCaptor.getValue().getInboundException());
             assertTrue(requestCaptor.getValue().getInboundException() instanceof IllegalArgumentException);
         } finally {
             buf.release();

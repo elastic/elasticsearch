@@ -87,11 +87,6 @@ public class HttpPipelinedRequest implements HttpRequest, HttpPipelinedMessage {
     }
 
     @Override
-    public boolean hasInboundException() {
-        return delegate.hasInboundException();
-    }
-
-    @Override
     public Exception getInboundException() {
         return delegate.getInboundException();
     }

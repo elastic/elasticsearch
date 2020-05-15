@@ -595,11 +595,6 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean hasInboundException() {
-                return false;
-            }
-
-            @Override
             public Exception getInboundException() {
                 return null;
             }

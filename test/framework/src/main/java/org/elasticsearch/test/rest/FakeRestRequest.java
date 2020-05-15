@@ -131,11 +131,6 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public boolean hasInboundException() {
-            return inboundException != null;
-        }
-
-        @Override
         public Exception getInboundException() {
             return inboundException;
         }

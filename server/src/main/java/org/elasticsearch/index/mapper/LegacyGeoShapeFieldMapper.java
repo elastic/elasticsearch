@@ -180,7 +180,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
-        LegacyGeoShapeFieldMapper, LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
+        LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
 
         DeprecatedParameters deprecatedParameters;
 

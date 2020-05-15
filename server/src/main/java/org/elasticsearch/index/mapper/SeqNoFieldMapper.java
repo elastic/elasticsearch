@@ -106,7 +106,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, SeqNoFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         public Builder() {
             super(SeqNoDefaults.NAME, SeqNoDefaults.FIELD_TYPE, SeqNoDefaults.FIELD_TYPE);
@@ -120,7 +120,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }

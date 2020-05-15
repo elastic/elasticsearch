@@ -57,7 +57,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, MetaJoinFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder> {
         Builder() {
             super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;

@@ -50,7 +50,7 @@ public class DeleteExpiredDataRequest implements Validatable, ToXContentObject {
     /**
      * The requests allowed per second in the underlying Delete by Query requests executed.
      *
-     * `1.0f` indicates the default behavior where throttling scales according too the number of data nodes
+     * `1.0f` indicates the default behavior where throttling scales according to the number of data nodes.
      * `null` means no throttling occurs.
      */
     public Float getRequestsPerSecond() {

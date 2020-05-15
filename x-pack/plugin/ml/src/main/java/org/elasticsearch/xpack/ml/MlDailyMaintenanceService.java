@@ -108,7 +108,7 @@ public class MlDailyMaintenanceService implements Releasable {
         }
     }
 
-    public boolean isStarted() {
+    boolean isStarted() {
         return cancellable != null;
     }
 

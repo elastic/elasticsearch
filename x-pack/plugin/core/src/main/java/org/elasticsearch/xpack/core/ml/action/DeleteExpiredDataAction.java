@@ -102,10 +102,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Float.compare(
-                request.requestsPerSecond == null ? Float.POSITIVE_INFINITY : request.requestsPerSecond,
-                requestsPerSecond == null ? Float.POSITIVE_INFINITY : requestsPerSecond
-            ) == 0
+            return Objects.equals(requestsPerSecond, request.requestsPerSecond)
                 && Objects.equals(timeout, request.timeout);
         }
 

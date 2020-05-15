@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,7 +47,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
     // We can't test an abstract class so make a concrete class
     // as simple as possible
-    private class ConcreteExpiredJobDataRemover extends AbstractExpiredJobDataRemover {
+    private static class ConcreteExpiredJobDataRemover extends AbstractExpiredJobDataRemover {
 
         private int getRetentionDaysCallCount = 0;
 
@@ -60,7 +63,13 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
 
         @Override
-        protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
+        void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
+            long nowEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
+            listener.onResponse(new CutoffDetails(nowEpochMs, nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis()));
+        }
+
+        @Override
+        protected void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener) {
             listener.onResponse(Boolean.TRUE);
         }
     }

@@ -78,7 +78,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     protected void testConflictWhileMergingAndMappingUnchanged(XContentBuilder mapping, XContentBuilder mappingUpdate) throws IOException {
         IndexService indexService = createIndex("test", Settings.builder().build(), mapping);
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper().mappingSource();
-        // simulate like in MetaDataMappingService#putMapping
+        // simulate like in MetadataMappingService#putMapping
         try {
             indexService.mapperService().merge("type", new CompressedXContent(BytesReference.bytes(mappingUpdate)),
                 MapperService.MergeReason.MAPPING_UPDATE);
@@ -197,22 +197,22 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         createIndex("test", client().admin().indices().prepareCreate("test"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         {
-            final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+            final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
-            assertThat(clusterService.state().metaData().index("test").getMappingVersion(), Matchers.equalTo(1 + previousVersion));
+            assertThat(clusterService.state().metadata().index("test").getMappingVersion(), Matchers.equalTo(1 + previousVersion));
         }
 
         {
-            final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+            final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
             final PutMappingRequest request = new PutMappingRequest();
             request.indices("test");
             request.source("field", "type=text");
             client().admin().indices().putMapping(request).actionGet();
             // the version should be unchanged after putting the same mapping again
-            assertThat(clusterService.state().metaData().index("test").getMappingVersion(), Matchers.equalTo(previousVersion));
+            assertThat(clusterService.state().metadata().index("test").getMappingVersion(), Matchers.equalTo(previousVersion));
         }
     }
 

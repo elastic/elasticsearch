@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -21,9 +22,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
 
 public class DateAdd extends ThreeArgsDateTimeFunction {
 
@@ -120,7 +121,7 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DATETIME;
+        return DataTypes.DATETIME;
     }
 
     @Override

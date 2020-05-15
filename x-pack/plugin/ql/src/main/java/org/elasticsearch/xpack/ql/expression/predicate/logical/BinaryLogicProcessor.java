@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.logical;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalBinaryProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalEnumBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProces
 import java.io.IOException;
 import java.util.function.BiFunction;
 
-public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boolean, Boolean, BinaryLogicOperation> {
+public class BinaryLogicProcessor extends FunctionalEnumBinaryProcessor<Boolean, Boolean, Boolean, BinaryLogicOperation> {
     
     public enum BinaryLogicOperation implements PredicateBiFunction<Boolean, Boolean, Boolean> {
 

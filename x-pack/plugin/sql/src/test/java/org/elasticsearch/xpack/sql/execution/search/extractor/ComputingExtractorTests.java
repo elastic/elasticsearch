@@ -10,12 +10,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
-import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ChainingProcessorTests;
 import org.elasticsearch.xpack.ql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.CastProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
@@ -31,6 +29,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
@@ -50,7 +49,7 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(combine(Processors.getNamedWriteables(), HitExtractors.getNamedWriteables()));
+        return new NamedWriteableRegistry(combine(Processors.getNamedWriteables(), SqlHitExtractors.getNamedWriteables()));
     }
 
     @Override
@@ -74,7 +73,7 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-            new HitExtractorProcessor(new FieldHitExtractor(fieldName, DataType.DOUBLE, UTC, true, false)),
+                new HitExtractorProcessor(new FieldHitExtractor(fieldName, DOUBLE, UTC, true, false)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

@@ -83,7 +83,7 @@ public class InnerAggregate extends AggregateFunction {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == true) {
+        if (super.equals(obj)) {
             InnerAggregate other = (InnerAggregate) obj;
             return Objects.equals(inner, other.inner)
                     && Objects.equals(outer, other.outer)

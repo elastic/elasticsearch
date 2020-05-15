@@ -5,9 +5,9 @@
 <<realms,Realms>> live within a _realm chain_. It is essentially a prioritized
 list of configured realms (typically of various types). Realms are consulted in
 ascending order (that is to say, the realm with the lowest `order` value is
-consulted first). You should make sure each configured realm has a distinct
+consulted first). You must make sure each configured realm has a distinct
 `order` setting. In the event that two or more realms have the same `order`,
-they are processed in `name` order.
+the node will fail to start.
 
 During the authentication process, {stack} {security-features} consult and try
 to authenticate the request one realm at a time. Once one of the realms

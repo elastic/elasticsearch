@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "nebula.maven-scm"
+apply plugin: "elasticsearch.publish"
 
 dependencies {
   compile project(':libs:elasticsearch-core')
@@ -31,7 +31,7 @@ dependencies {
 }
 
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 

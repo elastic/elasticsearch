@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -91,10 +92,14 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
         SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]." +
-            " Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().size(), equalTo(1));
+        assertThat(fieldExtraction.v2().get(0).getName(), equalTo("some_keyword"));
+        assertThat(fieldExtraction.v2().get(0).isIncluded(), is(false));
+        assertThat(fieldExtraction.v2().get(0).getReason(), equalTo("unsupported type; supported types are " +
+            "[boolean, byte, double, float, half_float, integer, long, scaled_float, short]"));
     }
 
     public void testDetect_GivenOutlierDetectionAndFieldWithNumericAndNonNumericTypes() {
@@ -103,10 +108,14 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().size(), equalTo(1));
+        assertThat(fieldExtraction.v2().get(0).getName(), equalTo("indecisive_field"));
+        assertThat(fieldExtraction.v2().get(0).isIncluded(), is(false));
+        assertThat(fieldExtraction.v2().get(0).getReason(), equalTo("unsupported type; supported types are " +
+            "[boolean, byte, double, float, half_float, integer, long, scaled_float, short]"));
     }
 
     public void testDetect_GivenOutlierDetectionAndMultipleFields() {
@@ -294,10 +303,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .build();
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(SOURCE_INDEX,
-            buildClassificationConfig("some_keyword"), 100, fieldCapabilities, Collections.singletonMap("some_keyword", 3L));
+            buildClassificationConfig("some_keyword"), 100, fieldCapabilities, Collections.singletonMap("some_keyword", 31L));
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
 
-        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [2] distinct values but there were at least [3]"));
+        assertThat(e.getMessage(), equalTo("Field [some_keyword] must have at most [30] distinct values but there were at least [31]"));
     }
 
     public void testDetect_GivenIgnoredField() {
@@ -306,10 +315,10 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().isEmpty(), is(true));
     }
 
     public void testDetect_GivenIncludedIgnoredField() {
@@ -410,9 +419,11 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
 
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
             SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
-        assertThat(e.getMessage(), equalTo("No compatible fields could be detected in index [source_index]. " +
-            "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        assertThat(fieldExtraction.v1().getAllFields().isEmpty(), is(true));
+        assertThat(fieldExtraction.v2().size(), equalTo(2));
+        assertThat(fieldExtraction.v2().stream().filter(FieldSelection::isIncluded).findAny().isPresent(), is(false));
     }
 
     public void testDetect_GivenInclusionsAndExclusions() {
@@ -560,8 +571,13 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             .addAggregatableField("some_integer", "integer")
             .build();
 
+        Map<String, Long> fieldCardinalities = new HashMap<>(2);
+        fieldCardinalities.put("some_boolean", 2L);
+        fieldCardinalities.put("some_integer", 2L);
+
+
         ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
-            SOURCE_INDEX, config, 100, fieldCapabilities, config.getAnalysis().getFieldCardinalityLimits());
+            SOURCE_INDEX, config, 100, fieldCapabilities, fieldCardinalities);
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
 
         List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
@@ -861,6 +877,49 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             FieldSelection.included("field_22", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL));
     }
 
+    public void testDetect_GivenObjectFields() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("object_field_1", "object")
+            .addNonAggregatableField("object_field_2", "object").build();
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("float_field"));
+    }
+
+    public void testDetect_GivenAnalyzedFieldIncludesObjectField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("object_field", "object").build();
+
+        analyzedFields = new FetchSourceContext(true, new String[] { "float_field", "object_field" }, null);
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object fields: [object_field]"));
+    }
+
+    public void testDetect_GivenAnalyzedFieldExcludesObjectField() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("float_field", "float")
+            .addNonAggregatableField("object_field", "object").build();
+
+        analyzedFields = new FetchSourceContext(true, null, new String[] { "object_field" });
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            SOURCE_INDEX, buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, extractedFieldsDetector::detect);
+
+        assertThat(e.getMessage(), equalTo("analyzed_fields must not include or exclude object fields: [object_field]"));
+    }
+
     private DataFrameAnalyticsConfig buildOutlierDetectionConfig() {
         return new DataFrameAnalyticsConfig.Builder()
             .setId("foo")
@@ -920,7 +979,7 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         private MockFieldCapsResponseBuilder addField(String field, boolean isAggregatable, String... types) {
             Map<String, FieldCapabilities> caps = new HashMap<>();
             for (String type : types) {
-                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable, Collections.emptyMap()));
+                caps.put(type, new FieldCapabilities(field, type, true, isAggregatable, null, null, null, Collections.emptyMap()));
             }
             fieldCaps.put(field, caps);
             return this;

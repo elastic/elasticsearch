@@ -1,5 +1,9 @@
 ---
 "Basic test for upgrade indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "_upgrade api is deprecated since 8.0.0"
+      features: ["warnings", "node_selector"]
 
   - do:
       indices.create:
@@ -12,12 +16,21 @@
   - do:
       indices.upgrade:
         index: test_index
+      warnings:
+        - "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
+      node_selector:
+        version: "8.0.0 - "
 
   - match: {upgraded_indices.test_index.oldest_lucene_segment_version: '/(\d\.)+\d/'}
   - is_true: upgraded_indices.test_index.upgrade_version
 
 ---
 "Upgrade indices ignore unavailable":
+  - skip:
+      version: " - 7.99.99"
+      reason: "_upgrade api is deprecated since 8.0.0"
+      features: ["warnings", "node_selector"]
+
   - do:
       indices.create:
         index: test_index
@@ -31,6 +44,10 @@
       indices.upgrade:
         index: ["does_not_exist", "test_index"]
         ignore_unavailable: true
+      warnings:
+        - "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
+      node_selector:
+        version: "8.0.0 - "
 
   - match: {_shards.total: 1}
   - is_true: upgraded_indices.test_index.upgrade_version
@@ -38,17 +55,29 @@
 
 ---
 "Upgrade indices allow no indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "_upgrade api is deprecated since 8.0.0"
+      features: ["warnings", "node_selector"]
 
   - do:
       indices.upgrade:
         index: test_index
         ignore_unavailable: true
         allow_no_indices: true
+      warnings:
+        - "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
+      node_selector:
+        version: "8.0.0 - "
 
   - match: {_shards.total: 0}
 
 ---
 "Upgrade indices disallow no indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "_upgrade api is deprecated since 8.0.0"
+      features: ["warnings", "node_selector"]
 
   - do:
       catch: missing
@@ -56,9 +85,17 @@
         index: test_index
         ignore_unavailable: true
         allow_no_indices: false
+      warnings:
+        - "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
+      node_selector:
+        version: "8.0.0 - "
 
 ---
 "Upgrade indices disallow unavailable":
+  - skip:
+      version: " - 7.99.99"
+      reason: "_upgrade api is deprecated since 8.0.0"
+      features: ["warnings", "node_selector"]
 
   - do:
       indices.create:
@@ -69,4 +106,7 @@
       indices.upgrade:
         index: ["test_index", "does_not_exist"]
         ignore_unavailable: false
-
+      warnings:
+        - "The _upgrade API is no longer useful and will be removed. Instead, see _reindex API."
+      node_selector:
+        version: "8.0.0 - "

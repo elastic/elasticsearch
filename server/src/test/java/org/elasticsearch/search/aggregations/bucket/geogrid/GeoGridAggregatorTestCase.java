@@ -33,9 +33,12 @@ import org.elasticsearch.common.geo.GeoBoundingBoxTests;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,12 +49,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "location";
+    protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     /**
      * Generate a random precision according to the rules of the given aggregation.
@@ -68,6 +73,16 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
      */
     protected abstract GeoGridAggregationBuilder createBuilder(String name);
 
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return createBuilder("foo").field(fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        return List.of(CoreValuesSourceType.GEOPOINT);
+    }
+
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), null, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
@@ -76,12 +91,21 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         });
     }
 
-    public void testFieldMissing() throws IOException {
+    public void testUnmapped() throws IOException {
         testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), null, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
         }, iw -> {
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         });
+    }
+
+    public void testUnmappedMissing() throws IOException {
+        GeoGridAggregationBuilder builder = createBuilder("_name")
+            .field("wrong_field")
+            .missing("53.69437,6.475031");
+        testCase(new MatchAllDocsQuery(), randomPrecision(), null, geoGrid -> assertEquals(1, geoGrid.getBuckets().size()),
+            iw -> iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))), builder);
+
     }
 
     public void testWithSeveralDocs() throws IOException {
@@ -133,7 +157,14 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
 
-        GeoBoundingBox bbox = GeoBoundingBoxTests.randomBBox();
+        // only consider bounding boxes that are at least GEOHASH_TOLERANCE wide and have quantized coordinates
+        GeoBoundingBox bbox = randomValueOtherThanMany(
+            (b) -> Math.abs(GeoUtils.normalizeLon(b.right()) - GeoUtils.normalizeLon(b.left())) < GEOHASH_TOLERANCE,
+            GeoBoundingBoxTests::randomBBox);
+        Function<Double, Double> encodeDecodeLat = (lat) -> GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+        Function<Double, Double> encodeDecodeLon = (lon) -> GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+        bbox.topLeft().reset(encodeDecodeLat.apply(bbox.top()), encodeDecodeLon.apply(bbox.left()));
+        bbox.bottomRight().reset(encodeDecodeLat.apply(bbox.bottom()), encodeDecodeLon.apply(bbox.right()));
 
         int in = 0, out = 0;
         List<LatLonDocValuesField> docs = new ArrayList<>();
@@ -188,6 +219,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     private void testCase(Query query, String field, int precision, GeoBoundingBox geoBoundingBox,
                           Consumer<InternalGeoGrid<T>> verify,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex) throws IOException {
+        testCase(query, precision, geoBoundingBox, verify, buildIndex, createBuilder("_name").field(field));
+    }
+
+    private void testCase(Query query, int precision, GeoBoundingBox geoBoundingBox,
+                          Consumer<InternalGeoGrid<T>> verify,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          GeoGridAggregationBuilder aggregationBuilder) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -196,7 +234,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-        GeoGridAggregationBuilder aggregationBuilder = createBuilder("_name").field(field);
         aggregationBuilder.precision(precision);
         if (geoBoundingBox != null) {
             aggregationBuilder.setGeoBoundingBox(geoBoundingBox);
@@ -211,7 +248,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
         aggregator.postCollection();
-        verify.accept((InternalGeoGrid<T>) aggregator.buildAggregation(0L));
+        verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();
         directory.close();

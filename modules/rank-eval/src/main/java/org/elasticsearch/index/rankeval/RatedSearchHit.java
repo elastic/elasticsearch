@@ -49,7 +49,7 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
     }
 
     RatedSearchHit(StreamInput in) throws IOException {
-        this(new SearchHit(in), in.readBoolean() == true ? OptionalInt.of(in.readVInt()) : OptionalInt.empty());
+        this(new SearchHit(in), in.readBoolean() ? OptionalInt.of(in.readVInt()) : OptionalInt.empty());
     }
 
     @Override

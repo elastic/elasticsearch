@@ -76,7 +76,6 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         CcrClient ccrClient = highLevelClient().ccr();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-        createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
         CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), is(true));
 
@@ -193,7 +192,6 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         final int numberOfShards = randomIntBetween(1, 2);
         settings.put("index.number_of_replicas", "0");
         settings.put("index.number_of_shards", Integer.toString(numberOfShards));
-        settings.put("index.soft_deletes.enabled", Boolean.TRUE.toString());
         createIndexRequest.settings(settings);
         final CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), is(true));
@@ -252,7 +250,6 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs-20200101");
-        createIndexRequest.settings(Collections.singletonMap("index.soft_deletes.enabled", true));
         CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), is(true));
 

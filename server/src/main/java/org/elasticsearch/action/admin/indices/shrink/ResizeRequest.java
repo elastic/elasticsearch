@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,7 +85,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
             validationException = addValidationError("can't override index sort when resizing an index", validationException);
         }
-        if (type == ResizeType.SPLIT && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
+        if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
         assert copySettings == null || copySettings;

@@ -10,7 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
@@ -51,8 +51,8 @@ public class BranchingStep extends ClusterStateActionStep {
 
    @Override
    public ClusterState performAction(Index index, ClusterState clusterState) {
-       IndexMetaData indexMetaData = clusterState.metaData().index(index);
-       if (indexMetaData == null) {
+       IndexMetadata indexMetadata = clusterState.metadata().index(index);
+       if (indexMetadata == null) {
            // Index must have been since deleted, ignore it
            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
            return clusterState;

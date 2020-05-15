@@ -1,19 +1,26 @@
 {
-  "ml.explain_data_frame_analytics": {
-    "documentation": {
-      "url": "http://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html"
+  "ml.explain_data_frame_analytics":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/explain-dfanalytics.html",
+      "description":"Explains a data frame analytics config."
     },
-    "stability": "experimental",
-    "url": {
-      "paths" : [
+    "stability":"experimental",
+    "url":{
+      "paths":[
         {
-          "path" : "/_ml/data_frame/analytics/_explain",
-          "methods": [ "GET", "POST" ],
-          "parts": {}
+          "path":"/_ml/data_frame/analytics/_explain",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{}
         },
         {
-          "path" : "/_ml/data_frame/analytics/{id}/_explain",
-          "methods": [ "GET", "POST" ],
+          "path":"/_ml/data_frame/analytics/{id}/_explain",
+          "methods":[
+            "GET",
+            "POST"
+          ],
           "parts":{
             "id":{
               "type":"string",
@@ -23,9 +30,9 @@
         }
       ]
     },
-    "body": {
-      "description" : "The data frame analytics config to explain",
-      "required" : false
+    "body":{
+      "description":"The data frame analytics config to explain",
+      "required":false
     }
   }
 }

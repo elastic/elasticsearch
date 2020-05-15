@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunctio
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 
 import java.util.Objects;
@@ -29,7 +30,7 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataTypes.DOUBLE;
     }
 
     @Override

@@ -137,7 +137,8 @@ The API returns the following results:
       "model_plot_config" : {
         "enabled" : true
       },
-      "model_snapshot_retention_days" : 1,
+      "model_snapshot_retention_days" : 10,
+      "daily_model_snapshot_retention_after_days" : 1,
       "custom_settings" : {
         "created_by" : "ml-module-sample",
         ...

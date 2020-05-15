@@ -1,5 +1,5 @@
 [[analysis-tokenizers]]
-== Tokenizers
+== Tokenizer reference
 
 A _tokenizer_  receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For

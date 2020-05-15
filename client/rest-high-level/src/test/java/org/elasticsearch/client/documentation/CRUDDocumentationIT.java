@@ -53,6 +53,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.core.GetSourceRequest;
+import org.elasticsearch.client.core.GetSourceResponse;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
@@ -1396,6 +1398,103 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             }
             // end::get-conflict
         }
+    }
+
+    public void testGetSource() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            Request createIndex = new Request("PUT", "/posts");
+            createIndex.setJsonEntity(
+                "{\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"properties\" : {\n" +
+                    "            \"message\" : {\n" +
+                    "                \"type\": \"text\",\n" +
+                    "                \"store\": true\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}");
+            Response response = client().performRequest(createIndex);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+
+            IndexRequest indexRequest = new IndexRequest("posts").id("1")
+                .source("user", "kimchy",
+                    "postDate", new Date(),
+                    "message", "trying out Elasticsearch");
+            IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
+            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        }
+
+        // tag::get-source-request
+        GetSourceRequest getSourceRequest = new GetSourceRequest(
+            "posts", // <1>
+            "1");   // <2>
+        // end::get-source-request
+
+        //tag::get-source-request-optional
+        String[] includes = Strings.EMPTY_ARRAY;  // <2>
+        String[] excludes = new String[]{"postDate"};
+        getSourceRequest.fetchSourceContext(
+            new FetchSourceContext(true, includes, excludes)); // <1>
+        // end::get-source-request-optional
+
+        //tag::get-source-request-routing
+        getSourceRequest.routing("routing"); // <1>
+        //end::get-source-request-routing
+        //tag::get-source-request-preference
+        getSourceRequest.preference("preference"); // <1>
+        //end::get-source-request-preference
+        //tag::get-source-request-realtime
+        getSourceRequest.realtime(false); // <1>
+        //end::get-source-request-realtime
+        //tag::get-source-request-refresh
+        getSourceRequest.refresh(true); // <1>
+        //end::get-source-request-refresh
+
+        {
+            // tag::get-source-execute
+            GetSourceResponse response =
+                client.getSource(getSourceRequest, RequestOptions.DEFAULT);
+            // end::get-source-execute
+            // tag::get-source-response
+            Map<String, Object> source = response.getSource();
+            // end::get-source-response
+
+            Map<String, Object> expectSource = new HashMap<>();
+            expectSource.put("user", "kimchy");
+            expectSource.put("message", "trying out Elasticsearch");
+            assertEquals(expectSource, source);
+        }
+        {
+            GetSourceRequest request = new GetSourceRequest("posts", "1");
+
+            // tag::get-source-execute-listener
+            ActionListener<GetSourceResponse> listener =
+                new ActionListener<GetSourceResponse>() {
+                    @Override
+                    public void onResponse(GetSourceResponse getResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-source-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::get-source-execute-async
+            client.getSourceAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-source-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
     }
 
     public void testExists() throws Exception {

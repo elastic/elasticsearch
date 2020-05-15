@@ -32,7 +32,9 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -324,5 +326,56 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f1")));
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f2")));
         assertThat(epe, TestMatchers.throwableWithMessage(containsString("f3")));
+    }
+
+    public void testIsEmpty() {
+        assertTrue(new RoleDescriptor(
+            randomAlphaOfLengthBetween(1, 10), null, null, null, null, null, null, null)
+            .isEmpty());
+
+        assertTrue(new RoleDescriptor(
+            randomAlphaOfLengthBetween(1, 10),
+            new String[0],
+            new RoleDescriptor.IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            new ConfigurableClusterPrivilege[0],
+            new String[0],
+            new HashMap<>(),
+            new HashMap<>())
+            .isEmpty());
+
+        final List<Boolean> booleans = Arrays.asList(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean());
+
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            randomAlphaOfLengthBetween(1, 10),
+            booleans.get(0) ? new String[0] : new String[] { "foo" },
+            booleans.get(1) ?
+                new RoleDescriptor.IndicesPrivileges[0] :
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
+            booleans.get(2) ?
+                new RoleDescriptor.ApplicationResourcePrivileges[0] :
+                new RoleDescriptor.ApplicationResourcePrivileges[] {
+                    RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .application("app").privileges("foo").resources("res").build() },
+            booleans.get(3) ?
+                new ConfigurableClusterPrivilege[0] :
+                new ConfigurableClusterPrivilege[] {
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
+            booleans.get(4) ? new String[0] : new String[] { "foo" },
+            booleans.get(5) ? new HashMap<>() : Collections.singletonMap("foo", "bar"),
+            Collections.singletonMap("foo", "bar"));
+
+        if (booleans.stream().anyMatch(e -> e.equals(false))) {
+            assertFalse(roleDescriptor.isEmpty());
+        } else {
+            assertTrue(roleDescriptor.isEmpty());
+        }
     }
 }

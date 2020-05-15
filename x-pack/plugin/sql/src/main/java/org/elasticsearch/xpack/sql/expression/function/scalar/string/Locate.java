@@ -13,9 +13,11 @@ import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
@@ -122,14 +124,14 @@ public class Locate extends ScalarFunction implements OptionalArgument {
     
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 
     @Override

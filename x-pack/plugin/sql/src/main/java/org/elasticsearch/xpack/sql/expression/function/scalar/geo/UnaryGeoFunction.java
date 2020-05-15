@@ -19,8 +19,8 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isGeo;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isGeo;
 
 /**
  * Base class for functions that get a single geo shape or geo point as an argument

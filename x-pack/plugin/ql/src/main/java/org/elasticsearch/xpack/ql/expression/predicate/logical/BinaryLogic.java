@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isBoolean;
 
@@ -24,7 +25,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataTypes.BOOLEAN;
     }
 
     @Override

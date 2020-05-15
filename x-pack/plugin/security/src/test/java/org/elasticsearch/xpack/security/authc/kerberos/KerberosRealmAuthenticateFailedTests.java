@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -121,8 +122,11 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
 
     public void testDelegatedAuthorizationFailedToResolve() throws Exception {
         final String username = randomPrincipalName();
-        final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
-            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("mock", "other_realm");
+        final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(realmIdentifier,
+            Settings.builder().put(globalSettings)
+                .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
         final User lookupUser = new User(randomAlphaOfLength(5));
         otherRealm.registerUser(lookupUser);
 

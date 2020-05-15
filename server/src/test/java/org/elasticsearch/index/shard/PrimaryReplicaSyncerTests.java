@@ -40,34 +40,23 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.translog.TestTranslog;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
@@ -201,33 +190,6 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         } catch (AlreadyClosedException | IndexShardClosedException ignored) {
             // ignore
         }
-    }
-
-    public void testDoNotSendOperationsWithoutSequenceNumber() throws Exception {
-        IndexShard shard = spy(newStartedShard(true));
-        when(shard.getLastKnownGlobalCheckpoint()).thenReturn(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        int numOps = between(0, 20);
-        List<Translog.Operation> operations = new ArrayList<>();
-        for (int i = 0; i < numOps; i++) {
-            operations.add(new Translog.Index(
-                Integer.toString(i), randomBoolean() ? SequenceNumbers.UNASSIGNED_SEQ_NO : i, primaryTerm, new byte[]{1}));
-        }
-        Engine.HistorySource source =
-            shard.indexSettings.isSoftDeleteEnabled() ? Engine.HistorySource.INDEX : Engine.HistorySource.TRANSLOG;
-        doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), eq(source), anyLong());
-        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        List<Translog.Operation> sentOperations = new ArrayList<>();
-        PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
-            sentOperations.addAll(Arrays.asList(request.getOperations()));
-            listener.onResponse(new ResyncReplicationResponse());
-        };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
-        syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
-        PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
-        syncer.resync(shard, fut);
-        fut.actionGet();
-        assertThat(sentOperations, equalTo(operations.stream().filter(op -> op.seqNo() >= 0).collect(Collectors.toList())));
-        closeShards(shard);
     }
 
     public void testStatusSerialization() throws IOException {

@@ -1,0 +1,59 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql]]
+= EQL for event-based search
+++++
+<titleabbrev>EQL</titleabbrev>
+++++
+
+experimental::[]
+
+{eql-ref}/index.html[Event Query Language (EQL)] is a query language used for
+logs and other event-based data.
+
+You can use EQL in {es} to easily express relationships between events and
+quickly match events with shared properties. You can use EQL and query
+DSL together to better filter your searches.
+
+[float]
+[[eql-advantages]]
+=== Advantages of EQL
+
+* *EQL lets you express relationships between events.* +
+Many query languages allow you to match only single events. EQL lets you match a
+sequence of events across different event categories and time spans.
+
+* *EQL has a low learning curve.* +
+EQL syntax looks like other query languages. It lets you write and read queries
+intuitively, which makes for quick, iterative searching.
+
+* *We designed EQL for security use cases.* +
+While you can use EQL for any event-based data, we created EQL for threat
+hunting. EQL not only supports indicator of compromise (IOC) searching but
+makes it easy to describe activity that goes beyond IOCs.
+
+[float]
+[[when-to-use-eql]]
+=== When to use EQL
+
+Consider using EQL if you:
+
+* Use {es} for threat hunting or other security use cases
+* Search time-series data or logs, such as network or system logs
+* Want an easy way to explore relationships between events
+
+[float]
+[[eql-toc]]
+=== In this section
+
+* <<eql-requirements>>
+* <<eql-search>>
+* <<eql-syntax>>
+* <<eql-function-ref>>
+* <<eql-limitations>>
+
+include::requirements.asciidoc[]
+include::search.asciidoc[]
+include::syntax.asciidoc[]
+include::functions.asciidoc[]
+include::limitations.asciidoc[]

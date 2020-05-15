@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -30,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,28 +47,6 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
         this.xAxisUnits = xAxisUnits == null ? null : (double) xAxisUnits;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public DerivativePipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        xAxisUnits = in.readOptionalDouble();
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        out.writeOptionalDouble(xAxisUnits);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return DerivativePipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -97,7 +72,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                 final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
-                aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
+                aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, metadata()));
                 Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 newBuckets.add(newBucket);
             } else {

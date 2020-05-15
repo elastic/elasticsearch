@@ -81,7 +81,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1088,6 +1088,67 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             }
         );
+
+        /*
+         * Tests the -04:00 time zone. This functions identically to
+         * the four hour offset.
+         */
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date"),
+            LongPoint.newRangeQuery(
+                "date",
+                asLong("2016-09-20T09:00:34"),
+                asLong("2017-10-20T06:09:24")
+            )), dataset,
+            () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
+                    .field("date")
+                    .calendarInterval(DateHistogramInterval.days(1))
+                    .timeZone(ZoneId.of("-04:00"));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
+                    .aggregateAfter(createAfterKey("date", 1474329600000L));
+
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=1508472000000}", result.afterKey().toString());
+                assertEquals("{date=1474344000000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{date=1508385600000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{date=1508472000000}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+            }
+        );
+
+        /*
+         * Tests a four hour offset with a time zone, demonstrating
+         * why we support both things.
+         */
+        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date"),
+            LongPoint.newRangeQuery(
+                "date",
+                asLong("2016-09-20T09:00:34"),
+                asLong("2017-10-20T06:09:24")
+            )), dataset,
+            () -> {
+                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
+                    .field("date")
+                    .calendarInterval(DateHistogramInterval.days(1))
+                    .offset(TimeUnit.HOURS.toMillis(4))
+                    .timeZone(ZoneId.of("America/Los_Angeles"));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
+                    .aggregateAfter(createAfterKey("date", 1474329600000L));
+
+            }, (result) -> {
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=1508410800000}", result.afterKey().toString());
+                assertEquals("{date=1474369200000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{date=1508324400000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{date=1508410800000}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+            }
+        );
     }
 
     public void testWithDateTerms() throws IOException {
@@ -1216,60 +1277,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 }
             ));
         assertThat(exc.getMessage(), containsString("failed to parse date field [1474329600000]"));
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
-    }
-
-    public void testWithDateHistogramAndTimeZone() throws IOException {
-        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
-        dataset.addAll(
-            Arrays.asList(
-                createDocument("date", asLong("2017-10-20T03:08:45")),
-                createDocument("date", asLong("2016-09-20T09:00:34")),
-                createDocument("date", asLong("2016-09-20T11:34:00")),
-                createDocument("date", asLong("2017-10-20T06:09:24")),
-                createDocument("date", asLong("2017-10-19T06:09:24")),
-                createDocument("long", 4L)
-            )
-        );
-        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date")), dataset,
-            () -> {
-                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
-                    .field("date")
-                    .dateHistogramInterval(DateHistogramInterval.days(1))
-                    .timeZone(ZoneOffset.ofHours(1));
-                return new CompositeAggregationBuilder("name", Collections.singletonList(histo));
-            },
-            (result) -> {
-                assertEquals(3, result.getBuckets().size());
-                assertEquals("{date=1508454000000}", result.afterKey().toString());
-                assertEquals("{date=1474326000000}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{date=1508367600000}", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{date=1508454000000}", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(2).getDocCount());
-            }
-        );
-
-        testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("date")), dataset,
-            () -> {
-                DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date")
-                    .field("date")
-                    .dateHistogramInterval(DateHistogramInterval.days(1))
-                    .timeZone(ZoneOffset.ofHours(1));
-                return new CompositeAggregationBuilder("name", Collections.singletonList(histo))
-                    .aggregateAfter(createAfterKey("date", 1474326000000L));
-
-            }, (result) -> {
-                assertEquals(2, result.getBuckets().size());
-                assertEquals("{date=1508454000000}", result.afterKey().toString());
-                assertEquals("{date=1508367600000}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{date=1508454000000}", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(1).getDocCount());
-            }
-        );
-
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
@@ -1625,7 +1632,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                         .field("keyword");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
                         .subAggregation(
-                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                                 .field("terms")
                                 .collectMode(mode)
                                 .subAggregation(new MaxAggregationBuilder("max").field("long"))
@@ -1653,7 +1660,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                         .field("keyword");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
                         .subAggregation(
-                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                                 .field("terms")
                                 .collectMode(mode)
                                 .subAggregation(new MaxAggregationBuilder("max").field("long"))
@@ -2070,40 +2077,52 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
 
     private static Sort buildIndexSort(List<CompositeValuesSourceBuilder<?>> sources, Map<String, MappedFieldType> fieldTypes) {
         List<SortField> sortFields = new ArrayList<>();
+        Map<String, MappedFieldType> remainingFieldTypes = new HashMap<>(fieldTypes);
         for (CompositeValuesSourceBuilder<?> source : sources) {
-            MappedFieldType type = fieldTypes.get(source.field());
-            if (type instanceof KeywordFieldMapper.KeywordFieldType) {
-                sortFields.add(new SortedSetSortField(type.name(), false));
-            } else if (type instanceof DateFieldMapper.DateFieldType) {
-                sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.LONG, false));
-            } else if (type instanceof NumberFieldMapper.NumberFieldType) {
-                boolean comp = false;
-                switch (type.typeName()) {
-                    case "byte":
-                    case "short":
-                    case "integer":
-                        comp = true;
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.INT, false));
-                        break;
-
-                    case "long":
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.LONG, false));
-                        break;
-
-                    case "float":
-                    case "double":
-                        comp = true;
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false));
-                        break;
-
-                    default:
-                        break;
-                }
-                if (comp == false) {
-                    break;
-                }
+            MappedFieldType type = fieldTypes.remove(source.field());
+            remainingFieldTypes.remove(source.field());
+            SortField sortField = sortFieldFrom(type);
+            if (sortField == null) {
+                break;
+            }
+            sortFields.add(sortField);
+            if (sortField instanceof SortedNumericSortField && ((SortedNumericSortField) sortField).getType() == SortField.Type.LONG) {
+                break;
             }
         }
-        return sortFields.size() > 0 ? new Sort(sortFields.toArray(new SortField[0])) : null;
+        while (remainingFieldTypes.size() > 0 && randomBoolean()) {
+            // Add extra unused sorts
+            List<String> fields = new ArrayList<>(remainingFieldTypes.keySet());
+            Collections.sort(fields);
+            String field = fields.get(between(0, fields.size() - 1));
+            SortField sortField = sortFieldFrom(remainingFieldTypes.remove(field));
+            if (sortField != null) {
+                sortFields.add(sortField);
+            }
+        }
+        return sortFields.size() > 0 ? new Sort(sortFields.toArray(SortField[]::new)) : null;
+    }
+    
+    private static SortField sortFieldFrom(MappedFieldType type) {
+        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
+            return new SortedSetSortField(type.name(), false);
+        } else if (type instanceof DateFieldMapper.DateFieldType) {
+            return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
+        } else if (type instanceof NumberFieldMapper.NumberFieldType) {
+            switch (type.typeName()) {
+                case "byte":
+                case "short":
+                case "integer":
+                    return new SortedNumericSortField(type.name(), SortField.Type.INT, false);
+                case "long":
+                    return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
+                case "float":
+                case "double":
+                    return new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
+                default:
+                    return null;
+            }
+        }
+        return null;
     }
 }

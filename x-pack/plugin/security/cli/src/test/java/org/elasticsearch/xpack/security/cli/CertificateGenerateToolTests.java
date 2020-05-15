@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.security.cli;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import org.bouncycastle.asn1.DLTaggedObject;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERTaggedObject;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x509.Extension;
@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CertificateI
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.Name;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -74,10 +73,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.TestMatchers.pathExists;
+import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -342,7 +343,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
                     assertSubjAltNames(subjAltNames, certInfo);
                 }
                 if (pkcs12Password != null) {
-                    assertThat(p12, pathExists(p12));
+                    assertThat(p12, pathExists());
                     try (InputStream in = Files.newInputStream(p12)) {
                         final KeyStore ks = KeyStore.getInstance("PKCS12");
                         ks.load(in, pkcs12Password);
@@ -353,7 +354,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
                         assertThat(key, notNullValue());
                     }
                 } else {
-                    assertThat(p12, not(pathExists(p12)));
+                    assertThat(p12, not(pathExists()));
                 }
             }
         }
@@ -489,11 +490,11 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 assertThat(seq.size(), equalTo(2));
                 assertThat(seq.getObjectAt(0), instanceOf(ASN1ObjectIdentifier.class));
                 assertThat(seq.getObjectAt(0).toString(), equalTo(CN_OID));
-                assertThat(seq.getObjectAt(1), instanceOf(DERTaggedObject.class));
-                DERTaggedObject taggedName = (DERTaggedObject) seq.getObjectAt(1);
+                assertThat(seq.getObjectAt(1), instanceOf(DLTaggedObject.class));
+                DLTaggedObject taggedName = (DLTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));
                 assertThat(taggedName.getObject(), instanceOf(ASN1String.class));
-                assertThat(taggedName.getObject().toString(), Matchers.isIn(certInfo.commonNames));
+                assertThat(taggedName.getObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

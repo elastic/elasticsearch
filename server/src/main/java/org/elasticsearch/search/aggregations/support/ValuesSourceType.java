@@ -22,13 +22,27 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
+import java.time.ZoneId;
 import java.util.function.LongSupplier;
 
 /**
- * ValuesSourceType wraps the creation of specific per-source instances each {@link ValuesSource} needs to provide.  Every top-level
- * subclass of {@link ValuesSource} should have a corresponding implementation of this interface.  In general, new data types seeking
- * aggregation support should create a top level {@link ValuesSource}, then implement this to return wrappers for the specific sources of
- * values.
+ * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
+ * Aggregations declare their support for a given ValuesSourceType (via {@link ValuesSourceRegistry.Builder#register}),
+ * and should then not need to care about the fields which use that ValuesSourceType.
+ *
+ * ValuesSourceTypes provide a set of methods to instantiate concrete {@link ValuesSource} instances, based on the actual source of the
+ * data for the aggregations.  In general, aggregations should not call these methods, but rather rely on {@link ValuesSourceConfig} to have
+ * selected the correct implementation.
+ *
+ * ValuesSourceTypes should be stateless.  We recommend that plugins define an enum for their ValuesSourceTypes, even if the plugin only
+ * intends to define one ValuesSourceType.  ValuesSourceTypes are not serialized as part of the aggregations framework.
+ *
+ * Prefer reusing an existing ValuesSourceType (ideally from {@link CoreValuesSourceType}) over creating a new type.  There are some cases
+ * where creating a new type is necessary however.  In particular, consider a new ValuesSourceType if the field has custom encoding/decoding
+ * requirements; if the field needs to expose additional information to the aggregation (e.g. {@link ValuesSource.Range#rangeType()}); or
+ * if logically the type needs a more restricted use (e.g. even though dates are stored as numbers, it doesn't make sense to pass them to
+ * a sum aggregation).  When adding a new ValuesSourceType, new aggregators should be added and registered at the same time, to add support
+ * for the new type to existing aggregations, as appropriate.
  */
 public interface ValuesSourceType {
     /**
@@ -65,9 +79,29 @@ public interface ValuesSourceType {
      * @param valuesSource - The original {@link ValuesSource}
      * @param rawMissing - The missing value we got from the parser, typically a string or number
      * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
-     * @param now - Used in conjunction with the formatter, should return the current time in milliseconds
+     * @param nowSupplier - Used in conjunction with the formatter, should return the current time in milliseconds
      * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
      */
     ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
-                                LongSupplier now);
+                                LongSupplier nowSupplier);
+
+    /**
+     * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a
+     * {@link org.elasticsearch.index.mapper.MappedFieldType}, it prefers to get the formatter from there.  Only when a field can't be
+     * resolved (which is to say script cases and unmapped field cases), it will fall back to calling this method on whatever
+     * {@link ValuesSourceType} it was able to resolve to.
+     *
+     * @param format - User supplied format string (Optional)
+     * @param tz - User supplied time zone (Optional)
+     * @return - A formatter object, configured with the passed in settings if appropriate.
+     */
+    default DocValueFormat getFormatter(String format, ZoneId tz) {
+        return DocValueFormat.RAW;
+    }
+
+    /**
+     * Returns the name of the Values Source Type for stats purposes
+     * @return the name of the Values Source Type
+     */
+    String typeName();
 }

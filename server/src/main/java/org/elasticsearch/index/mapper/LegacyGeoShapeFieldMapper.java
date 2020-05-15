@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
@@ -74,7 +75,7 @@ import java.util.Objects;
  * @deprecated use {@link GeoShapeFieldMapper}
  */
 @Deprecated
-public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {
+public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<ShapeBuilder<?, ?, ?>, Shape> {
 
     public static final String CONTENT_TYPE = "geo_shape";
 
@@ -170,16 +171,16 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
                 throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type",
                     fieldName, CONTENT_TYPE);
             }
-            DEPRECATION_LOGGER.deprecated("Field parameter [{}] is deprecated and will be removed in a future version.",
-                fieldName);
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("geo_mapper_field_parameter",
+                "Field parameter [{}] is deprecated and will be removed in a future version.", fieldName);
         }
     }
 
     private static final Logger logger = LogManager.getLogger(LegacyGeoShapeFieldMapper.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
-    public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder,
-        LegacyGeoShapeFieldMapper> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
+        LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
 
         DeprecatedParameters deprecatedParameters;
 
@@ -193,8 +194,18 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         }
 
         @Override
-        public GeoShapeFieldType fieldType() {
-            return (GeoShapeFieldType)fieldType;
+        protected void setGeometryParser(GeoShapeFieldType fieldType) {
+            fieldType().setGeometryParser(ShapeParser::parse);
+        }
+
+        @Override
+        public void setGeometryIndexer(LegacyGeoShapeFieldMapper.GeoShapeFieldType fieldType) {
+            fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer(fieldType));
+        }
+
+        @Override
+        protected void setGeometryQueryBuilder(GeoShapeFieldType fieldType) {
+            fieldType().setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(fieldType()));
         }
 
         private void setupFieldTypeDeprecatedParameters(BuilderContext context) {
@@ -264,16 +275,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
 
-            fieldType().setGeometryIndexer(new LegacyGeoShapeIndexer(fieldType()));
-            fieldType().setGeometryParser(ShapeParser::parse);
-            fieldType().setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(fieldType()));
-
-            // field mapper handles this at build time
-            // but prefix tree strategies require a name, so throw a similar exception
-            if (fieldType().name().isEmpty()) {
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
-
             // setup the deprecated parameters and the prefix tree configuration
             setupFieldTypeDeprecatedParameters(context);
             setupPrefixTrees();
@@ -297,7 +298,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
         }
     }
 
-    public static final class GeoShapeFieldType extends AbstractGeometryFieldType {
+    public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>, Shape> {
 
         private String tree = DeprecatedParameters.Defaults.TREE;
         private SpatialStrategy strategy = DeprecatedParameters.Defaults.STRATEGY;
@@ -472,13 +473,28 @@ public class LegacyGeoShapeFieldMapper extends AbstractGeometryFieldMapper<Shape
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Explicit<Orientation> orientation,
                                Explicit<Boolean> ignoreZValue, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
     }
 
     @Override
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
+    }
+
+    @Override
+    protected void addStoredFields(ParseContext context, Shape geometry) {
+        // noop: we do not store geo_shapes; and will not store legacy geo_shape types
+    }
+
+    @Override
+    protected void addDocValuesFields(String name, Shape geometry, List<IndexableField> fields, ParseContext context) {
+        // doc values are not supported
+    }
+
+    @Override
+    protected void addMultiFields(ParseContext context, Shape geometry) {
+        // noop (completion suggester currently not compatible with geo_shape)
     }
 
     @Override

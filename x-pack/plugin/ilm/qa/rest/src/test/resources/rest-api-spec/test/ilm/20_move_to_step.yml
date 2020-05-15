@@ -102,7 +102,7 @@ teardown:
             action: "forcemerge"
             name: "forcemerge"
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "index [my_index] is not on current step [{\"phase\":\"warm\",\"action\":\"forcemerge\",\"name\":\"forcemerge\"}]" }
+  - match: { error.root_cause.0.reason: "index [my_index] is not on current step [{\"phase\":\"warm\",\"action\":\"forcemerge\",\"name\":\"forcemerge\"}], currently: [{\"phase\":\"new\",\"action\":\"complete\",\"name\":\"complete\"}]" }
 
 
   - do:

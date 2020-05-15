@@ -23,17 +23,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,34 +41,41 @@ public class GeoCentroidAggregationBuilder
         extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregationBuilder> {
     public static final String NAME = "geo_centroid";
 
-    private static final ObjectParser<GeoCentroidAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<GeoCentroidAggregationBuilder, String> PARSER =
+        ObjectParser.fromBuilder(NAME, GeoCentroidAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(GeoCentroidAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareGeoFields(PARSER, true, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, false, false);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new GeoCentroidAggregationBuilder(aggregationName), null);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoCentroidAggregatorFactory.registerAggregators(builder);
     }
 
     public GeoCentroidAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name);
     }
 
-    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GeoCentroidAggregationBuilder(GeoCentroidAggregationBuilder clone,
+                                            AggregatorFactories.Builder factoriesBuilder,
+                                            Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoCentroidAggregationBuilder(this, factoriesBuilder, metaData);
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.GEOPOINT;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoCentroidAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public GeoCentroidAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in);
     }
 
     @Override
@@ -78,9 +84,10 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected GeoCentroidAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-                                                      AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new GeoCentroidAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+    protected GeoCentroidAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+                                                      AggregatorFactory parent,
+                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new GeoCentroidAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

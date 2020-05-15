@@ -25,7 +25,17 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class DocumentMapperParserTests extends ESSingleNodeTestCase {
+    public void testTypeLevel() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject());
+
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertThat(mapper.type(), equalTo("type"));
+    }
 
     public void testFieldNameWithDots() throws Exception {
         IndexService indexService = createIndex("test");

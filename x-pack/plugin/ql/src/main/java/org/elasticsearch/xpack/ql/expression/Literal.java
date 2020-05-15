@@ -18,9 +18,9 @@ import java.util.Objects;
  */
 public class Literal extends LeafExpression {
 
-    public static final Literal TRUE = new Literal(Source.EMPTY, Boolean.TRUE, DataType.BOOLEAN);
-    public static final Literal FALSE = new Literal(Source.EMPTY, Boolean.FALSE, DataType.BOOLEAN);
-    public static final Literal NULL = new Literal(Source.EMPTY, null, DataType.NULL);
+    public static final Literal TRUE = new Literal(Source.EMPTY, Boolean.TRUE, DataTypes.BOOLEAN);
+    public static final Literal FALSE = new Literal(Source.EMPTY, Boolean.FALSE, DataTypes.BOOLEAN);
+    public static final Literal NULL = new Literal(Source.EMPTY, null, DataTypes.NULL);
 
     private final Object value;
     private final DataType dataType;
@@ -91,16 +91,6 @@ public class Literal extends LeafExpression {
     @Override
     public String nodeString() {
         return toString() + "[" + dataType + "]";
-    }
-
-    /**
-     * Utility method for creating 'in-line' Literals (out of values instead of expressions).
-     */
-    public static Literal of(Source source, Object value) {
-        if (value instanceof Literal) {
-            return (Literal) value;
-        }
-        return new Literal(source, value, DataTypes.fromJava(value));
     }
 
     /**

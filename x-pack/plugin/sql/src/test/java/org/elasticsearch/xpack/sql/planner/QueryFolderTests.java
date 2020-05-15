@@ -11,8 +11,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -45,10 +45,10 @@ public class QueryFolderTests extends ESTestCase {
     public static void init() {
         parser = new SqlParser();
 
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(TestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         optimizer = new Optimizer();
         planner = new Planner();
     }
@@ -219,7 +219,8 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertTrue(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "").contains(
-            "\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0))\"," +
+                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
+                        +
             "\"lang\":\"painless\",\"params\":{\"v0\":10}},"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("test.keyword{f}#"));
@@ -292,7 +293,7 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                "\"source\":\"InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
                 "\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
@@ -306,7 +307,7 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                "\"source\":\"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
@@ -320,7 +321,7 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.sin(InternalSqlScriptUtils.docValue(doc,params.v0))\"," +
+                "\"source\":\"InternalSqlScriptUtils.sin(InternalQlScriptUtils.docValue(doc,params.v0))\"," +
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
@@ -334,7 +335,7 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.lcase(InternalSqlScriptUtils.docValue(doc,params.v0))\"," +
+                "\"source\":\"InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0))\"," +
                 "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"string\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
@@ -348,7 +349,7 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.cast(" +
-                    "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
                     "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
                     "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
@@ -362,13 +363,31 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0)," +
+                "\"source\":\"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0)," +
                 "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{" +
                 "\"v0\":\"date\",\"v1\":\"P1Y2M\",\"v2\":\"INTERVAL_YEAR_TO_MONTH\"}},\"missing_bucket\":true," +
                 "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
+    }
+
+    public void testSelectLiteralWithGroupBy() {
+        PhysicalPlan p = plan("SELECT 1, MAX(int) FROM test");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(2, ee.output().size());
+        assertEquals(Arrays.asList("1", "MAX(int)"), Expressions.names(ee.output()));
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"max\":{\"field\":\"int\""));
+
+        p = plan("SELECT 1, count(*) FROM test GROUP BY int");
+        assertEquals(EsQueryExec.class, p.getClass());
+        ee = (EsQueryExec) p;
+        assertEquals(2, ee.output().size());
+        assertEquals(Arrays.asList("1", "count(*)"), Expressions.names(ee.output()));
+        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                containsString("\"terms\":{\"field\":\"int\""));
     }
 
     public void testConcatIsNotFoldedForNull() {

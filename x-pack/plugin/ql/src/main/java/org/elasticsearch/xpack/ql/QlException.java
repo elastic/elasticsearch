@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.ql;
 
 import org.elasticsearch.ElasticsearchException;
 
+/**
+ * Base class for all QL exceptions. Useful as a catch-all.
+ */
 public abstract class QlException extends ElasticsearchException {
     public QlException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);

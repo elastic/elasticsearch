@@ -17,14 +17,17 @@ repositories {
 }
 
 // todo remove offending rules
-forbiddenApisMain.enabled = false
-forbiddenApisTest.enabled = false
+tasks.named('forbiddenApisMain').configure { onlyIf { false } }
+tasks.named('forbiddenApisTest').configure { onlyIf { false } }
 // requires dependency on testing fw
 jarHell.enabled = false
 // we don't have tests for now
 test.enabled = false
 // This requires an additional Jar not part of build-tools
 loggerUsageCheck.enabled = false
+
+// TODO: shouldn't be part of BuildPlugin, should be tested separately
+validateNebulaPom.enabled = false
 
 task hello {
   doFirst {

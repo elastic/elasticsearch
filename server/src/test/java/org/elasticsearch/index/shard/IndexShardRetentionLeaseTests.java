@@ -303,21 +303,6 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         }
     }
 
-    public void testRetentionLeasesActionsFailWithSoftDeletesDisabled() throws Exception {
-        IndexShard shard = newStartedShard(true, Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
-        assertThat(expectThrows(AssertionError.class, () -> shard.addRetentionLease(randomAlphaOfLength(10),
-            randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), "test", ActionListener.wrap(() -> {}))).getMessage(),
-            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
-        assertThat(expectThrows(AssertionError.class, () -> shard.renewRetentionLease(
-            randomAlphaOfLength(10), randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), "test")).getMessage(),
-            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
-        assertThat(expectThrows(AssertionError.class, () -> shard.removeRetentionLease(
-            randomAlphaOfLength(10), ActionListener.wrap(() -> {}))).getMessage(),
-            equalTo("retention leases requires soft deletes but [index] does not have soft deletes enabled"));
-        shard.syncRetentionLeases();
-        closeShards(shard);
-    }
-
     private void assertRetentionLeases(
             final IndexShard indexShard,
             final int size,

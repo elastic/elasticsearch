@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -74,7 +74,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, SourceFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         private boolean enabled = Defaults.ENABLED;
 
@@ -108,7 +108,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
 
@@ -141,7 +141,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new SourceFieldMapper(indexSettings);
         }
@@ -193,7 +193,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
-        final boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
+        final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
         this.filter = enabled && filtered && fieldType().stored() ? XContentMapValues.filter(includes, excludes) : null;
         this.complete = enabled && includes == null && excludes == null;
     }
@@ -226,21 +226,21 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
-            fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+            context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
         if (originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
-            fields.add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            fields.add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }
     }
 

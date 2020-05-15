@@ -42,15 +42,18 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
@@ -350,9 +353,15 @@ public class DatafeedConfigProvider {
      * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
+     * @param tasks The current tasks meta-data. For expanding IDs when datafeeds might have missing configurations
+     * @param allowMissingConfigs If a datafeed has a task, but is missing a config, allow the ID to be expanded via the existing task
      * @param listener The expanded datafeed IDs listener
      */
-    public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<SortedSet<String>> listener) {
+    public void expandDatafeedIds(String expression,
+                                  boolean allowNoDatafeeds,
+                                  PersistentTasksCustomMetadata tasks,
+                                  boolean allowMissingConfigs,
+                                  ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
@@ -366,6 +375,7 @@ public class DatafeedConfigProvider {
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+        Collection<String> matchingStartedDatafeedIds = matchingDatafeedIdsWithTasks(tokens, tasks);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -374,6 +384,9 @@ public class DatafeedConfigProvider {
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
                                 datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
+                            }
+                            if (allowMissingConfigs) {
+                                datafeedIds.addAll(matchingStartedDatafeedIds);
                             }
 
                             requiredMatches.filterMatchedIds(datafeedIds);
@@ -391,10 +404,10 @@ public class DatafeedConfigProvider {
     }
 
     /**
-     * The same logic as {@link #expandDatafeedIds(String, boolean, ActionListener)} but
+     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} but
      * the full datafeed configuration is returned.
      *
-     * See {@link #expandDatafeedIds(String, boolean, ActionListener)}
+     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
@@ -476,6 +489,10 @@ public class DatafeedConfigProvider {
         }
 
         return boolQueryBuilder;
+    }
+
+    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+        return MlStrings.findMatching(datafeedIdPatterns, MlTasks.startedDatafeedIds(tasksMetadata));
     }
 
     private QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {

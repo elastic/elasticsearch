@@ -21,20 +21,20 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -43,9 +43,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
-    public RestGetFieldMappingAction(RestController controller) {
-        controller.registerHandler(GET, "/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_mapping/field/{fields}"),
+            new Route(GET, "/{index}/_mapping/field/{fields}"));
     }
 
     @Override
@@ -61,12 +63,11 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
-        getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel ->
                 client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
-                        Map<String, Map<String, FieldMappingMetaData>> mappingsByIndex = response.mappings();
+                        Map<String, Map<String, FieldMappingMetadata>> mappingsByIndex = response.mappings();
 
                         RestStatus status = OK;
                         if (mappingsByIndex.isEmpty() && fields.length > 0) {

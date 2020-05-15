@@ -5,23 +5,39 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /**
- * SQL-related information about an index field that cannot be supported by SQL
+ * SQL-related information about an index field that cannot be supported by SQL.
+ * All the subfields (properties) of an unsupported type should also be unsupported.
  */
 public class UnsupportedEsField extends EsField {
 
-    private String originalType;
-
+    private final String originalType;
+    private final String inherited; // for fields belonging to parents (or grandparents) that have an unsupported type
+    
     public UnsupportedEsField(String name, String originalType) {
-        super(name, DataType.UNSUPPORTED, Collections.emptyMap(), false);
+        this(name, originalType, null, new TreeMap<>());
+    }
+    
+    public UnsupportedEsField(String name, String originalType, String inherited, Map<String, EsField> properties) {
+        super(name, DataTypes.UNSUPPORTED, properties, false);
         this.originalType = originalType;
+        this.inherited = inherited;
     }
 
     public String getOriginalType() {
         return originalType;
+    }
+    
+    public String getInherited() {
+        return inherited;
+    }
+    
+    public boolean hasInherited() {
+        return inherited != null;
     }
 
     @Override
@@ -36,11 +52,12 @@ public class UnsupportedEsField extends EsField {
             return false;
         }
         UnsupportedEsField that = (UnsupportedEsField) o;
-        return Objects.equals(originalType, that.originalType);
+        return Objects.equals(originalType, that.originalType)
+                && Objects.equals(inherited, that.inherited);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), originalType);
+        return Objects.hash(super.hashCode(), originalType, inherited);
     }
 }

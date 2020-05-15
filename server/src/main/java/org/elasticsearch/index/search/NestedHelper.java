@@ -103,7 +103,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fullName(field) == null) {
+        if (mapperService.fieldType(field) == null) {
             // field does not exist
             return false;
         }
@@ -172,7 +172,7 @@ public final class NestedHelper {
             // we might add a nested filter when it is nor required.
             return true;
         }
-        if (mapperService.fullName(field) == null) {
+        if (mapperService.fieldType(field) == null) {
             return false;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {

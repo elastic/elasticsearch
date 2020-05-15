@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FromClauseContext;
@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,8 +64,8 @@ import static java.util.Collections.emptyList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params) {
-        super(params);
+    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+        super(params, zoneId);
     }
 
     @Override
@@ -105,7 +106,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Token limit = limitClause.limit;
             if (limit != null && limitClause.INTEGER_VALUE() != null) {
                 plan = new Limit(source(limitClause), new Literal(source(limitClause),
-                        Integer.parseInt(limit.getText()), DataType.INTEGER), plan);
+                        Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
             }
         }
 

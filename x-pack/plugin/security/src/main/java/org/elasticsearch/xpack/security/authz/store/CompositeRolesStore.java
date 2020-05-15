@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -43,7 +44,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -99,9 +100,7 @@ public class CompositeRolesStore {
     private final DocumentSubsetBitsetCache dlsBitsetCache;
     private final ThreadContext threadContext;
     private final AtomicLong numInvalidation = new AtomicLong();
-    private final AnonymousUser anonymousUser;
     private final ApiKeyService apiKeyService;
-    private final boolean isAnonymousEnabled;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> builtInRoleProviders;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allRoleProviders;
 
@@ -144,8 +143,6 @@ public class CompositeRolesStore {
             allList.addAll(rolesProviders);
             this.allRoleProviders = Collections.unmodifiableList(allList);
         }
-        this.anonymousUser = new AnonymousUser(settings);
-        this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
     }
 
     public void roles(Set<String> roleNames, ActionListener<Role> roleActionListener) {
@@ -164,7 +161,7 @@ public class CompositeRolesStore {
                                     rolesRetrievalResult.getMissingRoles()));
                         }
                         final Set<RoleDescriptor> effectiveDescriptors;
-                        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                        if (licenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
                             effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors();
                         } else {
                             effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors().stream()
@@ -212,6 +209,10 @@ public class CompositeRolesStore {
             roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
             return;
         }
+        if (AsyncSearchUser.is(user)) {
+            roleActionListener.onResponse(AsyncSearchUser.ROLE);
+            return;
+        }
 
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (authType == Authentication.AuthenticationType.API_KEY) {
@@ -231,13 +232,6 @@ public class CompositeRolesStore {
             }, roleActionListener::onFailure));
         } else {
             Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
-            if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                }
-                Collections.addAll(roleNames, anonymousUser.roles());
-            }
-
             if (roleNames.isEmpty()) {
                 roleActionListener.onResponse(Role.EMPTY);
             } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
@@ -315,7 +309,7 @@ public class CompositeRolesStore {
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
         final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders =
-            licenseState.isCustomRoleProvidersAllowed() ? allRoleProviders : builtInRoleProviders;
+            licenseState.isAllowed(Feature.SECURITY_CUSTOM_ROLE_PROVIDERS) ? allRoleProviders : builtInRoleProviders;
 
         final ActionListener<RoleRetrievalResult> descriptorsListener =
             ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignore -> {

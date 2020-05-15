@@ -249,7 +249,7 @@ public final class StringUtils {
             if (escaped == false && curr == escape && escape != 0) {
                 escaped = true;
             } else {
-                if (escaped == true && (curr == '%' || curr == '_' || curr == escape)) {
+                if (escaped && (curr == '%' || curr == '_' || curr == escape)) {
                     wildcard.append(curr);
                 } else {
                     if (escaped) {
@@ -261,7 +261,7 @@ public final class StringUtils {
             }
         }
         // corner-case when the escape char is the last char
-        if (escaped == true) {
+        if (escaped) {
             wildcard.append(escape);
         }
         return wildcard.toString();

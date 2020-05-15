@@ -150,7 +150,11 @@ include::enrich.asciidoc[tag=enrich-policy-fields]
 You can use this definition to create the enrich policy with the
 <<put-enrich-policy-api,put enrich policy API>>.
 
-include::apis/enrich/put-enrich-policy.asciidoc[tag=update-enrich-policy]
+[WARNING]
+====
+Once created, you can't update or change an enrich policy.
+See <<update-enrich-policies>>.
+====
 
 [[execute-enrich-policy]]
 ==== Execute the enrich policy
@@ -214,7 +218,19 @@ using your ingest pipeline.
 [[update-enrich-policies]]
 ==== Update an enrich policy
 
-include::apis/enrich/put-enrich-policy.asciidoc[tag=update-enrich-policy]
+// tag::update-enrich-policy[]
+Once created, you can't update or change an enrich policy.
+Instead, you can:
+
+.   Create and <<execute-enrich-policy-api,execute>> a new enrich policy.
+
+.   Replace the previous enrich policy
+    with the new enrich policy
+    in any in-use enrich processors.
+
+.   Use the <<delete-enrich-policy-api, delete enrich policy>> API
+    to delete the previous enrich policy.
+// end::update-enrich-policy[]
 
 [role="xpack"]
 [testenv="basic"]
@@ -231,7 +247,7 @@ following:
         "indices": ["..."],
         "match_field": "...",
         "enrich_fields": ["..."],
-        "query": "..."
+        "query": {...}
     }
   }
 }
@@ -281,9 +297,9 @@ Fields to add to matching incoming documents. These fields must be present in
 the source indices.
 
 `query`::
-(Optional, string)
-Query type used to filter documents in the enrich index for matching. Valid
-value is <<query-dsl-match-all-query,`match_all`>> (default).
+(Optional, <<query-dsl,Query DSL query object>>)
+Query used to filter documents in the enrich index for matching. Defaults to
+a <<query-dsl-match-all-query,`match_all`>> query.
 
 [role="xpack"]
 [testenv="basic"]

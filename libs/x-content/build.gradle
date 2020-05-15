@@ -18,8 +18,7 @@
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
   compile project(':libs:elasticsearch-core')
@@ -40,7 +39,7 @@ dependencies {
 
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // x-content does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
   replaceSignatureFiles 'jdk-signatures'
@@ -49,6 +48,7 @@ forbiddenApisMain {
 thirdPartyAudit.ignoreMissingClasses(
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
+  'com.fasterxml.jackson.databind.cfg.MapperBuilder'
 )
 
 dependencyLicenses {

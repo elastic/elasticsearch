@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -106,6 +108,7 @@ import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
@@ -257,7 +260,7 @@ public final class MachineLearningClient {
      * Deletes expired data from Machine Learning Jobs
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
      * documentation</a>
      *
      * @param request The request to delete expired ML data
@@ -278,7 +281,7 @@ public final class MachineLearningClient {
      * Deletes expired data from Machine Learning Jobs asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html">ML Delete Expired Data
      * documentation</a>
      * @param request  The request to delete expired ML data
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -299,7 +302,7 @@ public final class MachineLearningClient {
      * Deletes the given Machine Learning Job
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete job documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete job documentation</a>
      *
      * @param request The request to delete the job
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -319,7 +322,7 @@ public final class MachineLearningClient {
      * Deletes the given Machine Learning Job asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete Job documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-job.html">ML Delete Job documentation</a>
      *
      *  @param request  The request to delete the job
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -558,7 +561,7 @@ public final class MachineLearningClient {
      * Deletes Machine Learning Model Snapshots
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
      *     ML Delete Model Snapshot documentation</a>
      *
      * @param request The request to delete the model snapshot
@@ -578,7 +581,7 @@ public final class MachineLearningClient {
      * Deletes Machine Learning Model Snapshots asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-snapshot.html">
      *         ML Delete Model Snapshot documentation</a>
      *
      * @param request The request to delete the model snapshot
@@ -600,7 +603,7 @@ public final class MachineLearningClient {
      * Reverts to a particular Machine Learning Model Snapshot
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html">
      *     ML Revert Model Snapshot documentation</a>
      *
      * @param request The request to revert to a previous model snapshot
@@ -620,7 +623,7 @@ public final class MachineLearningClient {
      * Reverts to a particular Machine Learning Model Snapshot asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-revert-snapshot.html">
      *         ML Revert Model Snapshot documentation</a>
      *
      * @param request The request to revert to a previous model snapshot
@@ -766,7 +769,7 @@ public final class MachineLearningClient {
      * Deletes the given Machine Learning Datafeed
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html">
      *     ML Delete Datafeed documentation</a>
      *
      * @param request The request to delete the datafeed
@@ -786,7 +789,7 @@ public final class MachineLearningClient {
      * Deletes the given Machine Learning Datafeed asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html">
      *         ML Delete Datafeed documentation</a>
      *
      * @param request The request to delete the datafeed
@@ -808,7 +811,7 @@ public final class MachineLearningClient {
      * Starts the given Machine Learning Datafeed
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html">
      *     ML Start Datafeed documentation</a>
      *
      * @param request The request to start the datafeed
@@ -828,7 +831,7 @@ public final class MachineLearningClient {
      * Starts the given Machine Learning Datafeed asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-datafeed.html">
      *         ML Start Datafeed documentation</a>
      *
      * @param request The request to start the datafeed
@@ -850,7 +853,7 @@ public final class MachineLearningClient {
      * Stops the given Machine Learning Datafeed
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html">
      *     ML Stop Datafeed documentation</a>
      *
      * @param request The request to stop the datafeed
@@ -870,7 +873,7 @@ public final class MachineLearningClient {
      * Stops the given Machine Learning Datafeed asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html">
      *         ML Stop Datafeed documentation</a>
      *
      * @param request The request to stop the datafeed
@@ -912,7 +915,7 @@ public final class MachineLearningClient {
      * Previews the given Machine Learning Datafeed
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
      *     ML Preview Datafeed documentation</a>
      *
      * @param request The request to preview the datafeed
@@ -955,7 +958,7 @@ public final class MachineLearningClient {
      * Previews the given Machine Learning Datafeed asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html">
      *         ML Preview Datafeed documentation</a>
      *
      * @param request The request to preview the datafeed
@@ -1792,7 +1795,7 @@ public final class MachineLearningClient {
      * Deletes the given Machine Learning filter
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-filter.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-filter.html">
      *     ML Delete Filter documentation</a>
      *
      * @param request The request to delete the filter
@@ -1812,7 +1815,7 @@ public final class MachineLearningClient {
      * Deletes the given Machine Learning filter asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-filter.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-filter.html">
      *         ML Delete Filter documentation</a>
      *
      * @param request The request to delete the filter
@@ -1834,7 +1837,7 @@ public final class MachineLearningClient {
      * Gets Machine Learning information about default values and limits.
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
      *
      * @param request The request of Machine Learning info
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1853,7 +1856,7 @@ public final class MachineLearningClient {
      * Gets Machine Learning information about default values and limits, asynchronously.
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-ml-info.html">Machine Learning info</a>
      *
      * @param request The request of Machine Learning info
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1873,7 +1876,7 @@ public final class MachineLearningClient {
      * Finds the structure of a file
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
      *     ML Find File Structure documentation</a>
      *
      * @param request The find file structure request
@@ -1893,7 +1896,7 @@ public final class MachineLearningClient {
      * Finds the structure of a file asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
      *         ML Find File Structure documentation</a>
      *
      * @param request The find file structure request
@@ -1915,7 +1918,7 @@ public final class MachineLearningClient {
      * Sets the ML cluster setting upgrade_mode
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html">Set Upgrade Mode</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html">Set Upgrade Mode</a>
      *
      * @param request The request to set upgrade mode
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1934,7 +1937,7 @@ public final class MachineLearningClient {
      * Sets the ML cluster setting upgrade_mode asynchronously
      * <p>
      * For additional info
-     * see <a href="http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html">Set Upgrade Mode</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-set-upgrade-mode.html">Set Upgrade Mode</a>
      *
      * @param request The request of Machine Learning info
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1947,6 +1950,48 @@ public final class MachineLearningClient {
             MLRequestConverters::setUpgradeMode,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Estimate the model memory an analysis config is likely to need given supplied field cardinalities
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-estimate-model-memory.html">Estimate Model Memory</a>
+     *
+     * @param request The {@link EstimateModelMemoryRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link EstimateModelMemoryResponse} response object
+     */
+    public EstimateModelMemoryResponse estimateModelMemory(EstimateModelMemoryRequest request,
+                                                           RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::estimateModelMemory,
+            options,
+            EstimateModelMemoryResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Estimate the model memory an analysis config is likely to need given supplied field cardinalities and notifies listener upon
+     * completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-estimate-model-memory.html">Estimate Model Memory</a>
+     *
+     * @param request The {@link EstimateModelMemoryRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable estimateModelMemoryAsync(EstimateModelMemoryRequest request,
+                                                RequestOptions options,
+                                                ActionListener<EstimateModelMemoryResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::estimateModelMemory,
+            options,
+            EstimateModelMemoryResponse::fromXContent,
             listener,
             Collections.emptySet());
     }
@@ -2094,12 +2139,12 @@ public final class MachineLearningClient {
      * @return action acknowledgement
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public AcknowledgedResponse startDataFrameAnalytics(StartDataFrameAnalyticsRequest request,
-                                                        RequestOptions options) throws IOException {
+    public StartDataFrameAnalyticsResponse startDataFrameAnalytics(StartDataFrameAnalyticsRequest request,
+                                                                   RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::startDataFrameAnalytics,
             options,
-            AcknowledgedResponse::fromXContent,
+            StartDataFrameAnalyticsResponse::fromXContent,
             Collections.emptySet());
     }
 
@@ -2116,11 +2161,11 @@ public final class MachineLearningClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable startDataFrameAnalyticsAsync(StartDataFrameAnalyticsRequest request, RequestOptions options,
-                                                    ActionListener<AcknowledgedResponse> listener) {
+                                                    ActionListener<StartDataFrameAnalyticsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::startDataFrameAnalytics,
             options,
-            AcknowledgedResponse::fromXContent,
+            StartDataFrameAnalyticsResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

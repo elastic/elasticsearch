@@ -53,11 +53,11 @@ public class RankFeaturesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "rank_features").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -85,12 +85,12 @@ public class RankFeaturesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "rank_features").endObject().startObject("foo")
                 .startObject("properties").startObject("field").field("type", "rank_features").endObject().endObject()
                 .endObject().endObject().endObject().endObject());
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 

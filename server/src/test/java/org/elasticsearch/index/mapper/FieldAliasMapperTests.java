@@ -43,7 +43,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
     public void testParsing() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("_doc")
+                .startObject("type")
                     .startObject("properties")
                         .startObject("alias-field")
                             .field("type", "alias")
@@ -55,7 +55,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject());
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
     }
 
@@ -110,7 +110,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
             .endObject());
         mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        MappedFieldType firstFieldType = mapperService.fullName("alias-field");
+        MappedFieldType firstFieldType = mapperService.fieldType("alias-field");
         assertEquals("first-field", firstFieldType.name());
         assertTrue(firstFieldType instanceof KeywordFieldMapper.KeywordFieldType);
 
@@ -129,7 +129,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
             .endObject());
         mapperService.merge("type", new CompressedXContent(newMapping), MergeReason.MAPPING_UPDATE);
 
-        MappedFieldType secondFieldType = mapperService.fullName("alias-field");
+        MappedFieldType secondFieldType = mapperService.fieldType("alias-field");
         assertEquals("second-field", secondFieldType.name());
         assertTrue(secondFieldType instanceof TextFieldMapper.TextFieldType);
     }

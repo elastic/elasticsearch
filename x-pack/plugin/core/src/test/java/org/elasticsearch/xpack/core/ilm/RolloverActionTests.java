@@ -77,28 +77,32 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         RolloverAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10));
+            randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(4, steps.size());
+        assertEquals(5, steps.size());
         StepKey expectedFirstStepKey = new StepKey(phase, RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
         StepKey expectedSecondStepKey = new StepKey(phase, RolloverAction.NAME, RolloverStep.NAME);
-        StepKey expectedThirdStepKey = new StepKey(phase, RolloverAction.NAME, UpdateRolloverLifecycleDateStep.NAME);
-        StepKey expectedFourthStepKey = new StepKey(phase, RolloverAction.NAME, RolloverAction.INDEXING_COMPLETE_STEP_NAME);
+        StepKey expectedThirdStepKey = new StepKey(phase, RolloverAction.NAME, WaitForActiveShardsStep.NAME);
+        StepKey expectedFourthStepKey = new StepKey(phase, RolloverAction.NAME, UpdateRolloverLifecycleDateStep.NAME);
+        StepKey expectedFifthStepKey = new StepKey(phase, RolloverAction.NAME, RolloverAction.INDEXING_COMPLETE_STEP_NAME);
         WaitForRolloverReadyStep firstStep = (WaitForRolloverReadyStep) steps.get(0);
         RolloverStep secondStep = (RolloverStep) steps.get(1);
-        UpdateRolloverLifecycleDateStep thirdStep = (UpdateRolloverLifecycleDateStep) steps.get(2);
-        UpdateSettingsStep fourthStep = (UpdateSettingsStep) steps.get(3);
+        WaitForActiveShardsStep thirdStep = (WaitForActiveShardsStep) steps.get(2);
+        UpdateRolloverLifecycleDateStep fourthStep = (UpdateRolloverLifecycleDateStep) steps.get(3);
+        UpdateSettingsStep fifthStep = (UpdateSettingsStep) steps.get(4);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
         assertEquals(expectedSecondStepKey, secondStep.getKey());
         assertEquals(expectedThirdStepKey, thirdStep.getKey());
         assertEquals(expectedFourthStepKey, fourthStep.getKey());
+        assertEquals(expectedFifthStepKey, fifthStep.getKey());
         assertEquals(secondStep.getKey(), firstStep.getNextStepKey());
         assertEquals(thirdStep.getKey(), secondStep.getNextStepKey());
         assertEquals(fourthStep.getKey(), thirdStep.getNextStepKey());
+        assertEquals(fifthStep.getKey(), fourthStep.getNextStepKey());
         assertEquals(action.getMaxSize(), firstStep.getMaxSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
-        assertEquals(nextStepKey, fourthStep.getNextStepKey());
+        assertEquals(nextStepKey, fifthStep.getNextStepKey());
     }
 }

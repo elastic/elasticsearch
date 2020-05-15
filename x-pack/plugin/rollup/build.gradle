@@ -9,10 +9,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-rollup'
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
-
 dependencies {
   compileOnly project(":server")
 

@@ -49,7 +49,7 @@ following formats: +
 
 - ISO 8601 format with milliseconds, for example `2017-01-22T06:00:00.000Z`
 - ISO 8601 format without milliseconds, for example `2017-01-22T06:00:00+00:00`
-- Seconds from the Epoch, for example `1390370400`
+- Milliseconds since the epoch, for example `1485061200000`
 
 Date-time arguments using either of the ISO 8601 formats must have a time zone
 designator, where Z is accepted as an abbreviation for UTC time.
@@ -68,7 +68,9 @@ of the latest processed record.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
 which roles the last user to create or update it had at the time of
-creation/update and runs the query using those same roles.
+creation/update and runs the query using those same roles. If you provided
+<<http-clients-secondary-authorization,secondary authorization headers>> when
+you created or updated the {dfeed}, those credentials are used instead.
 
 [[ml-start-datafeed-path-parms]]
 ==== {api-path-parms-title}
@@ -92,6 +94,18 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
   (Optional, time) Controls the amount of time to wait until a {dfeed} starts.
   The default value is 20 seconds.
 
+[[ml-start-datafeed-response-body]]
+==== {api-response-body-title}
+
+`node`::
+  (string) The ID of the node that the {dfeed} was started on.
+If the {dfeed} is allowed to open lazily and has not yet been
+  assigned to a node, this value is an empty string.
+
+`started`::
+  (boolean) For a successful response, this value is always `true`. On failure, an
+  exception is returned instead.
+
 [[ml-start-datafeed-example]]
 ==== {api-examples-title}
 
@@ -109,6 +123,7 @@ When the {dfeed} starts, you receive the following results:
 [source,console-result]
 ----
 {
-  "started": true
+  "started" : true,
+  "node" : "node-1"
 }
 ----

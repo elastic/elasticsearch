@@ -34,7 +34,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +71,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static class Builder extends MetadataFieldMapper.Builder<Builder, FieldNamesFieldMapper> {
+    private static class Builder extends MetadataFieldMapper.Builder<Builder> {
         private boolean enabled = Defaults.ENABLED;
 
         private Builder(MappedFieldType existing) {
@@ -101,9 +100,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 + "will be removed in a future major version. Please remove it from your mappings and templates.";
 
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
+            Builder builder = new Builder(parserContext.mapperService().fieldType(NAME));
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -125,14 +124,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            if (fieldType != null) {
-                return new FieldNamesFieldMapper(indexSettings, fieldType);
-            } else {
-                return parse(NAME, Collections.emptyMap(), context)
-                        .build(new BuilderContext(indexSettings, new ContentPath(1)));
-            }
+            return new FieldNamesFieldMapper(Defaults.FIELD_TYPE, indexSettings);
         }
     }
 
@@ -189,14 +183,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            deprecationLogger.deprecated(
+            deprecationLogger.deprecatedAndMaybeLog(
+                    "terms_query_on_field_names",
                     "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
             return super.termQuery(value, context);
         }
-    }
-
-    private FieldNamesFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing.clone(), indexSettings);
     }
 
     private FieldNamesFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
@@ -259,7 +250,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType().isEnabled() == false) {
             return;
         }

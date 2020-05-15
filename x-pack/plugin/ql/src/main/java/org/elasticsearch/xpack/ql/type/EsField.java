@@ -81,17 +81,6 @@ public class EsField {
     }
 
     /**
-     * Returns the precision of the field
-     * <p>
-     * Precision is the specified column size. For numeric data, this is the maximum precision. For character
-     * data, this is the length in characters. For datetime datatypes, this is the length in characters of the
-     * String representation (assuming the maximum allowed defaultPrecision of the fractional seconds component).
-     */
-    public int getPrecision() {
-        return esDataType.defaultPrecision;
-    }
-
-    /**
      * Returns and {@link Exact} object with all the necessary info about the field:
      * <ul>
      *  <li>If it has an exact underlying field or not</li>
@@ -104,7 +93,7 @@ public class EsField {
 
     @Override
     public String toString() {
-        return name + "@" + esDataType.name() + "=" + properties;
+        return name + "@" + esDataType.typeName() + "=" + properties;
     }
 
     @Override

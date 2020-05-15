@@ -23,15 +23,18 @@ import java.util.Objects;
 
 public class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
     static final String NAME = "proxy";
-    static final String ADDRESS = "address";
-    static final String NUM_SOCKETS_CONNECTED = "num_sockets_connected";
-    static final String MAX_SOCKET_CONNECTIONS = "max_socket_connections";
+    static final String PROXY_ADDRESS = "proxy_address";
+    static final String SERVER_NAME = "server_name";
+    static final String NUM_PROXY_SOCKETS_CONNECTED = "num_proxy_sockets_connected";
+    static final String MAX_PROXY_SOCKET_CONNECTIONS = "max_proxy_socket_connections";
     private final String address;
+    private final String serverName;
     private final int maxSocketConnections;
     private final int numSocketsConnected;
 
-    ProxyModeInfo(String address, int maxSocketConnections, int numSocketsConnected) {
+    ProxyModeInfo(String address, String serverName, int maxSocketConnections, int numSocketsConnected) {
         this.address = address;
+        this.serverName = serverName;
         this.maxSocketConnections = maxSocketConnections;
         this.numSocketsConnected = numSocketsConnected;
     }
@@ -50,6 +53,10 @@ public class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
         return address;
     }
 
+    public String getServerName() {
+        return serverName;
+    }
+
     public int getMaxSocketConnections() {
         return maxSocketConnections;
     }
@@ -65,11 +72,12 @@ public class ProxyModeInfo implements RemoteConnectionInfo.ModeInfo {
         ProxyModeInfo otherProxy = (ProxyModeInfo) o;
         return maxSocketConnections == otherProxy.maxSocketConnections &&
                 numSocketsConnected == otherProxy.numSocketsConnected &&
-                Objects.equals(address, otherProxy.address);
+                Objects.equals(address, otherProxy.address) &&
+                Objects.equals(serverName, otherProxy.serverName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(address, maxSocketConnections, numSocketsConnected);
+        return Objects.hash(address, serverName, maxSocketConnections, numSocketsConnected);
     }
 }

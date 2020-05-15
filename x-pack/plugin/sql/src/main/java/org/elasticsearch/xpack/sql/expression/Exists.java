@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+
 public class Exists extends SubQueryExpression {
 
     public Exists(Source source, LogicalPlan query) {
@@ -34,7 +36,7 @@ public class Exists extends SubQueryExpression {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN;
     }
 
     @Override

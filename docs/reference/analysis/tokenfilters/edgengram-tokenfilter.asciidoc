@@ -13,7 +13,7 @@ For example, you can use the `edge_ngram` token filter to change `quick` to
 When not customized, the filter creates 1-character edge n-grams by default.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/ngram/EdgeNGramTokenFilter.html[EdgeNGramTokenFilter].
+{lucene-analysis-docs}/ngram/EdgeNGramTokenFilter.html[EdgeNGramTokenFilter].
 
 [NOTE]
 ====
@@ -49,7 +49,7 @@ The filter produces the following tokens:
 
 [source,text]
 --------------------------------------------------
-[ t, th, q, ui, b, br, f, fo, j, ju ]
+[ t, th, q, qu, b, br, f, fo, j, ju ]
 --------------------------------------------------
 
 /////////////////////
@@ -136,7 +136,7 @@ The filter produces the following tokens:
 ==== Add to an analyzer
 
 The following <<indices-create-index,create index API>> request uses the
-`edge_ngram` filter to configure a new 
+`edge_ngram` filter to configure a new
 <<analysis-custom-analyzer,custom analyzer>>.
 
 [source,console]
@@ -172,6 +172,10 @@ See <<analysis-edgengram-tokenfilter-max-gram-limits>>.
 `min_gram`::
 (Optional, integer)
 Minimum character length of a gram. Defaults to `1`.
+
+`preserve_original`::
+(Optional, boolean)
+Emits original token when set to `true`. Defaults to `false`.
 
 `side`::
 +

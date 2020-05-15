@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     public void testFieldDisabled() throws Exception {
@@ -154,11 +155,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject());
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON));
         assertNull(doc.dynamicMappingsUpdate()); // no update!
-        String[] values = doc.rootDoc().getValues("foo.bar.baz");
-        assertEquals(3, values.length);
-        assertEquals("123", values[0]);
-        assertEquals("456", values[1]);
-        assertEquals("789", values[2]);
+
+        IndexableField[] fields = doc.rootDoc().getFields("foo.bar.baz");
+        assertEquals(6, fields.length);
+        assertEquals(123, fields[0].numericValue());
+        assertEquals("123", fields[1].stringValue());
+        assertEquals(456, fields[2].numericValue());
+        assertEquals("456", fields[3].stringValue());
+        assertEquals(789, fields[4].numericValue());
+        assertEquals("789", fields[5].stringValue());
     }
 
     public void testDotsWithExistingNestedMapper() throws Exception {
@@ -286,14 +291,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(0).getField(TypeFieldMapper.NAME));
-        assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
+        assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
+        assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
-        assertNull(result.docs().get(1).getField(TypeFieldMapper.NAME));
+        assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
 
@@ -370,8 +375,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) throws Exception {
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext context = new ParseContext.InternalParseContext(settings,
@@ -549,7 +554,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endArray().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testMappedGeoPointArray() throws Exception {
@@ -631,7 +636,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicFalseValue() throws Exception {
@@ -662,7 +667,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [bar] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicFalseNull() throws Exception {
@@ -693,7 +698,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [bar] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [bar] within [type] is not allowed", exception.getMessage());
     }
 
     public void testMappedNullValue() throws Exception {
@@ -892,7 +897,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endArray().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicDottedFieldNameLong() throws Exception {
@@ -1009,7 +1014,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDynamicDottedFieldNameObject() throws Exception {
@@ -1136,7 +1141,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
                 () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertEquals("mapping set to strict, dynamic introduction of [foo] within [_doc] is not allowed", exception.getMessage());
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
 
     public void testDocumentContainsMetadataField() throws Exception {
@@ -1175,7 +1180,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
-        DocumentMapper builtDocMapper = parser.parse("_doc", new CompressedXContent(builtMapping));
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         assertThat(doc.getBinaryValue(docMapper.idFieldMapper().name()), equalTo(Uid.encodeId("1")));
@@ -1213,7 +1218,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
         String builtMapping = docMapper.mappingSource().string();
-        DocumentMapper builtDocMapper = parser.parse("_doc", new CompressedXContent(builtMapping));
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
     }
 

@@ -9,7 +9,7 @@ For example, you can use the `length` filter to exclude tokens shorter than 2
 characters and tokens longer than 5 characters.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/LengthFilter.html[LengthFilter].
+{lucene-analysis-docs}/miscellaneous/LengthFilter.html[LengthFilter].
 
 [TIP]
 ====

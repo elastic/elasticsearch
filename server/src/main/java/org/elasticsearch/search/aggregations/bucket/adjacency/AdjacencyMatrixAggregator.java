@@ -35,10 +35,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -61,8 +61,8 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         private final String key;
         private final QueryBuilder filter;
 
-        public static final NamedObjectParser<KeyedFilter, Void> PARSER =
-                (XContentParser p, Void c, String name) ->
+        public static final NamedObjectParser<KeyedFilter, String> PARSER =
+                (XContentParser p, String aggName, String name) ->
                      new KeyedFilter(name, parseInnerQueryBuilder(p));
 
         public KeyedFilter(String key, QueryBuilder filter) {
@@ -129,9 +129,8 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     private final String separator;
 
     public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys,
-            Weight[] filters, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            Weight[] filters, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, metadata);
         this.separator = separator;
         this.keys = keys;
         this.filters = filters;
@@ -168,7 +167,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     } else {
                         // Skip checks on all the other filters given one half of the pairing failed
                         pos += (filters.length - (i + 1));
-                    }                    
+                    }
                 }
                 assert pos == bits.length + totalNumIntersections;
             }
@@ -176,47 +175,66 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         // Buckets are ordered into groups - [keyed filters] [key1&key2 intersects]
-
-        List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
-        for (int i = 0; i < keys.length; i++) {
-            long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            int docCount = bucketDocCount(bucketOrd);
-            // Empty buckets are not returned because this aggregation will commonly be used under a
-            // a date-histogram where we will look for transactions over time and can expect many
-            // empty buckets.
-            if (docCount > 0) {
-                InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(keys[i],
-                        docCount, bucketAggregations(bucketOrd));
-                buckets.add(bucket);
-                consumeBucketsAndMaybeBreak(1);
+        int maxOrd = owningBucketOrds.length * totalNumKeys;
+        int totalBucketsToBuild = 0;
+        for (int ord = 0; ord < maxOrd; ord++) {
+            if (bucketDocCount(ord) > 0) {
+                totalBucketsToBuild++;
             }
         }
-        int pos = keys.length;
-        for (int i = 0; i < keys.length; i++) {
-            for (int j = i + 1; j < keys.length; j++) {
-                long bucketOrd = bucketOrd(owningBucketOrdinal, pos);
+        consumeBucketsAndMaybeBreak(totalBucketsToBuild);
+        long[] bucketOrdsToBuild = new long[totalBucketsToBuild];
+        int builtBucketIndex = 0;
+        for (int ord = 0; ord < maxOrd; ord++) {
+            if (bucketDocCount(ord) > 0) {
+                bucketOrdsToBuild[builtBucketIndex++] = ord;
+            }
+        }
+        assert builtBucketIndex == totalBucketsToBuild;
+        builtBucketIndex = 0;
+        InternalAggregations[] bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild);
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        for (int owningBucketOrdIdx = 0; owningBucketOrdIdx < owningBucketOrds.length; owningBucketOrdIdx++) {
+            List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
+            for (int i = 0; i < keys.length; i++) {
+                long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], i);
                 int docCount = bucketDocCount(bucketOrd);
-                // Empty buckets are not returned due to potential for very sparse matrices
+                // Empty buckets are not returned because this aggregation will commonly be used under a
+                // a date-histogram where we will look for transactions over time and can expect many
+                // empty buckets.
                 if (docCount > 0) {
-                    String intersectKey = keys[i] + separator + keys[j];
-                    InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(intersectKey,
-                            docCount, bucketAggregations(bucketOrd));
+                    InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(keys[i],
+                            docCount, bucketSubAggs[builtBucketIndex++]);
                     buckets.add(bucket);
-                    consumeBucketsAndMaybeBreak(1);
                 }
-                pos++;
             }
+            int pos = keys.length;
+            for (int i = 0; i < keys.length; i++) {
+                for (int j = i + 1; j < keys.length; j++) {
+                    long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], pos);
+                    int docCount = bucketDocCount(bucketOrd);
+                    // Empty buckets are not returned due to potential for very sparse matrices
+                    if (docCount > 0) {
+                        String intersectKey = keys[i] + separator + keys[j];
+                        InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(intersectKey,
+                                docCount, bucketSubAggs[builtBucketIndex++]);
+                        buckets.add(bucket);
+                    }
+                    pos++;
+                }
+            }
+            results[owningBucketOrdIdx] = new InternalAdjacencyMatrix(name, buckets, metadata());
         }
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators(), metaData());
+        assert builtBucketIndex == totalBucketsToBuild;
+        return results;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(0);
-        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators(), metaData());
+        return new InternalAdjacencyMatrix(name, buckets, metadata());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

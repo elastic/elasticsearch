@@ -440,7 +440,7 @@ public class NumericTermsAggregator extends TermsAggregator {
             return new LeafBucketCollectorBase(primary, null) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
-                    primary.collect(doc, owningBucketOrd);
+                    super.collect(doc, owningBucketOrd);
                     subsetSize = context.bigArrays().grow(subsetSize, owningBucketOrd + 1);
                     subsetSize.increment(owningBucketOrd, 1);
                 }

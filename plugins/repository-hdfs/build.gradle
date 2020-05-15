@@ -138,7 +138,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
   // TODO: The task configuration block has side effects that require it currently to be always executed.
   // Otherwise tests start failing. Therefore we enforce the task creation for now.
   tsk.get()
-
 }
 
 Set disabledIntegTestTaskNames = []

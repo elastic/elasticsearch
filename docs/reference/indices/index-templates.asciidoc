@@ -31,6 +31,32 @@ the settings from the create index request take precedence over settings specifi
 
 [source,console]
 --------------------------------------------------
+PUT _component_template/component_template1
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT _component_template/other_component_template
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "ip_address": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
 PUT _index_template/template_1
 {
   "index_patterns": ["te*", "bar*"],
@@ -233,7 +259,7 @@ When multiple component templates are specified in the `composed_of` field for a
 they are merged in the order specified, meaning that later component templates override earlier
 component templates.
 
-For two component templates:
+For two component templates, the order they are specified changes the number of shards for an index:
 
 [source,console]
 --------------------------------------------------
@@ -245,10 +271,7 @@ PUT /_component_template/template_with_2_shards
     }
   }
 }
---------------------------------------------------
 
-[source,console]
---------------------------------------------------
 PUT /_component_template/template_with_3_shards
 {
   "template": {
@@ -257,12 +280,7 @@ PUT /_component_template/template_with_3_shards
     }
   }
 }
---------------------------------------------------
 
-The order they are specified changes the number of shards for an index:
-
-[source,console]
---------------------------------------------------
 PUT /_index_template/template_1
 {
   "index_patterns": ["t*"],

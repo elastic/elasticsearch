@@ -65,11 +65,6 @@ my $version = shift @ARGV
 dump_labels("Unknown version '$version'")
     unless $All_Labels{$version};
 
-my @released_versions = fetch_released_versions_in_current_major();
-
-die "$version has already been released!\n"
-    if grep { $_ eq $version } @released_versions;
-
 my $issues = fetch_issues($version);
 dump_issues( $version, $issues );
 
@@ -203,10 +198,8 @@ ISSUE:
             next ISSUE if $Ignore{ $label->{name} };
 
             # If this PR was backported to an earlier version, don't
-            # include it in the docs. We check against the released
-            # versions because a change could have been backported to a
-            # point release.
-            next ISSUE if grep { $_ eq $label->{name} } @released_versions;
+            # include it in the docs.
+            next ISSUE if is_pr_released_in_earlier_version($issue);
         }
 
         # uncomment for including/excluding PRs already issued in other versions
@@ -303,24 +296,46 @@ USAGE
 
 }
 
-
 #===================================
-sub fetch_released_versions_in_current_major {
+sub is_pr_released_in_earlier_version {
 #===================================
-    my $response = HTTP::Tiny->new->get('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml');
+    my ($pr) = @_;
 
-    die "Failed to fetch released versions - $response->{status} $response->{reason}\n"
-        unless $response->{success};
+    my @labels =
+        grep /^v \d+ \. \d+ \. \d+ $/x,
+        map { $_->{name} }
+        @{ $pr->{labels} };
+
+    my $is_releasing_new_major_series = $version =~ m/^v \d+ \. 0 \. 0 $/x;
+
+    # We assume that if we're releasing the first version in a major
+    # series, there does not (yet) exist any later major series, and any
+    # other release versions are for a prior major. We should therefore
+    # skip this PR as being already released.
+    if ($is_releasing_new_major_series and scalar(@labels) > 1) {
+        return 0;
+    }
 
     my ($current_major) = $version =~ m/^(v\d+\.)/;
 
-    # All our GitHub verson labels are prefixed with `v`, so insert that
-    # prefix here in order to allow easy comparisons later. Also filter the
-    # released versions down to the current major release.
-    my @versions =
-        grep /^$current_major/,
-        map { 'v' . $_ }
-        ($response->{content} =~ m#<version>(\d+\.\d+\.\d+)</version>#g);
+    my @sortable_versions;
 
-    return @versions;
+    foreach my $label (@labels) {
+        # We filter by the current major, because we might release a change
+        # at roughly the same time to a major series and the prior major
+        # series. A user shouldn't have to consult release notes for the
+        # prior major in order to see all the relevant changes.
+        next unless $label =~ m/^$current_major/;
+
+        $label =~ m/^v (\d+) \. (\d+) \. (\d+) $/x;
+
+        push @sortable_versions, sprintf('%2d%2d%2d', $1, $2, $3);
+    }
+
+    # I apologise for this line. I'm just picking the earliest version,
+    # picking it apart and joining it back together as a version label
+    # string.
+    my $earliest_version = sprintf 'v%d.%d.%d', unpack 'A2A2A2', (sort @sortable_versions)[0];
+
+    return $earliest_version ne $version;
 }

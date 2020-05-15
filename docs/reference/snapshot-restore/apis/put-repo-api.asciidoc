@@ -202,12 +202,18 @@ snapshots in it.
 If `false`, the cluster can write to the repository and create snapshots in it.
 Defaults to `false`.
 +
-TIP: If you register the same snapshot repository with multiple clusters, only
-one cluster should have write access to the repository. Only a cluster with
-write access can create snapshots in the repository. All other clusters
-connected to the repository should have the `readonly` parameter set to `true`.
-This means those clusters can retrieve or restore snapshots from the repository
-but not create snapshots in it.
+[TIP]
+=====
+If you register the same snapshot repository with multiple clusters, only
+one cluster should have write access to the repository. Having multiple clusters
+write to the repository at the same time risks corrupting the contents of the
+repository.
+
+Only a cluster with write access can create snapshots in the repository. All
+other clusters connected to the repository should have the `readonly` parameter
+set to `true`. This means those clusters can retrieve or restore snapshots from
+the repository but not create snapshots in it.
+=====
 ====
 
 .Valid `settings` properties for `source` repositories

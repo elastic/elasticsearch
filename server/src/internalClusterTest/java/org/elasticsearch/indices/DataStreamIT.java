@@ -239,8 +239,8 @@ public class DataStreamIT extends ESIntegTestCase {
             createIndexTemplate("logs-foo", "logs-*", "@timestamp", true);
             client().index(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON)).actionGet();
 
-            GetDataStreamsAction.Response getDataStreamResponse =
-                client().admin().indices().getDataStreams(new GetDataStreamsAction.Request("*")).actionGet();
+            GetDataStreamAction.Response getDataStreamResponse =
+                client().admin().indices().getDataStreams(new GetDataStreamAction.Request("*")).actionGet();
             getDataStreamResponse.getDataStreams().sort(Comparator.comparing(DataStream::getName));
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
             assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));

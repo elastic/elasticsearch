@@ -26,7 +26,9 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -49,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
@@ -159,9 +162,10 @@ public class NumericTermsAggregator extends TermsAggregator {
                 PriorityQueue<B> ordered = buildPriorityQueue(size);
                 B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
                 while (ordsEnum.next()) {
                     if (spare == null) {
-                        spare = buildEmptyBucket(owningBucketOrds[ordIdx]);
+                        spare = emptyBucketBuilder.get();
                     }
                     long docCount = bucketDocCount(ordsEnum.ord());
                     otherDocCounts[ordIdx] += docCount;
@@ -202,7 +206,7 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         abstract B[] buildBuckets(int size);
 
-        abstract B buildEmptyBucket(long owningBucketOrd);
+        abstract Supplier<B> emptyBucketBuilder(long owningBucketOrd);
 
         abstract void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
 
@@ -239,6 +243,13 @@ public class NumericTermsAggregator extends TermsAggregator {
         final void buildSubAggs(B[][] topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
+
+        @Override
+        Supplier<B> emptyBucketBuilder(long owningBucketOrd) {
+            return this::buildEmptyBucket;
+        }
+
+        abstract B buildEmptyBucket();
 
         @Override
         final void collectZeroDocEntriesIfNeeded(long ord) throws IOException {
@@ -295,7 +306,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        LongTerms.Bucket buildEmptyBucket(long owningBucketOrd) {
+        LongTerms.Bucket buildEmptyBucket() {
             return new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
         }
 
@@ -367,7 +378,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        DoubleTerms.Bucket buildEmptyBucket(long owningBucketeOrd) {
+        DoubleTerms.Bucket buildEmptyBucket() {
             return new DoubleTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
         }
 
@@ -414,15 +425,16 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     class SignificantLongTermsResults extends ResultStrategy<SignificantLongTerms, SignificantLongTerms.Bucket> {
-        // TODO a reference to the factory is weird - probably should be reference to what we need from it.
-        private final SignificantTermsAggregatorFactory termsAggFactory;
+        private final BackgroundFrequencies backgroundFrequencies;
+        private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
-        private LongArray subsetSize;
+        private LongArray subsetSizes;
 
         SignificantLongTermsResults(SignificantTermsAggregatorFactory termsAggFactory, SignificanceHeuristic significanceHeuristic) {
-            this.termsAggFactory = termsAggFactory;
+            backgroundFrequencies = new BackgroundFrequencies(termsAggFactory, context.bigArrays());
+            supersetSize = termsAggFactory.getSupersetNumDocs();
             this.significanceHeuristic = significanceHeuristic;
-            this.subsetSize = context.bigArrays().newLongArray(1, true);
+            subsetSizes = context.bigArrays().newLongArray(1, true);
         }
 
         @Override
@@ -441,8 +453,8 @@ public class NumericTermsAggregator extends TermsAggregator {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     super.collect(doc, owningBucketOrd);
-                    subsetSize = context.bigArrays().grow(subsetSize, owningBucketOrd + 1);
-                    subsetSize.increment(owningBucketOrd, 1);
+                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes.increment(owningBucketOrd, 1);
                 }
             };
         }
@@ -458,24 +470,16 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        SignificantLongTerms.Bucket buildEmptyBucket(long owningBucketOrd) {
-            return new SignificantLongTerms.Bucket(
-                0,
-                subsetSize.get(owningBucketOrd),
-                0,
-                termsAggFactory.getSupersetNumDocs(),
-                0,
-                null,
-                format,
-                0
-            );
+        Supplier<SignificantLongTerms.Bucket> emptyBucketBuilder(long owningBucketOrd) {
+            long subsetSize = subsetSizes.get(owningBucketOrd);
+            return () -> new SignificantLongTerms.Bucket(0, subsetSize, 0, supersetSize, 0, null, format, 0);
         }
 
         @Override
         void updateBucket(SignificantLongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException {
             spare.term = ordsEnum.value();
             spare.subsetDf = docCount;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
+            spare.supersetDf = backgroundFrequencies.freq(spare.term);
             spare.bucketOrd = ordsEnum.ord();
             // During shard-local down-selection we use subset/superset stats that are for this shard only
             // Back at the central reducer these properties will be updated with global stats
@@ -503,8 +507,8 @@ public class NumericTermsAggregator extends TermsAggregator {
                 bucketCountThresholds.getMinDocCount(),
                 metadata(),
                 format,
-                subsetSize.get(owningBucketOrd),
-                termsAggFactory.getSupersetNumDocs(),
+                subsetSizes.get(owningBucketOrd),
+                supersetSize,
                 significanceHeuristic,
                 List.of(topBuckets)
             );
@@ -531,7 +535,41 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         public void close() {
-            Releasables.close(termsAggFactory, subsetSize);
+            Releasables.close(backgroundFrequencies, subsetSizes);
+        }
+    }
+
+    /**
+     * Lookup and cache background frequencies for terms.
+     */
+    private static class BackgroundFrequencies implements Releasable {
+        // TODO a reference to the factory is weird - probably should be reference to what we need from it.
+        private final SignificantTermsAggregatorFactory termsAggFactory;
+        private final BigArrays bigArrays;
+        private final LongHash termToPosition;
+        private LongArray positionToFreq;
+
+        BackgroundFrequencies(SignificantTermsAggregatorFactory termsAggFactory, BigArrays bigArrays) {
+            this.termsAggFactory = termsAggFactory;
+            this.bigArrays = bigArrays;
+            termToPosition = new LongHash(1, bigArrays);
+            positionToFreq = bigArrays.newLongArray(1, false);
+        }
+
+        public long freq(long term) throws IOException {
+            long position = termToPosition.add(term);
+            if (position < 0) {
+                return positionToFreq.get(-1 - position);
+            }
+            long freq = termsAggFactory.getBackgroundFrequency(term);
+            positionToFreq = bigArrays.grow(positionToFreq, position + 1);
+            positionToFreq.set(position, freq);
+            return freq;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(termsAggFactory, termToPosition, positionToFreq);
         }
     }
 }

@@ -308,17 +308,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 aggregatorSupplier.getClass().toString() + "]");
         }
         SignificantTermsAggregatorSupplier sigTermsAggregatorSupplier = (SignificantTermsAggregatorSupplier) aggregatorSupplier;
-        if (collectsFromSingleBucket == false) {
-            if (sigTermsAggregatorSupplier.needsToCollectFromSingleBucket()) {
-                return asMultiBucketAggregator(this, searchContext, parent);
-            } else {
-                /*
-                 * Artificially bump this number to enable caching term 
-                 * freqs. This is pretty gnarly but we're going to rework
-                 * how we get term freqs soon enough.
-                 */
-                numberOfAggregatorsCreated = 2;
-            }
+        if (collectsFromSingleBucket == false && sigTermsAggregatorSupplier.needsToCollectFromSingleBucket()) {
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
 
         numberOfAggregatorsCreated++;

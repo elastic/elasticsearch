@@ -20,6 +20,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.ConcatFilesTask
+import org.elasticsearch.gradle.DependenciesInfoTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
@@ -36,6 +37,7 @@ apply plugin: 'elasticsearch.testclusters'
 
 // Concatenates the dependencies CSV files into a single file
 task generateDependenciesReport(type: ConcatFilesTask) {
+  dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
   headerLine = "name,version,url,license,sourceURL"
   target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")

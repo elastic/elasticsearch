@@ -45,6 +45,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -246,6 +247,7 @@ public class MetadataIndexTemplateService {
      */
     public void removeComponentTemplate(final String name, final TimeValue masterTimeout,
                                         final ActionListener<AcknowledgedResponse> listener) {
+        validateNotInUse(clusterService.state().metadata(), name);
         clusterService.submitStateUpdateTask("remove-component-template [" + name + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
 
@@ -292,6 +294,33 @@ public class MetadataIndexTemplateService {
     }
 
     /**
+     * Validates that the given component template is not used by any index
+     * templates, throwing an error if it is still in use
+     */
+    static void validateNotInUse(Metadata metadata, String templateNameOrWildcard) {
+        final Set<String> matchingComponentTemplates = metadata.componentTemplates().keySet().stream()
+            .filter(name -> Regex.simpleMatch(templateNameOrWildcard, name))
+            .collect(Collectors.toSet());
+        final Set<String> componentsBeingUsed = new HashSet<>();
+        final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream()
+            .filter(e -> {
+                Set<String> intersecting = Sets.intersection(new HashSet<>(e.getValue().composedOf()), matchingComponentTemplates);
+                if (intersecting.size() > 0) {
+                    componentsBeingUsed.addAll(intersecting);
+                    return true;
+                }
+                return false;
+            })
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+
+        if (templatesStillUsing.size() > 0) {
+            throw new IllegalArgumentException("component templates " + componentsBeingUsed +
+                " cannot be removed as they are still in use by index templates " + templatesStillUsing);
+        }
+    }
+
+    /**
      * Add the given index template to the cluster state. If {@code create} is true, an
      * exception will be thrown if the component template already exists
      */
@@ -330,6 +359,16 @@ public class MetadataIndexTemplateService {
                 throw new InvalidIndexTemplateException(name, "global V2 templates may not specify the setting "
                     + IndexMetadata.INDEX_HIDDEN_SETTING.getKey());
             }
+        }
+
+        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final List<String> missingComponentTemplates = template.composedOf().stream()
+            .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
+            .collect(Collectors.toList());
+
+        if (missingComponentTemplates.size() > 0) {
+            throw new InvalidIndexTemplateException(name, "index template [" + name + "] specifies component templates " +
+                missingComponentTemplates + " that do not exist");
         }
     }
 

@@ -31,10 +31,12 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -716,6 +718,15 @@ public class SettingsTests extends ESTestCase {
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
         assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", Strings.toString(builder));
+    }
+
+    public void testValidateStringSetting() {
+        Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
+        final Setting<List<String>> newSetting =
+            Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newSetting.get(settings));
+        assertEquals("Found list type value for setting [foo.bar] but did not expect a list for it.", e.getMessage());
     }
 
 }

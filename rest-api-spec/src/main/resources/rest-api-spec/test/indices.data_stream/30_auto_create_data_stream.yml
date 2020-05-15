@@ -38,7 +38,7 @@
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: logs-foobar
   - match: { 0.name: logs-foobar }
   - match: { 0.timestamp_field: 'timestamp' }

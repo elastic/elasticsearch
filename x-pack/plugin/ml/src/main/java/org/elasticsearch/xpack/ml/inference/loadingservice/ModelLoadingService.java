@@ -275,7 +275,8 @@ public class ModelLoadingService implements ClusterStateListener {
                 INFERENCE_MODEL_CACHE_TTL.getKey());
             auditIfNecessary(notification.getKey(), msg);
         }
-        notification.getValue().persistStats();
+        // If the model is no longer referenced, flush the stats to persist as soon as possible
+        notification.getValue().persistStats(referencedModels.contains(notification.getKey()) == false);
     }
 
     @Override
@@ -323,7 +324,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
             // Populate loadingListeners key so we know that we are currently loading the model
             for (String modelId : allReferencedModelKeys) {
-                loadingListeners.put(modelId, new ArrayDeque<>());
+                loadingListeners.computeIfAbsent(modelId, (s) -> new ArrayDeque<>());
             }
         } // synchronized (loadingListeners)
         if (logger.isTraceEnabled()) {
@@ -417,6 +418,27 @@ public class ModelLoadingService implements ClusterStateListener {
                 return ClassificationConfig.EMPTY_PARAMS;
             default:
                 throw ExceptionsHelper.badRequestException("unsupported target type [{}]", targetType);
+        }
+    }
+
+    /**
+     * Register a listener for notification when a model is loaded.
+     *
+     * This method is primarily intended for testing (hence package private)
+     * and shouldn't be required outside of testing.
+     *
+     * @param modelId Model Id
+     * @param modelLoadedListener To be notified
+     */
+    void addModelLoadedListener(String modelId, ActionListener<Model> modelLoadedListener) {
+        synchronized (loadingListeners) {
+            loadingListeners.compute(modelId, (modelKey, listenerQueue) -> {
+                    if (listenerQueue == null) {
+                        return addFluently(new ArrayDeque<>(), modelLoadedListener);
+                    } else {
+                        return addFluently(listenerQueue, modelLoadedListener);
+                    }
+                });
         }
     }
 }

@@ -216,11 +216,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public IndicesOptions indicesOptions() {
-        if (opType == OpType.CREATE) {
-            return IndicesOptions.strictSingleIndexIncludeDataStreamNoExpandForbidClosed();
-        } else {
-            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
-        }
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**

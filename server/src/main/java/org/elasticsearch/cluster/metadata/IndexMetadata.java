@@ -246,7 +246,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
-        // this is only setable internally not a registered setting!!
 
     /**
      * The number of active shard copies to check for before proceeding with a write operation.
@@ -1076,7 +1075,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             primaryTerms = new long[numberOfShards()];
             Arrays.fill(primaryTerms, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         }
-
 
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;

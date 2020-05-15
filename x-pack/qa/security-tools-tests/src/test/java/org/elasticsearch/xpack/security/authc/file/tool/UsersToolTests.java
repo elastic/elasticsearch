@@ -70,7 +70,8 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(homeDir);
         confDir = homeDir.resolve("config");
         Files.createDirectories(confDir);
-        hasher = Hasher.resolve(randomFrom("bcrypt", "pbkdf2"));
+        hasher = inFipsJvm() ? randomFrom(Hasher.PBKDF2, Hasher.PBKDF2_1000)
+            : randomFrom(Hasher.PBKDF2_1000, Hasher.PBKDF2, Hasher.BCRYPT, Hasher.BCRYPT9);
         String defaultPassword = SecuritySettingsSourceField.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
             "existing_user:" + new String(hasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)),
@@ -90,10 +91,11 @@ public class UsersToolTests extends CommandTestCase {
             "  cluster: all"
         ), StandardCharsets.UTF_8);
         settings =
-                Settings.builder()
-                        .put("path.home", homeDir)
-                        .put("xpack.security.authc.realms.file.file.order", 0)
-                        .build();
+            Settings.builder()
+                .put("path.home", homeDir)
+                .put("xpack.security.authc.realms.file.file.order", 0)
+                .put("xpack.security.authc.password_hashing.algorithm", hasher.name())
+                .build();
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileOrderParameter = "-Expack.security.authc.realms.file.file.order=0";
     }
@@ -174,9 +176,7 @@ public class UsersToolTests extends CommandTestCase {
             }
             String gotHash = usernameHash[1];
             SecureString expectedHash = new SecureString(password.toCharArray());
-            // CommandTestCase#execute runs passwd with default settings, so bcrypt with cost of 10
-            Hasher bcryptHasher = Hasher.resolve("bcrypt");
-            assertTrue("Could not validate password for user", bcryptHasher.verify(expectedHash, gotHash.toCharArray()));
+            assertTrue("Could not validate password for user", hasher.verify(expectedHash, gotHash.toCharArray()));
             return;
         }
         fail("Could not find username " + username + " in users file:\n" + lines.toString());
@@ -363,6 +363,23 @@ public class UsersToolTests extends CommandTestCase {
         assertTrue(lines.toString(), lines.isEmpty());
     }
 
+    public void testAddUserWithInvalidHashingAlgorithmInFips() throws Exception {
+        settings =
+            Settings.builder()
+                .put(settings)
+                .put("xpack.security.authc.password_hashing.algorithm", "bcrypt")
+                .put("xpack.security.fips_mode.enabled", true)
+                .build();
+
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("useradd", pathHomeParameter, fileOrderParameter, randomAlphaOfLength(12), "-p",
+                SecuritySettingsSourceField.TEST_PASSWORD);
+        });
+        assertEquals(ExitCodes.CONFIG, e.exitCode);
+        assertEquals("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. " +
+            "Please set the appropriate value for [ xpack.security.authc.password_hashing.algorithm ] setting.", e.getMessage());
+    }
+
     public void testUserdelUnknownUser() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
             execute("userdel", pathHomeParameter, fileOrderParameter, "unknown");
@@ -396,6 +413,21 @@ public class UsersToolTests extends CommandTestCase {
         execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "newpassword");
         assertUser("existing_user", "newpassword");
         assertRole("test_admin", "existing_user"); // roles unchanged
+    }
+
+    public void testPasswdWithInvalidHashingAlgorithmInFips() throws Exception {
+        settings =
+            Settings.builder()
+                .put(settings)
+                .put("xpack.security.authc.password_hashing.algorithm", "bcrypt")
+                .put("xpack.security.fips_mode.enabled", true)
+                .build();
+        UserException e = expectThrows(UserException.class, () -> {
+            execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "newpassword");
+        });
+        assertEquals(ExitCodes.CONFIG, e.exitCode);
+        assertEquals("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. " +
+            "Please set the appropriate value for [ xpack.security.authc.password_hashing.algorithm ] setting.", e.getMessage());
     }
 
     public void testRolesUnknownUser() throws Exception {

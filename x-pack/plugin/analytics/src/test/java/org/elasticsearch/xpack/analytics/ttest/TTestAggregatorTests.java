@@ -9,13 +9,9 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -23,6 +19,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -32,7 +29,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -42,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -665,22 +662,8 @@ public class TTestAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType1, fieldType2);
     }
 
-    private <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
-        T aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<V> verify, MappedFieldType... fieldType) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldType);
-                verify.accept(agg);
-
-            }
-        }
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new AnalyticsPlugin());
     }
 }

@@ -37,7 +37,7 @@ public class AdoptOpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
     @Override
     protected String urlPath(final String version, final String platform, final String extension) {
         final String module = platform.equals("osx") ? "mac" : platform;
-        return "/adoptopenjdk/OpenJDK12U-jdk_x64_" + module + "_hotspot_12.0.2_10." + extension;
+        return "/jdk-12.0.2+10/" + module + "/x64/jdk/hotspot/normal/adoptopenjdk";
     }
 
     @Override

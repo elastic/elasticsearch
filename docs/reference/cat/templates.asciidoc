@@ -65,7 +65,7 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-name      index_patterns order version
+name      index_patterns order version composed_of
 template0 [te*]          0
 template1 [tea*]         1
 template2 [teak*]        2     7

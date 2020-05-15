@@ -37,7 +37,7 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeVInt(numDenseVectorFields);
         // Older versions recorded the number of sparse vector fields.
         if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeInt(0);
+            out.writeVInt(0);
         }
         out.writeVInt(avgDenseVectorDims);
     }
@@ -47,8 +47,8 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
         return Version.V_7_3_0;
     }
 
-    public VectorsFeatureSetUsage(boolean available, boolean enabled, int numDenseVectorFields, int avgDenseVectorDims) {
-        super(XPackField.VECTORS, available, enabled);
+    public VectorsFeatureSetUsage(boolean available, int numDenseVectorFields, int avgDenseVectorDims) {
+        super(XPackField.VECTORS, available, true);
         this.numDenseVectorFields = numDenseVectorFields;
         this.avgDenseVectorDims = avgDenseVectorDims;
     }

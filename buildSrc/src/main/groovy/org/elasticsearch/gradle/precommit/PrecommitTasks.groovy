@@ -165,16 +165,12 @@ class PrecommitTasks {
             }
 
             SourceSet sourceSet = project.sourceSets.getByName(sourceSetName)
-            FileCollection runtime = sourceSet.runtimeClasspath
-            classpath = runtime.plus(sourceSet.compileClasspath)
+            classpath = project.files { sourceSet.runtimeClasspath.plus(sourceSet.compileClasspath) }
 
             targetCompatibility = BuildParams.runtimeJavaVersion.majorVersion
-            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_13) {
-                project.logger.warn(
-                        "Forbidden APIs does not support Java versions past 13. Will use the signatures from 13 for {}.",
-                        BuildParams.runtimeJavaVersion
-                )
-                targetCompatibility = JavaVersion.VERSION_13.majorVersion
+            if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_14) {
+                // TODO: forbidden apis does not yet support java 15, rethink using runtime version
+                targetCompatibility = JavaVersion.VERSION_14.majorVersion
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"

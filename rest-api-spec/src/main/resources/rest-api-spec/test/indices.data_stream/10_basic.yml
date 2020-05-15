@@ -11,9 +11,9 @@ setup:
           template:
             mappings:
               properties:
-                @timestamp:
+                '@timestamp':
                    type: date
-                @timestamp2:
+                '@timestamp2':
                    type: date
 
 ---

@@ -81,7 +81,7 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
 
         try (Reader reader = new StringReader("one-two-three")) {
             tokenizer.setReader(reader);
-            assertTokenStreamContents(tokenizer, new String[] { "on", "e,", "tw", "o,", "th", "re", "e" });
+            assertTokenStreamContents(tokenizer, new String[] { "on", "e", "tw", "o", "th", "re", "e" });
         }
     }
 

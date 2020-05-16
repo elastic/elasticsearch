@@ -173,7 +173,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
 
                 return new NumericTermsAggregator(name, factories,
-                    agg -> agg.new SignificantLongTermsResults(sigTermsFactory, significanceHeuristic),
+                    agg -> agg.new SignificantLongTermsResults(sigTermsFactory, significanceHeuristic, collectsFromSingleBucket),
                     numericValuesSource, format, null, bucketCountThresholds, context, parent, SubAggCollectionMode.BREADTH_FIRST,
                     longFilter, collectsFromSingleBucket, metadata);
             }
@@ -232,6 +232,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     private FilterableTermsEnum getTermsEnum(String field) throws IOException {
+        // TODO this method helps because of asMultiBucketAggregator. Once we remove it we can move this logic into the aggregators.
         if (termsEnum != null) {
             return termsEnum;
         }

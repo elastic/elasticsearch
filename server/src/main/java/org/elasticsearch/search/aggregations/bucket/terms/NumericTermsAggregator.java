@@ -430,8 +430,13 @@ public class NumericTermsAggregator extends TermsAggregator {
         private final SignificanceHeuristic significanceHeuristic;
         private LongArray subsetSizes;
 
-        SignificantLongTermsResults(SignificantTermsAggregatorFactory termsAggFactory, SignificanceHeuristic significanceHeuristic) {
-            backgroundFrequencies = new BackgroundFrequencies(termsAggFactory, context.bigArrays());
+        SignificantLongTermsResults(
+            SignificantTermsAggregatorFactory termsAggFactory,
+            SignificanceHeuristic significanceHeuristic,
+            boolean collectsFromSingleBucket
+        ) {
+            LookupBackgroundFrequencies lookup = new LookupBackgroundFrequencies(termsAggFactory);
+            backgroundFrequencies = collectsFromSingleBucket ? lookup : new CacheBackgroundFrequencies(lookup, context.bigArrays());
             supersetSize = termsAggFactory.getSupersetNumDocs();
             this.significanceHeuristic = significanceHeuristic;
             subsetSizes = context.bigArrays().newLongArray(1, true);
@@ -540,28 +545,57 @@ public class NumericTermsAggregator extends TermsAggregator {
     }
 
     /**
-     * Lookup and cache background frequencies for terms.
+     * Lookup frequencies for terms.
      */
-    private static class BackgroundFrequencies implements Releasable {
+    private interface BackgroundFrequencies extends Releasable {
+        long freq(long term) throws IOException;
+    }
+
+    /**
+     * Lookup frequencies for terms.
+     */
+    private static class LookupBackgroundFrequencies implements BackgroundFrequencies {
         // TODO a reference to the factory is weird - probably should be reference to what we need from it.
         private final SignificantTermsAggregatorFactory termsAggFactory;
+
+        LookupBackgroundFrequencies(SignificantTermsAggregatorFactory termsAggFactory) {
+            this.termsAggFactory = termsAggFactory;
+        }
+
+        @Override
+        public long freq(long term) throws IOException {
+            return termsAggFactory.getBackgroundFrequency(term);
+        }
+
+        @Override
+        public void close() {
+            termsAggFactory.close();
+        }
+    }
+
+    /**
+     * Lookup and cache background frequencies for terms.
+     */
+    private static class CacheBackgroundFrequencies implements BackgroundFrequencies {
+        private final LookupBackgroundFrequencies lookup;
         private final BigArrays bigArrays;
         private final LongHash termToPosition;
         private LongArray positionToFreq;
 
-        BackgroundFrequencies(SignificantTermsAggregatorFactory termsAggFactory, BigArrays bigArrays) {
-            this.termsAggFactory = termsAggFactory;
+        CacheBackgroundFrequencies(LookupBackgroundFrequencies lookup, BigArrays bigArrays) {
+            this.lookup = lookup;
             this.bigArrays = bigArrays;
             termToPosition = new LongHash(1, bigArrays);
             positionToFreq = bigArrays.newLongArray(1, false);
         }
 
+        @Override
         public long freq(long term) throws IOException {
             long position = termToPosition.add(term);
             if (position < 0) {
                 return positionToFreq.get(-1 - position);
             }
-            long freq = termsAggFactory.getBackgroundFrequency(term);
+            long freq = lookup.freq(term);
             positionToFreq = bigArrays.grow(positionToFreq, position + 1);
             positionToFreq.set(position, freq);
             return freq;
@@ -569,7 +603,7 @@ public class NumericTermsAggregator extends TermsAggregator {
 
         @Override
         public void close() {
-            Releasables.close(termsAggFactory, termToPosition, positionToFreq);
+            Releasables.close(lookup, termToPosition, positionToFreq);
         }
     }
 }

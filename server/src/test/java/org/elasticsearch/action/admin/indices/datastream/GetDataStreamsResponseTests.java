@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Response;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTests;
 import org.elasticsearch.common.io.stream.Writeable;

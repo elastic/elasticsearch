@@ -18,6 +18,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,11 +27,11 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -506,6 +508,97 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     public void testDateHistogramPivotNanos() throws Exception {
         assertDateHistogramPivot(REVIEWS_DATE_NANO_INDEX_NAME);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPivotWithTermsAgg() throws Exception {
+        String transformId = "simple_terms_agg_pivot";
+        String transformIndex = "pivot_reviews_via_histogram_with_terms_agg";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"every_2\": {"
+            + "       \"histogram\": {"
+            + "         \"interval\": 2,\"field\":\"stars\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"common_users\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\","
+            + "         \"size\": 2"
+            + "        },"
+            + "        \"aggs\" : {"
+            + "          \"common_businesses\": {"
+            + "            \"terms\": {"
+            + "              \"field\": \"business_id\","
+            + "              \"size\": 2"
+            + "         }}"
+            + "        } "
+            +"      },"
+            + "     \"rare_users\": {"
+            + "       \"rare_terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+
+        // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some term results
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Map<String, Integer> commonUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.common_users",
+            searchResult
+        )).get(0);
+        Map<String, Integer> rareUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.rare_users",
+            searchResult
+        )).get(0);
+        assertThat(commonUsers, is(not(nullValue())));
+        assertThat(commonUsers, equalTo(new HashMap<>(){{
+            put("user_10",
+                Collections.singletonMap(
+                    "common_businesses",
+                    new HashMap<>(){{
+                        put("business_12", 6);
+                        put("business_9", 4);
+            }}));
+            put("user_0", Collections.singletonMap(
+                "common_businesses",
+                new HashMap<>(){{
+                    put("business_0", 35);
+            }}));
+        }}));
+        assertThat(rareUsers, is(not(nullValue())));
+        assertThat(rareUsers, equalTo(new HashMap<>(){{
+            put("user_5", 1);
+            put("user_12", 1);
+        }}));
     }
 
     private void assertDateHistogramPivot(String indexName) throws Exception {

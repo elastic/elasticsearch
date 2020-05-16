@@ -19,7 +19,7 @@
   - is_true: acknowledged
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: "*"
   - match: { 0.name: simple-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
@@ -96,7 +96,7 @@
   - is_true: acknowledged
 
   - do:
-      indices.get_data_streams: {}
+      indices.get_data_stream: {}
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
   - match: { 0.generation: 1 }
@@ -105,14 +105,14 @@
   - match: { 1.generation: 1 }
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: get-data-stream1
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
   - match: { 0.generation: 1 }
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: get-data-*
   - match: { 0.name: get-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
@@ -122,7 +122,7 @@
   - match: { 1.generation: 1 }
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: nonexistent-data-stream
       catch: missing
 
@@ -130,7 +130,7 @@
   - match: { error.root_cause.0.type: "resource_not_found_exception" }
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: nonexistent*
   - match: { $body: [] }
 
@@ -173,7 +173,7 @@
   - is_true: delete-data-stream1-000001.settings
 
   - do:
-      indices.get_data_streams: {}
+      indices.get_data_stream: {}
   - match: { 0.name: delete-data-stream1 }
   - match: { 0.timestamp_field: '@timestamp' }
   - match: { 0.generation: 1 }

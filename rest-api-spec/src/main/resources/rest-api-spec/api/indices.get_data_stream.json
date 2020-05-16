@@ -1,5 +1,5 @@
 {
-  "indices.get_data_streams":{
+  "indices.get_data_stream":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
       "description":"Returns data streams."
@@ -8,13 +8,13 @@
     "url":{
       "paths":[
         {
-          "path":"/_data_streams",
+          "path":"/_data_stream",
           "methods":[
             "GET"
           ]
         },
         {
-          "path":"/_data_streams/{name}",
+          "path":"/_data_stream/{name}",
           "methods":[
             "GET"
           ],

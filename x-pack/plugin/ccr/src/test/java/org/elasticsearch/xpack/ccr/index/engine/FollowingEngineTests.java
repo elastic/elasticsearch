@@ -533,7 +533,8 @@ public class FollowingEngineTests extends ESTestCase {
                         Translog.Operation op;
                         while ((op = snapshot.next()) != null) {
                             EngineTestCase.applyOperation(follower,
-                                translogHandler.convertToEngineOp(op, randomFrom(Engine.Operation.Origin.values())));
+                                translogHandler.convertToEngineOp(
+                                    op, randomFrom(Engine.Operation.Origin.values()), threadPool.relativeTimeInNanos()));
                         }
                         follower.syncTranslog();
                     }

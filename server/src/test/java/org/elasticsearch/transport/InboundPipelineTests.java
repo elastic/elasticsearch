@@ -89,7 +89,8 @@ public class InboundPipelineTests extends ESTestCase {
         final Predicate<String> canTripBreaker = breakThisAction::equals;
         final TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
         circuitBreaker.startBreaking();
-        final InboundAggregator aggregator = new InboundAggregator(() -> circuitBreaker, canTripBreaker);
+        final MemoryController memoryController = new MemoryController(() -> circuitBreaker);
+        final InboundAggregator aggregator = new InboundAggregator(memoryController, canTripBreaker);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
         final FakeTcpChannel channel = new FakeTcpChannel();
 
@@ -182,7 +183,8 @@ public class InboundPipelineTests extends ESTestCase {
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
-        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
+        final MemoryController memoryController = new MemoryController(breaker);
+        final InboundAggregator aggregator = new InboundAggregator(memoryController, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -219,7 +221,8 @@ public class InboundPipelineTests extends ESTestCase {
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
-        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
+        final MemoryController memoryController = new MemoryController(breaker);
+        final InboundAggregator aggregator = new InboundAggregator(memoryController, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {

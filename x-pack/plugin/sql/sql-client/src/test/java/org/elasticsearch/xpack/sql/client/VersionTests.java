@@ -46,7 +46,7 @@ public class VersionTests extends ESTestCase {
     private static byte[] randomVersion() {
         byte[] parts = new byte[3];
         for (int i = 0; i < parts.length; i ++) {
-            parts[i] = (byte) randomIntBetween(0, SqlVersion.REVISION_MULTIPLIER);
+            parts[i] = (byte) randomIntBetween(0, SqlVersion.REVISION_MULTIPLIER - 1);
         }
         return parts;
     }

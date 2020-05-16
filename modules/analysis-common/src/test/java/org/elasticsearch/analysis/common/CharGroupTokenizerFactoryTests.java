@@ -20,6 +20,9 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.util.CharTokenizer;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -27,11 +30,12 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.StringReader;
 import java.util.Arrays;
 
-
 public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
+
     public void testParseTokenChars() {
         final Index index = new Index("test", "_na_");
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
@@ -58,6 +62,26 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
             final Settings settings = newAnalysisSettingsBuilder().putList("tokenize_on_chars", Arrays.asList(conf)).build();
             new CharGroupTokenizerFactory(indexProperties, null, name, settings).create();
             // no exception
+        }
+    }
+
+    public void testMaxTokenLength() throws IOException {
+        final Index index = new Index("test", "_na_");
+        final Settings indexSettings = newAnalysisSettingsBuilder().build();
+        IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
+        final String name = "cg";
+
+        String[] conf = new String[] {"-"};
+        final Settings analysisSettings = newAnalysisSettingsBuilder()
+            .putList("tokenize_on_chars", conf)
+            .put("max_token_length", 2)
+            .build();
+
+        CharTokenizer tokenizer = (CharTokenizer) new CharGroupTokenizerFactory(indexProperties, null, name, analysisSettings).create();
+
+        try (Reader reader = new StringReader("one-two-three")) {
+            tokenizer.setReader(reader);
+            assertTokenStreamContents(tokenizer, new String[] { "on", "e,", "tw", "o,", "th", "re", "e" });
         }
     }
 

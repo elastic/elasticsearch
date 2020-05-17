@@ -84,11 +84,6 @@ subprojects {
     testRuntime project(path: xpackModule('sql:jdbc'))
     testRuntime xpackProject('plugin:sql:sql-client')
 
-    // TODO check if needed
-    testRuntime("org.antlr:antlr4-runtime:${antlrVersion}") {
-      transitive = false
-    }
-
     // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'))
     testRuntime(xpackProject('plugin:sql:sql-action')) {

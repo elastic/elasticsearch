@@ -454,6 +454,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
+     * Finalizes a snapshot deletion in progress if the current node is the master but it
+     * was not master in the previous cluster state and there is still a lingering snapshot
+     * deletion in progress in the cluster state.  This means that the old master failed
+     * before it could clean up an in-progress snapshot deletion.  We attempt to delete the
+     * snapshot files and remove the deletion from the cluster state.  It is possible that the
+     * old master was in a state of long GC and then it resumes and tries to delete the snapshot
+     * that has already been deleted by the current master.  This is acceptable however, since
+     * the old master's snapshot deletion will just respond with an error but in actuality, the
+     * snapshot was deleted and a call to GET snapshots would reveal that the snapshot no longer exists.
+     */
+    private void finalizeSnapshotDeletionFromPreviousMaster(ClusterState state) {
+        SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+            assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
+            SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
+            deleteSnapshotsFromRepository(entry.repository(), entry.getSnapshots(), null, entry.repositoryStateId(),
+                    state.nodes().getMinNodeVersion());
+        }
+    }
+
+    /**
      * Updates the state of in-progress snapshots in reaction to a change in the configuration of the cluster nodes (master fail-over or
      * disconnect of a data node that was executing a snapshot) or a routing change that started shards whose snapshot state is
      * {@link SnapshotsInProgress.ShardState#WAITING}.
@@ -521,7 +542,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 if (changed) {
                     return ClusterState.builder(currentState)
-                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
+                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
                 }
                 return currentState;
             }
@@ -537,27 +558,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 finishedSnapshots.forEach(entry -> endSnapshot(entry, newState.metadata()));
             }
         });
-    }
-
-    /**
-     * Finalizes a snapshot deletion in progress if the current node is the master but it
-     * was not master in the previous cluster state and there is still a lingering snapshot
-     * deletion in progress in the cluster state.  This means that the old master failed
-     * before it could clean up an in-progress snapshot deletion.  We attempt to delete the
-     * snapshot files and remove the deletion from the cluster state.  It is possible that the
-     * old master was in a state of long GC and then it resumes and tries to delete the snapshot
-     * that has already been deleted by the current master.  This is acceptable however, since
-     * the old master's snapshot deletion will just respond with an error but in actuality, the
-     * snapshot was deleted and a call to GET snapshots would reveal that the snapshot no longer exists.
-     */
-    private void finalizeSnapshotDeletionFromPreviousMaster(ClusterState state) {
-        SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-            assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
-            SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-            deleteSnapshotsFromRepository(entry.repository(), entry.getSnapshots(), null, entry.repositoryStateId(),
-                    state.nodes().getMinNodeVersion());
-        }
     }
 
     private static ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(

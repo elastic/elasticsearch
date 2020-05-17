@@ -92,7 +92,7 @@ public final class SqlTestUtils {
         if (randomBoolean()) {
             sb.append(" ORDER BY ");
 
-            List<Integer> shuffledArgIndices = IntStream.range(1, noOfSelectArgs).boxed().collect(Collectors.toList());
+            List<Integer> shuffledArgIndices = IntStream.range(1, noOfSelectArgs + 1).boxed().collect(Collectors.toList());
             Collections.shuffle(shuffledArgIndices, rnd);
             for (int i = 0; i < noOfSelectArgs; i++) {
                 sb.append(shuffledArgIndices.get(i));
@@ -112,7 +112,7 @@ public final class SqlTestUtils {
                         sb.append(" NULLS LAST");
                         break;
                 }
-                if (i < noOfSelectArgs) {
+                if (i < noOfSelectArgs - 1) {
                     sb.append(", ");
                 }
             }

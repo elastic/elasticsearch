@@ -78,6 +78,35 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         return connection;
     }
 
+    //
+    // methods below are used inside the documentation only
+    //
+    protected Connection useDriverManager() throws SQLException {
+        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
+        // tag::connect-dm
+        String address = "jdbc:es://" + elasticsearchAddress;     // <1>
+        Properties connectionProperties = connectionProperties(); // <2>
+        Connection connection =
+            DriverManager.getConnection(address, connectionProperties);
+        // end::connect-dm
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty("timezone"));
+        return connection;
+    }
+
+    protected Connection useDataSource() throws SQLException {
+        String elasticsearchAddress = getProtocol() + "://" + elasticsearchAddress();
+        // tag::connect-ds
+        EsDataSource dataSource = new EsDataSource();
+        String address = "jdbc:es://" + elasticsearchAddress;     // <1>
+        dataSource.setUrl(address);
+        Properties connectionProperties = connectionProperties(); // <2>
+        dataSource.setProperties(connectionProperties);
+        Connection connection = dataSource.getConnection();
+        // end::connect-ds
+        assertNotNull("The timezone should be specified", connectionProperties.getProperty("timezone"));
+        return connection;
+    }
+
     public static void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
         index(index, "1", body);
     }

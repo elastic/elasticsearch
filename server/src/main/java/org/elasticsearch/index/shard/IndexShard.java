@@ -1061,9 +1061,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          * since we use Engine#writeIndexingBuffer for this now.
          */
         verifyNotClosed();
-        final long timeInNanos = threadPool.relativeTimeInNanos();
+        final long time = System.nanoTime();
         getEngine().flush(force, waitIfOngoing);
-        flushMetric.inc(threadPool.relativeTimeInNanos() - timeInNanos);
+        flushMetric.inc(System.nanoTime() - time);
     }
 
     /**
@@ -2439,7 +2439,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void doCheckIndex() throws IOException {
-        long startTimeInMillis = threadPool.relativeTimeInMillis();
+        long timeNS = System.nanoTime();
         if (!Lucene.indexExists(store.directory())) {
             return;
         }
@@ -2483,7 +2483,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
         }
 
-        recoveryState.getVerifyIndex().checkIndexTime(threadPool.relativeTimeInMillis() - startTimeInMillis);
+        recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
     Engine getEngine() {
@@ -2707,7 +2707,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
                 List.of(refreshListeners, refreshPendingLocationListener),
-                Collections.singletonList(new RefreshMetricUpdater(refreshMetric, threadPool::relativeTimeInNanos)),
+                Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
                 indexSort, circuitBreakerService, globalCheckpointSupplier, replicationTracker::getRetentionLeases,
                 () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
     }
@@ -3314,32 +3314,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         private final MeanMetric refreshMetric;
         private long currentRefreshStartTime;
         private Thread callingThread = null;
-        private final LongSupplier relativeTimeInNanos;
 
-        private RefreshMetricUpdater(MeanMetric refreshMetric, LongSupplier relativeTimeInNanos) {
+        private RefreshMetricUpdater(MeanMetric refreshMetric) {
             this.refreshMetric = refreshMetric;
-            this.relativeTimeInNanos = relativeTimeInNanos;
         }
 
         @Override
-        public void beforeRefresh() {
+        public void beforeRefresh() throws IOException {
             if (Assertions.ENABLED) {
                 assert callingThread == null : "beforeRefresh was called by " + callingThread.getName() +
                     " without a corresponding call to afterRefresh";
                 callingThread = Thread.currentThread();
             }
-            currentRefreshStartTime = relativeTimeInNanos.getAsLong();
+            currentRefreshStartTime = System.nanoTime();
         }
 
         @Override
-        public void afterRefresh(boolean didRefresh) {
+        public void afterRefresh(boolean didRefresh) throws IOException {
             if (Assertions.ENABLED) {
                 assert callingThread != null : "afterRefresh called but not beforeRefresh";
                 assert callingThread == Thread.currentThread() : "beforeRefreshed called by a different thread. current ["
                     + Thread.currentThread().getName() + "], thread that called beforeRefresh [" + callingThread.getName() + "]";
                 callingThread = null;
             }
-            refreshMetric.inc(relativeTimeInNanos.getAsLong() - currentRefreshStartTime);
+            refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
     }
 

@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -198,9 +199,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
-            validationException = addValidationError("id [" + id + "] is too long, must be no longer than 512 bytes but was: " +
-                            id.getBytes(StandardCharsets.UTF_8).length, validationException);
+        if (id != null && id.getBytes(StandardCharsets.UTF_8).length > IndicesService.MAX_DOC_ID_LENGTH) {
+            validationException = addValidationError("id is too long, must be no longer than "
+                + IndicesService.MAX_DOC_ID_LENGTH + " bytes but was: " +
+                id.getBytes(StandardCharsets.UTF_8).length, validationException);
         }
 
         if (pipeline != null && pipeline.isEmpty()) {

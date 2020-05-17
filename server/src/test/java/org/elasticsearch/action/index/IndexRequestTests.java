@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
@@ -103,6 +104,22 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
                 containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
+
+        IndicesService.MAX_DOC_ID_LENGTH = 513;
+
+        id = randomAlphaOfLength(513);
+        request = new IndexRequest("index").id( id);
+        request.source("{}", XContentType.JSON);
+        validate = request.validate();
+        assertNull(validate);
+
+        id = randomAlphaOfLength(514);
+        request = new IndexRequest("index").id( id);
+        request.source("{}", XContentType.JSON);
+        validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.getMessage(),
+            containsString("id is too long, must be no longer than 513 bytes but was: 514"));
     }
 
     public void testWaitForActiveShards() {

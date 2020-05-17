@@ -144,6 +144,38 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         return connectionProperties;
     }
 
+    protected static void createIndex(String index) throws IOException {
+        Request request = new Request("PUT", "/" + index);
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client().performRequest(request);
+    }
+
+    protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        Request request = new Request("PUT", "/" + index + "/_mapping");
+        XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
+        updateMapping.startObject("properties");
+        {
+            body.accept(updateMapping);
+        }
+        updateMapping.endObject().endObject();
+
+        request.setJsonEntity(Strings.toString(updateMapping));
+        client().performRequest(request);
+    }
+
     public static String randomKnownTimeZone() {
         // We use system default timezone for the connection that is selected randomly by TestRuleSetupAndRestoreClassEnv
         // from all available JDK timezones. While Joda and JDK are generally in sync, some timezones might not be known

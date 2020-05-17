@@ -28,7 +28,7 @@ public class JdbcPreparedStatementIT extends PreparedStatementTestCase {
     @Override
     protected Properties connectionProperties() {
         Properties sp = super.connectionProperties();
-        sp.putAll(JdbcSecurityIT.adminProperties());
+        sp.putAll(JdbcSecurityUtils.adminProperties());
         return sp;
     }
 }

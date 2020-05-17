@@ -18,8 +18,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import static org.elasticsearch.xpack.sql.qa.jdbc.ResultSetTestCase.updateMapping;
-
 public class SysColumnsTestCase extends JdbcIntegrationTestCase {
     
     public void testAliasWithIncompatibleTypes() throws Exception {
@@ -317,10 +315,10 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
     }
     
     private static void createIndexWithMapping(String indexName, CheckedConsumer<XContentBuilder, IOException> mapping) throws Exception {
-        ResultSetTestCase.createIndex(indexName);
+        createIndex(indexName);
         updateMapping(indexName, mapping);
     }
-    
+
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement(query)) {

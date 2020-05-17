@@ -33,15 +33,7 @@ subprojects {
         apply plugin: 'elasticsearch.build'
     }
 
-    configurations.testRuntimeClasspath {
-        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
-    }
-    configurations.testRuntime {
-        // This is also required to make resolveAllDependencies work
-        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
-    }
     dependencies {
-
         /* Since we're a standalone rest test we actually get transitive
          * dependencies but we don't really want them because they cause
          * all kinds of trouble with the jar hell checks. So we suppress
@@ -52,7 +44,6 @@ subprojects {
         testCompile project(":test:framework")
 
         testRuntime project(path: xpackModule('sql:jdbc'))
-        testRuntime xpackProject('plugin:sql:sql-client')
     }
 
     if (project.name != 'security') {

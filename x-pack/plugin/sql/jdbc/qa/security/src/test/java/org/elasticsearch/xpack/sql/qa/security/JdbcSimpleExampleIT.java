@@ -28,7 +28,7 @@ public class JdbcSimpleExampleIT extends SimpleExampleTestCase {
     @Override
     protected Properties connectionProperties() {
         Properties properties = super.connectionProperties();
-        properties.putAll(JdbcSecurityIT.adminProperties());
+        properties.putAll(JdbcSecurityUtils.adminProperties());
         return properties;
     }
 }

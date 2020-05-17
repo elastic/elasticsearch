@@ -33,6 +33,11 @@
   - match: { error.reason: "No searchable snapshots indices found"}
 
   - do:
+      ilm.explain_lifecycle:
+        index: logs-foobar
+  - is_false: indices.logs-foobar.managed
+
+  - do:
       indices.delete_data_stream:
         name: logs-foobar
   - is_true: acknowledged

@@ -437,6 +437,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         assert assertConsistentWithClusterState(event.state());
     }
 
+    private boolean assertConsistentWithClusterState(ClusterState state) {
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
+        if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
+            synchronized (endingSnapshots) {
+                final Set<Snapshot> runningSnapshots = Stream.concat(
+                        snapshotsInProgress.entries().stream().map(SnapshotsInProgress.Entry::snapshot),
+                        endingSnapshots.stream())
+                        .collect(Collectors.toSet());
+                final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
+                assert runningSnapshots.containsAll(snapshotListenerKeys) : "Saw completion listeners for unknown snapshots in "
+                        + snapshotListenerKeys + " but running snapshots are " + runningSnapshots;
+            }
+        }
+        return true;
+    }
+
     /**
      * Updates the state of in-progress snapshots in reaction to a change in the configuration of the cluster nodes (master fail-over or
      * disconnect of a data node that was executing a snapshot) or a routing change that started shards whose snapshot state is
@@ -505,7 +521,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 if (changed) {
                     return ClusterState.builder(currentState)
-                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
+                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
                 }
                 return currentState;
             }
@@ -521,22 +537,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 finishedSnapshots.forEach(entry -> endSnapshot(entry, newState.metadata()));
             }
         });
-    }
-
-    private boolean assertConsistentWithClusterState(ClusterState state) {
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        if (snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty() == false) {
-            synchronized (endingSnapshots) {
-                final Set<Snapshot> runningSnapshots = Stream.concat(
-                        snapshotsInProgress.entries().stream().map(SnapshotsInProgress.Entry::snapshot),
-                        endingSnapshots.stream())
-                        .collect(Collectors.toSet());
-                final Set<Snapshot> snapshotListenerKeys = snapshotCompletionListeners.keySet();
-                assert runningSnapshots.containsAll(snapshotListenerKeys) : "Saw completion listeners for unknown snapshots in "
-                        + snapshotListenerKeys + " but running snapshots are " + runningSnapshots;
-            }
-        }
-        return true;
     }
 
     /**

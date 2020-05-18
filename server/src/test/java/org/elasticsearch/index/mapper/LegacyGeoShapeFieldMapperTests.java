@@ -63,7 +63,8 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
     @Before
     public void addModifiers() {
         addModifier("tree", false, (a, b) -> {
-            a.fieldType().setTree("geohash"); b.fieldType().setTree("quadtree");
+            a.fieldType().setTree("geohash");
+            b.fieldType().setTree("quadtree");
         });
         addModifier("strategy", false, (a, b) -> {
             a.fieldType().setStrategy(SpatialStrategy.TERM);

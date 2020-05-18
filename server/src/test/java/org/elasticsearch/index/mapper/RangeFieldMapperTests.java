@@ -59,10 +59,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
     @Before
     public void addModifiers() {
         addModifier("format", true, (a, b) -> {
-            a.format("basic_week_date"); b.format("strict_week_date");
+            a.format("basic_week_date");
+            b.format("strict_week_date");
         });
         addModifier("locale", true, (a, b) -> {
-            a.locale(Locale.CANADA); b.locale(Locale.JAPAN);
+            a.locale(Locale.CANADA);
+            b.locale(Locale.JAPAN);
         });
     }
 

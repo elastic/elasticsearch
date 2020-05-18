@@ -48,7 +48,7 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         final boolean updateable;
         final BiConsumer<T, T> modifier;
 
-        public Modifier(String property, boolean updateable, BiConsumer<T, T> modifier) {
+        Modifier(String property, boolean updateable, BiConsumer<T, T> modifier) {
             this.property = property;
             this.updateable = updateable;
             this.modifier = modifier;
@@ -60,8 +60,10 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
     }
 
     private Modifier booleanModifier(String name, boolean updateable, BiConsumer<T, Boolean> method) {
-        return new Modifier(name, updateable,
-            (a, b) -> { method.accept(a, true); method.accept(b, false);});
+        return new Modifier(name, updateable, (a, b) -> {
+            method.accept(a, true);
+            method.accept(b, false);
+        });
     }
 
     private Object dummyNullValue = "dummyvalue";
@@ -90,7 +92,8 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         }),
         new Modifier("doc_values", supportsDocValues() == false, (a, b) -> {
             if (supportsDocValues()) {
-                a.docValues(true); b.docValues(false);
+                a.docValues(true);
+                b.docValues(false);
             }
         }),
         booleanModifier("eager_global_ordinals", true, (a, t) -> a.fieldType().setEagerGlobalOrdinals(t)),
@@ -117,21 +120,30 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
             }
         }),
         new Modifier("term_vector", false, (a, b) -> {
-            a.storeTermVectors(true); b.storeTermVectors(false);
+            a.storeTermVectors(true);
+            b.storeTermVectors(false);
         }),
         new Modifier("term_vector_positions", false, (a, b) -> {
-            a.storeTermVectors(true); b.storeTermVectors(true);
-            a.storeTermVectorPositions(true); b.storeTermVectorPositions(false);
+            a.storeTermVectors(true);
+            b.storeTermVectors(true);
+            a.storeTermVectorPositions(true);
+            b.storeTermVectorPositions(false);
         }),
         new Modifier("term_vector_payloads", false, (a, b) -> {
-            a.storeTermVectors(true); b.storeTermVectors(true);
-            a.storeTermVectorPositions(true); b.storeTermVectorPositions(true);
-            a.storeTermVectorPayloads(true); b.storeTermVectorPayloads(false);
+            a.storeTermVectors(true);
+            b.storeTermVectors(true);
+            a.storeTermVectorPositions(true);
+            b.storeTermVectorPositions(true);
+            a.storeTermVectorPayloads(true);
+            b.storeTermVectorPayloads(false);
         }),
         new Modifier("term_vector_offsets", false, (a, b) -> {
-            a.storeTermVectors(true); b.storeTermVectors(true);
-            a.storeTermVectorPositions(true); b.storeTermVectorPositions(true);
-            a.storeTermVectorOffsets(true); b.storeTermVectorOffsets(false);
+            a.storeTermVectors(true);
+            b.storeTermVectors(true);
+            a.storeTermVectorPositions(true);
+            b.storeTermVectorPositions(true);
+            a.storeTermVectorOffsets(true);
+            b.storeTermVectorOffsets(false);
         })
     ));
 
@@ -151,7 +163,8 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
      */
     protected void addBooleanModifier(String property, boolean updateable, BiConsumer<T, Boolean> method) {
         modifiers.add(new Modifier(property, updateable, (a, b) -> {
-            method.accept(a, true); method.accept(b, false);
+            method.accept(a, true);
+            method.accept(b, false);
         }));
     }
 

@@ -41,7 +41,8 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
     @Before
     public void addModifiers() {
         addModifier("value", false, (a, b) -> {
-            a.setValue("foo"); b.setValue("bar");
+            a.setValue("foo");
+            b.setValue("bar");
         });
         addModifier("unset", false, (a, b) -> {
             a.setValue("foo");;

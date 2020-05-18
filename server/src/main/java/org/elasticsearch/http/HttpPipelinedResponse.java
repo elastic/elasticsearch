@@ -16,25 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.http;
 
-package org.elasticsearch.tasks;
+public class HttpPipelinedResponse implements HttpPipelinedMessage, HttpResponse {
 
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
+    private final int sequence;
+    private final HttpResponse delegate;
 
-import java.util.Iterator;
+    public HttpPipelinedResponse(int sequence, HttpResponse delegate) {
+        this.sequence = sequence;
+        this.delegate = delegate;
+    }
 
-/**
- * Makes sure that tasks that attempt to store themselves on completion retry if
- * they don't succeed at first.
- */
-public class TaskResultsServiceTests extends ESTestCase {
-    public void testRetryTotalTime() {
-        Iterator<TimeValue> times = TaskResultsService.STORE_BACKOFF_POLICY.iterator();
-        long total = 0;
-        while (times.hasNext()) {
-            total += times.next().millis();
-        }
-        assertEquals(600000L, total);
+    @Override
+    public int getSequence() {
+        return sequence;
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        delegate.addHeader(name, value);
+    }
+
+    @Override
+    public boolean containsHeader(String name) {
+        return delegate.containsHeader(name);
+    }
+
+    public HttpResponse getDelegateRequest() {
+        return delegate;
     }
 }

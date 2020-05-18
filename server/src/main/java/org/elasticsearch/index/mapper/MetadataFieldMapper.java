@@ -33,7 +33,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     public interface TypeParser extends Mapper.TypeParser {
 
         @Override
-        MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                ParserContext parserContext) throws MapperParsingException;
 
         /**
@@ -45,10 +45,12 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @SuppressWarnings("rawtypes")
-    public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
+    public abstract static class Builder<T extends Builder> extends FieldMapper.Builder<T> {
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);
         }
+
+        public abstract MetadataFieldMapper build(BuilderContext context);
     }
 
     protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {

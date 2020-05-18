@@ -366,7 +366,7 @@ POST /_index_template/_simulate/final-template <5>
 
 POST /_index_template/_simulate <6>
 {
-  "index_patterns": ["mydata-*"],
+  "index_patterns": ["logdata-*"],
   "composed_of": ["ct2"],
   "priority": 10
 }
@@ -377,6 +377,37 @@ POST /_index_template/_simulate <6>
 <4> Simulate the settings that would be applied for a new index "logdata-2019-02-01"
 <5> Simulate the settings composed using the "final-template" index template
 <6> Simulate the settings composed using a custom specified template
+
+The output of the simulate API looks like:
+
+[source,console-result]
+---------------------------------------------------------
+{
+  "template" : {
+    "settings" : {
+      "index" : {
+        "number_of_replicas" : "0"
+      }
+    },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date"
+        }
+      }
+    },
+    "aliases" : { }
+  },
+  "overlapping" : [
+    {
+      "name" : "final-template",
+      "index_patterns" : [
+        "logdata-*"
+      ]
+    }
+  ]
+}
+---------------------------------------------------------
 
 When simulating a template and specifying a template in the body of the request, the simulated
 template is not added to the existing templates, it is only used for the simulation.

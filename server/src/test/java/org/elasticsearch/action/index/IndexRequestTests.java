@@ -119,7 +119,7 @@ public class IndexRequestTests extends ESTestCase {
         validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
-            containsString("id is too long, must be no longer than 513 bytes but was: 514"));
+            containsString("id [" + id + "] is too long, must be no longer than 513 bytes but was: 514"));
     }
 
     public void testWaitForActiveShards() {

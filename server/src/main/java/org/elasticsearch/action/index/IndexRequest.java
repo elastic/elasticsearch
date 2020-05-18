@@ -200,7 +200,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > IndicesService.MAX_DOC_ID_LENGTH) {
-            validationException = addValidationError("id is too long, must be no longer than "
+            validationException = addValidationError("id [" + id + "] is too long, must be no longer than "
                 + IndicesService.MAX_DOC_ID_LENGTH + " bytes but was: " +
                 id.getBytes(StandardCharsets.UTF_8).length, validationException);
         }

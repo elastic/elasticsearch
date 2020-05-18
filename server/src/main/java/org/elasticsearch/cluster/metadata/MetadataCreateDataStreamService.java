@@ -33,15 +33,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {

@@ -66,7 +66,7 @@ public class TaskCancellationService {
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
-            GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
+            ActionListener<Void> groupedListener = GroupedActionListener.wrapVoid(completedListener, 3);
             Collection<DiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
@@ -110,8 +110,7 @@ public class TaskCancellationService {
         }
         final TaskId taskId = new TaskId(localNodeId(), task.getId());
         logger.trace("cancelling child tasks of [{}] on child nodes {}", taskId, childNodes);
-        GroupedActionListener<Void> groupedListener =
-            new GroupedActionListener<>(ActionListener.map(listener, r -> null), childNodes.size());
+        ActionListener<Void> groupedListener = GroupedActionListener.wrapVoid(listener, childNodes.size());
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(taskId, reason, waitForCompletion);
         for (DiscoveryNode node : childNodes) {
             transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, banRequest,
@@ -209,7 +208,7 @@ public class TaskCancellationService {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     localNodeId(), request.reason);
                 final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(ActionListener.map(
+                final ActionListener<Void> listener = GroupedActionListener.wrapVoid(ActionListener.map(
                     new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request), r -> TransportResponse.Empty.INSTANCE),
                     childTasks.size() + 1);
                 for (CancellableTask childTask : childTasks) {

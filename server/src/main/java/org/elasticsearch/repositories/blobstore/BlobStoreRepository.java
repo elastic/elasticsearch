@@ -643,7 +643,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                 final ActionListener<Void> afterCleanupsListener =
-                    new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
+                        GroupedActionListener.wrapVoid(ActionListener.wrap(() -> listener.onResponse(null)), 2);
                 asyncCleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
                 asyncCleanupUnlinkedShardLevelBlobs(snapshotIds, writeShardMetaDataAndComputeDeletesStep.result(), afterCleanupsListener);
             }, listener::onFailure);
@@ -653,7 +653,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             writeIndexGen(updatedRepoData, repositoryStateId, false, Function.identity(), ActionListener.wrap(v -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
                 final ActionListener<Void> afterCleanupsListener =
-                    new GroupedActionListener<>(ActionListener.wrap(() -> listener.onResponse(null)), 2);
+                        GroupedActionListener.wrapVoid(ActionListener.wrap(() -> listener.onResponse(null)), 2);
                 asyncCleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
                 writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, writeMetaAndComputeDeletesStep);
@@ -1456,11 +1456,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotId -> repositoryData.getVersion(snapshotId) == null).collect(Collectors.toList());
             if (snapshotIdsWithoutVersion.isEmpty() == false) {
                 final Map<SnapshotId, Version> updatedVersionMap = new ConcurrentHashMap<>();
-                final GroupedActionListener<Void> loadAllVersionsListener = new GroupedActionListener<>(
+                final ActionListener<Void> loadAllVersionsListener = GroupedActionListener.wrapVoid(
                     ActionListener.runAfter(
                         new ActionListener<>() {
                             @Override
-                            public void onResponse(Collection<Void> voids) {
+                            public void onResponse(Void aVoid) {
                                 logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",
                                     AllocationService.firstListElementsToCommaDelimitedString(
                                         snapshotIdsWithoutVersion, SnapshotId::toString, logger.isDebugEnabled()));
@@ -1745,7 +1745,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
                 indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileSize);
 
-            final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
+            final StepListener<Void> allFilesUploadedListener = new StepListener<>();
             allFilesUploadedListener.whenComplete(v -> {
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
                     snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
@@ -1806,7 +1806,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onResponse(indexGeneration);
             }, listener::onFailure);
             if (indexIncrementalFileCount == 0) {
-                allFilesUploadedListener.onResponse(Collections.emptyList());
+                allFilesUploadedListener.onResponse(null);
                 return;
             }
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -1867,8 +1867,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         final int workers =
                             Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(), snapshotFiles.indexFiles().size());
                         final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(filesToRecover);
-                        final ActionListener<Void> allFilesListener =
-                            fileQueueListener(files, workers, ActionListener.map(listener, v -> null));
+                        final ActionListener<Void> allFilesListener = fileQueueListener(files, workers, listener);
                         // restore the files from the snapshot to the Lucene store
                         for (int i = 0; i < workers; ++i) {
                             executor.execute(ActionRunnable.run(allFilesListener, () -> {
@@ -1931,8 +1930,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private static ActionListener<Void> fileQueueListener(BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files, int workers,
-                                                          ActionListener<Collection<Void>> listener) {
-        return ActionListener.delegateResponse(new GroupedActionListener<>(listener, workers), (l, e) -> {
+                                                          ActionListener<Void> listener) {
+        return ActionListener.delegateResponse(GroupedActionListener.wrapVoid(listener, workers), (l, e) -> {
             files.clear(); // Stop uploading the remaining files if we run into any exception
             l.onFailure(e);
         });

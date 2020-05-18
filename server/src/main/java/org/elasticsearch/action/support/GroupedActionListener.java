@@ -42,14 +42,47 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
     private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     /**
+     * Optimized constructor for {@code Void} type listeners that creates a more memory efficient grouped listener than
+     * {@link GroupedActionListener#GroupedActionListener(ActionListener, int)} but is otherwise functionally equivalent.
+     *
+     * @param delegate  the delegate listener
+     * @param groupSize the group size
+     */
+    public static ActionListener<Void> wrapVoid(ActionListener<Void> delegate, int groupSize) {
+        ensureGroupSize(groupSize);
+        if (groupSize == 1) {
+            return ActionListener.notifyOnce(delegate);
+        }
+        return new ActionListener<>() {
+            private final AtomicReference<Exception> failure = new AtomicReference<>();
+
+            private final CountDown countDown = new CountDown(groupSize);
+
+            @Override
+            public void onResponse(Void aVoid) {
+                if (countDown.countDown()) {
+                    if (failure.get() != null) {
+                        delegate.onFailure(failure.get());
+                    } else {
+                        delegate.onResponse(null);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                GroupedActionListener.onFailure(failure, countDown, delegate, e);
+            }
+        };
+    }
+
+    /**
      * Creates a new listener
      * @param delegate the delegate listener
      * @param groupSize the group size
      */
     public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize) {
-        if (groupSize <= 0) {
-            throw new IllegalArgumentException("groupSize must be greater than 0 but was " + groupSize);
-        }
+        ensureGroupSize(groupSize);
         results = new AtomicArray<>(groupSize);
         countDown = new CountDown(groupSize);
         this.delegate = delegate;
@@ -70,6 +103,16 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
 
     @Override
     public void onFailure(Exception e) {
+        onFailure(failure, countDown, delegate, e);
+    }
+
+    private static void ensureGroupSize(int groupSize) {
+        if (groupSize <= 0) {
+            throw new IllegalArgumentException("groupSize must be greater than 0 but was " + groupSize);
+        }
+    }
+
+    private static void onFailure(AtomicReference<Exception> failure, CountDown countDown, ActionListener<?> delegate, Exception e) {
         if (failure.compareAndSet(null, e) == false) {
             failure.accumulateAndGet(e, (current, update) -> {
                 // we have to avoid self-suppression!

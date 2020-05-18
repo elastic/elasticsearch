@@ -377,8 +377,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
                     final int numberOfParts = Math.toIntExact(file.numberOfParts());
-                    final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                        ActionListener.wrap(voids -> input.close(), e -> IOUtils.closeWhileHandlingException(input)),
+                    final ActionListener<Void> listener = GroupedActionListener.wrapVoid(
+                        ActionListener.wrap(v -> input.close(), e -> IOUtils.closeWhileHandlingException(input)),
                         numberOfParts
                     );
 

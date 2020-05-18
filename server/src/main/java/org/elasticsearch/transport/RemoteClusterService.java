@@ -297,14 +297,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-        final PlainActionFuture<Collection<Void>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         Set<String> enabledClusters = RemoteClusterAware.getEnabledRemoteClusters(settings);
 
         if (enabledClusters.isEmpty()) {
             return;
         }
 
-        GroupedActionListener<Void> listener = new GroupedActionListener<>(future, enabledClusters.size());
+        ActionListener<Void> listener = GroupedActionListener.wrapVoid(future, enabledClusters.size());
         for (String clusterAlias : enabledClusters) {
             updateRemoteCluster(clusterAlias, settings, listener);
         }

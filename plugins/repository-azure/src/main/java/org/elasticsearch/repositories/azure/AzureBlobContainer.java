@@ -137,8 +137,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         if (blobNames.isEmpty()) {
             result.onResponse(null);
         } else {
-            final GroupedActionListener<Void> listener =
-                new GroupedActionListener<>(ActionListener.map(result, v -> null), blobNames.size());
+            final ActionListener<Void> listener = GroupedActionListener.wrapVoid(result, blobNames.size());
             final ExecutorService executor = threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
             // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint
             // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.

@@ -106,8 +106,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return;
         }
 
-        final GroupedActionListener<Void> listener
-            = new GroupedActionListener<>(ActionListener.wrap(onCompletion), discoveryNodes.getSize());
+        final ActionListener<Void> listener = GroupedActionListener.wrapVoid(ActionListener.wrap(onCompletion), discoveryNodes.getSize());
 
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         synchronized (mutex) {
@@ -172,7 +171,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             if (connectionTargets.isEmpty()) {
                 runnables.add(onCompletion);
             } else {
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+                final ActionListener<Void> listener = GroupedActionListener.wrapVoid(
                     ActionListener.wrap(onCompletion), connectionTargets.size());
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.awaitCurrentActivity(listener));
@@ -195,7 +194,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 runnables.add(onCompletion);
             } else {
                 logger.trace("connectDisconnectedTargets: {}", targetsByNode);
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+                final ActionListener<Void> listener = GroupedActionListener.wrapVoid(
                     ActionListener.wrap(onCompletion), connectionTargets.size());
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.ensureConnected(listener));

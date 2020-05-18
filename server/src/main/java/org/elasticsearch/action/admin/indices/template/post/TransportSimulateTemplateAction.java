@@ -120,7 +120,7 @@ public class TransportSimulateTemplateAction
         // If they didn't either specify a name that existed or a template body, we cannot simulate anything!
         if (matchingTemplate == null) {
             // They should have specified either a template name or the body of a template, but neither were specified
-            listener.onFailure(new IllegalArgumentException("unable to find a matching template"));
+            listener.onFailure(new IllegalArgumentException("a template name to match or a new template body must be specified"));
             return;
         } else if (stateWithTemplate.metadata().templatesV2().containsKey(matchingTemplate) == false) {
             // They specified a template, but it didn't exist

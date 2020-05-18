@@ -106,8 +106,6 @@ include::request/docvalue-fields.asciidoc[]
 
 include::request/collapse.asciidoc[]
 
-include::request/from-size.asciidoc[]
-
 include::request/highlighting.asciidoc[]
 
 include::request/index-boost.asciidoc[]

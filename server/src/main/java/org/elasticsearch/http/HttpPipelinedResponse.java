@@ -16,35 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.http;
 
-package org.elasticsearch.http.nio;
+public class HttpPipelinedResponse implements HttpPipelinedMessage, HttpResponse {
 
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.RestStatus;
+    private final int sequence;
+    private final HttpResponse delegate;
 
-public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResponse {
+    public HttpPipelinedResponse(int sequence, HttpResponse delegate) {
+        this.sequence = sequence;
+        this.delegate = delegate;
+    }
 
-    private final NioHttpRequest request;
-
-    NioHttpResponse(NioHttpRequest request, RestStatus status, BytesReference content) {
-        super(request.nettyRequest().protocolVersion(), HttpResponseStatus.valueOf(status.getStatus()), ByteBufUtils.toByteBuf(content));
-        this.request = request;
+    @Override
+    public int getSequence() {
+        return sequence;
     }
 
     @Override
     public void addHeader(String name, String value) {
-        headers().add(name, value);
+        delegate.addHeader(name, value);
     }
 
     @Override
     public boolean containsHeader(String name) {
-        return headers().contains(name);
+        return delegate.containsHeader(name);
     }
 
-    public NioHttpRequest getRequest() {
-        return request;
+    public HttpResponse getDelegateRequest() {
+        return delegate;
     }
 }

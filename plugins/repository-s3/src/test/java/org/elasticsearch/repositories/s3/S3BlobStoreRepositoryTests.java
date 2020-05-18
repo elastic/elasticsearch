@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.s3.S3HttpHandler;
@@ -115,6 +116,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new S3StatsCollectorHttpHandler(new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+    }
+
+    @Override
+    protected List<String> requestTypesTracked() {
+        return List.of("GET", "LIST", "PUT", "POST");
     }
 
     @Override
@@ -279,12 +285,22 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public void maybeTrack(final String request) {
+        public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
                 trackRequest("LIST");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GET");
+            } else if (isMultiPartUpload(request)) {
+                trackRequest("POST");
+            } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                trackRequest("PUT");
             }
+        }
+
+        private boolean isMultiPartUpload(String request) {
+            return Regex.simpleMatch("POST /*/*?uploads", request) ||
+                Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||
+                Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
         }
     }
 }

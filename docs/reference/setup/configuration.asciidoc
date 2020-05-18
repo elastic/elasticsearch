@@ -78,3 +78,24 @@ variable, for instance:
 node.name:    ${HOSTNAME}
 network.host: ${ES_NETWORK_HOST}
 --------------------------------------------------
+
+[discrete]
+[[cluster-setting-types]]
+=== Cluster and node setting types
+
+Cluster and node settings can be categorized based on how they are configured:
+
+[[dynamic-cluster-setting]]
+Dynamic::
+You can configure and update dynamic settings on a running cluster using the
+<<cluster-update-settings,cluster update settings API>>. 
++
+You can also configure dynamic settings on an unstarted or shut down node using
+`elasticsearch.yml`, an environment variable, or the command line.
+
+[[static-cluster-setting]]
+Static::
+Static settings can only be configured on an unstarted or shut down node using
+`elasticsearch.yml`, an environment variable, or the command line.
++
+Static settings must be set on every relevant node in the cluster.

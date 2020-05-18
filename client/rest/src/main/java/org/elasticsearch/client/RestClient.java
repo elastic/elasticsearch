@@ -28,6 +28,7 @@ import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.entity.GzipDecompressingEntity;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
@@ -67,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -272,6 +274,14 @@ public class RestClient implements Closeable {
     private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getStatusLine().getStatusCode();
+
+        Optional.ofNullable(httpResponse.getEntity())
+            .map(HttpEntity::getContentEncoding)
+            .map(Header::getValue)
+            .filter("gzip"::equalsIgnoreCase)
+            .map(gzipHeaderValue -> new GzipDecompressingEntity(httpResponse.getEntity()))
+            .ifPresent(httpResponse::setEntity);
+
         Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
             onResponse(node);

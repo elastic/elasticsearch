@@ -49,12 +49,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetDataStreamsAction extends ActionType<GetDataStreamsAction.Response> {
+public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
-    public static final GetDataStreamsAction INSTANCE = new GetDataStreamsAction();
+    public static final GetDataStreamAction INSTANCE = new GetDataStreamAction();
     public static final String NAME = "indices:admin/data_stream/get";
 
-    private GetDataStreamsAction() {
+    private GetDataStreamAction() {
         super(NAME, Response::new);
     }
 

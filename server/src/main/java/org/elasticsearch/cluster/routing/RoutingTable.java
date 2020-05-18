@@ -475,10 +475,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     builder.addIndexShard(indexShardRoutingTable);
                 }
                 int delta = Math.abs(numberOfReplicas - currentNumberOfReplicas);
-                for (int i = 0; i < delta; i++) {
-                    if (currentNumberOfReplicas < numberOfReplicas) {
+                if (currentNumberOfReplicas < numberOfReplicas) {
+                    // now, add "empty" ones
+                    for (int i = 0; i < delta; i++) {
                         builder.addReplica();
-                    } else {
+                    }
+                } else if (currentNumberOfReplicas > numberOfReplicas) {
+                    for (int i = 0; i < delta; i++) {
                         builder.removeReplica();
                     }
                 }

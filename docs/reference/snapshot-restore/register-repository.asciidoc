@@ -153,22 +153,42 @@ unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited c
 
 The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by the shared file
 system repository. The URL specified in the `url` parameter should point to the root of the shared filesystem repository.
-The following settings are supported:
 
-[horizontal]
-`url`:: Location of the snapshots. Mandatory.
+[source,console]
+----
+PUT /_snapshot/my_read_only_url_backup
+{
+  "type": "url",
+  "settings": {
+    "url": "/mount/backups/my_fs_backup_location"
+  }
+}
+----
 
-URL Repository supports the following protocols: "http", "https", "ftp", "file" and "jar". URL repositories with `http:`,
-`https:`, and `ftp:` URLs has to be whitelisted by specifying allowed URLs in the `repositories.url.allowed_urls` setting.
-This setting supports wildcards in the place of host, path, query, and fragment. For example:
+The `url` parameter supports the following protocols:
+
+* `file`
+* `ftp`
+* `http`
+* `https`
+* `jar`
+
+URLs using the `file` protocol must point to the location of a shared filesystem
+accessible to all master and data nodes in the cluster. This location must be
+registered in the `path.repo` setting, similar to a
+<<snapshots-filesystem-repository,shared file system repository>>.
+
+URLs using the `ftp`, `http`, or `https` protocols must be whitelisted in the
+`repositories.url.allowed_urls` setting. This setting supports wildcards (`*`)
+in place of a host, path, query, or fragment in the URL. For example:
 
 [source,yaml]
------------------------------------
+----
 repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydomain.com/*?*#*"]
------------------------------------
+----
 
-URL repositories with `file:` URLs can only point to locations registered in the `path.repo` setting similar to
-shared file system repository.
+NOTE: URLs using the `ftp`, `http`, `https`, or `jar` protocols do not need to
+be registered in the `path.repo` setting.
 
 [float]
 [role="xpack"]

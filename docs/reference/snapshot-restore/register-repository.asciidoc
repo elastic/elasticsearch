@@ -160,10 +160,12 @@ PUT /_snapshot/my_read_only_url_backup
 {
   "type": "url",
   "settings": {
-    "url": "/mount/backups/my_fs_backup_location"
+    "url": "file:/mount/backups/my_fs_backup_location"
   }
 }
 ----
+// TEST[skip:no access to url file path]
+
 
 The `url` parameter supports the following protocols:
 

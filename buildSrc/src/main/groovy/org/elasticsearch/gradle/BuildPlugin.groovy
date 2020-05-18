@@ -161,8 +161,6 @@ class BuildPlugin implements Plugin<Project> {
                         cluster.systemProperty('javax.net.ssl.trustStorePassword', 'password')
                         cluster.systemProperty('javax.net.ssl.keyStorePassword', 'password')
                         cluster.systemProperty('javax.net.ssl.keyStoreType', 'BCFKS')
-                        // Can't use our DiagnosticTrustManager with SunJSSE in FIPS mode
-                        cluster.setting 'xpack.security.ssl.diagnose.trust', 'false'
                     }
                 }
             }
@@ -300,7 +298,7 @@ class BuildPlugin implements Plugin<Project> {
             throw new GradleException(message)
         }
     }
-    
+
     private static configurePrecommit(Project project) {
         TaskProvider precommit = PrecommitTasks.create(project, true)
         project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(precommit) }

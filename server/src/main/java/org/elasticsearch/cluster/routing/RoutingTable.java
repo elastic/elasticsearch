@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -457,7 +456,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
          * @param indices          the indices to update the number of replicas for
          * @return the builder
          */
-        @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
         public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
@@ -474,14 +472,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     builder.addIndexShard(indexShardRoutingTable);
                 }
-                int delta = Math.abs(numberOfReplicas - currentNumberOfReplicas);
                 if (currentNumberOfReplicas < numberOfReplicas) {
                     // now, add "empty" ones
-                    for (int i = 0; i < delta; i++) {
+                    for (int i = 0; i < (numberOfReplicas - currentNumberOfReplicas); i++) {
                         builder.addReplica();
                     }
                 } else if (currentNumberOfReplicas > numberOfReplicas) {
-                    for (int i = 0; i < delta; i++) {
+                    for (int i = 0; i < (currentNumberOfReplicas - numberOfReplicas); i++) {
                         builder.removeReplica();
                     }
                 }

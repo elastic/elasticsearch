@@ -76,8 +76,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
     }
 
-    public abstract static class Builder<T extends Builder, Y extends AbstractGeometryFieldMapper, FT extends AbstractGeometryFieldType>
-            extends FieldMapper.Builder<T, Y> {
+    public abstract static class Builder<T extends Builder, FT extends AbstractGeometryFieldType>
+            extends FieldMapper.Builder<T> {
         protected Boolean ignoreMalformed;
         protected Boolean ignoreZValue;
 

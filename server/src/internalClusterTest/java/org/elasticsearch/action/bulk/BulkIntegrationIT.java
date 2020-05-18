@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -257,8 +257,8 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        GetDataStreamsAction.Request getDataStreamRequest = new GetDataStreamsAction.Request("*");
-        GetDataStreamsAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamsResponse.getDataStreams(), hasSize(4));
         getDataStreamsResponse.getDataStreams().sort(Comparator.comparing(DataStream::getName));
         assertThat(getDataStreamsResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
@@ -291,8 +291,8 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        GetDataStreamsAction.Request getDataStreamRequest = new GetDataStreamsAction.Request("*");
-        GetDataStreamsAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamsResponse.getDataStreams(), hasSize(0));
 
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices("logs-foobar")).actionGet();

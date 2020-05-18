@@ -22,6 +22,7 @@ import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.blob.BlobRequestOptions;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.azure.AzureHttpHandler;
@@ -172,7 +173,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
 
         @Override
-        protected void maybeTrack(String request) {
+        protected void maybeTrack(String request, Headers headers) {
             if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GET");
             } else if (Regex.simpleMatch("HEAD /*/*", request)) {

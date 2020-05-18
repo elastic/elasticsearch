@@ -101,19 +101,13 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
                 .endObject().endObject().endObject();
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("mapper [foo] of different type, current_type [long], merged_type [double]"));
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("mapper [foo] of different type, current_type [long], merged_type [double]"));
 
         assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));
@@ -129,13 +123,9 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
                 .endObject().endObject().endObject();
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("mapper [foo] of different type, current_type [long], merged_type [double]"));
 
         assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));

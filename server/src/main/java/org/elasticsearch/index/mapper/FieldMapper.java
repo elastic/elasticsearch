@@ -361,7 +361,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     private void checkCompatibility(Mapper mergeWith, List<String> conflicts) {
 
-        if (!this.getClass().equals(mergeWith.getClass())) {
+        if (mergeWith instanceof FieldMapper == false ||
+            Objects.equals(this.contentType(), ((FieldMapper)mergeWith).contentType()) == false) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
                 mergedType = ((FieldMapper) mergeWith).contentType();

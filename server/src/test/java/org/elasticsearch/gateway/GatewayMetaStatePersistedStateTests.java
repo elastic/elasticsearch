@@ -395,7 +395,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             // generate a series of updates and check if batching works
             final String indexName = randomAlphaOfLength(10);
             long currentTerm = state.term();
-            for (int i = 0; i < 1000; i++) {
+            final int iterations = randomIntBetween(1, 1000);
+            for (int i = 0; i < iterations; i++) {
                 if (rarely()) {
                     // bump term
                     currentTerm = currentTerm + (rarely() ? randomIntBetween(1, 5) : 0L);

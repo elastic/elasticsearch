@@ -175,6 +175,91 @@ F    |F          |1666196|1666196        |1666196
 M    |M          |2671054|2671054        |2671054
 ;
 
+sumLiteralWithTrueConditionAndHavingWithCount
+SELECT SUM(1) AS c FROM test_emp WHERE 'a'='a' HAVING COUNT(1) > 0;
+
+      c:i       
+---------------
+100     
+;       
+
+sumLiteralWithTwoConditionsAndGroupByField
+SELECT SUM(10) AS s10, birth_date, SUM(1) AS c FROM test_emp WHERE (birth_date >= {ts '1959-01-01 00:00:00'}) AND (birth_date <= {ts '1959-12-31 23:59:59'}) GROUP BY 2;
+
+    s10:l      |      birth_date:ts     |       c:l       
+---------------+------------------------+---------------
+10             |1959-01-27T00:00:00.000Z|1              
+10             |1959-04-07T00:00:00.000Z|1              
+20             |1959-07-23T00:00:00.000Z|2              
+10             |1959-08-10T00:00:00.000Z|1              
+10             |1959-08-19T00:00:00.000Z|1              
+10             |1959-10-01T00:00:00.000Z|1              
+10             |1959-12-03T00:00:00.000Z|1              
+10             |1959-12-25T00:00:00.000Z|1              
+;
+
+sumLiteralWithGroupByAndTwoConditionsOnSum
+SELECT first_name, SUM(1) AS c FROM test_emp GROUP BY 1 HAVING ((SUM(1) >= 0) AND (SUM(1) <= 577)) LIMIT 10;
+
+ first_name:s  |       c:l       
+---------------+---------------
+null           |10             
+Alejandro      |1              
+Amabile        |1              
+Anneke         |1              
+Anoosh         |1              
+Arumugam       |1              
+Basil          |1              
+Berhard        |1              
+Berni          |1              
+Bezalel        |1              
+;
+
+sumFieldWithSumLiteralAsCondition
+SELECT first_name, last_name, SUM(salary) AS s, birth_date AS y, COUNT(1) FROM test_emp GROUP BY 1, 2, 4 HAVING ((SUM(1) >= 1) AND (SUM(1) <= 577)) AND ((SUM(salary) >= 35000) AND (SUM(salary) <= 45000));
+
+  first_name:s |   last_name:s |       s:i     |           y:ts         |   COUNT(1):l    
+---------------+---------------+---------------+------------------------+---------------
+null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1              
+null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1              
+null           |Lortz          |35222          |1960-07-20T00:00:00.000Z|1              
+null           |Makrucki       |37691          |1963-07-22T00:00:00.000Z|1              
+null           |Swan           |39878          |1962-12-29T00:00:00.000Z|1              
+Alejandro      |McAlpine       |44307          |1953-09-19T00:00:00.000Z|1              
+Amabile        |Gomatam        |38645          |1955-10-04T00:00:00.000Z|1              
+Basil          |Tramer         |37853          |null                    |1              
+Berhard        |McFarlin       |38376          |1954-10-01T00:00:00.000Z|1              
+Berni          |Genin          |37137          |1956-02-12T00:00:00.000Z|1              
+Chirstian      |Koblick        |36174          |1954-05-01T00:00:00.000Z|1              
+Domenick       |Tempesti       |39356          |1963-11-26T00:00:00.000Z|1              
+Hilari         |Morton         |37702          |1965-01-03T00:00:00.000Z|1              
+Hisao          |Lipner         |40612          |1958-01-21T00:00:00.000Z|1              
+Jayson         |Mandell        |43889          |1954-09-16T00:00:00.000Z|1              
+Jungsoon       |Syrzycki       |39638          |1954-02-25T00:00:00.000Z|1              
+Kendra         |Hofting        |44956          |1961-05-30T00:00:00.000Z|1              
+Kenroku        |Malabarba      |35742          |1962-11-07T00:00:00.000Z|1              
+Margareta      |Bierman        |41933          |1960-09-06T00:00:00.000Z|1              
+Mayuko         |Warwick        |40031          |1952-12-24T00:00:00.000Z|1              
+Mingsen        |Casley         |39728          |null                    |1              
+Mokhtar        |Bernatsky      |38992          |1955-08-28T00:00:00.000Z|1              
+Saniya         |Kalloufi       |43906          |1958-02-19T00:00:00.000Z|1              
+Sreekrishna    |Servieres      |44817          |1961-09-23T00:00:00.000Z|1              
+Sudharsan      |Flasterstein   |43602          |1963-03-21T00:00:00.000Z|1              
+Vishv          |Zockler        |39110          |1959-07-23T00:00:00.000Z|1              
+Weiyi          |Meriste        |37112          |null                    |1              
+Yinghua        |Dredge         |43026          |1958-05-21T00:00:00.000Z|1              
+Zvonko         |Nyanchama      |42716          |null                    |1              
+;
+
+mirrorIifForNumericAggregate
+SELECT IIF(COUNT(1)=0, NULL, 123)+5, AVG(123), MIN(123)+5, IIF(COUNT(1)=0, NULL, 30*COUNT(1)), SUM(30) FROM test_emp;
+
+IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l    
+------------------------------+-----------------+-----------------+------------------------------------+---------------
+128                           |123              |128              |3000                                |3000           
+;
+
+
 aggByComplexCastedValue
 SELECT CONVERT(CONCAT(LTRIM(CONVERT("emp_no", SQL_VARCHAR)), LTRIM(CONVERT("languages", SQL_VARCHAR))), SQL_BIGINT) AS "TEMP"
 FROM "test_emp" GROUP BY "TEMP" ORDER BY "TEMP" LIMIT 20;

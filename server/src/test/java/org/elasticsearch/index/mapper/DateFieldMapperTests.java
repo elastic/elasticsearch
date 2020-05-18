@@ -166,7 +166,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         testIgnoreMalfomedForValue("2016-03-99",
                 "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]");
         testIgnoreMalfomedForValue("-2147483648",
-                "Invalid value for Year (valid values -999999999 - 999999999): -2147483648");
+                "failed to parse date field [-2147483648] with format [strict_date_optional_time||epoch_millis]");
     }
 
     private void testIgnoreMalfomedForValue(String value, String expectedException) throws IOException {

@@ -119,6 +119,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
+    protected List<String> requestTypesTracked() {
+        return List.of("GET", "LIST", "PUT", "POST");
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
@@ -285,7 +290,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 trackRequest("LIST");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GET");
+            } else if (isMultiPartUpload(request)) {
+                trackRequest("POST");
+            } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                trackRequest("PUT");
             }
+        }
+
+        private boolean isMultiPartUpload(String request) {
+            return Regex.simpleMatch("POST /*/*?uploads", request) ||
+                Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||
+                Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
         }
     }
 }

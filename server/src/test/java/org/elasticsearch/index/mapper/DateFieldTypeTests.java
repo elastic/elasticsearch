@@ -36,7 +36,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
@@ -53,12 +52,10 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Locale;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
     @Override
@@ -68,23 +65,6 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static long nowInMillis;
 
-    @Before
-    public void setupProperties() {
-        setDummyNullValue(10);
-        addModifier(new Modifier("format", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
-            }
-        });
-        addModifier(new Modifier("locale", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("strict_date_optional_time").withLocale(Locale.CANADA));
-            }
-        });
-        nowInMillis = randomNonNegativeLong();
-    }
 
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);

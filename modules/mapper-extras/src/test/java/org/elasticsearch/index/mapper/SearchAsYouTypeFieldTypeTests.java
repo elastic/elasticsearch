@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
-import org.junit.Before;
 
 import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
@@ -41,27 +40,6 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
     private static final String NAME = "a_field";
     private static final String PREFIX_NAME = NAME + "._index_prefix";
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("max_shingle_size", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                SearchAsYouTypeFieldType fieldType = (SearchAsYouTypeFieldType) ft;
-                fieldType.setShingleFields(new ShingleFieldType[] {
-                    new ShingleFieldType(fieldType, 2),
-                    new ShingleFieldType(fieldType, 3)
-                });
-            }
-        });
-        addModifier(new Modifier("index_prefixes", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                SearchAsYouTypeFieldType fieldType = (SearchAsYouTypeFieldType) ft;
-                fieldType.setPrefixField(new PrefixFieldType(NAME, PREFIX_NAME, 1, 10));
-            }
-        });
-    }
 
     @Override
     protected SearchAsYouTypeFieldType createDefaultFieldType() {

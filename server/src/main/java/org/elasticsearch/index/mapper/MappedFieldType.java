@@ -168,58 +168,6 @@ public abstract class MappedFieldType extends FieldType {
         }
     }
 
-    /**
-     * Checks for any conflicts between this field type and other.
-     * If strict is true, all properties must be equal.
-     * Otherwise, only properties which must never change in an index are checked.
-     */
-    public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-        checkTypeName(other);
-
-        boolean indexed =  indexOptions() != IndexOptions.NONE;
-        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
-        // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (indexed != mergeWithIndexed) {
-            conflicts.add("mapper [" + name() + "] has different [index] values");
-        }
-        if (stored() != other.stored()) {
-            conflicts.add("mapper [" + name() + "] has different [store] values");
-        }
-        if (hasDocValues() != other.hasDocValues()) {
-            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
-        }
-        if (omitNorms() && !other.omitNorms()) {
-            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
-        }
-        if (storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
-        }
-        if (storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
-        }
-        if (storeTermVectorPositions() != other.storeTermVectorPositions()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
-        }
-        if (storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
-        }
-
-        // null and "default"-named index analyzers both mean the default is used
-        if (indexAnalyzer() == null || "default".equals(indexAnalyzer().name())) {
-            if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [analyzer]");
-            }
-        } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        }
-
-        if (Objects.equals(similarity(), other.similarity()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
-    }
-
     public String name() {
         return name;
     }

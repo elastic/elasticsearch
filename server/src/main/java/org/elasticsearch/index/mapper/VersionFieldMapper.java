@@ -141,8 +141,4 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         return builder;
     }
 
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // nothing to do
-    }
 }

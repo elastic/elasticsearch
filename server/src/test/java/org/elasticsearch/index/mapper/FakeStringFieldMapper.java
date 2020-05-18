@@ -146,11 +146,6 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-    }
-
-    @Override
     public FakeStringFieldType fieldType() {
         return (FakeStringFieldType) super.fieldType();
     }

@@ -212,8 +212,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected void doMerge(FieldMapper mergeWith) {
         AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)mergeWith;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;

@@ -23,7 +23,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
@@ -51,7 +50,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -96,15 +94,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public boolean equals(Object o) {
             return super.equals(o) && Objects.equals(collator, ((CollationFieldType) o).collator);
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
-            super.checkCompatibility(otherFT, conflicts);
-            CollationFieldType other = (CollationFieldType) otherFT;
-            if (!Objects.equals(collator, other.collator)) {
-                conflicts.add("mapper [" + name() + "] has different [collator]");
-            }
         }
 
         @Override
@@ -612,12 +601,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-
-        List<String> conflicts = new ArrayList<>();
-        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
-
+    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) other;
+        if (!Objects.equals(collator, icuMergeWith.collator)) {
+            conflicts.add("mapper [" + name() + "] has different [collator]");
+        }
         if (!Objects.equals(rules, icuMergeWith.rules)) {
             conflicts.add("Cannot update rules setting for [" + CONTENT_TYPE + "]");
         }
@@ -665,12 +653,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         if (hiraganaQuaternaryMode != icuMergeWith.hiraganaQuaternaryMode) {
             conflicts.add("Cannot update hiragana_quaternary_mode setting for [" + CONTENT_TYPE + "]");
         }
+    }
 
+    @Override
+    protected void doMerge(FieldMapper mergeWith) {
+        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
         this.ignoreAbove = icuMergeWith.ignoreAbove;
-
-        if (!conflicts.isEmpty()) {
-            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
-        }
     }
 
     @Override

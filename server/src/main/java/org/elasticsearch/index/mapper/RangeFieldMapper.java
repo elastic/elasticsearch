@@ -402,8 +402,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected void doMerge(FieldMapper mergeWith) {
         RangeFieldMapper other = (RangeFieldMapper) mergeWith;
         if (other.coerce.explicit()) {
             this.coerce = other.coerce;

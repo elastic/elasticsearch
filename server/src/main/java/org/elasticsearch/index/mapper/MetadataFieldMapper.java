@@ -69,8 +69,4 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         // do nothing
     }
 
-    @Override
-    public MetadataFieldMapper merge(Mapper mergeWith) {
-        return (MetadataFieldMapper) super.merge(mergeWith);
-    }
 }

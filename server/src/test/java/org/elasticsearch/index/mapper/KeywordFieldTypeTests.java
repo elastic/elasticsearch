@@ -43,7 +43,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,23 +50,6 @@ import java.util.Arrays;
 import java.util.List;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("normalizer", false) {
-            @Override
-            public void modify(MappedFieldType type) {
-                ((KeywordFieldType) type).setNormalizer(Lucene.KEYWORD_ANALYZER);
-            }
-        });
-        addModifier(new Modifier("split_queries_on_whitespace", true) {
-            @Override
-            public void modify(MappedFieldType type) {
-                KeywordFieldType keywordType = (KeywordFieldType) type;
-                keywordType.setSplitQueriesOnWhitespace(!keywordType.splitQueriesOnWhitespace());
-            }
-        });
-    }
 
     @Override
     protected MappedFieldType createDefaultFieldType() {

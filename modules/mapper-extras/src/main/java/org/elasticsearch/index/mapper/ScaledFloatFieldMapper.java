@@ -214,14 +214,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
-                conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
-            }
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
@@ -450,8 +442,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+        ScaledFloatFieldType ft = (ScaledFloatFieldType) other.fieldType();
+        if (fieldType().scalingFactor != ft.getScalingFactor()) {
+            conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
+        }
+    }
+
+    @Override
+    protected void doMerge(FieldMapper mergeWith) {
         ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;

@@ -334,16 +334,33 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public FieldMapper merge(Mapper mergeWith) {
+    public final FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
-        merged.doMerge(mergeWith);
+        List<String> conflicts = new ArrayList<>();
+        merged.checkCompatibility(mergeWith, conflicts);
+        if (conflicts.isEmpty() == false) {
+            throw new IllegalArgumentException("Mapper for [" + name() +
+                "] conflicts with existing mapping:\n" + conflicts.toString());
+        }
+        merged.mergeFieldMapper((FieldMapper)mergeWith);
         return merged;
+    }
+
+    private void mergeFieldMapper(FieldMapper mergeWith) {
+        multiFields = multiFields.merge(mergeWith.multiFields);
+        // apply changeable values
+        this.fieldType = mergeWith.fieldType;
+        this.copyTo = mergeWith.copyTo;
+        doMerge(mergeWith);
     }
 
     /**
      * Merge changes coming from {@code mergeWith} in place.
      */
-    protected void doMerge(Mapper mergeWith) {
+    protected void doMerge(FieldMapper mergeWith) { }
+
+    private void checkCompatibility(Mapper mergeWith, List<String> conflicts) {
+
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
@@ -352,12 +369,60 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             throw new IllegalArgumentException("mapper [" + fieldType().name() + "] of different type, current_type [" + contentType()
                 + "], merged_type [" + mergedType + "]");
         }
-        FieldMapper fieldMergeWith = (FieldMapper) mergeWith;
-        multiFields = multiFields.merge(fieldMergeWith.multiFields);
 
-        // apply changeable values
-        this.fieldType = fieldMergeWith.fieldType;
-        this.copyTo = fieldMergeWith.copyTo;
+        MappedFieldType other = ((FieldMapper)mergeWith).fieldType;
+
+        boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
+        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
+        // TODO: should be validating if index options go "up" (but "down" is ok)
+        if (indexed != mergeWithIndexed) {
+            conflicts.add("mapper [" + name() + "] has different [index] values");
+        }
+        if (fieldType.stored() != other.stored()) {
+            conflicts.add("mapper [" + name() + "] has different [store] values");
+        }
+        if (fieldType.hasDocValues() != other.hasDocValues()) {
+            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
+        }
+        if (fieldType.omitNorms() && !other.omitNorms()) {
+            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
+        }
+        if (fieldType.storeTermVectors() != other.storeTermVectors()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+        }
+        if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
+        }
+        if (fieldType.storeTermVectorPositions() != other.storeTermVectorPositions()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
+        }
+        if (fieldType.storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
+        }
+
+        // null and "default"-named index analyzers both mean the default is used
+        if (fieldType.indexAnalyzer() == null || "default".equals(fieldType.indexAnalyzer().name())) {
+            if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [analyzer]");
+            }
+        } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
+        } else if (fieldType.indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
+        }
+
+        if (Objects.equals(fieldType.similarity(), other.similarity()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
+        }
+
+        doCheckCompatibility((FieldMapper)mergeWith, conflicts);
+    }
+
+    /**
+     * Check for incompatible settings in mappings to be merged
+     */
+    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

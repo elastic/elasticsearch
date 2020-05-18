@@ -203,11 +203,6 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        // ignore this for now
-    }
-
-    @Override
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         ExternalMapper update = (ExternalMapper) super.updateFieldType(fullNameToFieldType);
         MultiFields multiFieldsUpdate = multiFields.updateFieldType(fullNameToFieldType);

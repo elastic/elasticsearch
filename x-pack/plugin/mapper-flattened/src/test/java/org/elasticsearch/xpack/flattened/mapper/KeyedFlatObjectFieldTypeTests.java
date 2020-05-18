@@ -18,25 +18,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("split_queries_on_whitespace", true) {
-            @Override
-            public void modify(MappedFieldType type) {
-                KeyedFlatObjectFieldType ft = (KeyedFlatObjectFieldType) type;
-                ft.setSplitQueriesOnWhitespace(!ft.splitQueriesOnWhitespace());
-            }
-        });
-    }
 
     @Override
     protected KeyedFlatObjectFieldType createDefaultFieldType() {

@@ -48,7 +48,6 @@ import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.net.InetAddress;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -63,20 +62,6 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void setupProperties() {
         type = randomFrom(RangeType.values());
         nowInMillis = randomNonNegativeLong();
-        if (type == RangeType.DATE) {
-            addModifier(new Modifier("format", true) {
-                @Override
-                public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
-                }
-            });
-            addModifier(new Modifier("locale", true) {
-                @Override
-                public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
-                }
-            });
-        }
     }
 
     @Override

@@ -122,8 +122,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected void doMerge(FieldMapper mergeWith) {
         AbstractPointGeometryFieldMapper gpfm = (AbstractPointGeometryFieldMapper)mergeWith;
         if (gpfm.fieldType().nullValue() != null) {
             this.fieldType().setNullValue(gpfm.fieldType().nullValue());

@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.junit.Before;
 
 import java.util.Collections;
 
@@ -38,17 +37,6 @@ public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new FieldNamesFieldMapper.FieldNamesFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("enabled", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                FieldNamesFieldMapper.FieldNamesFieldType fnft = (FieldNamesFieldMapper.FieldNamesFieldType)ft;
-                fnft.setEnabled(!fnft.isEnabled());
-            }
-        });
     }
 
     public void testTermQuery() {

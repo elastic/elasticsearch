@@ -988,7 +988,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         final boolean writeIndexGens = SnapshotsService.useIndexGenerations(repositoryMetaVersion);
-        getRepositoryData(ActionListener.wrap(existingRepositoryData -> {
+
+        final StepListener<RepositoryData> repoDataListener = new StepListener<>();
+        executor.execute(ActionRunnable.wrap(repoDataListener, this::getRepositoryData));
+        repoDataListener.whenComplete(existingRepositoryData -> {
 
             final Map<IndexId, String> indexMetas;
             final Map<String, String> indexMetaIdentifiers;
@@ -1055,7 +1058,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
                 return snapshotInfo;
             }));
-        }, onUpdateFailure));
+        }, onUpdateFailure);
     }
 
     // Delete all old shard gen blobs that aren't referenced any longer as a result from moving to updated repository data

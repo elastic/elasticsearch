@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.s3.S3HttpHandler;
@@ -279,7 +280,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public void maybeTrack(final String request) {
+        public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
                 trackRequest("LIST");
             } else if (Regex.simpleMatch("GET /*/*", request)) {

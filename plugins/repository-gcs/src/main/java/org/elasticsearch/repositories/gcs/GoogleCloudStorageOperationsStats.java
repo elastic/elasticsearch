@@ -25,8 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 final class GoogleCloudStorageOperationsStats {
 
-    private final AtomicLong getObjectCount = new AtomicLong();
+    private final AtomicLong getCount = new AtomicLong();
     private final AtomicLong listCount = new AtomicLong();
+    private final AtomicLong putCount = new AtomicLong();
+    private final AtomicLong postCount = new AtomicLong();
 
     private final String bucketName;
 
@@ -34,11 +36,19 @@ final class GoogleCloudStorageOperationsStats {
         this.bucketName = bucketName;
     }
 
-    void trackGetObjectOperation() {
-        getObjectCount.incrementAndGet();
+    void trackGetOperation() {
+        getCount.incrementAndGet();
     }
 
-    void trackListObjectsOperation() {
+    void trackPutOperation() {
+        putCount.incrementAndGet();
+    }
+
+    void trackPostOperation() {
+        postCount.incrementAndGet();
+    }
+
+    void trackListOperation() {
         listCount.incrementAndGet();
     }
 
@@ -48,8 +58,10 @@ final class GoogleCloudStorageOperationsStats {
 
     Map<String, Long> toMap() {
         final Map<String, Long> results = new HashMap<>();
-        results.put("GET", getObjectCount.get());
+        results.put("GET", getCount.get());
         results.put("LIST", listCount.get());
+        results.put("PUT", putCount.get());
+        results.put("POST", postCount.get());
         return results;
     }
 }

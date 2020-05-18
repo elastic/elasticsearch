@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -173,7 +174,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
 
-        final long nbDocs = randomLongBetween(100, 1000);
+        final long nbDocs = randomLongBetween(10_000L, 20_000L);
         try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
@@ -211,7 +212,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
 
-        for (String requestType : List.of("GET", "LIST")) {
+        for (String requestType : List.of("GET", "LIST", "PUT", "POST")) {
             assertSDKCallsMatchMockCalls(sdkRequestCounts, requestType);
         }
     }
@@ -328,7 +329,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * HTTP handler that allows collect request stats per request type.
      *
-     * Implementors should keep track of the desired requests on {@link #maybeTrack(String)}.
+     * Implementors should keep track of the desired requests on {@link #maybeTrack(String, Headers)}.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
     public abstract static class HttpStatsCollectorHandler implements DelegatingHttpHandler {
@@ -358,7 +359,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         public void handle(HttpExchange exchange) throws IOException {
             final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
 
-            maybeTrack(request);
+            maybeTrack(request, exchange.getRequestHeaders());
 
             delegate.handle(exchange);
         }
@@ -370,8 +371,9 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
          * Request = Method SP Request-URI
          *
          * @param request the request to be tracked if it matches the criteria
+         * @param requestHeaders the http request headers
          */
-        protected abstract void maybeTrack(String request);
+        protected abstract void maybeTrack(String request, Headers requestHeaders);
     }
 
     /**

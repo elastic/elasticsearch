@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.gcs;
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.gcs.FakeOAuth2HttpHandler;
@@ -58,6 +59,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
@@ -289,17 +292,40 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     @SuppressForbidden(reason = "this tests uses a HttpServer to emulate an GCS endpoint")
     private static class GoogleCloudStorageStatsCollectorHttpHandler extends HttpStatsCollectorHandler {
 
+        public static final Pattern contentRangeMatcher = Pattern.compile("bytes \\d+-(\\d+)/(\\d+)");
+
         GoogleCloudStorageStatsCollectorHttpHandler(final HttpHandler delegate) {
             super(delegate);
         }
 
         @Override
-        public void maybeTrack(final String request) {
+        public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
                 trackRequest("LIST");
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
                 trackRequest("GET");
+            } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*", request) && isLastPart(requestHeaders)) {
+                trackRequest("PUT");
+            } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
+                trackRequest("POST");
             }
+        }
+
+        boolean isLastPart(Headers requestHeaders) {
+            if (requestHeaders.containsKey("Content-range") == false)
+                return false;
+
+            // https://cloud.google.com/storage/docs/json_api/v1/parameters#contentrange
+            final String contentRange = requestHeaders.getFirst("Content-range");
+
+            final Matcher matcher = contentRangeMatcher.matcher(contentRange);
+
+            if (matcher.matches() == false)
+                return false;
+
+            String upperBound = matcher.group(1);
+            String totalLength = matcher.group(2);
+            return Integer.parseInt(upperBound) == Integer.parseInt(totalLength) - 1;
         }
     }
 }

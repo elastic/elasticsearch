@@ -38,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
@@ -70,6 +71,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+    }
+
+    @Override
+    protected List<String> requestTypesTracked() {
+        return List.of();
     }
 
     @Override

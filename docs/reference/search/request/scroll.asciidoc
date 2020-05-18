@@ -27,7 +27,7 @@ Python::
 
 JavaScript::
 
-    See https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/client-helpers.html[client.helpers.*]
+    See {jsclient}/client-helpers.html[client.helpers.*]
 
 *********************************************
 

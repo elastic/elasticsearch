@@ -46,7 +46,8 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
 
     public void testHandlerFailsWithHttpPostBindingAndNoSignature() throws Exception {
         final String payload = buildLogoutResponsePayload(emptyMap(), false);
-        final ElasticsearchSecurityException e = expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
+        final ElasticsearchSecurityException e =
+            expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
         assertThat(e.getMessage(), containsString("is not signed"));
     }
 

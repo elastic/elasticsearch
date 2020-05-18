@@ -68,6 +68,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -87,8 +88,8 @@ public class AzureBlobStore implements BlobStore {
 
     private final Stats stats = new Stats();
 
-    private final RequestMetricCollector getMetricsCollector;
-    private final RequestMetricCollector listMetricsCollector;
+    private final Consumer<String> getMetricsCollector;
+    private final Consumer<String> listMetricsCollector;
 
     public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, ThreadPool threadPool) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
@@ -217,7 +218,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     private Iterable<ListBlobItem> getListBlobItems(CloudBlobContainer blobContainer, String path, OperationContext opContext) {
-        return blobContainer.listBlobs(path,true, EnumSet.noneOf(BlobListingDetails.class),null, opContext);
+        return blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null, opContext);
     }
 
     public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {
@@ -313,16 +314,14 @@ public class AzureBlobStore implements BlobStore {
         return service.client(clientName);
     }
 
-    private OperationContext hookMetricCollector(OperationContext context, RequestMetricCollector metricCollector) {
+    private OperationContext hookMetricCollector(OperationContext context, Consumer<String> metricCollector) {
         context.getRequestCompletedEventHandler().addListener(new StorageEvent<>() {
             @Override
             public void eventOccurred(RequestCompletedEvent eventArg) {
                 int statusCode = eventArg.getRequestResult().getStatusCode();
                 HttpURLConnection httpURLConnection = (HttpURLConnection) eventArg.getConnectionObject();
                 if (statusCode < 300) {
-                    metricCollector.collectMetrics(httpURLConnection.getRequestMethod());
-                } else {
-                    metricCollector.collectMetricsForFailedRequest(httpURLConnection.getRequestMethod(), statusCode);
+                    metricCollector.accept(httpURLConnection.getRequestMethod());
                 }
             }
         });

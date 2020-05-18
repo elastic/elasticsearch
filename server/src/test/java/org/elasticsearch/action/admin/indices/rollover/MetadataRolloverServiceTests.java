@@ -607,7 +607,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> rolloverService.rolloverClusterState(clusterState,
             dataStream.getName(), null, createIndexRequest, metConditions, false));
-        assertThat(e.getMessage(), equalTo("no matching index template found for data stream [bnlgrnekwc]"));
+        assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + dataStream.getName() + "]"));
     }
 
     private IndicesService mockIndicesServices() throws Exception {

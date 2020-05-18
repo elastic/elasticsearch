@@ -352,7 +352,7 @@ public class MetadataIndexTemplateService {
             });
     }
 
-    static void validateV2TemplateRequest(Metadata metadata, String name, IndexTemplateV2 template) {
+    public static void validateV2TemplateRequest(Metadata metadata, String name, IndexTemplateV2 template) {
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
             Settings mergedSettings = resolveSettings(metadata, template);
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {

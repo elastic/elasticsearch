@@ -28,40 +28,47 @@ public class SequenceExec extends PhysicalPlan {
 
     private final List<List<Attribute>> keys;
     private final Attribute timestamp;
+    private final Attribute tieBreaker;
 
     public SequenceExec(Source source,
                         List<List<Attribute>> keys,
                         List<PhysicalPlan> matches,
                         List<Attribute> untilKeys,
                         PhysicalPlan until,
-                        Attribute timestampField) {
-        this(source, CollectionUtils.combine(matches, until), CollectionUtils.combine(keys, singletonList(untilKeys)), timestampField);
+                        Attribute timestampField,
+                        Attribute tieBreaker) {
+        this(source, CollectionUtils.combine(matches, until), CollectionUtils.combine(keys, singletonList(untilKeys)), timestampField, tieBreaker);
     }
 
-    private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute timestampField) {
+    private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute timestampField, Attribute tieBreaker) {
         super(source, children);
         this.keys = keys;
         this.timestamp = timestampField;
+        this.tieBreaker = tieBreaker;
     }
 
     @Override
     protected NodeInfo<SequenceExec> info() {
-        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp);
+        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp, tieBreaker);
     }
 
     @Override
     public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
         if (newChildren.size() != children().size()) {
-            throw new EqlIllegalArgumentException("Expected the same number of children [{}] but got [{}]", children().size(), newChildren
-                    .size());
+            throw new EqlIllegalArgumentException("Expected the same number of children [{}] but got [{}]",
+                    children().size(),
+                    newChildren.size());
         }
-        return new SequenceExec(source(), newChildren, keys, timestamp);
+        return new SequenceExec(source(), newChildren, keys, timestamp, tieBreaker);
     }
 
     @Override
     public List<Attribute> output() {
         List<Attribute> attrs = new ArrayList<>();
         attrs.add(timestamp);
+        if (tieBreaker != null) {
+            attrs.add(tieBreaker);
+        }
         for (List<? extends NamedExpression> ne : keys) {
             attrs.addAll(Expressions.asAttributes(ne));
         }
@@ -76,14 +83,18 @@ public class SequenceExec extends PhysicalPlan {
         return timestamp;
     }
 
+    public Attribute tieBreaker() {
+        return tieBreaker;
+    }
+
     @Override
     public void execute(EqlSession session, ActionListener<Results> listener) {
-        new ExecutionManager(session).from(this).execute(listener);
+        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tieBreaker()).execute(listener);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, keys, children());
+        return Objects.hash(timestamp, tieBreaker, keys, children());
     }
 
     @Override
@@ -98,6 +109,7 @@ public class SequenceExec extends PhysicalPlan {
 
         SequenceExec other = (SequenceExec) obj;
         return Objects.equals(timestamp, other.timestamp)
+                && Objects.equals(tieBreaker, other.tieBreaker)
                 && Objects.equals(children(), other.children())
                 && Objects.equals(keys, other.keys);
     }

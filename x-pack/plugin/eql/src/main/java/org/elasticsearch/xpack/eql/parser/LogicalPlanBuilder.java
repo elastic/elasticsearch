@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -53,6 +52,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private Attribute fieldTimestamp() {
         return new UnresolvedAttribute(Source.EMPTY, params.fieldTimestamp());
+    }
+
+    private Attribute fieldTieBreaker() {
+        return params.fieldTieBreaker() != null ? new UnresolvedAttribute(Source.EMPTY, params.fieldTieBreaker()) : null;
     }
 
     @Override
@@ -77,9 +80,17 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         Filter filter = new Filter(source, RELATION, condition);
-        // add implicit sorting - when pipes are added, this would better sit there (as a default pipe)
-        Order order = new Order(source, fieldTimestamp(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
-        OrderBy orderBy = new OrderBy(source, filter, singletonList(order));
+        List<Order> orders = new ArrayList<>(2);
+
+        // TODO: add implicit sorting - when pipes are added, this would better sit there (as a default pipe)
+        orders.add(new Order(source, fieldTimestamp(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
+        // make sure to add the tieBreaker as well
+        Attribute tieBreaker = fieldTieBreaker();
+        if (tieBreaker != null) {
+            orders.add(new Order(source, tieBreaker, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
+        }
+
+        OrderBy orderBy = new OrderBy(source, filter, orders);
         return orderBy;
     }
 
@@ -118,7 +129,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
-        return new Join(source, queries, until, fieldTimestamp());
+        return new Join(source, queries, until, fieldTimestamp(), fieldTieBreaker());
     }
 
     private KeyedFilter defaultUntil(Source source) {
@@ -126,14 +137,14 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         // create a dummy keyed filter
         String notUsed = "<not-used>";
         Attribute tsField = new FieldAttribute(source, notUsed, new UnsupportedEsField(notUsed, notUsed));
-        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), tsField);
+        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), tsField, tsField);
     }
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
         LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
-        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp()));
-        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp());
+        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp(), fieldTieBreaker()));
+        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTieBreaker());
     }
 
     @Override
@@ -176,7 +187,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
-        return new Sequence(source, queries, until, maxSpan, fieldTimestamp());
+        return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTieBreaker());
     }
 
     public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
@@ -186,8 +197,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
         LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
-        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp()));
-        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp());
+        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp(), fieldTieBreaker()));
+        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTieBreaker());
     }
 
     @Override

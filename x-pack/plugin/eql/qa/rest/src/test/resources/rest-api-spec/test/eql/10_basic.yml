@@ -9,6 +9,7 @@ setup:
               _id:    1
           - event:
               - category: process
+              - sequence: 1
             "@timestamp": 2020-02-03T12:34:56Z
             user: SYSTEM
 

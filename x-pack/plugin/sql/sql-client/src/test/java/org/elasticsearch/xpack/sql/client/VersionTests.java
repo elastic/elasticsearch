@@ -20,7 +20,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56882")
 public class VersionTests extends ESTestCase {
 
     public void testCurrent() {

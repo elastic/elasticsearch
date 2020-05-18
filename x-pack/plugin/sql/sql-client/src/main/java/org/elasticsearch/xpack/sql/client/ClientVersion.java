@@ -87,7 +87,9 @@ public class ClientVersion {
             if (url.getProtocol().equals("jar")) {
                 JarURLConnection jarConn = (JarURLConnection) conn;
                 if (jarConn.getEntryName() == null) { // the URL points to a JAR file
-                    return jarConn.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
+                    Manifest manifest = jarConn.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
+                    jarConn.getJarFile().close(); // prevent locked file errors in Windows. The Manifest has been read by now
+                    return manifest;
                 }
             }
             try (JarInputStream jar = new JarInputStream(conn.getInputStream())) {

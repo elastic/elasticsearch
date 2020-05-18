@@ -36,7 +36,7 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.gradle.spotless" version "3.28.0" apply false
+  id "com.diffplug.gradle.spotless" version "4.0.0" apply false
 }
 
 apply from: 'gradle/build-scan.gradle'

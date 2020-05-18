@@ -69,7 +69,13 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
 
         @Override
-        protected void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener) {
+        protected void removeDataBefore(
+            Job job,
+            float requestsPerSec,
+            long latestTimeMs,
+            long cutoffEpochMs,
+            ActionListener<Boolean> listener
+        ) {
             listener.onResponse(Boolean.TRUE);
         }
     }
@@ -118,7 +124,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(originSettingClient);
-        remover.remove(listener, () -> false);
+        remover.remove(1.0f,listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -157,7 +163,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(originSettingClient);
-        remover.remove(listener, () -> false);
+        remover.remove(1.0f,listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -181,7 +187,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         TestListener listener = new TestListener();
         ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(originSettingClient);
-        remover.remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+        remover.remove(1.0f,listener, () -> attemptsLeft.getAndDecrement() <= 0);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));

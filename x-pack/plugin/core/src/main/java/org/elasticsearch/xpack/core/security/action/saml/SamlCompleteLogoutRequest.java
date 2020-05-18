@@ -14,22 +14,20 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Represents a request to verify SAML LogoutResponse
+ * Represents a request to complete SAML LogoutResponse
  */
-public final class SamlVerifyLogoutRequest extends ActionRequest {
+public final class SamlCompleteLogoutRequest extends ActionRequest {
 
     private String content;
     private List<String> validRequestIds;
     @Nullable
     private String realm;
-    @Nullable
-    private String assertionConsumerServiceURL;
 
-    public SamlVerifyLogoutRequest(StreamInput in) throws IOException {
+    public SamlCompleteLogoutRequest(StreamInput in) throws IOException {
         super(in);
     }
 
-    public SamlVerifyLogoutRequest() {
+    public SamlCompleteLogoutRequest() {
     }
 
     @Override
@@ -59,13 +57,5 @@ public final class SamlVerifyLogoutRequest extends ActionRequest {
 
     public void setRealm(String realm) {
         this.realm = realm;
-    }
-
-    public String getAssertionConsumerServiceURL() {
-        return assertionConsumerServiceURL;
-    }
-
-    public void setAssertionConsumerServiceURL(String assertionConsumerServiceURL) {
-        this.assertionConsumerServiceURL = assertionConsumerServiceURL;
     }
 }

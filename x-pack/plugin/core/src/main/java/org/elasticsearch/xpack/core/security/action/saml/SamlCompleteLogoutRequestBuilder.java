@@ -11,26 +11,26 @@ import org.elasticsearch.client.ElasticsearchClient;
 import java.util.List;
 
 /**
- * Request builder used to populate a {@link SamlVerifyLogoutRequest}
+ * Request builder used to populate a {@link SamlCompleteLogoutRequest}
  */
-public final class SamlVerifyLogoutRequestBuilder
-        extends ActionRequestBuilder<SamlVerifyLogoutRequest, SamlVerifyLogoutResponse> {
+public final class SamlCompleteLogoutRequestBuilder
+        extends ActionRequestBuilder<SamlCompleteLogoutRequest, SamlCompleteLogoutResponse> {
 
-    public SamlVerifyLogoutRequestBuilder(ElasticsearchClient client) {
-        super(client, SamlVerifyLogoutAction.INSTANCE, new SamlVerifyLogoutRequest());
+    public SamlCompleteLogoutRequestBuilder(ElasticsearchClient client) {
+        super(client, SamlCompleteLogoutAction.INSTANCE, new SamlCompleteLogoutRequest());
     }
 
-    public SamlVerifyLogoutRequestBuilder content(String content) {
+    public SamlCompleteLogoutRequestBuilder content(String content) {
         request.setContent(content);
         return this;
     }
 
-    public SamlVerifyLogoutRequestBuilder validRequestIds(List<String> validRequestIds) {
+    public SamlCompleteLogoutRequestBuilder validRequestIds(List<String> validRequestIds) {
         request.setValidRequestIds(validRequestIds);
         return this;
     }
 
-    public SamlVerifyLogoutRequestBuilder authenticatingRealm(String realm) {
+    public SamlCompleteLogoutRequestBuilder authenticatingRealm(String realm) {
         request.setRealm(realm);
         return this;
     }

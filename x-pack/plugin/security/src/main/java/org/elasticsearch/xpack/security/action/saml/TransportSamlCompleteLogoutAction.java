@@ -11,9 +11,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.saml.SamlVerifyLogoutAction;
-import org.elasticsearch.xpack.core.security.action.saml.SamlVerifyLogoutRequest;
-import org.elasticsearch.xpack.core.security.action.saml.SamlVerifyLogoutResponse;
+import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutRequest;
+import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutResponse;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.saml.SamlLogoutResponseHandler;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
@@ -24,21 +24,21 @@ import java.util.List;
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
 /**
- * Transport action responsible for verifying SAML LogoutResponse
+ * Transport action responsible for completing SAML LogoutResponse
  */
-public final class TransportSamlVerifyLogoutAction extends HandledTransportAction<SamlVerifyLogoutRequest, SamlVerifyLogoutResponse> {
+public final class TransportSamlCompleteLogoutAction extends HandledTransportAction<SamlCompleteLogoutRequest, SamlCompleteLogoutResponse> {
 
     private final Realms realms;
 
     @Inject
-    public TransportSamlVerifyLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlVerifyLogoutAction.NAME, transportService, actionFilters, SamlVerifyLogoutRequest::new);
+    public TransportSamlCompleteLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
+        super(SamlCompleteLogoutAction.NAME, transportService, actionFilters, SamlCompleteLogoutRequest::new);
         this.realms = realms;
     }
 
     @Override
-    protected void doExecute(Task task, SamlVerifyLogoutRequest request, ActionListener<SamlVerifyLogoutResponse> listener) {
-        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealm(), request.getAssertionConsumerServiceURL());
+    protected void doExecute(Task task, SamlCompleteLogoutRequest request, ActionListener<SamlCompleteLogoutResponse> listener) {
+        List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealm(), null);
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
         } else if (realms.size() > 1) {
@@ -48,13 +48,13 @@ public final class TransportSamlVerifyLogoutAction extends HandledTransportActio
         }
     }
 
-    private void processLogoutResponse(SamlRealm samlRealm, SamlVerifyLogoutRequest request,
-                                       ActionListener<SamlVerifyLogoutResponse> listener) {
+    private void processLogoutResponse(SamlRealm samlRealm, SamlCompleteLogoutRequest request,
+                                       ActionListener<SamlCompleteLogoutResponse> listener) {
 
         final SamlLogoutResponseHandler logoutResponseHandler = samlRealm.getLogoutResponseHandler();
         try {
             logoutResponseHandler.handle(request.getContent(), request.getValidRequestIds());
-            listener.onResponse(new SamlVerifyLogoutResponse());
+            listener.onResponse(new SamlCompleteLogoutResponse());
         } catch (Exception e) {
             listener.onFailure(e);
         }

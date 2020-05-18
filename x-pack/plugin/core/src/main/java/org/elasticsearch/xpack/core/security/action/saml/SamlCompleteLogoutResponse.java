@@ -12,15 +12,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * The verification response to the LogoutResponse from idP
+ * A response to complete the LogoutResponse from idP
  */
-public final class SamlVerifyLogoutResponse extends ActionResponse {
+public final class SamlCompleteLogoutResponse extends ActionResponse {
 
-    public SamlVerifyLogoutResponse(StreamInput in) throws IOException {
+    public SamlCompleteLogoutResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public SamlVerifyLogoutResponse() {
+    public SamlCompleteLogoutResponse() {
     }
 
     @Override

@@ -277,7 +277,11 @@ class SamlAuthenticator extends SamlResponseHandler {
         }
         checkRecipient(confirmationData.get(0));
         checkLifetimeRestrictions(confirmationData.get(0));
-        SubjectConfirmationData subjectConfirmationData = confirmationData.get(0);
+        checkSubjectInResponseTo(confirmationData.get(0), allowedSamlRequestIds);
+    }
+
+    private void checkSubjectInResponseTo(
+        SubjectConfirmationData subjectConfirmationData, Collection<String> allowedSamlRequestIds) {
         // Allow for IdP initiated SSO where InResponseTo MUST be missing
         if (Strings.hasText(subjectConfirmationData.getInResponseTo())
                 && allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo()) == false) {

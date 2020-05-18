@@ -33,11 +33,6 @@
 
   - do:
       catch: bad_request
-      indices.get:
-        index: logs-foobar
-
-  - do:
-      catch: bad_request
       indices.put_settings:
         index: logs-foobar
         body:

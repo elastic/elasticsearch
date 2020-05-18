@@ -9,7 +9,7 @@ setup:
         body:
           index_patterns: [simple-*, delete*, get*]
           data_stream:
-            timestamp_field: @timestamp
+            timestamp_field: '@timestamp'
 
 ---
 "Create data stream":

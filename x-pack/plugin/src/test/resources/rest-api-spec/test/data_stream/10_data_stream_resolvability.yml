@@ -13,7 +13,7 @@
         body:
           index_patterns: [logs-*]
           data_stream:
-            timestamp_field: @timestamp
+            timestamp_field: '@timestamp'
 
   - do:
       indices.create_data_stream:

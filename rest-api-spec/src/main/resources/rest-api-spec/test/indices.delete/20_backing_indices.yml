@@ -9,7 +9,7 @@ setup:
         body:
           index_patterns: [simple-*]
           data_stream:
-            timestamp_field: @timestamp
+            timestamp_field: '@timestamp'
 
 ---
 "Delete backing index on data stream":

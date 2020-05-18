@@ -38,18 +38,4 @@ interface RequestMetricCollector {
      * @param statusCode the response status code
      */
     default void collectMetricsForFailedRequest(String requestMethod, int statusCode) {}
-
-    default boolean isEnabled() {
-        return true;
-    }
-
-    RequestMetricCollector NO_OP = new RequestMetricCollector() {
-        @Override
-        public void collectMetrics(String requestMethod) {}
-
-        @Override
-        public boolean isEnabled() {
-            return false;
-        }
-    };
 }

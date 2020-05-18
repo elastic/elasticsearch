@@ -175,6 +175,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         protected void maybeTrack(String request) {
             if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GET");
+            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+                trackRequest("HEAD");
             } else if (listPattern.test(request)) {
                 trackRequest("LIST");
             }

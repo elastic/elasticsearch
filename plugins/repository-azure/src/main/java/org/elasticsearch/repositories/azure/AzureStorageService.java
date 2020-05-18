@@ -21,11 +21,9 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.OperationContext;
-import com.microsoft.azure.storage.RequestCompletedEvent;
 import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.RetryExponentialRetry;
-import com.microsoft.azure.storage.StorageEvent;
 import com.microsoft.azure.storage.blob.BlobRequestOptions;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.elasticsearch.common.collect.Tuple;
@@ -34,7 +32,6 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
@@ -68,27 +65,12 @@ public class AzureStorageService {
      * specify the proxy, but a new context is *required* for each call.
      */
     public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName) {
-        return client(clientName, RequestMetricCollector.NO_OP);
-    }
-
-    /**
-     * Creates a {@code CloudBlobClient} on each invocation using the current client
-     * settings. CloudBlobClient is not thread safe and the settings can change,
-     * therefore the instance is not cache-able and should only be reused inside a
-     * thread for logically coupled ops. The {@code OperationContext} is used to
-     * specify the proxy, but a new context is *required* for each call.
-     *
-     * @param clientName the client name to construct
-     * @param metricCollector a listener intended to collect request metrics
-     */
-    public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName,
-                                                                     RequestMetricCollector metricCollector) {
         final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
             throw new SettingsException("Unable to find client with name [" + clientName + "]");
         }
         try {
-            return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings, metricCollector));
+            return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
         } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
             throw new SettingsException("Invalid azure client settings with name [" + clientName + "]", e);
         }
@@ -121,25 +103,9 @@ public class AzureStorageService {
         return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 
-    private static OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings,
-                                                          RequestMetricCollector metricCollector) {
+    private static OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
         final OperationContext context = new OperationContext();
         context.setProxy(azureStorageSettings.getProxy());
-        if (metricCollector.isEnabled()) {
-            context.getRequestCompletedEventHandler().addListener(new StorageEvent<>() {
-                @Override
-                public void eventOccurred(RequestCompletedEvent eventArg) {
-                    int statusCode = eventArg.getRequestResult().getStatusCode();
-                    HttpURLConnection httpURLConnection = (HttpURLConnection) eventArg.getConnectionObject();
-                    if (statusCode < 300) {
-                        metricCollector.collectMetrics(httpURLConnection.getRequestMethod());
-                    } else {
-                        metricCollector.collectMetricsForFailedRequest(httpURLConnection.getRequestMethod(), statusCode);
-                    }
-                }
-            });
-        }
-
         return context;
     }
 

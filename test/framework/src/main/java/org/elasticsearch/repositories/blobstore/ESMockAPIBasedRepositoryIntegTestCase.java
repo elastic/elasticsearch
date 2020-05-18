@@ -211,7 +211,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
 
-        for (String requestType : List.of("GET", "LIST")) {
+        for (String requestType : List.of("GET", "LIST", "HEAD")) {
             assertSDKCallsMatchMockCalls(sdkRequestCounts, requestType);
         }
     }

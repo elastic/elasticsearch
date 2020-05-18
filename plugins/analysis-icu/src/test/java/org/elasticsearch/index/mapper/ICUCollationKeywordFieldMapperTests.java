@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
@@ -400,8 +401,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("type",
                 new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertEquals("Can't merge because of conflicts: [Cannot update language setting for [" + FIELD_TYPE
-            + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
+        assertThat(e.getMessage(), containsString("mapper [field] has different [collator]"));
     }
 
 

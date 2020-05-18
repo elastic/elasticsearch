@@ -33,10 +33,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
@@ -131,6 +136,8 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
         }
 
+        validateTemplateForDataStream(request.name, currentState.metadata());
+
         String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
             new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
@@ -143,6 +150,18 @@ public class MetadataCreateDataStreamService {
             new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
+    }
+
+    public static void validateTemplateForDataStream(String dataStreamName, Metadata metadata) {
+        final String v2Template = MetadataIndexTemplateService.findV2Template(metadata, dataStreamName, false);
+        if (v2Template == null) {
+            throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+        }
+        IndexTemplateV2 indexTemplateV2 = metadata.templatesV2().get(v2Template);
+        if (indexTemplateV2.getDataStreamTemplate() == null) {
+            throw new IllegalArgumentException("matching index template [" + v2Template + "] for data stream [" + dataStreamName  +
+                "] has no data stream template");
+        }
     }
 
 }

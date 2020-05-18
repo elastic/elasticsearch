@@ -23,6 +23,20 @@ addressed directly, data streams are integrated with the
 <<index-lifecycle-management, index lifecycle management (ILM)>> to facilitate
 the management of the time series data contained in their backing indices.
 
+////
+[source,console]
+-----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+-----------------------------------
+// TEST
+////
+
 [source,console]
 --------------------------------------------------
 PUT _data_stream/my-data-stream
@@ -30,11 +44,13 @@ PUT _data_stream/my-data-stream
   "timestamp_field": "@timestamp"
 }
 --------------------------------------------------
+// TEST[continued]
 
 ////
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
+DELETE /_index_template/*
 -----------------------------------
 // TEST[continued]
 ////

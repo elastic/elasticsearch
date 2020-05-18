@@ -9,6 +9,14 @@ Deletes an existing data stream along with its backing indices.
 ////
 [source,console]
 -----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+
 PUT /_data_stream/my-data-stream
 {
   "timestamp_field" : "@timestamp"
@@ -22,6 +30,13 @@ PUT /_data_stream/my-data-stream
 DELETE _data_stream/my-data-stream
 --------------------------------------------------
 
+////
+[source,console]
+-----------------------------------
+DELETE /_index_template/*
+-----------------------------------
+// TEST[continued]
+////
 
 [[delete-data-stream-api-request]]
 ==== {api-request-title}

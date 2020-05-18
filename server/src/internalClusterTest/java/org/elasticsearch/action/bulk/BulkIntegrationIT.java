@@ -39,7 +39,6 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -218,14 +217,14 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    public void testMixedAutoCreate() {
+    public void testMixedAutoCreate() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
 
         PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
         createTemplateRequest.indexTemplate(
             new IndexTemplateV2(
                 List.of("logs-foo*"),
-                new Template(settings, null, null),
+                null,
                 null, null, null, null,
                 new IndexTemplateV2.DataStreamTemplate("@timestamp"))
         );

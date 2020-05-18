@@ -44,7 +44,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     public void testCreateDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        IndexTemplateV2 template = new IndexTemplateV2(List.of(dataStreamName + "*"), null, null, null, null, null,
+            new IndexTemplateV2.DataStreamTemplate("@timestamp"));
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
@@ -101,6 +105,33 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] must not start with '.'"));
+    }
+
+    public void testCreateDataStreamNoTemplate() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req =
+            new CreateDataStreamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+        assertThat(e.getMessage(), equalTo("no matching index template found for data stream [my-data-stream]"));
+    }
+
+    public void testCreateDataStreamNoValidTemplate() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        IndexTemplateV2 template = new IndexTemplateV2(List.of(dataStreamName + "*"), null, null, null, null, null, null);
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req =
+            new CreateDataStreamClusterStateUpdateRequest(dataStreamName, "@timestamp", TimeValue.ZERO, TimeValue.ZERO);
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
+        assertThat(e.getMessage(),
+            equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template"));
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {

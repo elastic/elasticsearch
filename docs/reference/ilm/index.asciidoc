@@ -13,6 +13,10 @@ For example, you could use {ilm-init} to:
 * Create a new index each day, week, or month and archive previous ones
 * Delete stale indices to enforce data retention standards
 
+When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
+{ilm-init} is configured automatically. 
+You can modify the default policies through {kib} Management or the {ilm-init} APIs.
+
 [TIP]
 To automatically back up your indices and manage snapshots, 
 use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
@@ -48,4 +52,3 @@ include::using-policies-rollover.asciidoc[]
 include::ilm-with-existing-indices.asciidoc[]
 
 include::ilm-and-snapshots.asciidoc[]
-

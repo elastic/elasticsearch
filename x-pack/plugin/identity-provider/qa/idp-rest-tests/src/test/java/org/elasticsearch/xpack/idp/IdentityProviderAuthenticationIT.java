@@ -45,7 +45,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
 
     @Before
     public void setupSecurityData() throws IOException {
-        setUserPassword("kibana", new SecureString("kibana".toCharArray()));
+        setUserPassword("kibana_system", new SecureString("kibana_system".toCharArray()));
         createApplicationPrivileges("elastic-cloud", Map.ofEntries(
             Map.entry("deployment_admin", Set.of("sso:admin")),
             Map.entry("deployment_viewer", Set.of("sso:viewer"))
@@ -113,7 +113,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private SamlPrepareAuthenticationResponse generateSamlAuthnRequest(String realmName) throws Exception {
         final Request request = new Request("POST", "/_security/saml/prepare");
         request.setJsonEntity("{\"realm\":\"" + realmName + "\"}");
-        try (RestClient kibanaClient = restClientAsKibana()) {
+        try (RestClient kibanaClient = restClientAsKibanaSystem()) {
             final Response response = kibanaClient.performRequest(request);
             final Map<String, Object> map = entityAsMap(response);
             assertThat(ObjectPath.eval("realm", map), equalTo(realmName));
@@ -152,7 +152,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
             request.setJsonEntity("{\"content\":\"" + encodedResponse + "\", \"realm\":\"" + REALM_NAME + "\"}");
         }
         final String accessToken;
-        try (RestClient kibanaClient = restClientAsKibana()) {
+        try (RestClient kibanaClient = restClientAsKibanaSystem()) {
             final Response response = kibanaClient.performRequest(request);
             final Map<String, Object> map = entityAsMap(response);
             assertThat(ObjectPath.eval("username", map), instanceOf(String.class));
@@ -184,10 +184,10 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
             getClusterHosts().toArray(new HttpHost[getClusterHosts().size()]));
     }
 
-    private RestClient restClientAsKibana() throws IOException {
+    private RestClient restClientAsKibanaSystem() throws IOException {
         return buildClient(
-            Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue("kibana",
-                new SecureString("kibana".toCharArray()))).build(),
+            Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue("kibana_system",
+                new SecureString("kibana_system".toCharArray()))).build(),
             getClusterHosts().toArray(new HttpHost[getClusterHosts().size()]));
     }
 }

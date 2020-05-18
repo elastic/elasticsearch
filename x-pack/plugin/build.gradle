@@ -109,12 +109,9 @@ testClusters.integTest {
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
 }
 
-validateRestSpec {
-  ignore 'autoscaling.delete_autoscaling_policy.json'
-  ignore 'autoscaling.get_autoscaling_policy.json'
-  ignore 'autoscaling.put_autoscaling_policy.json'
-  ignore 'ml.validate.json'
-  ignore 'ml.validate_detector.json'
-}
+

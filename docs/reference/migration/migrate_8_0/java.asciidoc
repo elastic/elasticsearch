@@ -9,27 +9,36 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== Changes to Fuzziness
-
+.Changes to `Fuzziness`.
+[%collapsible]
+====
+*Details* +
 To create `Fuzziness` instances, use the `fromString` and `fromEdits` method
 instead of the `build` method that used to accept both Strings and numeric
 values. Several fuzziness setters on query builders (e.g.
 MatchQueryBuilder#fuzziness) now accept only a `Fuzziness`instance instead of
-an Object. You should preferably use the available constants (e.g.
-Fuzziness.ONE, Fuzziness.AUTO) or build your own instance using the above
-mentioned factory methods.
+an Object.
 
 Fuzziness used to be lenient when it comes to parsing arbitrary numeric values
 while silently truncating them to one of the three allowed edit distances 0, 1
 or 2. This leniency is now removed and the class will throw errors when trying
 to construct an instance with another value (e.g. floats like 1.3 used to get
-accepted but truncated to 1). You should use one of the allowed values.
+accepted but truncated to 1).
 
+*Impact* +
+Use the available constants (e.g. `Fuzziness.ONE`, `Fuzziness.AUTO`) or build
+your own instance using the above mentioned factory methods. Use only allowed
+`Fuzziness` values.
+====
 
-[float]
-==== Changes to Repository
-
+.Changes to `Repository`.
+[%collapsible]
+====
+*Details* +
 Repository has no dependency on IndexShard anymore. The contract of restoreShard
 and snapshotShard has been reduced to Store and MappingService in order to improve
 testability.
+
+*Impact* +
+No action needed.
+====

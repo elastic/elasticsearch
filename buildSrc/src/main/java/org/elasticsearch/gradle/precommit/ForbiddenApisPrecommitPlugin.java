@@ -85,7 +85,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             }
             ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();
             ext.set("replaceSignatureFiles", new Object() {
-                public void call(String... names) {
+                public void call(String[] names) {
                     List<File> resources = new ArrayList<>(names.length);
                     for (String name : names) {
                         resources.add(buildResourcesTask.copy("forbidden/" + name + ".txt"));
@@ -94,7 +94,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 }
             });
             ext.set("addSignatureFiles", new Object() {
-                public void call(String... names) {
+                public void call(String[] names) {
                     List<File> resources = new ArrayList<>(names.length);
                     for (String name : names) {
                         resources.add(buildResourcesTask.copy("forbidden/" + name + ".txt"));

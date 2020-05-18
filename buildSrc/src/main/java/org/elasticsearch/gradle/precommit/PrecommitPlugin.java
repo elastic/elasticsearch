@@ -29,6 +29,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 /**
@@ -51,7 +52,7 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
             }
 
             project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit));
-            project.getTasks().named(JavaPlugin.TEST_TASK_NAME).configure(t -> t.mustRunAfter(precommit));
+            project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
         });
     }
 

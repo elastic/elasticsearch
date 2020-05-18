@@ -363,7 +363,7 @@ display as `"2020-01-02T00:00:00"`. More formally, this make the rounding look l
 
 [source,java]
 --------------------------------------------------
-bucket_key = convertToUtc(Math.floor(convertToLocalTime(value) / interval) * interval))
+bucket_key = localToUtc(Math.floor(utcToLocal(value) / interval) * interval))
 --------------------------------------------------
 
 You can specify time zones as either an ISO 8601 UTC offset (e.g. `+01:00` or

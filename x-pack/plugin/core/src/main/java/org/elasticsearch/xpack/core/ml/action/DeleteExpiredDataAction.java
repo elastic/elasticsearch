@@ -60,7 +60,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                 this.requestsPerSecond = in.readOptionalFloat();
                 this.timeout = in.readOptionalTimeValue();
             } else {
@@ -114,7 +114,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeOptionalFloat(requestsPerSecond);
                 out.writeOptionalTimeValue(timeout);
             }

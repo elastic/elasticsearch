@@ -10,5 +10,5 @@ import org.elasticsearch.action.ActionListener;
 import java.util.function.Supplier;
 
 public interface MlDataRemover {
-    void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier);
+    void remove(float requestsPerSecond, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier);
 }

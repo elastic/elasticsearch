@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 

@@ -36,6 +36,7 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
+  id 'elasticsearch.release-tools'
   id "com.diffplug.gradle.spotless" version "3.28.0" apply false
 }
 

@@ -20,13 +20,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -170,28 +168,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
 
     protected abstract T newBuilder();
 
-    private static class BogusFieldType extends MappedFieldType {
-        @Override
-        public MappedFieldType clone() {
-            return null;
-        }
-
-        @Override
-        public String typeName() {
-            return null;
-        }
-
-        @Override
-        public Query termQuery(Object value, QueryShardContext context) {
-            return null;
-        }
-
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            return null;
-        }
-    }
-
     public void testMergeConflicts() {
         Mapper.BuilderContext context = new Mapper.BuilderContext(SETTINGS, new ContentPath(1));
         T builder1 = newBuilder();
@@ -203,8 +179,8 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         }
         {
             FieldMapper mapper = (FieldMapper) newBuilder().build(context);
-            FieldMapper toMerge = new FieldMapper("bogus", new BogusFieldType(), new BogusFieldType(),
-                SETTINGS, FieldMapper.MultiFields.empty(), FieldMapper.CopyTo.empty()) {
+            FieldMapper toMerge = new FieldMapper("bogus", new MockFieldMapper.FakeFieldType(),
+                new MockFieldMapper.FakeFieldType(), SETTINGS, FieldMapper.MultiFields.empty(), FieldMapper.CopyTo.empty()) {
                 @Override
                 protected void parseCreateField(ParseContext context) { }
                 @Override

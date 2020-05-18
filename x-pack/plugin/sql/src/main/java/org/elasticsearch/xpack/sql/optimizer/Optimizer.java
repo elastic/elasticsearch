@@ -783,6 +783,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     /**
      * Any numeric aggregates (avg, min, max, sum) acting on literals are converted to an iif(count(1)=0, null, literal*count(1)) for sum,
      * and to iif(count(1)=0,null,literal) for the other three.
+     * Additionally count(DISTINCT literal) is converted to iif(count(1)=0, 0, 1).
      */
     private static class ReplaceAggregatesWithLiterals extends OptimizerRule<LogicalPlan> {
 
@@ -800,16 +801,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         Expression argument = a.field();
                         Literal foldedArgument = new Literal(argument.source(), argument.fold(), a.dataType());
 
-                        Expression iffResult = Literal.NULL;
+                        Expression iifResult = Literal.NULL;
                         Expression iifElseResult = foldedArgument;
                         if (e instanceof Sum) {
                             iifElseResult = new Mul(a.source(), countOne, foldedArgument);
                         } else if (e instanceof Count) {
-                            iffResult =  new Literal(Source.EMPTY, 0, e.dataType());
+                            iifResult =  new Literal(Source.EMPTY, 0, e.dataType());
                             iifElseResult = new Literal(Source.EMPTY, 1, e.dataType());
                         }
 
-                        return new Iif(a.source(), countEqZero, iffResult, iifElseResult);
+                        return new Iif(a.source(), countEqZero, iifResult, iifElseResult);
                     }
                 }
                 return e;

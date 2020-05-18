@@ -6,13 +6,12 @@
 
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import junit.framework.TestCase;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertThat;
 
-public class SamlCompleteLogoutRequestTests extends TestCase {
+public class SamlCompleteLogoutRequestTests extends ESTestCase {
 
     public void testValidateFailsWhenQueryAndBodyBothNotExist() {
         final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();

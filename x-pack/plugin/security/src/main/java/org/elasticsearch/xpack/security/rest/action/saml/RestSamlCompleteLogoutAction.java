@@ -34,9 +34,14 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
     private static final Logger logger = LogManager.getLogger(RestSamlCompleteLogoutAction.class);
 
     static class Input {
+        String queryString;
         String content;
         List<String> ids;
         String realm;
+
+        void setQueryString(String queryString) {
+            this.queryString = queryString;
+        }
 
         void setContent(String content) {
             this.content = content;
@@ -53,7 +58,8 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
         PARSER = new ObjectParser<>("saml_complete_logout", RestSamlCompleteLogoutAction.Input::new);
 
     static {
-        PARSER.declareString(RestSamlCompleteLogoutAction.Input::setContent, new ParseField("content"));
+        PARSER.declareStringOrNull(RestSamlCompleteLogoutAction.Input::setQueryString, new ParseField("queryString"));
+        PARSER.declareStringOrNull(RestSamlCompleteLogoutAction.Input::setContent, new ParseField("content"));
         PARSER.declareStringArray(RestSamlCompleteLogoutAction.Input::setIds, new ParseField("ids"));
         PARSER.declareString(RestSamlCompleteLogoutAction.Input::setRealm, new ParseField("realm"));
     }
@@ -76,11 +82,13 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final RestSamlCompleteLogoutAction.Input input = PARSER.parse(parser, null);
-            logger.trace("SAML LogoutResponse: [{}...] [{}]", Strings.cleanTruncate(input.content, 128), input.ids);
+            logger.trace("SAML LogoutResponse: [{}...] [{}...] [{}]",
+                Strings.cleanTruncate(input.queryString, 128), Strings.cleanTruncate(input.content, 128), input.ids);
             return channel -> {
                 final SamlCompleteLogoutRequestBuilder requestBuilder =
                     new SamlCompleteLogoutRequestBuilder(client)
-                        .content(input.content).validRequestIds(input.ids).authenticatingRealm(input.realm);
+                        .queryString(input.queryString).content(input.content)
+                        .validRequestIds(input.ids).authenticatingRealm(input.realm);
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlCompleteLogoutResponse response, XContentBuilder builder) throws Exception {

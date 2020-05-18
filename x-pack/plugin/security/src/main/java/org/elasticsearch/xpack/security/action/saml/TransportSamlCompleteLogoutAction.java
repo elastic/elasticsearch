@@ -53,7 +53,7 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
 
         final SamlLogoutResponseHandler logoutResponseHandler = samlRealm.getLogoutResponseHandler();
         try {
-            logoutResponseHandler.handle(request.getContent(), request.getValidRequestIds());
+            logoutResponseHandler.handle(request.isHttpRedirect(), request.getPayload(), request.getValidRequestIds());
             listener.onResponse(new SamlCompleteLogoutResponse());
         } catch (Exception e) {
             listener.onFailure(e);

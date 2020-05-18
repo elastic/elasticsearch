@@ -13,11 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
  * Represents a request to complete SAML LogoutResponse
  */
 public final class SamlCompleteLogoutRequest extends ActionRequest {
 
+    private String queryString;
     private String content;
     private List<String> validRequestIds;
     @Nullable
@@ -32,15 +35,22 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    public String getContent() {
-        return content;
+        ActionRequestValidationException validationException = null;
+        if (queryString == null && content == null) {
+            validationException = addValidationError("queryString and content may not both be null", validationException);
+        }
+        if (queryString != null && content != null) {
+            validationException = addValidationError("queryString and content may not both present", validationException);
+        }
+        return validationException;
     }
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public void setQueryString(String queryString) {
+        this.queryString = queryString;
     }
 
     public List<String> getValidRequestIds() {
@@ -57,5 +67,13 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
 
     public void setRealm(String realm) {
         this.realm = realm;
+    }
+
+    public boolean isHttpRedirect() {
+        return queryString != null;
+    }
+
+    public String getPayload() {
+        return isHttpRedirect() ? queryString : content;
     }
 }

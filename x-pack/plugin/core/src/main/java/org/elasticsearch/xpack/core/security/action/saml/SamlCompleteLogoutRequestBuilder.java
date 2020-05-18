@@ -20,6 +20,11 @@ public final class SamlCompleteLogoutRequestBuilder
         super(client, SamlCompleteLogoutAction.INSTANCE, new SamlCompleteLogoutRequest());
     }
 
+    public SamlCompleteLogoutRequestBuilder queryString(String queryString) {
+        request.setQueryString(queryString);
+        return this;
+    }
+
     public SamlCompleteLogoutRequestBuilder content(String content) {
         request.setContent(content);
         return this;

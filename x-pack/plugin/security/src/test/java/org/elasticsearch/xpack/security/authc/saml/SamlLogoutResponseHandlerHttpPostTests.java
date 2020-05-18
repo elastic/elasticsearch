@@ -41,12 +41,12 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
 
     public void testHandlerWorksWithHttpPostBinding() throws Exception {
         final String payload = buildLogoutResponsePayload(emptyMap(), true);
-        samlLogoutResponseHandler.handle(payload, List.of(requestId));
+        samlLogoutResponseHandler.handle(false, payload, List.of(requestId));
     }
 
     public void testHandlerFailsWithHttpPostBindingAndNoSignature() throws Exception {
         final String payload = buildLogoutResponsePayload(emptyMap(), false);
-        final ElasticsearchSecurityException e = expectSamlException(() -> samlLogoutResponseHandler.handle(payload, List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
         assertThat(e.getMessage(), containsString("is not signed"));
     }
 
@@ -55,7 +55,7 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
         replacements.put("status", "urn:oasis:names:tc:SAML:2.0:status:Requester");
         final String payload = buildLogoutResponsePayload(replacements, true);
         final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(payload, List.of(requestId)));
+            expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
         assertThat(e.getMessage(), containsString("not a 'success' response"));
     }
 

@@ -296,7 +296,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         }
 
-        //
         private boolean isMultiPartUpload(String request) {
             return Regex.simpleMatch("POST /*/*?uploads", request) ||
                 Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||

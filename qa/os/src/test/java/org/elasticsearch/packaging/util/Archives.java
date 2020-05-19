@@ -298,22 +298,22 @@ public class Archives {
             }
             return sh.runIgnoreExitCode(String.join(" ", command));
         }
-        final Path stdout = getPowershellOutputPath(installation);
-        final Path stderr = getPowershellErrorPath(installation);
-
-        String powerShellProcessUserSetup;
-        if (System.getenv("username").equals("vagrant")) {
-            // the tests will run as Administrator in vagrant.
-            // we don't want to run the server as Administrator, so we provide the current user's
-            // username and password to the process which has the effect of starting it not as Administrator.
-            powerShellProcessUserSetup = "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; "
-                + "$processInfo.Username = 'vagrant'; "
-                + "$processInfo.Password = $password; ";
-        } else {
-            powerShellProcessUserSetup = "";
-        }
 
         if (daemonize) {
+            final Path stdout = getPowershellOutputPath(installation);
+            final Path stderr = getPowershellErrorPath(installation);
+
+            String powerShellProcessUserSetup;
+            if (System.getenv("username").equals("vagrant")) {
+                // the tests will run as Administrator in vagrant.
+                // we don't want to run the server as Administrator, so we provide the current user's
+                // username and password to the process which has the effect of starting it not as Administrator.
+                powerShellProcessUserSetup = "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; "
+                    + "$processInfo.Username = 'vagrant'; "
+                    + "$processInfo.Password = $password; ";
+            } else {
+                powerShellProcessUserSetup = "";
+            }
             // this starts the server in the background. the -d flag is unsupported on windows
             return sh.run(
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; "

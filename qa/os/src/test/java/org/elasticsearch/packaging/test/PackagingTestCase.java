@@ -155,18 +155,25 @@ public abstract class PackagingTestCase extends Assert {
     public void teardown() throws Exception {
         // move log file so we can avoid false positives when grepping for
         // messages in logs during test
-        if (installation != null && Files.exists(installation.logs)) {
-            Path logFile = installation.logs.resolve("elasticsearch.log");
-            String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
-            if (Files.exists(logFile)) {
-                Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
-                FileUtils.mv(logFile, newFile);
+        if (installation != null) {
+            if (Files.exists(installation.logs)) {
+                Path logFile = installation.logs.resolve("elasticsearch.log");
+                String prefix = this.getClass().getSimpleName() + "." + testNameRule.getMethodName();
+                if (Files.exists(logFile)) {
+                    Path newFile = installation.logs.resolve(prefix + ".elasticsearch.log");
+                    FileUtils.mv(logFile, newFile);
+                }
+                for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
+                    Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
+                    FileUtils.mv(rotatedLogFile, newRotatedLogFile);
+                }
             }
-            for (Path rotatedLogFile : FileUtils.lsGlob(installation.logs, "elasticsearch*.tar.gz")) {
-                Path newRotatedLogFile = installation.logs.resolve(prefix + "." + rotatedLogFile.getFileName());
-                FileUtils.mv(rotatedLogFile, newRotatedLogFile);
+            if (Files.exists(Archives.getPowershellErrorPath(installation))) {
+                FileUtils.rmWithRetries(Archives.getPowershellErrorPath(installation));
             }
         }
+
+
     }
 
     /** The {@link Distribution} that should be tested in this case */

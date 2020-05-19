@@ -4,8 +4,8 @@ setup:
 ---
 "node_reload_secure_settings test wrong password":
   - skip:
-      version: " - 7.9.99"
-      reason:  "support for reloading password protected keystores was introduced in 8.0.0"
+      version: " - 7.6.99"
+      reason:  "support for reloading password protected keystores was introduced in 7.7.0"
 
   - do:
       nodes.reload_secure_settings:

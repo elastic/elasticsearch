@@ -89,7 +89,9 @@ public class ClientVersion {
                 JarURLConnection jarConn = (JarURLConnection) conn;
                 if (jarConn.getEntryName() == null) { // the URL points to a JAR file
                     Manifest manifest = jarConn.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
-                    jarConn.getJarFile().close(); // prevent locked file errors in Windows. The Manifest has been read by now
+                    try {
+                        jarConn.getJarFile().close(); // prevent locked file errors in Windows. The Manifest has been read by now
+                    } catch (IOException e) {/* ignore any closing failure */}
                     return manifest;
                 }
             }

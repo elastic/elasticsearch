@@ -200,7 +200,7 @@ public abstract class PackagingTestCase extends Assert {
      */
     protected void assertWhileRunning(Platforms.PlatformAction assertions) throws Exception {
         try {
-            awaitElasticsearchStartup(runElasticsearchStartCommand());
+            awaitElasticsearchStartup(runElasticsearchStartCommand(true));
         } catch (Exception e) {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
@@ -235,11 +235,11 @@ public abstract class PackagingTestCase extends Assert {
      * @return Shell results of the startup command.
      * @throws Exception when command fails immediately.
      */
-    public Shell.Result runElasticsearchStartCommand() throws Exception {
+    public Shell.Result runElasticsearchStartCommand(boolean daemonize) throws Exception {
         switch (distribution.packaging) {
             case TAR:
             case ZIP:
-                return Archives.runElasticsearchStartCommand(installation, sh, "");
+                return Archives.runElasticsearchStartCommand(installation, sh, null, daemonize);
             case DEB:
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
@@ -290,21 +290,21 @@ public abstract class PackagingTestCase extends Assert {
 
     /**
      * Start Elasticsearch and wait until it's up and running. If you just want to run
-     * the start command, use {@link #runElasticsearchStartCommand()}.
+     * the start command, use {@link #runElasticsearchStartCommand(boolean)}.
      * @throws Exception if Elasticsearch can't start
      */
     public void startElasticsearch() throws Exception {
-        awaitElasticsearchStartup(runElasticsearchStartCommand());
+        awaitElasticsearchStartup(runElasticsearchStartCommand(true));
     }
 
-    public Shell.Result startElasticsearchStandardInputPassword(String password) {
+    public Shell.Result startElasticsearchStandardInputPassword(String password, boolean daemonize) {
         assertTrue("Only archives support passwords on standard input", distribution().isArchive());
-        return Archives.runElasticsearchStartCommand(installation, sh, password);
+        return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
     }
 
-    public Shell.Result startElasticsearchTtyPassword(String password) throws Exception {
+    public Shell.Result startElasticsearchTtyPassword(String password, boolean daemonize) throws Exception {
         assertTrue("Only archives support passwords on TTY", distribution().isArchive());
-        return Archives.startElasticsearchWithTty(installation, sh, password);
+        return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {
@@ -330,7 +330,7 @@ public abstract class PackagingTestCase extends Assert {
             Shell.Result error = journaldWrapper.getLogs();
             assertThat(error.stdout, anyOf(stringMatchers));
 
-        } else if (Platforms.WINDOWS) {
+        } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
 
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background

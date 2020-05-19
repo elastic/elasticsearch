@@ -18,7 +18,9 @@ setup:
   - is_true: nodes
   - is_true: cluster_name
   - match: { nodes.$node_id.reload_exception.type: "security_exception" }
-  - match: { nodes.$node_id.reload_exception.reason: "Provided keystore password was incorrect" }
+  - match: { nodes.$node_id.reload_exception.reason:
+               /^(Provided\skeystore\spassword\swas\sincorrect|
+               Keystore\shas\sbeen\scorrupted\sor\stampered\swith)$/ }
 
 ---
 "node_reload_secure_settings test correct(empty) password":

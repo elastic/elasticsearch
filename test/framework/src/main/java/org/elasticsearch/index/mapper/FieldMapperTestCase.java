@@ -179,17 +179,14 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         }
         {
             FieldMapper mapper = (FieldMapper) newBuilder().build(context);
-            FieldMapper toMerge = new FieldMapper("bogus", new MockFieldMapper.FakeFieldType(),
-                new MockFieldMapper.FakeFieldType(), SETTINGS, FieldMapper.MultiFields.empty(), FieldMapper.CopyTo.empty()) {
-                @Override
-                protected void parseCreateField(ParseContext context) { }
+            FieldMapper toMerge = new MockFieldMapper("bogus") {
                 @Override
                 protected String contentType() {
                     return "bogustype";
                 }
             };
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(toMerge));
-            assertThat(e.getMessage(), containsString("different type"));
+            assertThat(e.getMessage(), containsString("cannot be changed from type"));
             assertThat(e.getMessage(), containsString("bogustype"));
         }
         for (Modifier modifier : modifiers) {

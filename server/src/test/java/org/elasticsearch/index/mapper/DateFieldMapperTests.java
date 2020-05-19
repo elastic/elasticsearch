@@ -410,7 +410,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapper.merge(update.mapping()));
-        assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
+        assertEquals("mapper [date] cannot be changed from type [date] to [text]", e.getMessage());
     }
 
     public void testIllegalFormatField() throws Exception {

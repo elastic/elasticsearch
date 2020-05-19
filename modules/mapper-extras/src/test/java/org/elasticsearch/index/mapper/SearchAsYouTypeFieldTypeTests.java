@@ -36,7 +36,7 @@ import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
+public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     private static final String NAME = "a_field";
     private static final String PREFIX_NAME = NAME + "._index_prefix";

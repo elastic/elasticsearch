@@ -367,8 +367,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             if (mergeWith instanceof FieldMapper) {
                 mergedType = ((FieldMapper) mergeWith).contentType();
             }
-            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] of different type, current_type [" + contentType()
-                + "], merged_type [" + mergedType + "]");
+            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] cannot be changed from type [" + contentType()
+                + "] to [" + mergedType + "]");
         }
 
         MappedFieldType other = ((FieldMapper)mergeWith).fieldType;

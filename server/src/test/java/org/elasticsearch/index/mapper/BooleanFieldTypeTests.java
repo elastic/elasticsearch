@@ -22,7 +22,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 
-public class BooleanFieldTypeTests extends FieldTypeTestCase {
+public class BooleanFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new BooleanFieldMapper.BooleanFieldType();

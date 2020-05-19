@@ -23,7 +23,7 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldTyp
 
 import java.io.IOException;
 
-public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
+public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new GeoShapeFieldType();

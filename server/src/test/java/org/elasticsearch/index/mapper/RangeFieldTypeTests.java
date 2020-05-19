@@ -52,7 +52,7 @@ import java.net.InetAddress;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RangeFieldTypeTests extends FieldTypeTestCase {
+public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
     RangeType type;
     protected static String FIELDNAME = "field";
     protected static int DISTANCE = 10;
@@ -62,6 +62,17 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     public void setupProperties() {
         type = randomFrom(RangeType.values());
         nowInMillis = randomNonNegativeLong();
+        if (type == RangeType.DATE) {
+            addModifier(t -> {
+                RangeFieldType other = t.clone();
+                if (other.dateTimeFormatter == DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) {
+                    other.setDateTimeFormatter(DateFormatter.forPattern("epoch_millis"));
+                } else {
+                    other.setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+                }
+                return other;
+            });
+        }
     }
 
     @Override

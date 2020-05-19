@@ -84,7 +84,7 @@ public abstract class MappedFieldType extends FieldType {
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
-        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
+        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
         this.similarity = ref.similarity();
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
@@ -148,25 +148,15 @@ public abstract class MappedFieldType extends FieldType {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
+        int hash = Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
             eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString, meta);
+        return hash;
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
-
-    /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    private void checkTypeName(MappedFieldType other) {
-        if (typeName().equals(other.typeName()) == false) {
-            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName()
-                + "] to [" + other.typeName() + "]");
-        } else if (getClass() != other.getClass()) {
-            throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and "
-                + other.getClass().getSimpleName());
-        }
-    }
 
     public String name() {
         return name;

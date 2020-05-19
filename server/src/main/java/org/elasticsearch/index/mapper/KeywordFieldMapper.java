@@ -228,7 +228,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        private NamedAnalyzer normalizer() {
+        NamedAnalyzer normalizer() {
             return normalizer;
         }
 

@@ -36,6 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
@@ -52,15 +53,38 @@ import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
-public class DateFieldTypeTests extends FieldTypeTestCase {
+public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new DateFieldMapper.DateFieldType();
+    protected DateFieldType createDefaultFieldType() {
+        return new DateFieldType();
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier(t -> {
+            DateFieldType copy = (DateFieldType) t.clone();
+            if (copy.dateTimeFormatter == DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) {
+                copy.setDateTimeFormatter(DateFormatter.forPattern("epoch_millis"));
+            } else {
+                copy.setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+            }
+            return copy;
+        });
+        addModifier(t -> {
+            DateFieldType copy = (DateFieldType) t.clone();
+            if (copy.resolution() == Resolution.MILLISECONDS) {
+                copy.setResolution(Resolution.NANOSECONDS);
+            } else {
+                copy.setResolution(Resolution.MILLISECONDS);
+            }
+            return copy;
+        });
     }
 
     private static long nowInMillis;

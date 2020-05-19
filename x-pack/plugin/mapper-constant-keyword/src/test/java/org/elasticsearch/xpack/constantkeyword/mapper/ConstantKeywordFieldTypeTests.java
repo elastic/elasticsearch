@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper
 import java.util.Arrays;
 import java.util.Collections;
 
-public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
+public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {

@@ -38,6 +38,8 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,11 +48,35 @@ import java.util.List;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextFieldTypeTests extends FieldTypeTestCase {
+public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
+
+    @Before
+    public void addModifiers() {
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddata(t.fielddata() == false);
+            return copy;
+        });
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMaxFrequency(t.fielddataMaxFrequency() + 1);
+            return copy;
+        });
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMinFrequency(t.fielddataMinFrequency() + 1);
+            return copy;
+        });
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMinSegmentSize(t.fielddataMinSegmentSize() + 1);
+            return copy;
+        });
+    }
 
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new TextFieldMapper.TextFieldType();
+    protected TextFieldType createDefaultFieldType() {
+        return new TextFieldType();
     }
 
     public void testTermQuery() {
@@ -132,7 +158,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIndexPrefixes() {
-        TextFieldMapper.TextFieldType ft = new TextFieldMapper.TextFieldType();
+        TextFieldType ft = new TextFieldType();
         ft.setName("field");
         ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType("field", "field._index_prefix", 2, 10));
 

@@ -33,7 +33,7 @@ import java.util.Collections;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
+public class FieldNamesFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new FieldNamesFieldMapper.FieldNamesFieldType();

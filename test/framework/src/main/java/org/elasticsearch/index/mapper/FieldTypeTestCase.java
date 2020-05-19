@@ -18,55 +18,89 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /** Base test case for subclasses of MappedFieldType */
-public abstract class FieldTypeTestCase extends ESTestCase {
+public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTestCase {
 
     public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true);
     public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
 
     /** Create a default constructed fieldtype */
-    protected abstract MappedFieldType createDefaultFieldType();
+    protected abstract T createDefaultFieldType();
 
-    MappedFieldType createNamedDefaultFieldType() {
-        MappedFieldType fieldType = createDefaultFieldType();
+    T createNamedDefaultFieldType() {
+        T fieldType = createDefaultFieldType();
         fieldType.setName("foo");
         return fieldType;
     }
 
-    // TODO: remove this once toString is no longer final on FieldType...
-    protected void assertFieldTypeEquals(String property, MappedFieldType ft1, MappedFieldType ft2) {
-        if (ft1.equals(ft2) == false) {
-            fail("Expected equality, testing property " + property + "\nexpected: " + toString(ft1) + "; \nactual:   " + toString(ft2)
-                + "\n");
+    @SuppressWarnings("unchecked")
+    private final List<EqualsHashCodeTestUtils.MutateFunction<T>> modifiers = new ArrayList<>(List.of(
+        t -> {
+            MappedFieldType copy = t.clone();
+            copy.setName(t.name() + "-mutated");
+            return (T) copy;
+        },
+        t -> {
+            MappedFieldType copy = t.clone();
+            copy.setBoost(t.boost() + 1);
+            return (T) copy;
+        },
+        t -> {
+            MappedFieldType copy = t.clone();
+            NamedAnalyzer a = t.searchAnalyzer();
+            if (a == null) {
+                copy.setSearchAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
+                return (T) copy;
+            }
+            copy.setSearchAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
+            return (T) copy;
+        },
+        t -> {
+            MappedFieldType copy = t.clone();
+            NamedAnalyzer a = t.searchQuoteAnalyzer();
+            if (a == null) {
+                copy.setSearchQuoteAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
+                return (T) copy;
+            }
+            copy.setSearchQuoteAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
+            return (T) copy;
+        },
+        t -> {
+            MappedFieldType copy = t.clone();
+            copy.setNullValue(new Object());
+            return (T) copy;
+        },
+        t -> {
+            MappedFieldType copy = t.clone();
+            copy.setEagerGlobalOrdinals(t.eagerGlobalOrdinals() == false);
+            return (T) copy;
+        },
+        t -> {
+            MappedFieldType copy = t.clone();
+            Map<String, String> meta = new HashMap<>(t.meta());
+            meta.put("bogus", "bogus");
+            copy.setMeta(meta);
+            return (T) copy;
         }
-    }
+    ));
 
-    protected void assertFieldTypeNotEquals(String property, MappedFieldType ft1, MappedFieldType ft2) {
-        if (ft1.equals(ft2)) {
-            fail("Expected inequality, testing property " + property + "\nfirst:  " + toString(ft1) + "; \nsecond: " + toString(ft2)
-                + "\n");
-        }
-    }
-
-    protected String toString(MappedFieldType ft) {
-        return "MappedFieldType{" +
-            "name=" + ft.name() +
-            ", boost=" + ft.boost() +
-            ", docValues=" + ft.hasDocValues() +
-            ", indexAnalyzer=" + ft.indexAnalyzer() +
-            ", searchAnalyzer=" + ft.searchAnalyzer() +
-            ", searchQuoteAnalyzer=" + ft.searchQuoteAnalyzer() +
-            ", similarity=" + ft.similarity() +
-            ", eagerGlobalOrdinals=" + ft.eagerGlobalOrdinals() +
-            ", nullValue=" + ft.nullValue() +
-            ", nullValueAsString='" + ft.nullValueAsString() + "'" +
-            "} " + super.toString();
+    protected void addModifier(EqualsHashCodeTestUtils.MutateFunction<T> modifier) {
+        modifiers.add(modifier);
     }
 
     protected QueryShardContext randomMockShardContext() {
@@ -81,20 +115,15 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     public void testClone() {
         MappedFieldType fieldType = createNamedDefaultFieldType();
-        MappedFieldType clone = fieldType.clone();
-        assertNotSame(clone, fieldType);
-        assertEquals(clone.getClass(), fieldType.getClass());
-        assertEquals(clone, fieldType);
-        assertEquals(clone, clone.clone()); // transitivity
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(fieldType, MappedFieldType::clone);
     }
 
+    @SuppressWarnings("unchecked")
     public void testEquals() {
-        MappedFieldType ft1 = createNamedDefaultFieldType();
-        MappedFieldType ft2 = createNamedDefaultFieldType();
-        assertEquals(ft1, ft1); // reflexive
-        assertEquals(ft1, ft2); // symmetric
-        assertEquals(ft2, ft1);
-        assertEquals(ft1.hashCode(), ft2.hashCode());
+        for (EqualsHashCodeTestUtils.MutateFunction<T> modifier : modifiers) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createNamedDefaultFieldType(),
+                t -> (T) t.clone(), modifier);
+        }
     }
 
 }

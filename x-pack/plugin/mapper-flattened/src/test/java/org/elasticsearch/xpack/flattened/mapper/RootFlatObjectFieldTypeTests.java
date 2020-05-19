@@ -21,8 +21,18 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.RootFlatObjectFieldType;
+import org.junit.Before;
 
-public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase {
+public class RootFlatObjectFieldTypeTests extends FieldTypeTestCase<RootFlatObjectFieldType> {
+
+    @Before
+    public void addModifiers() {
+        addModifier(t -> {
+            RootFlatObjectFieldType copy = t.clone();
+            copy.setSplitQueriesOnWhitespace(t.splitQueriesOnWhitespace() == false);
+            return copy;
+        });
+    }
 
     @Override
     protected RootFlatObjectFieldType createDefaultFieldType() {

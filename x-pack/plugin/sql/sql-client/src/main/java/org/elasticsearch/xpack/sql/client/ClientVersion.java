@@ -16,6 +16,7 @@ import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -88,9 +89,10 @@ public class ClientVersion {
             if (url.getProtocol().equals("jar")) {
                 JarURLConnection jarConn = (JarURLConnection) conn;
                 if (jarConn.getEntryName() == null) { // the URL points to a JAR file
-                    Manifest manifest = jarConn.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
+                    JarFile jar = jarConn.getJarFile();
+                    Manifest manifest = jar.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
                     try {
-                        jarConn.getJarFile().close(); // prevent locked file errors in Windows. The Manifest has been read by now
+                        jar.close(); // prevent locked file errors in Windows. The Manifest has been read by now
                     } catch (IOException e) {/* ignore any closing failure */}
                     return manifest;
                 }

@@ -178,6 +178,8 @@ SELECT gender g, languages l, COUNT(*) c FROM "test_emp" GROUP BY g, l ORDER BY 
 aggCountDistinctWithAliasAndGroupBy
 SELECT COUNT(*) cnt, COUNT(DISTINCT first_name) as names, gender FROM test_emp GROUP BY gender ORDER BY gender;
 
+localCount
+SELECT COUNT(1), COUNT(22), COUNT('foo'), COUNT(DISTINCT 1), COUNT(DISTINCT 22), COUNT(DISTINCT 'foo');
 localSum
 SELECT CAST(SUM(1) AS BIGINT);
 localSumWithAlias
@@ -185,7 +187,12 @@ SELECT CAST(SUM(1) AS BIGINT) AS s, CAST(SUM(1) AS BIGINT);
 localMax
 SELECT MAX(1);
 localAggregates
-SELECT CAST(SUM(1) AS BIGINT), CAST(SUM(123) AS BIGINT), MAX(1), MAX(32), MIN(3), MIN(55+2) AS mn, CAST(AVG(33/3) AS INTEGER) AS av, CAST(AVG(1) AS INTEGER); 
+SELECT CAST(SUM(1) AS BIGINT), CAST(SUM(123) AS BIGINT), MAX(1), MAX(32), MIN(3), MIN(55+2) AS mn, CAST(AVG(33/3) AS INTEGER) AS av, CAST(AVG(1) AS INTEGER);
+
+countOfLiteralsFromIndex
+SELECT COUNT(1), COUNT(22), COUNT('foo'), COUNT(DISTINCT 1), COUNT(DISTINCT 22), COUNT(DISTINCT 'foo') FROM test_emp;
+countOfLiteralsFromIndexWithGroupBy
+SELECT COUNT(1), COUNT(22), COUNT('foo'), COUNT(DISTINCT 1), COUNT(DISTINCT 22), COUNT(DISTINCT 'foo') FROM test_emp GROUP BY gender ORDER BY gender;
 aggregatesOfLiteralsFromIndex
 SELECT MAX(1), MIN(1), CAST(SUM(1) AS BIGINT), CAST(AVG(1) AS INTEGER), COUNT(1) FROM test_emp;
 aggregatesOfLiteralsFromIndex_WithNoMatchingFilter

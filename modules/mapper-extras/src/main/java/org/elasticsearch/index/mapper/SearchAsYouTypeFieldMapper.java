@@ -685,10 +685,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final SearchAsYouTypeFieldMapper m = (SearchAsYouTypeFieldMapper) other;
         if (this.shingleFields.length != m.shingleFields.length) {
             conflicts.add("mapper [" + name() + "] has a different [max_shingle_size]");
-        }
-        this.prefixField = (PrefixFieldMapper) this.prefixField.merge(m.prefixField);
-        for (int i = 0; i < m.shingleFields.length; i++) {
-            this.shingleFields[i] = (ShingleFieldMapper) this.shingleFields[i].merge(m.shingleFields[i]);
+        } else {
+            this.prefixField = (PrefixFieldMapper) this.prefixField.merge(m.prefixField);
+            for (int i = 0; i < m.shingleFields.length; i++) {
+                this.shingleFields[i] = (ShingleFieldMapper) this.shingleFields[i].merge(m.shingleFields[i]);
+            }
         }
     }
 

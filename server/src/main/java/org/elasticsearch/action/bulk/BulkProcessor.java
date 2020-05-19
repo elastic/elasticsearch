@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.util.Objects;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -259,6 +260,7 @@ public class BulkProcessor implements Closeable {
     private final Runnable onClose;
 
     private volatile boolean closed = false;
+    private final Semaphore addExecutionSemaphore = new Semaphore(1);
     private final ReentrantLock lock = new ReentrantLock();
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
@@ -312,24 +314,24 @@ public class BulkProcessor implements Closeable {
      */
     public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         lock.lock();
+        timeout = unit.toNanos(timeout) / 2;
         try {
             if (closed) {
                 return true;
             }
             closed = true;
-
             this.cancellableFlushTask.cancel();
-
             if (bulkRequest.numberOfActions() > 0) {
                 execute();
             }
             try {
-                return this.bulkRequestHandler.awaitClose(timeout, unit);
+                return awaitCloseAddExecution(timeout,TimeUnit.NANOSECONDS) && this.bulkRequestHandler.awaitClose(timeout,TimeUnit.NANOSECONDS);
             } finally {
                 onClose.run();
             }
         } finally {
             lock.unlock();
+            addExecutionSemaphore.release();
         }
     }
 
@@ -366,6 +368,14 @@ public class BulkProcessor implements Closeable {
         }
     }
 
+    private boolean awaitCloseAddExecution(long timeout, TimeUnit unit) throws InterruptedException {
+        if (addExecutionSemaphore.tryAcquire(timeout,TimeUnit.NANOSECONDS)) {
+            addExecutionSemaphore.release();
+            return true;
+        }
+        return false;
+    }
+
     private void internalAdd(DocWriteRequest<?> request) {
         //bulkRequest and instance swapping is not threadsafe, so execute the mutations under a lock.
         //once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
@@ -381,8 +391,19 @@ public class BulkProcessor implements Closeable {
         //execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
         //run this in a Async manner in order to release the add call as quick as possible
         if (bulkRequestToExecute != null) {
-            new Thread(() -> execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2())
-            ).start();
+            try {
+                addExecutionSemaphore.acquire();
+                new Thread(() -> {
+                    try {
+                        execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+                    }finally {
+                        addExecutionSemaphore.release();
+                    }
+                }).start();
+            } catch (InterruptedException e) {
+                //Thread is interrupted
+                addExecutionSemaphore.release();
+            }
         }
     }
 
@@ -404,8 +425,19 @@ public class BulkProcessor implements Closeable {
 
         //run this in a Async manner in order to release the add call as quick as possible
         if (bulkRequestToExecute != null) {
-            new Thread(() -> execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2())
-            ).start();
+            try {
+                addExecutionSemaphore.acquire();
+                new Thread(() -> {
+                    try {
+                        execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+                    }finally {
+                        addExecutionSemaphore.release();
+                    }
+                }).start();
+            } catch (InterruptedException e) {
+                //Thread is interrupted
+                addExecutionSemaphore.release();
+            }
         }
         return this;
     }

@@ -37,6 +37,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Util {
 
@@ -143,5 +146,32 @@ public class Util {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME));
+    }
+
+    static final Pattern GIT_PATTERN = Pattern.compile("git@([^:]+):([^\\.]+)\\.git");
+
+    /** Find the reponame. */
+    public static String urlFromOrigin(String origin) {
+        if (origin == null) {
+            return null; // best effort, the url doesnt really matter, it is just required by maven central
+        }
+        if (origin.startsWith("https")) {
+            return origin;
+        }
+        Matcher matcher = GIT_PATTERN.matcher(origin);
+        if (matcher.matches()) {
+            return String.format("https://%s/%s", matcher.group(1), matcher.group(2));
+        } else {
+            return origin; // best effort, the url doesnt really matter, it is just required by maven central
+        }
+    }
+
+    public static Object toStringable(Supplier<String> getter) {
+        return new Object() {
+            @Override
+            public String toString() {
+                return getter.get();
+            }
+        };
     }
 }

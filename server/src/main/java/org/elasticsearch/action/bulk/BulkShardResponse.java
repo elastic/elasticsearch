@@ -31,7 +31,7 @@ import java.io.IOException;
 
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
-    private static final Version COMPACT_SHARD_ID_VERSION = Version.V_8_0_0;
+    private static final Version COMPACT_SHARD_ID_VERSION = Version.V_7_9_0;
 
     private final ShardId shardId;
     private final BulkItemResponse[] responses;

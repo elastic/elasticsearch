@@ -267,6 +267,7 @@ GET /_xpack/usage
     "stats": {
       "boxplot_usage" : 0,
       "top_metrics_usage" : 0,
+      "normalize_usage" : 0,
       "cumulative_cardinality_usage" : 0,
       "t_test_usage" : 0,
       "string_stats_usage" : 0,

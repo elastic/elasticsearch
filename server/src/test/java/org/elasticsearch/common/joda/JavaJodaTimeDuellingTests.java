@@ -29,6 +29,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.ISODateTimeFormat;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.time.ZoneId;
@@ -56,6 +57,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             : "`-Djava.locale.providers` needs to be set";
     }
 
+    public void testMinMillis() {
+        String jodaFormatted = Joda.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
+        Assert.assertEquals(jodaFormatted, javaFormatted);
+    }
     public void testYearParsing() {
         //this one is considered a year
         assertSameDate("1234", "strict_date_optional_time||epoch_millis");

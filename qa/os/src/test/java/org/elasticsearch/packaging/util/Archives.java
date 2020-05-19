@@ -26,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -236,7 +235,8 @@ public class Archives {
         return runElasticsearchStartCommand(installation, sh, null, true);
     }
 
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize) throws Exception {
+    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh,
+                                                         String keystorePassword, boolean daemonize) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -265,7 +265,8 @@ public class Archives {
         return sh.runIgnoreExitCode(script);
     }
 
-    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh, String keystorePassword, boolean daemonize) {
+    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh,
+                                                            String keystorePassword, boolean daemonize) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         assertThat(pidFile, fileDoesNotExist());

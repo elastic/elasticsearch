@@ -86,7 +86,7 @@ limits the maximum number of <<query-dsl-bool-query,boolean clauses>> in a query
 +
 [TIP]
 ====
-If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened>> datatype.
+If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> datatype.
 ====
 
 `index.mapping.depth.limit`::

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle
 
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -27,15 +28,16 @@ import org.gradle.api.tasks.TaskProvider
 
 class DependenciesInfoPlugin implements Plugin<Project> {
     @Override
-    public void apply(Project project) {
+    void apply(Project project) {
+        project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         TaskProvider<DependenciesInfoTask> depsInfo = project.getTasks().register("dependenciesInfo", DependenciesInfoTask.class);
         depsInfo.configure { DependenciesInfoTask t ->
             t.setRuntimeConfiguration(project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
-            t.setCompileOnlyConfiguration(project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME));
+            t.setCompileOnlyConfiguration(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME));
             t.getConventionMapping().map("mappings") { ->
                 TaskProvider<DependencyLicensesTask> depLic = project.getTasks().named("dependencyLicenses", DependencyLicensesTask.class);
                 return depLic.get().getMappings();
             }
-        };
+        }
     }
 }

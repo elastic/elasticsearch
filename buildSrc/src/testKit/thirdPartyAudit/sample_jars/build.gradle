@@ -5,7 +5,7 @@ repositories {
   mavenCentral()
 }
 dependencies {
-  compile 'org.apache.logging.log4j:log4j-core:2.11.1'
+  implementation 'org.apache.logging.log4j:log4j-core:2.11.1'
 }
 
 ["0.0.1", "0.0.2"].forEach { v ->

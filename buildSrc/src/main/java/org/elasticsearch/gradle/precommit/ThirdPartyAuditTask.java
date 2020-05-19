@@ -22,6 +22,7 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.JdkJarHellCheck;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
@@ -175,7 +176,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
         Set<File> jars = getRuntimeConfiguration().getResolvedConfiguration().getFiles(reallyThirdParty);
         Set<File> compileOnlyConfiguration = getProject().getConfigurations()
-            .getByName("compileOnly")
+            .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             .getResolvedConfiguration()
             .getFiles(reallyThirdParty);
         // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
@@ -329,7 +330,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             spec.classpath(
                 getForbiddenAPIsConfiguration(),
                 getRuntimeConfiguration(),
-                getProject().getConfigurations().getByName("compileOnly")
+                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
             spec.jvmArgs("-Xmx1g");
             spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
@@ -364,7 +365,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 spec.classpath(
                     location.toURI().getPath(),
                     getRuntimeConfiguration(),
-                    getProject().getConfigurations().getByName("compileOnly")
+                    getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
                 );
             } catch (URISyntaxException e) {
                 throw new AssertionError(e);

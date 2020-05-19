@@ -23,13 +23,14 @@ import org.gradle.util.GradleVersion
 plugins {
   id 'java-gradle-plugin'
   id 'groovy'
+  id 'java-test-fixtures'
 }
 
 group = 'org.elasticsearch.gradle'
 
 String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
 if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-   throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
+  throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
 if (project == rootProject) {
@@ -75,6 +76,11 @@ allprojects {
 sourceSets {
   // We have a few classes that need to be compiled for older java versions
   minimumRuntime {}
+
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
 }
 
 compileMinimumRuntimeJava {
@@ -124,8 +130,10 @@ dependencies {
   compile 'com.networknt:json-schema-validator:1.0.36'
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testCompile "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testCompile "junit:junit:${props.getProperty('junit')}"
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+  testFixturesApi "junit:junit:${props.getProperty('junit')}"
+  testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+  testFixturesApi gradleApi()
+  testFixturesApi gradleTestKit()
   testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testCompile 'org.mockito:mockito-core:1.9.5'
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
@@ -167,10 +175,11 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   dependencyLicenses.enabled = false
   dependenciesInfo.enabled = false
-  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime', 'forbiddenApisTest')
+  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime',
+    'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
-  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))){
+  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
     test.enabled = false
   }
 
@@ -239,6 +248,8 @@ if (project != rootProject) {
     systemProperty 'test.version_under_test', version
     onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+    testClassesDirs = sourceSets.integTest.output.classesDirs
+    classpath = sourceSets.integTest.runtimeClasspath
   }
   check.dependsOn("integTest")
 
@@ -253,6 +264,11 @@ if (project != rootProject) {
    */
   afterEvaluate {
     generatePomFileForPluginMavenPublication.enabled = false
+  }
+
+  publishing.publications.named("nebula").configure {
+    suppressPomMetadataWarningsFor("testFixturesApiElements")
+    suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
   }
 }
 

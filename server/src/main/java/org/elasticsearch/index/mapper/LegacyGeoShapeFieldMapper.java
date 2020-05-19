@@ -522,7 +522,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper mergeWith, List<String> conflicts) {
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
 
         if (mergeWith instanceof GeoShapeFieldMapper) {
             GeoShapeFieldMapper fieldMapper = (GeoShapeFieldMapper) mergeWith;

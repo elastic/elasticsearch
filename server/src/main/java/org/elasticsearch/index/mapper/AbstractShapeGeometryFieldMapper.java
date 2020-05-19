@@ -224,7 +224,7 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         mergeGeoOptions(gsfm, conflicts);
     }
 
-    protected abstract void mergeGeoOptions(AbstractShapeGeometryFieldMapper mergeWith, List<String> conflicts);
+    protected abstract void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts);
 
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {

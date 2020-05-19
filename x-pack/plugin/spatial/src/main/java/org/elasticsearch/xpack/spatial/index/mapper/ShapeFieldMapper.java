@@ -126,7 +126,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     }
 
     @Override
-    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper mergeWith, List<String> conflicts) {
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
 
     }
 

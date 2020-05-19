@@ -173,7 +173,6 @@ runs.
 (Optional, string)
 Reserved for future use.
 
-<<<<<<< HEAD
 `keep_alive`::
 +
 --
@@ -216,9 +215,7 @@ If both parameters are specified, only the query parameter is used.
 ====
 --
 
-=======
 [[eql-search-api-request-query-param]]
->>>>>>> elastic/master
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.

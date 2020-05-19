@@ -341,12 +341,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             throw new IllegalArgumentException("mapper [" + fieldType.name() + "] cannot be changed from type ["
             + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
         }
-        merged.mergeSharedOptions((FieldMapper)mergeWith, conflicts);
-        merged.mergeOptions((FieldMapper)mergeWith, conflicts);
+        FieldMapper toMerge = (FieldMapper) mergeWith;
+        merged.mergeSharedOptions(toMerge, conflicts);
+        merged.mergeOptions(toMerge, conflicts);
         if (conflicts.isEmpty() == false) {
             throw new IllegalArgumentException("Mapper for [" + name() +
                 "] conflicts with existing mapping:\n" + conflicts.toString());
         }
+        multiFields = multiFields.merge(toMerge.multiFields);
+        // apply changeable values
+        this.fieldType = toMerge.fieldType;
+        this.copyTo = toMerge.copyTo;
         return merged;
     }
 
@@ -400,13 +405,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         if (Objects.equals(fieldType.similarity(), other.similarity()) == false) {
             conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
-
-        if (conflicts.isEmpty()) {
-            multiFields = multiFields.merge(mergeWith.multiFields);
-            // apply changeable values
-            this.fieldType = mergeWith.fieldType;
-            this.copyTo = mergeWith.copyTo;
         }
     }
 

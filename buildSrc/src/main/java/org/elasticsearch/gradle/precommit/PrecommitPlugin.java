@@ -36,13 +36,14 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
  * Base plugin for adding a precommit task.
  */
 public abstract class PrecommitPlugin implements Plugin<Project> {
+
+    public static final String PRECOMMIT_TASK_NAME = "precommit";
+
     @Override
     public final void apply(Project project) {
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
         TaskProvider<? extends Task> task = createTask(project);
-        TaskProvider<DefaultTask> precommit = GradleUtils.maybeRegister(project.getTasks(), "precommit", DefaultTask.class, t -> {
-            t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-            t.setDescription("Runs all non-test checks");
-        });
+        TaskProvider<Task> precommit = project.getTasks().named(PRECOMMIT_TASK_NAME);
         precommit.configure(t -> t.dependsOn(task));
 
         project.getPluginManager().withPlugin("java", p -> {
@@ -57,4 +58,18 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
     }
 
     public abstract TaskProvider<? extends Task> createTask(Project project);
+
+    private static class PrecommitTaskPlugin implements Plugin<Project> {
+
+        // need a public ctor
+        public PrecommitTaskPlugin() {}
+
+        @Override
+        public void apply(Project project) {
+            project.getTasks().register(PRECOMMIT_TASK_NAME, t -> {
+                t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+                t.setDescription("Runs all non-test checks");
+            });
+        }
+    }
 }

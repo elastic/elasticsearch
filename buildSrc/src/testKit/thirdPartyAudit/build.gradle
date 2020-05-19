@@ -23,7 +23,7 @@ repositories {
   jcenter()
 }
 
-configurations.create("forbiddenApisCliJar")
+configurations.register("forbiddenApisCliJar")
 
 dependencies {
   forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
@@ -31,12 +31,12 @@ dependencies {
   compile "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
 }
 
-task empty(type: ThirdPartyAuditTask) {
+tasks.register("empty", ThirdPartyAuditTask) {
   targetCompatibility = JavaVersion.VERSION_11
   signatureFile = file('third-party-audit-empty.txt')
 }
 
-task absurd(type: ThirdPartyAuditTask) {
+tasks.register("absurd", ThirdPartyAuditTask) {
   targetCompatibility = JavaVersion.VERSION_11
   signatureFile = file('third-party-audit-absurd.txt')
 }

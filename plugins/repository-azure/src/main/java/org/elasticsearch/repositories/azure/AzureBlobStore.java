@@ -170,7 +170,8 @@ public class AzureBlobStore implements BlobStore {
         final AtomicLong blobsDeleted = new AtomicLong();
         final AtomicLong bytesDeleted = new AtomicLong();
         SocketAccess.doPrivilegedVoidException(() -> {
-            for (final ListBlobItem blobItem : getListBlobItems(blobContainer, path, context)) {
+            for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true,
+                EnumSet.noneOf(BlobListingDetails.class), null, context)) {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = blobItem.getUri().getPath().substring(1 + container.length() + 1);
@@ -215,10 +216,6 @@ public class AzureBlobStore implements BlobStore {
             throw ex;
         }
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
-    }
-
-    private Iterable<ListBlobItem> getListBlobItems(CloudBlobContainer blobContainer, String path, OperationContext opContext) {
-        return blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null, opContext);
     }
 
     public InputStream getInputStream(String blob, long position, @Nullable Long length) throws URISyntaxException, StorageException {

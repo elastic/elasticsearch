@@ -128,6 +128,248 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 ====
 
 [discrete]
+[[eql-search-sequence]]
+=== Search for a sequence of events
+
+Many query languages allow you to match single events. However, EQL's
+<<eql-sequences,sequence syntax>> lets you match an ordered series of events.
+
+.*Example*
+[%collapsible]
+====
+The following EQL search request matches a sequence that:
+
+. Starts with an event with:
++
+--
+* An `event.category` of `file`
+* A `file.name` of `cmd.exe`
+--
+. Followed by an event with:
++
+--
+* An `event.category` of `process`
+* A `process.name` that contains the substring `regsvr32`
+--
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    sequence
+      [ file where file.name == "cmd.exe" ]
+      [ process where stringContains(process.name, "regsvr32") ]
+  """
+}
+----
+
+The API returns the following response. Matching events in
+the `hits.sequences.events` property are sorted by
+<<eql-search-api-timestamp-field,timestamp>>, converted to milliseconds since
+the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
+
+[source,console-result]
+----
+{
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "events": [
+          {
+            "_index": "sec_logs",
+            "_id": "4",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "agent": {
+                "id": "8a4f500d"
+              },
+              "event": {
+                "category": "file"
+              },
+              "file": {
+                "accessed": "2020-12-07T11:07:08.000Z",
+                "name": "cmd.exe",
+                "path": "C:\\Windows\\System32\\cmd.exe",
+                "type": "file",
+                "size": 16384
+              },
+              "process": {
+                "name": "cmd.exe",
+                "path": "C:\\Windows\\System32\\cmd.exe"
+              }
+            },
+            "fields": {
+              "@timestamp": [
+                "1607339228000"
+              ]
+            },
+            "sort": [
+              1607339228000
+            ]
+          },
+          {
+            "_index": "sec_logs",
+            "_id": "5",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2020-12-07T11:07:09.000Z",
+              "agent": {
+                "id": "8a4f500d"
+              },
+              "event": {
+                "category": "process"
+              },
+              "process": {
+                "name": "regsvr32.exe",
+                "path": "C:\\Windows\\System32\\regsvr32.exe"
+              }
+            },
+            "fields": {
+              "@timestamp": [
+                "1607339229000"
+              ]
+            },
+            "sort": [
+              1607339229000
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+
+You can further constrain matching event sequences using the `by` keyword.
+
+The following EQL search request adds `by agent.id` to each event item. This
+ensures events matching the sequence share the same `agent.id` field value.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    sequence
+      [ file where file.name == "cmd.exe" ] by agent.id
+      [ process where stringContains(process.name, "regsvr32") ] by agent.id
+  """
+}
+----
+
+Because the `agent.id` field is shared across all events in the sequence, it
+can be included using `sequence by`. The following query is equivalent to the
+prior one.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    sequence  by agent.id
+      [ file where file.name == "cmd.exe" ]
+      [ process where stringContains(process.name, "regsvr32") ]
+  """
+}
+----
+
+The API returns the following response. The `hits.sequences.join_keys` property
+contains the shared `agent.id` value for each matching event.
+
+[source,console-result]
+----
+{
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "join_keys": [
+          "8a4f500d"
+        ],
+        "events": [
+          {
+            "_index": "sec_logs",
+            "_id": "4",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "agent": {
+                "id": "8a4f500d"
+              },
+              "event": {
+                "category": "file"
+              },
+              "file": {
+                "accessed": "2020-12-07T11:07:08.000Z",
+                "name": "cmd.exe",
+                "path": "C:\\Windows\\System32\\cmd.exe",
+                "type": "file",
+                "size": 16384
+              },
+              "process": {
+                "name": "cmd.exe",
+                "path": "C:\\Windows\\System32\\cmd.exe"
+              }
+            },
+            "fields": {
+              "@timestamp": [
+                "1607339228000"
+              ]
+            },
+            "sort": [
+              1607339228000
+            ]
+          },
+          {
+            "_index": "sec_logs",
+            "_id": "5",
+            "_score": null,
+            "_source": {
+              "@timestamp": "2020-12-07T11:07:09.000Z",
+              "agent": {
+                "id": "8a4f500d"
+              },
+              "event": {
+                "category": "process"
+              },
+              "process": {
+                "name": "regsvr32.exe",
+                "path": "C:\\Windows\\System32\\regsvr32.exe"
+              }
+            },
+            "fields": {
+              "@timestamp": [
+                "1607339229000"
+              ]
+            },
+            "sort": [
+              1607339229000
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+====
+
+[discrete]
 [[eql-search-specify-event-category-field]]
 === Specify an event category field
 
@@ -145,7 +387,7 @@ field.
 ----
 GET /sec_logs/_eql/search
 {
-   "event_category_field": "file.type",
+  "event_category_field": "file.type",
   "query": """
     file where agent.id == "8a4f500d"
   """

@@ -55,9 +55,6 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
 
     static class PrecommitTaskPlugin implements Plugin<Project> {
 
-        // need a public ctor
-        //public PrecommitTaskPlugin() {}
-
         @Override
         public void apply(Project project) {
             TaskProvider<Task> precommit = project.getTasks().register(PRECOMMIT_TASK_NAME, t -> {

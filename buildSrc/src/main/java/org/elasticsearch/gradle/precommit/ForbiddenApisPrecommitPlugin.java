@@ -85,7 +85,6 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     buildResourcesTask.copy("forbidden/es-server-signatures.txt"))));
             }
             ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();
-            project.getLogger().lifecycle(t.getPath() + " - Adding signatures methods");
             ext.set("replaceSignatureFiles", new Closure<Void>(t) {
                 @Override
                 public Void call(Object... names) {

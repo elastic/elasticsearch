@@ -4,8 +4,6 @@ dependencies {
 
 Project mainProject = project
 
-group = "${group}.x-pack.qa.sql.security"
-
 configurations.create('testArtifacts')
 
 TaskProvider testJar = tasks.register("testJar", Jar) {

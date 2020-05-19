@@ -1,7 +1,5 @@
-description = 'Integration tests for SQL JDBC'
+description = 'Integration tests for SQL JDBC driver'
 apply plugin: 'elasticsearch.build'
-archivesBaseName = 'qa-sql-jdbc'
-group = "org.elasticsearch.x-pack.qa.sql.jdbc"
 
 dependencies {
     compile project(":test:framework")

@@ -1,7 +1,5 @@
 description = 'Integration tests for SQL'
 apply plugin: 'elasticsearch.build'
-archivesBaseName = 'qa-sql'
-group = "org.elasticsearch.x-pack.qa.sql"
 
 dependencies {
   compile project(":test:framework")
@@ -112,12 +110,6 @@ subprojects {
       testDistribution = 'DEFAULT'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
-    }
-
-    task runqa {
-      doFirst {
-        println "Run with `-Dtestclusters.inspect.failure=true integTest` to leave the cluster running after failure"
-      }
     }
   }
 }

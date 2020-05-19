@@ -422,8 +422,8 @@ setup:
 ---
 "profiler":
   - skip:
-      version: " - 7.99.99"
-      reason:  debug info added in 8.0.0 (will backported to 7.9.0)
+      version: " - 7.8.99"
+      reason:  debug info added in 7.9.0
 
   - do:
       indices.create:

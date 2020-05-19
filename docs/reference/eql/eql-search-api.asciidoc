@@ -298,7 +298,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ==== {api-examples-title}
 
 [[eql-search-api-basic-query-ex]]
-==== Basic query example
+===== Basic query example
 
 The following EQL search request searches for events with an `event.category` of
 `file` that meet the following conditions:
@@ -395,7 +395,7 @@ in ascending order.
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
 
 [[eql-search-api-sequence-ex]]
-==== Sequence query example
+===== Sequence query example
 
 The following EQL search request matches a <<eql-sequences,sequence>> of events
 that:

@@ -35,6 +35,7 @@ import java.io.UncheckedIOException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 public class CheckstylePrecommitPlugin extends PrecommitPlugin {
     @Override
@@ -66,12 +67,12 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
             t.doLast(task -> {
                 checkstyleDir.mkdirs();
                 try (InputStream stream = checkstyleConfUrl.openStream()) {
-                    Files.copy(stream, checkstyleConf.toPath());
+                    Files.copy(stream, checkstyleConf.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
                 try (InputStream stream = checkstyleSuppressionsUrl.openStream()) {
-                    Files.copy(stream, checkstyleSuppressions.toPath());
+                    Files.copy(stream, checkstyleSuppressions.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }

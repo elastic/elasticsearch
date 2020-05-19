@@ -31,7 +31,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -212,12 +211,6 @@ public abstract class TransportReplicationAction<
      */
     protected abstract void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
-
-    private ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica) throws Exception {
-        PlainActionFuture<ReplicaResult> listener = PlainActionFuture.newFuture();
-        shardOperationOnReplica(shardRequest, replica, listener);
-        return listener.actionGet();
-    }
 
     /**
      * Execute the specified replica operation. This is done under a permit from
@@ -547,30 +540,28 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void onResponse(Releasable releasable) {
-            try {
-                assert replica.getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
-                final ReplicaResult replicaResult = shardOperationOnReplica(replicaRequest.getRequest(), replica);
+            assert replica.getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
+            shardOperationOnReplica(replicaRequest.getRequest(), replica, ActionListener.wrap((replicaResult) ->
                 replicaResult.runPostReplicaActions(
                     ActionListener.wrap(r -> {
-                        final TransportReplicationAction.ReplicaResponse response =
+                        final ReplicaResponse response =
                             new ReplicaResponse(replica.getLocalCheckpoint(), replica.getLastSyncedGlobalCheckpoint());
                         releasable.close(); // release shard operation lock before responding to caller
                         if (logger.isTraceEnabled()) {
                             logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction,
-                                replicaRequest.getRequest().shardId(),
-                                replicaRequest.getRequest());
+                            replicaRequest.getRequest().shardId(),
+                            replicaRequest.getRequest());
                         }
                         setPhase(task, "finished");
                         onCompletionListener.onResponse(response);
-                    }, e -> {
+                        }, e -> {
                         Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
-                        this.responseWithFailure(e);
+                        responseWithFailure(e);
                     })
-                );
-            } catch (final Exception e) {
+            ), e -> {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                 AsyncReplicaAction.this.onFailure(e);
-            }
+            }));
         }
 
         @Override

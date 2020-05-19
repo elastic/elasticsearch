@@ -342,6 +342,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
         }
         merged.mergeSharedOptions((FieldMapper)mergeWith, conflicts);
+        merged.mergeOptions((FieldMapper)mergeWith, conflicts);
         if (conflicts.isEmpty() == false) {
             throw new IllegalArgumentException("Mapper for [" + name() +
                 "] conflicts with existing mapping:\n" + conflicts.toString());
@@ -400,8 +401,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (Objects.equals(fieldType.similarity(), other.similarity()) == false) {
             conflicts.add("mapper [" + name() + "] has different [similarity]");
         }
-
-        mergeOptions(mergeWith, conflicts);
 
         if (conflicts.isEmpty()) {
             multiFields = multiFields.merge(mergeWith.multiFields);

@@ -27,10 +27,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.concurrent.RejectedExecutionException;
 
 public class Netty4TcpChannel implements TcpChannel {
 
@@ -142,11 +145,20 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), addPromise(listener, channel));
-
-        if (channel.eventLoop().isShutdown()) {
-            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
+    public void sendMessage(OutboundHandler.SendContext sendContext) {
+        try {
+            channel.eventLoop().execute(() -> {
+                final BytesReference bytesReference;
+                try {
+                    bytesReference = sendContext.get();
+                } catch (IOException e) {
+                    sendContext.onFailure(e);
+                    return;
+                }
+                channel.writeAndFlush(Netty4Utils.toByteBuf(bytesReference), addPromise(sendContext, channel));
+            });
+        } catch (RejectedExecutionException e) {
+            sendContext.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
         }
     }
 

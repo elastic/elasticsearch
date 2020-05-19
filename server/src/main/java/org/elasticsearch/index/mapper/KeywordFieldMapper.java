@@ -386,17 +386,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        KeywordFieldMapper other = (KeywordFieldMapper) mergeWith;
-        this.ignoreAbove = other.ignoreAbove;
-    }
-
-    @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         KeywordFieldMapper k = (KeywordFieldMapper) other;
         if (Objects.equals(fieldType().normalizer, k.fieldType().normalizer) == false) {
             conflicts.add("mapper [" + name() + "] has different [normalizer]");
         }
+        this.ignoreAbove = k.ignoreAbove;
     }
 
     @Override

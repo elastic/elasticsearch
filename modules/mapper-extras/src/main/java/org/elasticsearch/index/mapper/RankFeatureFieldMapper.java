@@ -224,7 +224,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         RankFeatureFieldType ft = (RankFeatureFieldType) other.fieldType();
         if (fieldType().positiveScoreImpact != ft.positiveScoreImpact()) {
             conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");

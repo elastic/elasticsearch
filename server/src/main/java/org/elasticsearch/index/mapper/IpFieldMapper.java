@@ -398,10 +398,10 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        IpFieldMapper other = (IpFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        IpFieldMapper mergeWith = (IpFieldMapper) other;
+        if (mergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = mergeWith.ignoreMalformed;
         }
     }
 

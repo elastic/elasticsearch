@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
@@ -176,8 +177,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) other;
         if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
             this.enabledState = sizeFieldMapperMergeWith.enabledState;
         }

@@ -633,16 +633,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        final DateFieldMapper other = (DateFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
-        }
-
-    }
-
-    @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         final DateFieldMapper d = (DateFieldMapper) other;
         if (Objects.equals(fieldType().dateTimeFormatter.pattern(), d.fieldType().dateTimeFormatter.pattern()) == false) {
             conflicts.add("mapper [" + name() + "] has different [format] values");
@@ -652,6 +643,9 @@ public final class DateFieldMapper extends FieldMapper {
         }
         if (Objects.equals(fieldType().resolution.type(), d.fieldType().resolution.type()) == false) {
             conflicts.add("mapper [" + name() + "] cannot change between milliseconds and nanoseconds");
+        }
+        if (d.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = d.ignoreMalformed;
         }
     }
 

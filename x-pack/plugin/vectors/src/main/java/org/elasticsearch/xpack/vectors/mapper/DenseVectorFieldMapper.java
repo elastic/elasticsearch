@@ -231,7 +231,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         DenseVectorFieldType otherType = (DenseVectorFieldType) other.fieldType();
         if (this.fieldType().dims() != otherType.dims()) {
             conflicts.add("mapper [" + name() + "] has different dims");

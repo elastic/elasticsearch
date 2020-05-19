@@ -652,13 +652,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
-        this.maxInputLength = fieldMergeWith.maxInputLength;
-    }
-
-    @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         CompletionFieldType c = (CompletionFieldType)other.fieldType();
 
         if (fieldType().preservePositionIncrements != c.preservePositionIncrements) {
@@ -672,5 +666,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         } else if (fieldType().hasContextMappings() && fieldType().contextMappings.equals(c.contextMappings) == false) {
             conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
         }
+
+        this.maxInputLength = ((CompletionFieldMapper)other).maxInputLength;
     }
+
 }

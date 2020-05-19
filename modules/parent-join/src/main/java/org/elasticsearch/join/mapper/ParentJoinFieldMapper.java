@@ -318,8 +318,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) other;
+        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
         for (ParentIdFieldMapper mapper : parentIdFields) {
             if (joinMergeWith.getParentIdFieldMapper(mapper.getParentName(), true) == null) {
                 conflicts.add("cannot remove parent [" + mapper.getParentName() + "] in join field [" + name() + "]");
@@ -338,25 +339,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                         conflicts.add("cannot create child [" + child  + "] from an existing parent");
                     }
                 }
+                newParentIdFields.add(mergeWithMapper);
             } else {
                 for (String child : self.getChildren()) {
                     if (mergeWithMapper.getChildren().contains(child) == false) {
                         conflicts.add("cannot remove child [" + child + "] in join field [" + name() + "]");
                     }
                 }
-            }
-        }
-    }
-
-    @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) mergeWith;
-        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
-        for (ParentIdFieldMapper mergeWithMapper : joinMergeWith.parentIdFields) {
-            ParentIdFieldMapper self = getParentIdFieldMapper(mergeWithMapper.getParentName(), true);
-            if (self == null) {
-                newParentIdFields.add(mergeWithMapper);
-            } else {
                 ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper);
                 newParentIdFields.add(merged);
             }

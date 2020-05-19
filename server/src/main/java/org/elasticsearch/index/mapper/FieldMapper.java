@@ -337,41 +337,26 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public final FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
         List<String> conflicts = new ArrayList<>();
-        merged.checkCompatibility(mergeWith, conflicts);
+        if (mergeWith instanceof FieldMapper == false) {
+            throw new IllegalArgumentException("mapper [" + fieldType.name() + "] cannot be changed from type ["
+            + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
+        }
+        merged.mergeSharedOptions((FieldMapper)mergeWith, conflicts);
         if (conflicts.isEmpty() == false) {
             throw new IllegalArgumentException("Mapper for [" + name() +
                 "] conflicts with existing mapping:\n" + conflicts.toString());
         }
-        merged.mergeFieldMapper((FieldMapper)mergeWith);
         return merged;
     }
 
-    private void mergeFieldMapper(FieldMapper mergeWith) {
-        multiFields = multiFields.merge(mergeWith.multiFields);
-        // apply changeable values
-        this.fieldType = mergeWith.fieldType;
-        this.copyTo = mergeWith.copyTo;
-        doMerge(mergeWith);
-    }
+    private void mergeSharedOptions(FieldMapper mergeWith, List<String> conflicts) {
 
-    /**
-     * Merge changes coming from {@code mergeWith} in place.
-     */
-    protected void doMerge(FieldMapper mergeWith) { }
-
-    private void checkCompatibility(Mapper mergeWith, List<String> conflicts) {
-
-        if (mergeWith instanceof FieldMapper == false ||
-            Objects.equals(this.contentType(), ((FieldMapper)mergeWith).contentType()) == false) {
-            String mergedType = mergeWith.getClass().getSimpleName();
-            if (mergeWith instanceof FieldMapper) {
-                mergedType = ((FieldMapper) mergeWith).contentType();
-            }
+        if (Objects.equals(this.contentType(), mergeWith.contentType()) == false) {
             throw new IllegalArgumentException("mapper [" + fieldType().name() + "] cannot be changed from type [" + contentType()
-                + "] to [" + mergedType + "]");
+                + "] to [" + mergeWith.contentType() + "]");
         }
 
-        MappedFieldType other = ((FieldMapper)mergeWith).fieldType;
+        MappedFieldType other = mergeWith.fieldType;
 
         boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
@@ -416,15 +401,20 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             conflicts.add("mapper [" + name() + "] has different [similarity]");
         }
 
-        doCheckCompatibility((FieldMapper)mergeWith, conflicts);
+        mergeOptions(mergeWith, conflicts);
+
+        if (conflicts.isEmpty()) {
+            multiFields = multiFields.merge(mergeWith.multiFields);
+            // apply changeable values
+            this.fieldType = mergeWith.fieldType;
+            this.copyTo = mergeWith.copyTo;
+        }
     }
 
     /**
-     * Check for incompatible settings in mappings to be merged
+     * Merge type-specific options and check for incompatible settings in mappings to be merged
      */
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
-
-    }
+    protected abstract void mergeOptions(FieldMapper other, List<String> conflicts);
 
     @Override
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {

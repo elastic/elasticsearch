@@ -280,8 +280,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        AbstractGeometryFieldMapper gsfm = (AbstractGeometryFieldMapper)mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        AbstractGeometryFieldMapper gsfm = (AbstractGeometryFieldMapper)other;
 
         if (gsfm.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gsfm.ignoreMalformed;

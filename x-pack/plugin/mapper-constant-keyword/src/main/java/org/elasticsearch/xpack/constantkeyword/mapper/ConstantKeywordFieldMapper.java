@@ -290,7 +290,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ConstantKeywordFieldType newConstantKeywordFT = (ConstantKeywordFieldType) other.fieldType();
         if (this.fieldType().value != null) {
             if (newConstantKeywordFT.value == null) {

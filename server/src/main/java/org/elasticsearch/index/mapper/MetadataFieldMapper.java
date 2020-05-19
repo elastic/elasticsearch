@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 
@@ -69,4 +70,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         // do nothing
     }
 
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) { }
 }

@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -196,10 +197,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
     }
 
-
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) other;
         this.children = parentMergeWith.children;
     }
 

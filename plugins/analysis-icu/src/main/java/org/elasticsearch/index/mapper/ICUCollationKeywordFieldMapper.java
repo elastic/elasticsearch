@@ -601,7 +601,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) other;
         if (!Objects.equals(collator, icuMergeWith.collator)) {
             conflicts.add("mapper [" + name() + "] has different [collator]");
@@ -653,11 +653,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         if (hiraganaQuaternaryMode != icuMergeWith.hiraganaQuaternaryMode) {
             conflicts.add("Cannot update hiragana_quaternary_mode setting for [" + CONTENT_TYPE + "]");
         }
-    }
 
-    @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
         this.ignoreAbove = icuMergeWith.ignoreAbove;
     }
 

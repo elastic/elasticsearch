@@ -497,6 +497,11 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("should not be invoked");
     }

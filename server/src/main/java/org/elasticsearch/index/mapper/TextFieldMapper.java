@@ -480,6 +480,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+        }
+
+        @Override
         protected String contentType() {
             return "phrase";
         }
@@ -498,6 +503,11 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override
@@ -851,20 +861,14 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
-        TextFieldMapper t = (TextFieldMapper) other;
-        if (t.fieldType().indexPhrases != this.fieldType().indexPhrases) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        TextFieldMapper mw = (TextFieldMapper) other;
+        if (mw.fieldType().indexPhrases != this.fieldType().indexPhrases) {
             conflicts.add("mapper [" + name() + "] has different [index_phrases] settings");
         }
-        if (Objects.equals(t.fieldType().prefixFieldType, this.fieldType().prefixFieldType) == false) {
+        if (Objects.equals(mw.fieldType().prefixFieldType, this.fieldType().prefixFieldType) == false) {
             conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
         }
-    }
-
-    @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        TextFieldMapper mw = (TextFieldMapper) mergeWith;
-
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
             this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper);
         }

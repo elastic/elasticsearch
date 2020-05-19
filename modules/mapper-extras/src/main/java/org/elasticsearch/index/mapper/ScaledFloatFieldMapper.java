@@ -442,21 +442,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ScaledFloatFieldMapper mergeWith = (ScaledFloatFieldMapper) other;
         ScaledFloatFieldType ft = (ScaledFloatFieldType) other.fieldType();
         if (fieldType().scalingFactor != ft.getScalingFactor()) {
             conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
         }
-    }
-
-    @Override
-    protected void doMerge(FieldMapper mergeWith) {
-        ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+        if (mergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = mergeWith.ignoreMalformed;
         }
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+        if (mergeWith.coerce.explicit()) {
+            this.coerce = mergeWith.coerce;
         }
     }
 

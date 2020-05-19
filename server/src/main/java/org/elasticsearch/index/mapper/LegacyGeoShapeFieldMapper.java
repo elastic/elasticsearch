@@ -522,18 +522,16 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void doMerge(FieldMapper mergeWith) {
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper mergeWith, List<String> conflicts) {
+
         if (mergeWith instanceof GeoShapeFieldMapper) {
             GeoShapeFieldMapper fieldMapper = (GeoShapeFieldMapper) mergeWith;
             throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
                 "using [" + fieldType().strategy() + "] strategy cannot be merged with " + "[" + fieldMapper.typeName() +
                 "] with [BKD] strategy");
         }
-    }
 
-    @Override
-    protected void doCheckCompatibility(FieldMapper other, List<String> conflicts) {
-        GeoShapeFieldType g = (GeoShapeFieldType)other.fieldType();
+        GeoShapeFieldType g = (GeoShapeFieldType)mergeWith.fieldType();
         // prevent user from changing strategies
         if (fieldType().strategy() != g.strategy()) {
             conflicts.add("mapper [" + name() + "] has different [strategy]");

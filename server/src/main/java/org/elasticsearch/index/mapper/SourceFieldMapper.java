@@ -300,8 +300,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doCheckCompatibility(FieldMapper mergeWith, List<String> conflicts) {
-        SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        SourceFieldMapper sourceMergeWith = (SourceFieldMapper) other;
         if (this.enabled != sourceMergeWith.enabled) {
             conflicts.add("Cannot update enabled setting for [_source]");
         }
@@ -312,4 +312,5 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             conflicts.add("Cannot update excludes setting for [_source]");
         }
     }
+
 }

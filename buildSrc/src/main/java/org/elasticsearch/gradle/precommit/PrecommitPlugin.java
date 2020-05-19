@@ -20,13 +20,10 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
@@ -56,10 +53,10 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
 
     public abstract TaskProvider<? extends Task> createTask(Project project);
 
-    private static class PrecommitTaskPlugin implements Plugin<Project> {
+    static class PrecommitTaskPlugin implements Plugin<Project> {
 
         // need a public ctor
-        public PrecommitTaskPlugin() {}
+        //public PrecommitTaskPlugin() {}
 
         @Override
         public void apply(Project project) {

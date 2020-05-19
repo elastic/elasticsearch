@@ -46,7 +46,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings, name);
 
-        maxTokenLength = settings.getAsInt(MAX_TOKEN_LENGTH, StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        maxTokenLength = settings.getAsInt(MAX_TOKEN_LENGTH, CharTokenizer.DEFAULT_MAX_WORD_LEN);
 
         for (final String c : settings.getAsList("tokenize_on_chars")) {
             if (c == null || c.length() == 0) {

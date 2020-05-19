@@ -75,7 +75,8 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Settings defaultLengthSettings = newAnalysisSettingsBuilder()
             .putList("tokenize_on_chars", conf)
             .build();
-        CharTokenizer tokenizer = (CharTokenizer) new CharGroupTokenizerFactory(indexProperties, null, name, defaultLengthSettings).create();
+        CharTokenizer tokenizer = (CharTokenizer) new CharGroupTokenizerFactory(indexProperties, null, name, defaultLengthSettings)
+            .create();
         String textWithVeryLongToken = RandomStrings.randomAsciiAlphanumOfLength(random(), 256).concat("-trailing");
         try (Reader reader = new StringReader(textWithVeryLongToken)) {
             tokenizer.setReader(reader);

@@ -105,6 +105,10 @@ Python::
 
     See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
 
+JavaScript::
+
+    See {jsclient}/client-helpers.html[client.helpers.*]
+
 [float]
 [[bulk-curl]]
 ===== Submitting bulk requests with cURL

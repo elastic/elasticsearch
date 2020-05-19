@@ -228,7 +228,7 @@ class AntFixture extends AntTask implements Fixture {
         final AntFixture fixture = this
         final Object pid = "${ -> fixture.pid }"
         TaskProvider<Exec> stop = project.tasks.register("${name}#stop", LoggedExec)
-        stop.configure{
+        stop.configure {
             onlyIf { fixture.pidFile.exists() }
             doFirst {
                 logger.info("Shutting down ${fixture.name} with pid ${pid}")

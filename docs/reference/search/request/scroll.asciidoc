@@ -27,7 +27,7 @@ Python::
 
 JavaScript::
 
-    See {jsclient}/client-helpers.html[client.helpers.*]
+    See {jsclient-current}/client-helpers.html[client.helpers.*]
 
 *********************************************
 

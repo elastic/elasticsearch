@@ -51,9 +51,6 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
             for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
                 task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()));
             }
-
-            project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit));
-            project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
         });
     }
 
@@ -66,9 +63,14 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
 
         @Override
         public void apply(Project project) {
-            project.getTasks().register(PRECOMMIT_TASK_NAME, t -> {
+            TaskProvider<Task> precommit = project.getTasks().register(PRECOMMIT_TASK_NAME, t -> {
                 t.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
                 t.setDescription("Runs all non-test checks");
+            });
+
+            project.getPluginManager().withPlugin("java", p -> {
+                project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit));
+                project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
             });
         }
     }

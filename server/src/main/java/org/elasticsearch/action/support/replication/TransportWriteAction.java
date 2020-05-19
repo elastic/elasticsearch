@@ -104,18 +104,32 @@ public abstract class TransportWriteAction<
      * and failure async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
     @Override
-    protected abstract void shardOperationOnPrimary(
-            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
+    protected void shardOperationOnPrimary(
+            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
+        dispatchedShardOperationOnPrimary(request, primary, listener);
+    }
+
+    protected abstract void dispatchedShardOperationOnPrimary(
+        Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
      *
-     * @return the result of the operation on replica, including current translog location and operation response and failure
-     * async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code> refresh policy
+     * @param listener listener for the result of the operation on replica, including current translog location and operation
+     * response and failure async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code>
+     * refresh policy
      */
     @Override
-    protected abstract WriteReplicaResult<ReplicaRequest> shardOperationOnReplica(
-            ReplicaRequest request, IndexShard replica) throws Exception;
+    protected void shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        try {
+            listener.onResponse(dispatchedShardOperationOnReplica(shardRequest, replica));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    protected abstract WriteReplicaResult<ReplicaRequest> dispatchedShardOperationOnReplica(
+        ReplicaRequest request, IndexShard replica) throws Exception;
 
     /**
      * Result of taking the action on the primary.

@@ -83,7 +83,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected void shardOperationOnPrimary(ResyncReplicationRequest request, IndexShard primary,
+    protected void dispatchedShardOperationOnPrimary(ResyncReplicationRequest request, IndexShard primary,
             ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener) {
         ActionListener.completeWith(listener,
             () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger));
@@ -94,8 +94,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected WriteReplicaResult<ResyncReplicationRequest> shardOperationOnReplica(ResyncReplicationRequest request,
-                                                                                   IndexShard replica) throws Exception {
+    protected WriteReplicaResult<ResyncReplicationRequest> dispatchedShardOperationOnReplica(ResyncReplicationRequest request,
+                                                                                             IndexShard replica) throws Exception {
         Translog.Location location = performOnReplica(request, replica);
         return new WriteReplicaResult<>(request, location, null, replica, logger);
     }

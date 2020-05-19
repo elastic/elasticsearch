@@ -142,7 +142,7 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected void shardOperationOnPrimary(Request request, IndexShard primary,
+    protected void dispatchedShardOperationOnPrimary(Request request, IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener) {
         ActionListener.completeWith(listener, () -> {
             assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
@@ -154,7 +154,7 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(
+    protected WriteReplicaResult<Request> dispatchedShardOperationOnReplica(
             final Request request,
             final IndexShard replica) throws WriteStateException {
         Objects.requireNonNull(request);

@@ -124,7 +124,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
+    protected void dispatchedShardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
@@ -429,7 +429,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+    public WriteReplicaResult<BulkShardRequest> dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica)
+        throws Exception {
         final long startBulkTime = System.nanoTime();
         final Translog.Location location = performOnReplica(request, replica);
         replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);

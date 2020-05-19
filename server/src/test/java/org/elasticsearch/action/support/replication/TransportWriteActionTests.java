@@ -153,7 +153,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
         TransportWriteAction.WriteReplicaResult<TestRequest> result =
-                testAction.shardOperationOnReplica(request, indexShard);
+                testAction.dispatchedShardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
@@ -183,7 +183,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
         TransportWriteAction.WriteReplicaResult<TestRequest> result =
-                testAction.shardOperationOnReplica(request, indexShard);
+                testAction.dispatchedShardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
@@ -221,7 +221,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         TestAction testAction = new TestAction();
-        TransportWriteAction.WriteReplicaResult<TestRequest> result = testAction.shardOperationOnReplica(request, indexShard);
+        TransportWriteAction.WriteReplicaResult<TestRequest> result = testAction.dispatchedShardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
@@ -253,7 +253,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(randomBoolean(), true);
         TransportWriteAction.WriteReplicaResult<TestRequest> result =
-                testAction.shardOperationOnReplica(request, indexShard);
+                testAction.dispatchedShardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response);
@@ -381,7 +381,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected void shardOperationOnPrimary(
+        protected void dispatchedShardOperationOnPrimary(
                 TestRequest request, IndexShard primary, ActionListener<PrimaryResult<TestRequest, TestResponse>> listener) {
             ActionListener.completeWith(listener, () -> {
                 if (withDocumentFailureOnPrimary) {
@@ -393,7 +393,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected WriteReplicaResult<TestRequest> shardOperationOnReplica(TestRequest request, IndexShard replica) throws Exception {
+        protected WriteReplicaResult<TestRequest> dispatchedShardOperationOnReplica(TestRequest request, IndexShard replica) {
             final WriteReplicaResult<TestRequest> replicaResult;
             if (withDocumentFailureOnReplica) {
                 replicaResult = new WriteReplicaResult<>(request, null, new RuntimeException("simulated"), replica, logger);

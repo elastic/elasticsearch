@@ -31,6 +31,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -74,7 +75,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -162,31 +162,11 @@ public abstract class TransportReplicationAction<
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
         transportService.registerRequestHandler(transportPrimaryAction, executor, forceExecutionOnPrimary, true,
-            in -> new ConcreteShardRequest<>(requestReader, in), new TransportRequestHandler<>() {
-                @Override
-                public void messageReceived(ConcreteShardRequest<Request> request, TransportChannel channel, Task task) {
-                    handlePrimaryRequest(request, channel, task);
-                }
-
-                @Override
-                public Releasable preDispatchValidation(ConcreteShardRequest<Request> request) {
-                    return checkPrimaryLimits(request.request);
-                }
-            });
+            in -> new ConcreteShardRequest<>(requestReader, in), this::handlePrimaryRequest);
 
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(transportReplicaAction, executor, true, true,
-            in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), new TransportRequestHandler<>() {
-                @Override
-                public void messageReceived(ConcreteReplicaRequest<ReplicaRequest> request, TransportChannel channel, Task task) {
-                    handleReplicaRequest(request, channel, task);
-                }
-
-                @Override
-                public Releasable preDispatchValidation(ConcreteReplicaRequest<ReplicaRequest> request) {
-                    return checkReplicaLimits(request.getRequest());
-                }
-            });
+            in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), this::handleReplicaRequest);
 
         this.transportOptions = transportOptions(settings);
 
@@ -240,7 +220,16 @@ public abstract class TransportReplicationAction<
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
      */
-    protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica) throws Exception;
+    protected ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica) throws Exception {
+        PlainActionFuture<ReplicaResult> listener = PlainActionFuture.newFuture();
+        shardOperationOnReplica(shardRequest, replica, listener);
+        return listener.actionGet();
+    }
+
+    protected void shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica,
+        ActionListener<ReplicaResult> listener) {
+
+    };
 
     /**
      * Cluster level block to check before request execution. Returning null means that no blocks need to be checked.

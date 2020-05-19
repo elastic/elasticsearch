@@ -59,7 +59,7 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected void shardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
+    protected void dispatchedShardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener) {
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
@@ -158,7 +158,7 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
+    protected WriteReplicaResult<BulkShardOperationsRequest> dispatchedShardOperationOnReplica(
             final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());

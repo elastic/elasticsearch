@@ -158,12 +158,14 @@ public class TransportBulkShardOperationsAction
     }
 
     @Override
-    protected WriteReplicaResult<BulkShardOperationsRequest> dispatchedShardOperationOnReplica(
-            final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
-        if (logger.isTraceEnabled()) {
-            logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
-        }
-        return shardOperationOnReplica(request, replica, logger);
+    protected void dispatchedShardOperationOnReplica(BulkShardOperationsRequest request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
+            }
+            return shardOperationOnReplica(request, replica, logger);
+        });
     }
 
     // public for testing purposes only

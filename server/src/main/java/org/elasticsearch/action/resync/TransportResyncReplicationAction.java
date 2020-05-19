@@ -94,10 +94,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected WriteReplicaResult<ResyncReplicationRequest> dispatchedShardOperationOnReplica(ResyncReplicationRequest request,
-                                                                                             IndexShard replica) throws Exception {
-        Translog.Location location = performOnReplica(request, replica);
-        return new WriteReplicaResult<>(request, location, null, replica, logger);
+    protected void dispatchedShardOperationOnReplica(ResyncReplicationRequest request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Translog.Location location = performOnReplica(request, replica);
+            return new WriteReplicaResult<>(request, location, null, replica, logger);
+        });
     }
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {

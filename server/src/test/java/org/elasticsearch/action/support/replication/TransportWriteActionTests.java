@@ -152,8 +152,9 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
-        TransportWriteAction.WriteReplicaResult<TestRequest> result =
-                testAction.dispatchedShardOperationOnReplica(request, indexShard);
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
@@ -182,8 +183,9 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
-        TransportWriteAction.WriteReplicaResult<TestRequest> result =
-                testAction.dispatchedShardOperationOnReplica(request, indexShard);
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
@@ -221,7 +223,9 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         TestAction testAction = new TestAction();
-        TransportWriteAction.WriteReplicaResult<TestRequest> result = testAction.dispatchedShardOperationOnReplica(request, indexShard);
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
@@ -252,8 +256,9 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testDocumentFailureInShardOperationOnReplica() throws Exception {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(randomBoolean(), true);
-        TransportWriteAction.WriteReplicaResult<TestRequest> result =
-                testAction.dispatchedShardOperationOnReplica(request, indexShard);
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> future = PlainActionFuture.newFuture();
+        testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
+        final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.runPostReplicaActions(ActionListener.map(listener, ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response);
@@ -393,14 +398,16 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         @Override
-        protected WriteReplicaResult<TestRequest> dispatchedShardOperationOnReplica(TestRequest request, IndexShard replica) {
-            final WriteReplicaResult<TestRequest> replicaResult;
-            if (withDocumentFailureOnReplica) {
-                replicaResult = new WriteReplicaResult<>(request, null, new RuntimeException("simulated"), replica, logger);
-            } else {
-                replicaResult = new WriteReplicaResult<>(request, location, null, replica, logger);
-            }
-            return replicaResult;
+        protected void dispatchedShardOperationOnReplica(TestRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+            ActionListener.completeWith(listener, () -> {
+                final WriteReplicaResult<TestRequest> replicaResult;
+                if (withDocumentFailureOnReplica) {
+                    replicaResult = new WriteReplicaResult<>(request, null, new RuntimeException("simulated"), replica, logger);
+                } else {
+                    replicaResult = new WriteReplicaResult<>(request, location, null, replica, logger);
+                }
+                return replicaResult;
+            });
         }
     }
 

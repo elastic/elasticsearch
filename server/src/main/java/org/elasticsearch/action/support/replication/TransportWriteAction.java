@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -57,12 +58,15 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
+    private final String executor;
+
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
                                    Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-              request, replicaRequest, executor, true, forceExecutionOnPrimary);
+              request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
+        this.executor = executor;
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */
@@ -106,7 +110,12 @@ public abstract class TransportWriteAction<
     @Override
     protected void shardOperationOnPrimary(
             Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
-        dispatchedShardOperationOnPrimary(request, primary, listener);
+        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                dispatchedShardOperationOnPrimary(request, primary, listener);
+            }
+        });
     }
 
     protected abstract void dispatchedShardOperationOnPrimary(
@@ -120,16 +129,17 @@ public abstract class TransportWriteAction<
      * refresh policy
      */
     @Override
-    protected void shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        try {
-            listener.onResponse(dispatchedShardOperationOnReplica(shardRequest, replica));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+    protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                dispatchedShardOperationOnReplica(request, replica, listener);
+            }
+        });
     }
 
-    protected abstract WriteReplicaResult<ReplicaRequest> dispatchedShardOperationOnReplica(
-        ReplicaRequest request, IndexShard replica) throws Exception;
+    protected abstract void dispatchedShardOperationOnReplica(
+        ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener);
 
     /**
      * Result of taking the action on the primary.

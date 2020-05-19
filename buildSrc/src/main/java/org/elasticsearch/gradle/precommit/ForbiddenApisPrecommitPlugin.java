@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.precommit;
 
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis;
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin;
+import groovy.lang.Closure;
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.util.GradleUtils;
@@ -84,22 +85,28 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     buildResourcesTask.copy("forbidden/es-server-signatures.txt"))));
             }
             ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();
-            ext.set("replaceSignatureFiles", new Object() {
-                public void call(String[] names) {
+            project.getLogger().lifecycle(t.getPath() + " - Adding signatures methods");
+            ext.set("replaceSignatureFiles", new Closure<Void>(t) {
+                @Override
+                public Void call(Object... names) {
                     List<File> resources = new ArrayList<>(names.length);
-                    for (String name : names) {
+                    for (Object name : names) {
                         resources.add(buildResourcesTask.copy("forbidden/" + name + ".txt"));
                     }
                     t.setSignaturesFiles(project.files(resources));
+                    return null;
                 }
+
             });
-            ext.set("addSignatureFiles", new Object() {
-                public void call(String[] names) {
+            ext.set("addSignatureFiles", new Closure<Void>(t) {
+                @Override
+                public Void call(Object... names) {
                     List<File> resources = new ArrayList<>(names.length);
-                    for (String name : names) {
+                    for (Object name : names) {
                         resources.add(buildResourcesTask.copy("forbidden/" + name + ".txt"));
                     }
                     t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files(resources)));
+                    return null;
                 }
             });
         });

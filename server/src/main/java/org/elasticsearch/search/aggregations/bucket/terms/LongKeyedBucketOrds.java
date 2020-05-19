@@ -47,7 +47,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     public abstract long add(long owningBucketOrd, long value);
 
     /**
-     * Count the buckets in {@code owningBucketOrd}.
+     * The buckets in {@code owningBucketOrd}.
+     * <p>
+     * Some aggregations expect this to be fast but most wouldn't
+     * mind particularly if it weren't.
      */
     public abstract long bucketsInOrd(long owningBucketOrd);
 
@@ -55,6 +58,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * The number of collected buckets.
      */
     public abstract long size();
+
+    /**
+     * The maximum possible used {@code owningBucketOrd}.
+     */
+    public abstract long maxOwningBucketOrd();
 
     /**
      * Build an iterator for buckets inside {@code owningBucketOrd} in order
@@ -96,7 +104,6 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         };
     }
 
-
     /**
      * Implementation that only works if it is collecting from a single bucket.
      */
@@ -122,6 +129,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long size() {
             return ords.size();
+        }
+
+        @Override
+        public long maxOwningBucketOrd() {
+            return 0;
         }
 
         @Override
@@ -232,6 +244,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long size() {
             return lastGlobalOrd + 1;
+        }
+
+        @Override
+        public long maxOwningBucketOrd() {
+            return owningOrdToBuckets.size() - 1;
         }
 
         @Override

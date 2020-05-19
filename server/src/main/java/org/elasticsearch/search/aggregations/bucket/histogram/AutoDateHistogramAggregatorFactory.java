@@ -69,9 +69,6 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             AutoDateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof AutoDateHistogramAggregatorSupplier == false) {
@@ -81,7 +78,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
         Function<Rounding, Rounding.Prepared> roundingPreparer =
                 valuesSource.roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
         return ((AutoDateHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, roundingInfos,
-                roundingPreparer, valuesSource, config.format(), searchContext, parent, metadata);
+                roundingPreparer, valuesSource, config.format(), searchContext, parent, collectsFromSingleBucket, metadata);
     }
 
     @Override
@@ -89,6 +86,6 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, Rounding::prepareForUnknown, null,
-                config.format(), searchContext, parent, metadata);
+                config.format(), searchContext, parent, false, metadata);
     }
 }

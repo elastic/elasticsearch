@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class LongKeyedBucketOrdsTests extends ESTestCase {
     private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -92,6 +93,8 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
                 assertThat(ordEnum.value(), equalTo(values[i]));
             }
             assertFalse(ordEnum.next());
+
+            assertThat(ords.maxOwningBucketOrd(), equalTo(0L));
         } finally {
             ords.close();
         }
@@ -156,6 +159,8 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
             assertFalse(ords.ordsEnum(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)).next());
             assertThat(ords.bucketsInOrd(randomLongBetween(maxOwningBucketOrd + 1, Long.MAX_VALUE)), equalTo(0L));
+
+            assertThat(ords.maxOwningBucketOrd(), greaterThanOrEqualTo(maxOwningBucketOrd));
         }
     }
 

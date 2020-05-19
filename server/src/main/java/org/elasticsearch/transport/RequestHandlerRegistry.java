@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -70,12 +71,19 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private void processMessageReceived(Request request, TransportChannel channel, AtomicReference<Releasable> releasable)
         throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
-        Releasable[] releasables = new Releasable[2];
         boolean success = false;
+        // TODO: Review releasable logic
+        Releasable[] releasables = new Releasable[2];
+        releasables[0] = () -> taskManager.unregister(task);
         try {
-            releasables[0] = () -> taskManager.unregister(task);
-            releasables[1] = releasable.get();
-            handler.messageReceived(request, new TaskTransportChannel(channel, releasables), task);
+            if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
+                final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
+                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
+                releasables[0] = Releasables.wrap(releasables[0], stopTracking);
+                releasables[1] = releasable.get();
+            }
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, releasables);
+            handler.messageReceived(request, taskTransportChannel, task);
             success = true;
         } finally {
             if (success == false) {

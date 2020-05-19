@@ -44,20 +44,20 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         public static final ParseField NULL_VALUE = new ParseField("null_value");
     }
 
-    public abstract static class Builder<T extends Builder, Y extends AbstractPointGeometryFieldMapper,
-            FT extends AbstractPointGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, Y, FT> {
+    public abstract static class Builder<T extends Builder,
+            FT extends AbstractPointGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
         public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name, fieldType, defaultFieldType);
         }
 
-        public abstract Y build(BuilderContext context, String simpleName, MappedFieldType fieldType,
+        public abstract AbstractPointGeometryFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                 MappedFieldType defaultFieldType, Settings indexSettings,
                                 MultiFields multiFields, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                 CopyTo copyTo);
 
 
         @Override
-        public Y build(BuilderContext context) {
+        public AbstractPointGeometryFieldMapper build(BuilderContext context) {
             return build(context, name, fieldType, defaultFieldType, context.indexSettings(),
                 multiFieldsBuilder.build(this, context), ignoreMalformed(context),
                 ignoreZValue(context), copyTo);

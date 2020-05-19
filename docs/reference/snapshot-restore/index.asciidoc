@@ -42,6 +42,7 @@ cluster is by using the snapshot and restore functionality.
 // end::backup-warning[]
 
 [float]
+[[snapshot-restore-version-compatibility]]
 === Version compatibility
 
 IMPORTANT: Version compatibility refers to the underlying Lucene index

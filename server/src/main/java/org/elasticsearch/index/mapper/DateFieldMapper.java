@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -171,7 +172,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, DateFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private Boolean ignoreMalformed;
         private Explicit<String> format = new Explicit<>(DEFAULT_DATE_TIME_FORMATTER.pattern(), false);
@@ -262,7 +263,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.withResolution(resolution);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -430,11 +431,17 @@ public final class DateFieldMapper extends FieldMapper {
                     --u;
                 }
             }
+
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
                 Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
+
+                if (context.indexSortedOnField(name())) {
+                    query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
+                }
             }
+
             if (nowUsed[0]) {
                 query = new DateRangeIncludingNowQuery(query);
             }

@@ -86,7 +86,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
     public static final ParseField VALUES_FIELD = new ParseField("values");
 
-    public static class Builder extends FieldMapper.Builder<Builder, HistogramFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
 
         public Builder(String name) {
@@ -126,8 +126,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<Builder, HistogramFieldMapper> parse(String name,
-                                                                   Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
             TypeParsers.parseMeta(builder, name, node);

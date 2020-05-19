@@ -47,14 +47,20 @@ public class TaskTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
-        release();
-        channel.sendResponse(response);
+        try {
+            release();
+        } finally {
+            channel.sendResponse(response);
+        }
     }
 
     @Override
     public void sendResponse(Exception exception) throws IOException {
-        release();
-        channel.sendResponse(exception);
+        try {
+            release();
+        } finally {
+            channel.sendResponse(exception);
+        }
     }
 
     @Override

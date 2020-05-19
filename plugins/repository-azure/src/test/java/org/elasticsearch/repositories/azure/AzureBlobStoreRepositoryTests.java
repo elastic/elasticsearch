@@ -22,10 +22,12 @@ import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.blob.BlobRequestOptions;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.azure.AzureHttpHandler;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -38,7 +40,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -64,12 +69,17 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/container", new AzureBlobStoreHttpHandler("container"));
+        return Collections.singletonMap("/container", new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler("container")));
     }
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+    }
+
+    @Override
+    protected List<String> requestTypesTracked() {
+        return List.of("GET", "LIST", "HEAD");
     }
 
     @Override
@@ -153,6 +163,30 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             return exchange.getRequestMethod()
                 + " " + requestId
                 + (range != null ? " " + range : "");
+        }
+    }
+
+    /**
+     * HTTP handler that keeps track of requests performed against Azure Storage.
+     */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+    private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
+
+        private static final Predicate<String> listPattern = Pattern.compile("GET /[a-zA-Z0-9]+\\??.+").asMatchPredicate();
+
+        private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
+            super(delegate);
+        }
+
+        @Override
+        protected void maybeTrack(String request, Headers headers) {
+            if (Regex.simpleMatch("GET /*/*", request)) {
+                trackRequest("GET");
+            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+                trackRequest("HEAD");
+            } else if (listPattern.test(request)) {
+                trackRequest("LIST");
+            }
         }
     }
 }

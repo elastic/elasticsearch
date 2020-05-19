@@ -644,6 +644,8 @@ are supported:
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
+* <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
+* <<search-aggregations-bucket-terms-aggregation, Terms>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
@@ -918,15 +920,13 @@ default value is `60s`.
 end::sync-time-delay[]
 
 tag::transform-settings[]
-Defines the settings of the {transform}.
+Defines optional {transform} settings.
 end::transform-settings[]
 
 tag::transform-settings-docs-per-second[]
-Set `docs-per-second` to throttle the rate transform is issuing search and
-index requests. Throttling slows down search requests by adding a wait time
-between searches. For the number of docs, the number of input documents is taken.
-Throttling can be disabled by setting it to `null`.
-The default is no throttling, value `null`.
+Specifies a limit on the number of input documents per second. This setting
+throttles the {transform} by adding a wait time between search requests. The 
+default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
 tag::transform-settings-max-page-search-size[]

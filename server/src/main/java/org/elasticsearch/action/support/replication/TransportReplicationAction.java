@@ -213,23 +213,21 @@ public abstract class TransportReplicationAction<
     protected abstract void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
-    /**
-     * Synchronously execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)}.
-     *
-     * @param shardRequest the request to the replica shard
-     * @param replica      the replica shard to perform the operation on
-     */
-    protected ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica) throws Exception {
+    private ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica) throws Exception {
         PlainActionFuture<ReplicaResult> listener = PlainActionFuture.newFuture();
         shardOperationOnReplica(shardRequest, replica, listener);
         return listener.actionGet();
     }
 
-    protected void shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica,
-        ActionListener<ReplicaResult> listener) {
-
-    };
+    /**
+     * Execute the specified replica operation. This is done under a permit from
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)}.
+     *
+     * @param shardRequest the request to the replica shard
+     * @param replica      the replica shard to perform the operation on
+     */
+    protected abstract void shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica,
+        ActionListener<ReplicaResult> listener);
 
     /**
      * Cluster level block to check before request execution. Returning null means that no blocks need to be checked.

@@ -20,6 +20,6 @@ public class AlwaysAutoscalingDeciderService implements AutoscalingDeciderServic
 
     @Override
     public AutoscalingDecision scale(AlwaysAutoscalingDecider decider, AutoscalingDeciderContext context) {
-        return null;
+        return new AutoscalingDecision(name(), AutoscalingDecisionType.SCALE_UP, "always");
     }
 }

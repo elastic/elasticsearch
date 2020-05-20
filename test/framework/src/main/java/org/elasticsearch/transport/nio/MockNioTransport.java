@@ -54,7 +54,6 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.InboundMessage;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
@@ -106,16 +105,6 @@ public class MockNioTransport extends TcpTransport {
         serverChannel.addBindListener(ActionListener.toBiConsumer(future));
         future.actionGet();
         return serverChannel;
-    }
-
-    @Override
-    public void inboundMessage(TcpChannel channel, InboundMessage message) {
-        super.inboundMessage(channel, adjustInboundMessage(message));
-    }
-
-    // for tests to inject corruptions
-    protected InboundMessage adjustInboundMessage(InboundMessage message) {
-        return message;
     }
 
     @Override

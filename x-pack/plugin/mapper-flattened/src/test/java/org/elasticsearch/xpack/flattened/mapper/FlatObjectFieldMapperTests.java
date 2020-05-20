@@ -19,13 +19,13 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
@@ -39,14 +39,25 @@ import java.util.Collection;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
+public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFieldMapper.Builder> {
     private IndexService indexService;
     private DocumentMapperParser parser;
+
+    @Override
+    protected FlatObjectFieldMapper.Builder newBuilder() {
+        return new FlatObjectFieldMapper.Builder("flat-object");
+    }
+
+    @Override
+    protected boolean supportsStore() {
+        return false;
+    }
 
     @Before
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addBooleanModifier("split_queries_on_whitespace", true, FlatObjectFieldMapper.Builder::splitQueriesOnWhitespace);
     }
 
     @Override
@@ -490,4 +501,5 @@ public class FlatObjectFieldMapperTests extends ESSingleNodeTestCase {
         assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
     }
+
 }

@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
-
-public class VersionFieldTypeTests extends FieldTypeTestCase {
+public class VersionFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new VersionFieldMapper.VersionFieldType();

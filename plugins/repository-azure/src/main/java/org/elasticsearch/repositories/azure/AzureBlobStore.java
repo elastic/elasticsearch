@@ -103,25 +103,34 @@ public class AzureBlobStore implements BlobStore {
         final Map<String, AzureStorageSettings> newSettings = AzureStorageSettings.overrideLocationMode(prevSettings, this.locationMode);
         this.service.refreshAndClearCache(newSettings);
         this.getMetricsCollector = (httpURLConnection) -> {
-            if (httpURLConnection.getRequestMethod().equalsIgnoreCase("HEAD")) {
+            if (httpURLConnection.getRequestMethod().equals("HEAD")) {
                 stats.headOperations.incrementAndGet();
                 return;
             }
+            assert httpURLConnection.getRequestMethod().equals("GET");
 
             stats.getOperations.incrementAndGet();
         };
-        this.listMetricsCollector = (httpURLConnection) -> stats.listOperations.incrementAndGet();
+        this.listMetricsCollector = (httpURLConnection) -> {
+            assert httpURLConnection.getRequestMethod().equals("GET");
+            stats.listOperations.incrementAndGet();
+        };
         this.uploadMetricsCollector = (httpURLConnection -> {
            assert httpURLConnection.getRequestMethod().equals("PUT");
             String queryParams = httpURLConnection.getURL().getQuery();
-            // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-            // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-            if (queryParams != null && (queryParams.contains("comp=block") || queryParams.contains("comp=blocklist"))) {
+            if (queryParams != null && isBlockUpload(queryParams)) {
                 stats.putBlockOperations.incrementAndGet();
             } else {
                 stats.putOperations.incrementAndGet();
             }
         });
+    }
+
+    private boolean isBlockUpload(String queryParams) {
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+        return (queryParams.contains("comp=block") && queryParams.contains("blockid="))
+            || queryParams.contains("comp=blocklist");
     }
 
     @Override

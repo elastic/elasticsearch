@@ -173,7 +173,6 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
 
-
     }
 
     /** The {@link Distribution} that should be tested in this case */

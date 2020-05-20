@@ -235,8 +235,8 @@ public class Archives {
         return runElasticsearchStartCommand(installation, sh, null, true);
     }
 
-    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh,
-                                                         String keystorePassword, boolean daemonize) throws Exception {
+    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword, boolean daemonize)
+        throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -249,7 +249,9 @@ public class Archives {
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"
-                + "spawn -ignore HUP " + String.join(" ", command) + "\n"
+                + "spawn -ignore HUP "
+                + String.join(" ", command)
+                + "\n"
                 + "expect \"Elasticsearch keystore password:\"\n"
                 + "send \"%s\\r\"\n"
                 + "expect eof\n"
@@ -265,8 +267,12 @@ public class Archives {
         return sh.runIgnoreExitCode(script);
     }
 
-    public static Shell.Result runElasticsearchStartCommand(Installation installation, Shell sh,
-                                                            String keystorePassword, boolean daemonize) {
+    public static Shell.Result runElasticsearchStartCommand(
+        Installation installation,
+        Shell sh,
+        String keystorePassword,
+        boolean daemonize
+    ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         assertThat(pidFile, fileDoesNotExist());
@@ -328,9 +334,9 @@ public class Archives {
                     + "$processInfo.RedirectStandardError = $true; "
                     + "$processInfo.RedirectStandardInput = $true; "
                     + sh.env.entrySet()
-                    .stream()
-                    .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
-                    .collect(joining())
+                        .stream()
+                        .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                        .collect(joining())
                     + "$processInfo.UseShellExecute = $false; "
                     + "$process = New-Object System.Diagnostics.Process; "
                     + "$process.StartInfo = $processInfo; "

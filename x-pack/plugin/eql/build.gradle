@@ -29,7 +29,9 @@ tasks.named('internalClusterTest').configure {
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  compileOnly(project(':modules:lang-painless:spi'))
+  compileOnly(project(':modules:lang-painless')) {
+    exclude group: "org.ow2.asm"
+  }
   compile "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'), configuration: 'default')
   testCompile project(':test:framework')

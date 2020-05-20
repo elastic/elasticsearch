@@ -14,8 +14,8 @@ setup:
 ---
 "Delete backing index on data stream":
   - skip:
-      version: " - 7.8.99"
-      reason:  "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason:  "mute bwc until backported"
 
   - do:
       indices.create_data_stream:
@@ -66,8 +66,8 @@ setup:
 ---
 "Attempt to delete write index on data stream is rejected":
   - skip:
-      version: " - 7.8.99"
-      reason:  "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason:  "mute bwc until backported"
 
   - do:
       indices.create_data_stream:

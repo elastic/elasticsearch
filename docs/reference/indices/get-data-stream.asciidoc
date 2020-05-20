@@ -18,9 +18,6 @@ PUT _index_template/template
 }
 
 PUT /_data_stream/my-data-stream
-{
-  "timestamp_field" : "@timestamp"
-}
 -----------------------------------
 // TESTSETUP
 ////

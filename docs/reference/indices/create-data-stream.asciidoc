@@ -40,9 +40,6 @@ PUT _index_template/template
 [source,console]
 --------------------------------------------------
 PUT _data_stream/my-data-stream
-{
-  "timestamp_field": "@timestamp"
-}
 --------------------------------------------------
 // TEST[continued]
 

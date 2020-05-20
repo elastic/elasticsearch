@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeAlias;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -333,17 +333,22 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (!a.expressionsResolved() && Resolvables.resolved(a.aggregates())) {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
-                    AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
+                    List<AttributeAlias> resolved = Expressions.aliases(a.aggregates());
 
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
-                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved.keySet());
+                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping,
+                                resolved.stream().map(AttributeAlias::getAttribute).collect(toList()));
                             if (maybeResolved != null) {
                                 changed = true;
                                 if (maybeResolved.resolved()) {
                                     // use the matched expression (not its attribute)
-                                    grouping = resolved.get(maybeResolved);
+                                    grouping = resolved.stream()
+                                        .filter(attributeAlias -> attributeAlias.getAttribute().equals(maybeResolved))
+                                        .map(AttributeAlias::getExpression)
+                                        .findAny()
+                                        .orElse(maybeResolved);
                                 } else {
                                     grouping = maybeResolved;
                                 }

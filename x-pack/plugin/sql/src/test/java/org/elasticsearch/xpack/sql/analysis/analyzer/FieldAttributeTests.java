@@ -257,7 +257,7 @@ public class FieldAttributeTests extends ESTestCase {
             () -> plan("SELECT gender AS g, max(salary) AS g, min(salary) AS g FROM test GROUP BY g"));
         assertEquals(
             "Found 1 problem\nline 1:75: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
-                "matches any of [\"g\", \"g\"]",
+                "matches any of [\"g\", \"g\", \"g\"]",
             ex.getMessage());
 
         ex = expectThrows(VerificationException.class,

@@ -2,9 +2,20 @@
 [[breaking_80_threadpool_changes]]
 === Thread pool changes
 
-[float]
-==== Removal of the `fixed_auto_queue_size` thread pool type
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
 
+//tag::notable-breaking-changes[]
+//end::notable-breaking-changes[]
+
+.The `fixed_auto_queue_size` thread pool type has been removed.
+[%collapsible]
+====
+*Details* +
 The `fixed_auto_queue_size` thread pool type, previously marked as an
 experimental feature, was deprecated in 7.x and has been removed in 8.0.
 The `search` and `search_throttled` thread pools have the `fixed` type now.
+
+*Impact* +
+No action needed.
+====

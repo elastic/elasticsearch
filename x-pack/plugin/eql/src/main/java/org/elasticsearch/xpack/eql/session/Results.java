@@ -15,43 +15,38 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-
 public class Results {
 
-    private enum Type {
+    public enum Type {
         SEARCH_HIT,
         SEQUENCE,
         COUNT;
     }
     
-    public static final Results EMPTY = new Results(new TotalHits(0, Relation.EQUAL_TO), TimeValue.MINUS_ONE, false, emptyList());
-
     private final TotalHits totalHits;
     private final List<?> results;
     private final boolean timedOut;
     private final TimeValue tookTime;
     private final Type type;
 
-    public Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results) {
+    public static Results fromHits(TimeValue tookTime, List<SearchHit> hits) {
+        return new Results(new TotalHits(hits.size(), Relation.EQUAL_TO), tookTime, false, hits, Type.SEARCH_HIT);
+    }
+
+    public static Results fromSequences(TimeValue tookTime, List<Sequence> sequences) {
+        return new Results(new TotalHits(sequences.size(), Relation.EQUAL_TO), tookTime, false, sequences, Type.SEQUENCE);
+    }
+
+    public static Results fromCounts(TimeValue tookTime, List<Count> counts) {
+        return new Results(new TotalHits(counts.size(), Relation.EQUAL_TO), tookTime, false, counts, Type.COUNT);
+    }
+
+    Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type) {
         this.totalHits = totalHits;
         this.tookTime = tookTime;
         this.timedOut = timedOut;
         this.results = results;
-
-        Type t = Type.SEARCH_HIT;
-
-        if (results.isEmpty() == false) {
-            Object o = results.get(0);
-
-            if (o instanceof Sequence) {
-                t = Type.SEQUENCE;
-            }
-            if (o instanceof Count) {
-                t = Type.COUNT;
-            }
-        }
-        type = t;
+        this.type = type;
     }
 
     public TotalHits totalHits() {

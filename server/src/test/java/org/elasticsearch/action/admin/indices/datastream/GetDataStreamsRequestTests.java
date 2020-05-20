@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction.Request;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DataStreamTestHelper;
@@ -68,8 +68,8 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
         DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", List.of(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamName);
-        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(dataStreamName);
+        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamName));
     }
@@ -86,34 +86,34 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
                 Map.of(dataStreamNames[0], ds1, dataStreamNames[1], ds2)).build())
             .build();
 
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamNames[1].substring(0, 5) + "*");
-        List<DataStream> dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(dataStreamNames[1].substring(0, 5) + "*");
+        List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(1));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
 
-        req = new GetDataStreamsAction.Request("*");
-        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        req = new GetDataStreamAction.Request("*");
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(2));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
         assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
 
-        req = new GetDataStreamsAction.Request((String) null);
-        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        req = new GetDataStreamAction.Request((String) null);
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(2));
         assertThat(dataStreams.get(0).getName(), equalTo(dataStreamNames[1]));
         assertThat(dataStreams.get(1).getName(), equalTo(dataStreamNames[0]));
 
-        req = new GetDataStreamsAction.Request("matches-none*");
-        dataStreams = GetDataStreamsAction.TransportAction.getDataStreams(cs, req);
+        req = new GetDataStreamAction.Request("matches-none*");
+        dataStreams = GetDataStreamAction.TransportAction.getDataStreams(cs, req);
         assertThat(dataStreams.size(), equalTo(0));
     }
 
     public void testGetNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
-        GetDataStreamsAction.Request req = new GetDataStreamsAction.Request(dataStreamName);
+        GetDataStreamAction.Request req = new GetDataStreamAction.Request(dataStreamName);
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-            () -> GetDataStreamsAction.TransportAction.getDataStreams(cs, req));
+            () -> GetDataStreamAction.TransportAction.getDataStreams(cs, req));
         assertThat(e.getMessage(), containsString("data_stream matching [" + dataStreamName + "] not found"));
     }
 

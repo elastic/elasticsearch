@@ -73,10 +73,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    public void remove(float requestsPerSec, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         LOGGER.debug("Removing forecasts that expire before [{}]", cutoffEpochMs);
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
-                searchResponse -> deleteForecasts(searchResponse, listener, isTimedOutSupplier),
+                searchResponse -> deleteForecasts(searchResponse, requestsPerSec, listener, isTimedOutSupplier),
                 e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e)));
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -95,7 +95,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                 MachineLearning.UTILITY_THREAD_POOL_NAME, forecastStatsHandler, false));
     }
 
-    private void deleteForecasts(SearchResponse searchResponse, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+    private void deleteForecasts(
+        SearchResponse searchResponse,
+        float requestsPerSec,
+        ActionListener<Boolean> listener,
+        Supplier<Boolean> isTimedOutSupplier
+    ) {
         List<ForecastRequestStats> forecastsToDelete;
         try {
             forecastsToDelete = findForecastsToDelete(searchResponse);
@@ -109,7 +114,9 @@ public class ExpiredForecastsRemover implements MlDataRemover {
             return;
         }
 
-        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete);
+        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete)
+            .setRequestsPerSecond(requestsPerSec)
+            .setAbortOnVersionConflict(false);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
@@ -72,8 +71,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                                                                       CleanupRepositoryResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
-
-    private static final Version MIN_VERSION = Version.V_7_4_0;
 
     private final RepositoriesService repositoriesService;
 
@@ -147,13 +144,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     @Override
     protected void masterOperation(Task task, CleanupRepositoryRequest request, ClusterState state,
-        ActionListener<CleanupRepositoryResponse> listener) {
-        if (state.nodes().getMinNodeVersion().onOrAfter(MIN_VERSION)) {
-            cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
-        } else {
-            throw new IllegalArgumentException("Repository cleanup is only supported from version [" + MIN_VERSION
-                + "] but the oldest node version in the cluster is [" + state.nodes().getMinNodeVersion() + ']');
-        }
+                                   ActionListener<CleanupRepositoryResponse> listener) {
+        cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
     }
 
     @Override
@@ -221,7 +213,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             l -> blobStoreRepository.cleanup(
                                 repositoryStateId,
                                 snapshotsService.minCompatibleVersion(
-                                    newState.nodes().getMinNodeVersion(), repositoryName, repositoryData, null),
+                                    newState.nodes().getMinNodeVersion(), repositoryData, null),
                                 ActionListener.wrap(result -> after(null, result), e -> after(e, null)))
                         ));
                     }

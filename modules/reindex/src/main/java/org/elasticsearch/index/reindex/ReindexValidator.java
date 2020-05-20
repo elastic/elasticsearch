@@ -120,7 +120,7 @@ class ReindexValidator {
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
+            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination, false).getName();
         }
         for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
             if (sourceIndex.equals(target)) {

@@ -742,3 +742,73 @@ teardown:
 - match: { docs.0.processor_results.2.doc._source.pipeline1: true }
 - match: { docs.0.processor_results.2.doc._source.pipeline2: true }
 
+---
+"Test verbose simulate with true conditional and on failure":
+- do:
+    ingest.simulate:
+      verbose: true
+      body: >
+        {
+          "pipeline": {
+            "processors": [
+              {
+                "rename": {
+                  "tag": "gunna_fail",
+                  "if": "true",
+                  "field": "foo1",
+                  "target_field": "fieldA",
+                  "on_failure": [
+                    {
+                      "set": {
+                        "field": "failed1",
+                        "value": "failed1",
+                        "tag": "failed1"
+                      }
+                    },
+                    {
+                      "rename": {
+                        "tag": "gunna_fail_again",
+                        "if": "true",
+                        "field": "foo2",
+                        "target_field": "fieldA",
+                        "on_failure": [
+                          {
+                            "set": {
+                              "field": "failed2",
+                              "value": "failed2",
+                              "tag": "failed2"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "docs": [
+            {
+              "_index": "index",
+              "_id": "id",
+              "_source": {
+                "foo": "bar"
+              }
+            }
+          ]
+        }
+- length: { docs: 1 }
+- length: { docs.0.processor_results: 4 }
+- match: { docs.0.processor_results.0.tag: "gunna_fail" }
+- match: { docs.0.processor_results.0.error.reason: "field [foo1] doesn't exist" }
+- match: { docs.0.processor_results.1.tag: "failed1" }
+- match: { docs.0.processor_results.1.doc._source.failed1: "failed1" }
+- match: { docs.0.processor_results.1.doc._ingest.on_failure_processor_tag: "gunna_fail" }
+- match: { docs.0.processor_results.2.tag: "gunna_fail_again" }
+- match: { docs.0.processor_results.2.error.reason: "field [foo2] doesn't exist" }
+- match: { docs.0.processor_results.3.tag: "failed2" }
+- match: { docs.0.processor_results.3.doc._source.failed1: "failed1" }
+- match: { docs.0.processor_results.3.doc._source.failed2: "failed2" }
+- match: { docs.0.processor_results.3.doc._ingest.on_failure_processor_tag: "gunna_fail_again" }
+
+

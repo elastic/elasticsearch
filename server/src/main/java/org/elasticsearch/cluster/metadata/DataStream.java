@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -46,6 +47,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.timeStampField = timeStampField;
         this.indices = indices;
         this.generation = generation;
+        assert indices.size() > 0;
+        assert indices.get(indices.size() - 1).getName().equals(getBackingIndexName(name, generation));
     }
 
     public DataStream(String name, String timeStampField, List<Index> indices) {
@@ -68,6 +71,43 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return generation;
     }
 
+    /**
+     * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
+     * the updated list of backing indices and incremented generation.
+     *
+     * @param newWriteIndex the new write backing index. Must conform to the naming convention for
+     *                      backing indices on data streams. See {@link #getBackingIndexName}.
+     * @return new {@code DataStream} instance with the rollover operation applied
+     */
+    public DataStream rollover(Index newWriteIndex) {
+        assert newWriteIndex.getName().equals(getBackingIndexName(name, generation + 1));
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.add(newWriteIndex);
+        return new DataStream(name, timeStampField, backingIndices, generation + 1);
+    }
+
+    /**
+     * Removes the specified backing index and returns a new {@code DataStream} instance with
+     * the remaining backing indices.
+     *
+     * @param index the backing index to remove
+     * @return new {@code DataStream} instance with the remaining backing indices
+     */
+    public DataStream removeBackingIndex(Index index) {
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.remove(index);
+        assert backingIndices.size() == indices.size() - 1;
+        return new DataStream(name, timeStampField, backingIndices, generation);
+    }
+
+    /**
+     * Generates the name of the index that conforms to the naming convention for backing indices
+     * on data streams given the specified data stream name and generation.
+     *
+     * @param dataStreamName name of the data stream
+     * @param generation generation of the data stream
+     * @return backing index name
+     */
     public static String getBackingIndexName(String dataStreamName, long generation) {
         return String.format(Locale.ROOT, "%s-%06d", dataStreamName, generation);
     }

@@ -465,13 +465,23 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         DateFieldMapper mapper = new DateFieldMapper.Builder("field").build(context);
-        assertEquals(1589578382000L, (long) mapper.parseSourceValue(1589578382000L));
-        assertEquals(1589578382000L, (long) mapper.parseSourceValue("2020-05-15T21:33:02+00:00"));
+        String date = "2020-05-15T21:33:02.000Z";
+        assertEquals(date, mapper.parseSourceValue(date));
+        assertEquals(date, mapper.parseSourceValue(1589578382000L));
 
         DateFieldMapper mapperWithFormat = new DateFieldMapper.Builder("field")
-            .format("yyyy/MM/dd")
+            .format("yyyy/MM/dd||epoch_millis")
             .build(context);
-        assertEquals(662428800000L, (long) mapperWithFormat.parseSourceValue("1990/12/29"));
+        String dateInFormat = "1990/12/29";
+        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(dateInFormat));
+        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(662428800000L));
+
+        DateFieldMapper mapperWithMillis = new DateFieldMapper.Builder("field")
+            .format("epoch_millis")
+            .build(context);
+        String dateInMillis = "662428800000";
+        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(dateInMillis));
+        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(662428800000L));
     }
 
     public void testParseSourceValueNanos() {
@@ -479,15 +489,11 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
 
         DateFieldMapper mapper = new DateFieldMapper.Builder("field")
+            .format("strict_date_time||epoch_millis")
             .withResolution(DateFieldMapper.Resolution.NANOSECONDS)
             .build(context);
-        assertEquals(1589578382000000000L, (long) mapper.parseSourceValue(1589578382000L));
-        assertEquals(1589578382123456789L, (long) mapper.parseSourceValue("2020-05-15T21:33:02.123456789"));
-
-        DateFieldMapper mapperWithFormat = new DateFieldMapper.Builder("field")
-            .withResolution(DateFieldMapper.Resolution.NANOSECONDS)
-            .format("yyyy/MM/dd")
-            .build(context);
-        assertEquals(662428800000000000L, (long) mapperWithFormat.parseSourceValue("1990/12/29"));
+        String date = "2020-05-15T21:33:02.123456789Z";
+        assertEquals("2020-05-15T21:33:02.123456789Z", mapper.parseSourceValue(date));
+        assertEquals("2020-05-15T21:33:02.123Z", mapper.parseSourceValue(1589578382123L));
     }
 }

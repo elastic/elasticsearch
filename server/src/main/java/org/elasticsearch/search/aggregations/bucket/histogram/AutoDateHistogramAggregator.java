@@ -41,9 +41,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -164,31 +162,21 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
+                (bucketValue, docCount, subAggregationResults) ->
+                    new InternalAutoDateHistogram.Bucket(bucketValue, docCount, formatter, subAggregationResults),
+                buckets -> {
+                    // the contract of the histogram aggregation is that shards must return
+                    // buckets ordered by key in ascending order
+                    CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-        long[] bucketOrdArray = new long[(int) bucketOrds.size()];
-        for (int i = 0; i < bucketOrds.size(); i++) {
-            bucketOrdArray[i] = i;
-        }
+                    // value source will be null for unmapped fields
+                    InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos,
+                            roundingIdx, buildEmptySubAggregations());
 
-        runDeferredCollections(bucketOrdArray);
-
-        List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            buckets.add(new InternalAutoDateHistogram.Bucket(bucketOrds.get(i), bucketDocCount(i), formatter, bucketAggregations(i)));
-        }
-
-        // the contract of the histogram aggregation is that shards must return
-        // buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-        // value source will be null for unmapped fields
-        InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
-                buildEmptySubAggregations());
-
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, metadata(), 1);
+                    return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, metadata(), 1);
+                });
     }
 
     @Override

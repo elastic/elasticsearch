@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -69,6 +70,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String aliasName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
@@ -84,6 +86,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         // Peer recovery always copies .liv files but we do not permit writing to searchable snapshot directories so this doesn't work, but
         // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
+        assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName));
+
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = between(10, 10_000); i >= 0; i--) {
             indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
@@ -178,8 +182,14 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
+        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+        assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
+        assertRecovered(aliasName, originalAllHits, originalBarHits, false);
+
         internalCluster().fullRestart();
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertRecovered(aliasName, originalAllHits, originalBarHits, false);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -217,6 +227,46 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(restoredIndexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
+                )
+        );
+
+        final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareResizeIndex(restoredIndexName, clonedIndexName)
+                .setResizeType(ResizeType.CLONE)
+                .setSettings(Settings.builder().putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()).build())
+        );
+        ensureGreen(clonedIndexName);
+        assertRecovered(clonedIndexName, originalAllHits, originalBarHits, false);
+
+        final Settings clonedIndexSettings = client().admin()
+            .indices()
+            .prepareGetSettings(clonedIndexName)
+            .get()
+            .getIndexToSettings()
+            .get(clonedIndexName);
+        assertFalse(clonedIndexSettings.hasValue(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
+        assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING.getKey()));
+        assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.getKey()));
+        assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.getKey()));
+        assertFalse(clonedIndexSettings.hasValue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.getKey()));
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+        assertAcked(client().admin().indices().prepareAliases().addAlias(clonedIndexName, aliasName));
+        assertRecovered(aliasName, originalAllHits, originalBarHits, false);
+
     }
 
     public void testCanMountSnapshotTakenWhileConcurrentlyIndexing() throws Exception {
@@ -376,6 +426,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
+        assertRecovered(indexName, originalAllHits, originalBarHits, true);
+    }
+
+    private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits, boolean checkRecoveryStats)
+        throws Exception {
+
         final Thread[] threads = new Thread[between(1, 5)];
         final AtomicArray<TotalHits> allHits = new AtomicArray<>(threads.length);
         final AtomicArray<TotalHits> barHits = new AtomicArray<>(threads.length);
@@ -406,12 +462,17 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(indexName);
         latch.countDown();
 
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
-        for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-            for (RecoveryState recoveryState : recoveryStates) {
-                logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
-                assertThat(recoveryState.getIndex().recoveredFileCount(), lessThanOrEqualTo(1)); // we make a new commit so we write a new
-                                                                                                 // `segments_n` file
+        if (checkRecoveryStats) {
+            final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+                for (RecoveryState recoveryState : recoveryStates) {
+                    logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
+                    assertThat(
+                        Strings.toString(recoveryState), // we make a new commit so we write a new `segments_n` file
+                        recoveryState.getIndex().recoveredFileCount(),
+                        lessThanOrEqualTo(1)
+                    );
+                }
             }
         }
 

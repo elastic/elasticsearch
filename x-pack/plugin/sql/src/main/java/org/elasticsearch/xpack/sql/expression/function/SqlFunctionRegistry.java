@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
@@ -240,6 +241,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Right.class, Right::new, "RIGHT"),
                 def(RTrim.class, RTrim::new, "RTRIM"),
                 def(Space.class, Space::new, "SPACE"),
+                def(StartsWith.class, StartsWith::new, "STARTS_WITH"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
                 def(UCase.class, UCase::new, "UCASE")
             },
@@ -268,4 +270,5 @@ public class SqlFunctionRegistry extends FunctionRegistry {
             }
         };
     }
+
 }

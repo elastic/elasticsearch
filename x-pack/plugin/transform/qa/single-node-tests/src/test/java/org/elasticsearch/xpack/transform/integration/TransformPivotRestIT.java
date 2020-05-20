@@ -1083,12 +1083,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             "hits.hits._source.tile",
             searchResult
         )).get(0);
-        assertThat(actualObj.get("type"), equalTo("BBOX"));
-        List<List<Double>> coordinates = (List<List<Double>>) actualObj.get("coordinates");
+        assertThat(actualObj.get("type"), equalTo("polygon"));
+        List<List<Double>> coordinates = ((List<List<List<Double>>>) actualObj.get("coordinates")).get(0);
         assertThat(coordinates, is(not(nullValue())));
-        assertThat(coordinates, hasSize(2));
+        assertThat(coordinates, hasSize(5));
         assertThat(coordinates.get(0), hasSize(2));
         assertThat(coordinates.get(1), hasSize(2));
+        assertThat(coordinates.get(2), hasSize(2));
+        assertThat(coordinates.get(3), hasSize(2));
+        assertThat(coordinates.get(4), hasSize(2));
     }
 
     public void testPivotWithWeightedAvgAgg() throws Exception {

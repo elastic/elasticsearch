@@ -357,19 +357,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        ParentJoinFieldMapper fieldMapper = (ParentJoinFieldMapper) super.updateFieldType(fullNameToFieldType);
-        final List<ParentIdFieldMapper> newMappers = new ArrayList<> ();
-        for (ParentIdFieldMapper mapper : fieldMapper.parentIdFields) {
-            newMappers.add((ParentIdFieldMapper) mapper.updateFieldType(fullNameToFieldType));
-        }
-        fieldMapper.parentIdFields = Collections.unmodifiableList(newMappers);
-        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.updateFieldType(fullNameToFieldType);
-        uniqueFieldMapper.setFieldMapper(this);
-        return fieldMapper;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
     }

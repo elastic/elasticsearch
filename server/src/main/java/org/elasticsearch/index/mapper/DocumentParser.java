@@ -812,10 +812,6 @@ final class DocumentParser {
             builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         }
         Mapper mapper = builder.build(builderContext);
-        if (existingFieldType != null) {
-            // try to not introduce a conflict
-            mapper = mapper.updateFieldType(Collections.singletonMap(path, existingFieldType));
-        }
         context.addDynamicMapper(mapper);
 
         parseObjectOrField(context, mapper);

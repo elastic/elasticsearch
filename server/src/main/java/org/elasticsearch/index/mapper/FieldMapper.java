@@ -414,27 +414,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected abstract void mergeOptions(FieldMapper other, List<String> conflicts);
 
     @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.name());
-        if (newFieldType == null) {
-            // this field does not exist in the mappings yet
-            // this can happen if this mapper represents a mapping update
-            return this;
-        } else if (fieldType.getClass() != newFieldType.getClass()) {
-            throw new IllegalStateException("Mixing up field types: " +
-                fieldType.getClass() + " != " + newFieldType.getClass() + " on field " + fieldType.name());
-        }
-        MultiFields updatedMultiFields = multiFields.updateFieldType(fullNameToFieldType);
-        if (fieldType == newFieldType && multiFields == updatedMultiFields) {
-            return this; // no change
-        }
-        FieldMapper updated = clone();
-        updated.fieldType = newFieldType;
-        updated.multiFields = updatedMultiFields;
-        return updated;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
@@ -631,27 +610,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper);
                     newMappersBuilder.put(merged.simpleName(), merged); // override previous definition
                 }
-            }
-
-            ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();
-            return new MultiFields(mappers);
-        }
-
-        public MultiFields updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
-
-            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
-                FieldMapper updated = cursor.value.updateFieldType(fullNameToFieldType);
-                if (updated != cursor.value) {
-                    if (newMappersBuilder == null) {
-                        newMappersBuilder = ImmutableOpenMap.builder(mappers);
-                    }
-                    newMappersBuilder.put(updated.simpleName(), updated);
-                }
-            }
-
-            if (newMappersBuilder == null) {
-                return this;
             }
 
             ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();

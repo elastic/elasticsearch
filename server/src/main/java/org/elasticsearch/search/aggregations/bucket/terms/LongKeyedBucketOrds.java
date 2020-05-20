@@ -57,7 +57,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     public abstract long size();
 
     /**
-     * Build an iterator for buckets inside {@code owningBucketOrd}.
+     * Build an iterator for buckets inside {@code owningBucketOrd} in order
+     * of increasing ord.
      * <p>
      * When this is first returns it is "unpositioned" and you must call
      * {@link BucketOrdsEnum#next()} to move it to the first value.

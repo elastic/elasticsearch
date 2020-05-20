@@ -401,7 +401,7 @@ describe_port() {
 }
 
 debug_collect_logs() {
-    local es_logfile="$ESLOG/elasticsearch_server.json"
+    local es_logfile="/var/log/elasticsearch/elasticsearch.log"
     local system_logfile='/var/log/messages'
 
     if [ -e "$es_logfile" ]; then
@@ -470,6 +470,7 @@ wait_for_elasticsearch_status() {
     fi
     echo $output | grep $desiredStatus || {
         echo "unexpected status:  '$output' wanted '$desiredStatus'"
+        debug_collect_logs
         false
     }
 }

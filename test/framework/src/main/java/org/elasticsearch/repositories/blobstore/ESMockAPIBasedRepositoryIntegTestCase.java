@@ -132,6 +132,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
     protected abstract HttpHandler createErroneousHttpHandler(HttpHandler delegate);
 
+    protected abstract List<String> requestTypesTracked();
+
     /**
      * Test the snapshot and restore of an index which has large segments files.
      */
@@ -212,7 +214,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
         Map<String, Long> sdkRequestCounts = repositoryStats.requestCounts;
 
-        for (String requestType : List.of("GET", "LIST", "PUT", "POST")) {
+        for (String requestType : requestTypesTracked()) {
             assertSDKCallsMatchMockCalls(sdkRequestCounts, requestType);
         }
     }

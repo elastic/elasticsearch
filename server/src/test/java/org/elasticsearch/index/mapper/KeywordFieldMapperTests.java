@@ -40,7 +40,6 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -58,7 +57,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
+public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMapper.Builder> {
+
+    @Override
+    protected KeywordFieldMapper.Builder newBuilder() {
+        return new KeywordFieldMapper.Builder("keyword");
+    }
+
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
      */
@@ -92,6 +97,10 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .put("index.analysis.normalizer.my_other_lowercase.type", "custom")
                 .putList("index.analysis.normalizer.my_other_lowercase.filter", "mock_other_lowercase").build());
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("normalizer", false, (a, b) -> {
+            a.normalizer(indexService.getIndexAnalyzers(), "my_lowercase");
+        });
+        addBooleanModifier("split_queries_on_whitespace", true, KeywordFieldMapper.Builder::splitQueriesOnWhitespace);
     }
 
     public void testDefaults() throws Exception {
@@ -347,11 +356,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     public void testCustomNormalizer() throws IOException {
         checkLowercaseNormalizer("my_lowercase");
     }
-    
+
     public void testInBuiltNormalizer() throws IOException {
-        checkLowercaseNormalizer("lowercase");        
-    }       
-        
+        checkLowercaseNormalizer("lowercase");
+    }
+
     public void checkLowercaseNormalizer(String normalizerName) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")

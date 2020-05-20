@@ -18,8 +18,8 @@ applicable to your cluster.
 . Configure each node in the cluster to identify itself using its signed
 certificate and enable TLS on the transport layer. You can also optionally
 enable TLS on the HTTP layer. See
-{ref}/configuring-tls.html#tls-transport[Encrypting Communications Between Nodes in a Cluster] and
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications]. 
+<<tls-transport>> and
+<<tls-http>>.
 
 . Configure the {monitor-features} to use encrypted connections. See <<secure-monitoring>>.
 
@@ -31,7 +31,7 @@ the {kib} server and to connect to {es} via HTTPS. See
 {logstash-ref}/ls-security.html[Configuring security in {ls}].
 
 . Configure Beats to use encrypted connections. For example, see
-{filebeat-ref}/securing-beats.html[Configure {filebeat} to use {security-features}].
+{filebeat-ref}/securing-filebeat.html[Configure {filebeat} to use {security-features}].
 
 . Configure the Java transport client to use encrypted communications.
 See <<java-clients>>.

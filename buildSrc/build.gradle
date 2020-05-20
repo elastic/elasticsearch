@@ -48,7 +48,7 @@ if (project == rootProject) {
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
 version = props.getProperty("elasticsearch")
 
-task generateVersionProperties(type: WriteProperties) {
+def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   outputFile = "${buildDir}/version.properties"
   comment = 'Generated version properties'
   properties(props)
@@ -234,13 +234,13 @@ if (project != rootProject) {
     }
   }
 
-  task integTest(type: Test) {
+  tasks.register("integTest", Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
     onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
-  check.dependsOn(integTest)
+  check.dependsOn("integTest")
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {

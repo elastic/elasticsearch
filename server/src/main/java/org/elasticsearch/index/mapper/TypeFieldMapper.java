@@ -256,8 +256,4 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         return builder;
     }
 
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // do nothing here, no merging, but also no exception
-    }
 }

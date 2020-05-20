@@ -17,6 +17,8 @@ content may not be included yet.
 === Snapshot repository management APIs
 
 * <<clean-up-snapshot-repo-api,Clean up snapshot repository>>
+* <<put-snapshot-repo-api,Put snapshot repository>>
 
 
 include::clean-up-repo-api.asciidoc[]
+include::put-repo-api.asciidoc[]

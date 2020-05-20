@@ -17,25 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle
 
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask;
-import org.gradle.api.Plugin;
-import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.tasks.TaskProvider;
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.tasks.TaskProvider
 
-public class DependenciesInfoPlugin implements Plugin<Project> {
+class DependenciesInfoPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         TaskProvider<DependenciesInfoTask> depsInfo = project.getTasks().register("dependenciesInfo", DependenciesInfoTask.class);
-        depsInfo.configure(t -> {
+        depsInfo.configure { DependenciesInfoTask t ->
             t.setRuntimeConfiguration(project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
             t.setCompileOnlyConfiguration(project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME));
-            t.getConventionMapping().map("mappings", () -> {
+            t.getConventionMapping().map("mappings") { ->
                 TaskProvider<DependencyLicensesTask> depLic = project.getTasks().named("dependencyLicenses", DependencyLicensesTask.class);
                 return depLic.get().getMappings();
-            });
-        });
+            }
+        };
     }
 }

@@ -142,6 +142,7 @@ class NoticeTask extends DefaultTask {
     }
 
     @InputFiles
+    @Optional
     FileCollection getNoticeFiles() {
         FileTree tree
         licensesDirs.each { dir ->
@@ -152,7 +153,7 @@ class NoticeTask extends DefaultTask {
             }
         }
 
-        return tree.matching { include '**/*-NOTICE.txt' }
+        return tree?.matching { include '**/*-NOTICE.txt' }
     }
 
     @InputFiles

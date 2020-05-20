@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -41,8 +41,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
@@ -57,10 +60,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private volatile TimeValue slowPathLoggingThreshold;
     private final NodeEnvironment nodeEnv;
     private final LongSupplier currentTimeMillisSupplier;
-    private Map<Path, Status> pathHealthStats;
+    private Map<Path, StatusInfo.Status> pathHealthStats;
     private volatile Scheduler.Cancellable scheduledFuture;
-    private volatile Scheduler.Cancellable slowPathHealthCheckTimeoutHandler;
-    private final AtomicLong lastRunTimeMillis = new AtomicLong();
 
     public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -90,11 +91,9 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 ThreadPool.Names.GENERIC);
     }
 
-
     @Override
     protected void doStop() {
         scheduledFuture.cancel();
-        slowPathHealthCheckTimeoutHandler.cancel();
     }
 
     @Override
@@ -109,12 +108,23 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     }
 
     @Override
-    public Status getHealth() {
+    public StatusInfo getHealth() {
+        StatusInfo statusInfo;
         if (enabled == false) {
-            return Status.HEALTHY;
+            statusInfo = new StatusInfo(HEALTHY, "FS health checks are disabled");
         }
-        return pathHealthStats.entrySet().stream().anyMatch(map -> map.getValue() == Status.UNHEALTHY) ? Status.UNHEALTHY
-            : Status.HEALTHY;
+        else if (pathHealthStats.entrySet().stream().anyMatch(map -> map.getValue() == UNHEALTHY)) {
+            String info = "Path(s) " + pathHealthStats.entrySet()
+                .stream().filter(v -> v.getValue() == UNHEALTHY)
+                .map(k -> k.getKey().toString())
+                .collect(Collectors.joining(",")) + " have failed writability checks";
+
+            statusInfo = new StatusInfo(UNHEALTHY, info);
+        }
+        else {
+            statusInfo = new StatusInfo(HEALTHY, "All paths have passed writabililty checks");
+        }
+        return statusInfo;
     }
 
      class FsHealthMonitor implements Runnable {
@@ -141,17 +151,6 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         private void monitorFSHealth() {
             for (Path path : nodeEnv.nodeDataPaths()) {
                 long executionStartTime = currentTimeMillisSupplier.getAsLong();
-                slowPathHealthCheckTimeoutHandler = threadPool.schedule(new Runnable() {
-                    @Override
-                    public void run() {
-                        logSlowDataPath(Level.WARN, path, executionStartTime);
-                    }
-                    @Override
-                    public String toString() {
-                        return "Scheduled timeout for logging slow IO " + FsHealthService.FsHealthMonitor.this;
-                    }
-                }, slowPathLoggingThreshold, ThreadPool.Names.GENERIC);
-
                 try {
                     if (Files.exists(path)) {
                         Path tempDataPath = path.resolve(TEMP_FILE_NAME);
@@ -162,28 +161,19 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                             IOUtils.fsync(tempDataPath, false);
                         }
                         Files.delete(tempDataPath);
-                        pathHealthStats.put(path, Status.HEALTHY);
+                        pathHealthStats.put(path, HEALTHY);
+                        final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
+                        if (elapsedTime > slowPathLoggingThreshold.millis()) {
+                            logger.warn("checking writability of [{}], took [{}ms] which is above the warn threshold of [{}]",
+                                path, elapsedTime, slowPathLoggingThreshold);
+                        }
                     }
                 } catch (Exception ex) {
-                    logger.error("Failed to perform FS health check on path {} due to {} ", path, ex);
-                    pathHealthStats.put(path,  Status.UNHEALTHY);
-
+                    logger.error("Failed to perform FS health check on path [{}] due to ", path, ex);
+                    pathHealthStats.put(path,  UNHEALTHY);
                 }
-                cancelTimeoutHandler();
             }
-            lastRunTimeMillis.getAndUpdate(l -> currentTimeMillisSupplier.getAsLong());
         }
-
-         private void cancelTimeoutHandler() {
-             if (slowPathHealthCheckTimeoutHandler != null) {
-                 slowPathHealthCheckTimeoutHandler.cancel();
-             }
-         }
-
-         private void logSlowDataPath(Level level, Path path, long executionStartTime) {
-             final TimeValue elapsedTime = TimeValue.timeValueMillis(currentTimeMillisSupplier.getAsLong() - executionStartTime);
-             logger.log(level, "Slow IO detected on path [{}], FS health check elapsed time [{}]", path, elapsedTime);
-         }
     }
 }
 

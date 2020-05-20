@@ -44,7 +44,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.MockLogAppender;
 
@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -62,7 +63,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
-import static org.elasticsearch.cluster.coordination.Coordinator.Mode.FOLLOWER;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -76,9 +76,10 @@ import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MAS
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -161,44 +162,46 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testNoElectedLeaderForNonWritableNodes() {
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 5), true, Settings.EMPTY, () -> NodeHealthService.Status.UNHEALTHY)) {
-            cluster.runRandomly();
-            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
-            final List<ClusterNode> leaders = cluster.getAllLeaders();
-            assertThat(leaders, empty());
-        }
-    }
-
-    public void testNonWritableNodeCannotBecomeLeader() {
-        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
+    public void testUnhealthyNodesGetsRemoved() {
+        AtomicReference<StatusInfo> healthStatusInfo = new AtomicReference<>(
+            new StatusInfo(HEALTHY, "healthy-info"));
+        try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            ClusterNode nonWritableNode = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
-                () -> NodeHealthService.Status.UNHEALTHY);
-            cluster.clusterNodes.add(nonWritableNode);
-            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
-            assertThat(nonWritableNode.getId() + " should be a candidate", nonWritableNode.coordinator.getMode(), equalTo(CANDIDATE));
+            logger.info("--> adding two new healthy nodes");
+            ClusterNode newNode1 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
+                () -> healthStatusInfo.get());
+            ClusterNode newNode2 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
+                () -> healthStatusInfo.get());
+            cluster.clusterNodes.add(newNode1);
+            cluster.clusterNodes.add(newNode2);
+            cluster.stabilise();
 
-            final ClusterNode disconnect1 = cluster.getAnyLeader();
-            logger.info("--> disconnecting leader {}", disconnect1);
-            disconnect1.disconnect();
-            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for fault detection");
+            {
+                assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
+                final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
+                assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
+                    equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
+            }
 
-            final ClusterNode newLeader = cluster.getAnyLeader();
-            logger.info("-->New leader {}", newLeader);
-            assertThat(nonWritableNode.coordinator.getMode(), is(CANDIDATE));
-            assertThat(newLeader, not(nonWritableNode));
+            logger.info("setting auto-shrink reconfiguration to true");
+            leader.submitSetAutoShrinkVotingConfiguration(true);
+            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+            assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metadata().settings()));
 
-            ClusterNode anotherNode = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
-                () -> NodeHealthService.Status.HEALTHY);
-            cluster.clusterNodes.add(anotherNode);
-            cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for stabilization");
+            logger.info("--> changing health of newly added nodes to unhealthy");
+            healthStatusInfo.getAndSet(new StatusInfo(UNHEALTHY, "unhealthy-info"));
 
-            for (final ClusterNode clusterNode : cluster.getAllNodesExcept(newLeader, nonWritableNode, disconnect1)) {
-                assertThat(clusterNode.getId() + " should be a follower", clusterNode.coordinator.getMode(), equalTo(FOLLOWER));
+            cluster.stabilise();
+            {
+                final ClusterNode newLeader = cluster.getAnyLeader();
+                final VotingConfiguration lastCommittedConfiguration
+                    = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
+                assertThat(lastCommittedConfiguration + " should be 3 nodes", lastCommittedConfiguration.getNodeIds().size(), equalTo(3));
+                assertFalse(lastCommittedConfiguration.getNodeIds().contains(newNode1.getId()));
+                assertFalse(lastCommittedConfiguration.getNodeIds().contains(newNode2.getId()));
             }
         }
     }
@@ -1067,7 +1070,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             final ClusterNode newNode = cluster1.new ClusterNode(nextNodeIndex.getAndIncrement(),
                 nodeInOtherCluster.getLocalNode(), n -> cluster1.new MockPersistedState(n, nodeInOtherCluster.persistedState,
-                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings, () -> NodeHealthService.Status.HEALTHY);
+                Function.identity(), Function.identity()), nodeInOtherCluster.nodeSettings,
+                () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
 
             cluster1.clusterNodes.add(newNode);
 

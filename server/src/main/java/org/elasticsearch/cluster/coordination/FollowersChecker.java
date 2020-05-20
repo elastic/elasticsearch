@@ -55,6 +55,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
@@ -162,9 +163,10 @@ public class FollowersChecker {
     }
 
     private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
-        if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
-            logger.error("Rejecting health check request {} as all data paths are not writable", request);
-            throw new FsHealthCheckFailureException("rejecting " + request + " since not all paths are writable " + this);
+        if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
+            String message = "Rejecting health check request "+ request + "due to " + nodeHealthService.getHealth().getInfo();
+            logger.debug(message);
+            throw new NodeHealthCheckFailureException(message);
         }
 
         FastResponseState responder = this.fastResponseState;

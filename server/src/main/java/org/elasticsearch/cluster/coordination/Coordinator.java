@@ -92,6 +92,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
 import static org.elasticsearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class Coordinator extends AbstractLifecycleComponent implements Discovery {
 
@@ -1202,8 +1203,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                             return;
                         }
 
-                        if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
-                            logger.warn("skip prevoting as local node is not writable: {}",
+                        if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
+                            logger.debug("skip prevoting as local due to {} : {}", nodeHealthService.getHealth().getInfo(),
                                 lastAcceptedState.coordinationMetadata());
                             return;
                         }

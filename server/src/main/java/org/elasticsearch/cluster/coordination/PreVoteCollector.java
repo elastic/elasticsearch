@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongConsumer;
 
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
 public class PreVoteCollector {
@@ -108,10 +110,10 @@ public class PreVoteCollector {
         final DiscoveryNode leader = state.v1();
         final PreVoteResponse response = state.v2();
 
-        //TODO verify if the placement makes sense
-        if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
-            logger.warn("Reject offering pre-vote as all paths are not writable");
-            throw new FsHealthCheckFailureException("rejecting " + request + " as not all paths are writable");
+        if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
+            String message = "Rejecting health check request " + request + " due to " + nodeHealthService.getHealth().getInfo();
+            logger.debug(message);
+            throw new NodeHealthCheckFailureException(message);
         }
 
         if (leader == null) {

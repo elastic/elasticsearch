@@ -17,10 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor;
+package org.elasticsearch.cluster.coordination;
 
-@FunctionalInterface
-public interface NodeHealthService {
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-    StatusInfo getHealth();
+import java.io.IOException;
+
+/**
+ * This exception is thrown if the File system is reported unhealthy by @{@link org.elasticsearch.monitor.fs.FsHealthService}
+ * and this nodes needs to be removed from the cluster
+ */
+
+public class NodeHealthCheckFailureException extends ElasticsearchException {
+
+    public NodeHealthCheckFailureException(String msg, Object... args) {
+        super(msg, args);
+    }
+
+    public NodeHealthCheckFailureException(StreamInput in) throws IOException {
+        super(in);
+    }
 }

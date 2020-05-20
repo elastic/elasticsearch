@@ -70,6 +70,8 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+
 public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
@@ -237,8 +239,8 @@ public class JoinHelper {
 
     public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
-        if (nodeHealthService.getHealth() == NodeHealthService.Status.UNHEALTHY) {
-            logger.warn("All paths are not writable. Blocking join request");
+        if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
+            logger.debug("Blocking join request due to [{}]", nodeHealthService.getHealth().getInfo());
             return;
         }
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);

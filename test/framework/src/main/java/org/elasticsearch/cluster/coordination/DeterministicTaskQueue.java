@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
@@ -32,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -481,14 +479,6 @@ public class DeterministicTaskQueue {
 
     public long getLatestDeferredExecutionTime() {
         return latestDeferredExecutionTime;
-    }
-
-    public long getNextDeferredExecutionTime() {
-        return nextDeferredTaskExecutionTimeMillis;
-    }
-
-    public List<DeferredTask> getDeferredTasks() {
-        return Collections.unmodifiableList(deferredTasks);
     }
 
     private static class DeferredTask {

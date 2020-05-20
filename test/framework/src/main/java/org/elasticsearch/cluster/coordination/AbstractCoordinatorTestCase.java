@@ -66,6 +66,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
@@ -127,6 +128,7 @@ import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MAS
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.elasticsearch.transport.TransportSettings.CONNECT_TIMEOUT;
@@ -268,7 +270,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
-            this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> NodeHealthService.Status.HEALTHY);
+            this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
         }
 
         Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
@@ -644,17 +646,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private boolean isConnectedPair(ClusterNode n1, ClusterNode n2) {
             return n1 == n2 ||
                 (getConnectionStatus(n1.getLocalNode(), n2.getLocalNode()) == ConnectionStatus.CONNECTED
-                    && getConnectionStatus(n2.getLocalNode(), n1.getLocalNode()) == ConnectionStatus.CONNECTED);
+                    && getConnectionStatus(n2.getLocalNode(), n1.getLocalNode()) == ConnectionStatus.CONNECTED) &&
+                (n1.nodeHealthService.getHealth().getStatus() == HEALTHY && n2.nodeHealthService.getHealth().getStatus() == HEALTHY);
         }
 
         ClusterNode getAnyLeader() {
             List<ClusterNode> allLeaders = clusterNodes.stream().filter(ClusterNode::isLeader).collect(Collectors.toList());
             assertThat("leaders", allLeaders, not(empty()));
             return randomFrom(allLeaders);
-        }
-
-        List<ClusterNode> getAllLeaders() {
-            return clusterNodes.stream().filter(ClusterNode::isLeader).collect(Collectors.toList());
         }
 
         private final ConnectionStatus preferredUnknownNodeConnectionStatus =

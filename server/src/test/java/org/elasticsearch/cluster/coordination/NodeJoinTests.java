@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -73,6 +74,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -144,7 +146,7 @@ public class NodeJoinTests extends ESTestCase {
             publishListener.onResponse(null);
         });
         setupMasterServiceAndCoordinator(term, initialState, masterService, threadPool, new Random(Randomness.get().nextLong()),
-            () -> NodeHealthService.Status.HEALTHY);
+            () -> new StatusInfo(HEALTHY, "healthy-info"));
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
     }
@@ -272,7 +274,8 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(randomFrom(node0, node1))), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(randomFrom(node0, node1))),
+            () -> new StatusInfo(HEALTHY, "healthy-info"));
         assertFalse(isLocalNodeElectedMaster());
         assertNull(coordinator.getStateForMasterService().nodes().getMasterNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
@@ -292,7 +295,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node1)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node1)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
@@ -308,7 +311,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long higherVersion = initialVersion + randomLongBetween(1, 10);
@@ -322,7 +325,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -339,7 +342,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         long newTerm = initialTerm + randomLongBetween(1, 10);
 
         joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
@@ -358,7 +361,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node2)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node2)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         assertFalse(isLocalNodeElectedMaster());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture futNode0 = joinNodeAsync(new JoinRequest(node0, newTerm, Optional.of(
@@ -385,7 +388,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
@@ -404,8 +407,8 @@ public class NodeJoinTests extends ESTestCase {
                                                         CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER, "knownNodeName");
 
         setupFakeMasterServiceAndCoordinator(initialTerm, buildStateWithVotingConfigExclusion(initialNode, initialTerm,
-                                                                                                initialVersion, votingConfigExclusion),
-                                                                                                () -> NodeHealthService.Status.HEALTHY);
+            initialVersion, votingConfigExclusion),
+            () -> new StatusInfo(HEALTHY, "healthy-info"));
 
         DiscoveryNode knownJoiningNode = new DiscoveryNode("knownNodeName", "newNodeId", buildNewFakeTransportAddress(),
                                                             emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
@@ -481,7 +484,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node0)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node0)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         handleStartJoinFrom(node1, newTerm);
         handleFollowerCheckFrom(node1, newTerm);
@@ -497,7 +500,7 @@ public class NodeJoinTests extends ESTestCase {
         long initialTerm = randomLongBetween(1, 10);
         long initialVersion = randomLongBetween(1, 10);
         setupFakeMasterServiceAndCoordinator(initialTerm, initialState(node0, initialTerm, initialVersion,
-            VotingConfiguration.of(node1)), () -> NodeHealthService.Status.HEALTHY);
+            VotingConfiguration.of(node1)), () -> new StatusInfo(HEALTHY, "healthy-info"));
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(new JoinRequest(node0, newTerm,
             Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));

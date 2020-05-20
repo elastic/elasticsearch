@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -65,6 +66,8 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.contains;
@@ -110,7 +113,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assert false : node;
-        }, () -> NodeHealthService.Status.HEALTHY);
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "unhealthy-info"));
 
         followersChecker.setCurrentNodes(discoveryNodesHolder[0]);
         deterministicTaskQueue.runAllTasks();
@@ -181,7 +184,7 @@ public class FollowersCheckerTests extends ESTestCase {
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis()
                 + FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings).millis(),
-            () -> NodeHealthService.Status.HEALTHY);
+            () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
 
     public void testFailsNodeThatRejectsCheck() {
@@ -199,7 +202,7 @@ public class FollowersCheckerTests extends ESTestCase {
             },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(),
-            () -> NodeHealthService.Status.HEALTHY);
+            () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
 
     public void testFailureCounterResetsOnSuccess() {
@@ -232,13 +235,13 @@ public class FollowersCheckerTests extends ESTestCase {
             },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) * (maxRecoveries + 1) - 1)
-                * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(), () -> NodeHealthService.Status.HEALTHY);
+                * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(), () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
 
     public void testFailsNodeThatIsDisconnected() {
         testBehaviourOfFailingNode(Settings.EMPTY, () -> {
             throw new ConnectTransportException(null, "simulated exception");
-        }, "disconnected", 0, () -> NodeHealthService.Status.HEALTHY);
+        }, "disconnected", 0, () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
 
     public void testFailsNodeThatDisconnects() {
@@ -281,7 +284,7 @@ public class FollowersCheckerTests extends ESTestCase {
         }, (node, reason) -> {
             assertTrue(nodeFailed.compareAndSet(false, true));
             assertThat(reason, equalTo("disconnected"));
-        }, () -> NodeHealthService.Status.HEALTHY);
+        }, () -> new StatusInfo(HEALTHY, "healthy-info"));
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build();
         followersChecker.setCurrentNodes(discoveryNodes);
@@ -293,7 +296,7 @@ public class FollowersCheckerTests extends ESTestCase {
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
     }
 
-    public void testFailsNodeThatIsNotWritable() {
+    public void testFailsNodeThatIsUnhealthy() {
         final Builder settingsBuilder = Settings.builder();
         if (randomBoolean()) {
             settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(1, 10));
@@ -304,11 +307,11 @@ public class FollowersCheckerTests extends ESTestCase {
         final Settings settings = settingsBuilder.build();
 
         testBehaviourOfFailingNode(settings, () -> {
-                throw new FsHealthCheckFailureException("non writable exception");
+                throw new NodeHealthCheckFailureException("non writable exception");
             },
             "followers check retry count exceeded",
             (FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings) - 1) * FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis(),
-            () -> NodeHealthService.Status.HEALTHY);
+            () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
 
     private void testBehaviourOfFailingNode(Settings testSettings, Supplier<TransportResponse.Empty> responder, String failureReason,
@@ -422,7 +425,7 @@ public class FollowersCheckerTests extends ESTestCase {
             });
     }
 
-    public void testNonWritableNodeRejectsImmediately(){
+    public void testUnhealthyNodeRejectsImmediately(){
 
         final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode follower = new DiscoveryNode("follower", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -453,7 +456,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 }
             }, (node, reason) -> {
             assert false : node;
-        }, () -> NodeHealthService.Status.UNHEALTHY);
+        }, () -> new StatusInfo(UNHEALTHY, "unhealthy-info"));
 
         final long leaderTerm = randomLongBetween(2, Long.MAX_VALUE);
         final long followerTerm = randomLongBetween(1, leaderTerm - 1);
@@ -517,7 +520,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 }
             }, (node, reason) -> {
             assert false : node;
-        }, () -> NodeHealthService.Status.HEALTHY);
+        }, () -> new StatusInfo(HEALTHY, "healthy-info"));
 
         {
             // Does not call into the coordinator in the normal case
@@ -646,7 +649,7 @@ public class FollowersCheckerTests extends ESTestCase {
             assert false : fcr;
         }, (node, reason) -> {
             assert false : node;
-        },() -> NodeHealthService.Status.HEALTHY);
+        },() -> new StatusInfo(HEALTHY, "healthy-info"));
         followersChecker.setCurrentNodes(discoveryNodes);
         List<DiscoveryNode> followerTargets = Stream.of(capturingTransport.getCapturedRequestsAndClear())
             .map(cr -> cr.node).collect(Collectors.toList());

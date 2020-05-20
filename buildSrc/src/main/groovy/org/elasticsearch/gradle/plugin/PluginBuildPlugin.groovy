@@ -28,6 +28,7 @@ import org.elasticsearch.gradle.test.rest.RestResourcesPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.util.Util
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -242,6 +243,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         if (noticeFile != null) {
             TaskProvider<NoticeTask> generateNotice = project.tasks.register('generateNotice', NoticeTask) {
                 inputFile = noticeFile
+                source(Util.getJavaMainSourceSet(project).get().allJava)
             }
             project.tasks.named('bundlePlugin').configure {
                 from(generateNotice)

@@ -32,7 +32,7 @@ subprojects {
   }
 
   tasks.withType(LicenseHeadersTask.class) {
-    approvedLicenses = ['Elastic License', 'Generated']
+    approvedLicenses = ['Elastic License', 'Generated', 'Vendored']
     additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
   }
 

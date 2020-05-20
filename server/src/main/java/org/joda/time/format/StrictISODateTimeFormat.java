@@ -1,6 +1,6 @@
 package org.joda.time.format;
 
-/*
+/* @notice
  *  Copyright 2001-2009 Stephen Colebourne
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");

@@ -158,11 +158,6 @@ dependencyLicenses {
   mapping from: /http.*/, to: 'httpclient'
 }
 
-licenseHeaders {
-  // This class was sourced from apache directory studio for some microsoft-specific logic
-  excludes << 'org/elasticsearch/xpack/security/authc/ldap/ActiveDirectorySIDUtil.java'
-}
-
 forbiddenPatterns {
   exclude '**/*.key'
   exclude '**/*.p12'

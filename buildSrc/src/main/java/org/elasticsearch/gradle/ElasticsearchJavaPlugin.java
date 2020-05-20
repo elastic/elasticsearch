@@ -398,23 +398,30 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         ExtraPropertiesExtension ext = project.getExtensions().getExtraProperties();
         ext.set("licenseFile", null);
         ext.set("noticeFile", null);
-        project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-            if (jarTask.isEnabled()) {
-                // we put all our distributable files under distributions
-                jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-                // fixup the jar manifest
-                jarTask.doFirst(
-                    t -> {
-                        // this doFirst is added before the info plugin, therefore it will run
-                        // after the doFirst added by the info plugin, and we can override attributes
-                        jarTask.getManifest()
-                            .attributes(
-                                Map.of("Build-Date", BuildParams.getBuildDate(), "Build-Java-Version", BuildParams.getCompilerJavaVersion())
-                            );
-                    }
-                );
-            }
-        });
+        project.getTasks()
+            .withType(Jar.class)
+            .configureEach(
+                jarTask -> {
+                    // we put all our distributable files under distributions
+                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
+                    // fixup the jar manifest
+                    jarTask.doFirst(
+                        t -> {
+                            // this doFirst is added before the info plugin, therefore it will run
+                            // after the doFirst added by the info plugin, and we can override attributes
+                            jarTask.getManifest()
+                                .attributes(
+                                    Map.of(
+                                        "Build-Date",
+                                        BuildParams.getBuildDate(),
+                                        "Build-Java-Version",
+                                        BuildParams.getCompilerJavaVersion()
+                                    )
+                                );
+                        }
+                    );
+                }
+            );
         // add license/notice files
         project.afterEvaluate(p -> project.getTasks().withType(Jar.class).configureEach(jarTask -> {
             if (jarTask.isEnabled()) {

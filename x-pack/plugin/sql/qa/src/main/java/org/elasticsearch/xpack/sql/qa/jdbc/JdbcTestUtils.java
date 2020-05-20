@@ -31,8 +31,10 @@ import java.sql.Time;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.jar.JarInputStream;
@@ -46,11 +48,12 @@ final class JdbcTestUtils {
 
     private static final int MAX_WIDTH = 20;
 
+    static final ZoneId UTC = ZoneId.of("Z");
     static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
     static final String JDBC_TIMEZONE = "timezone";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
-    static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
+    static void logResultSetMetaData(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
@@ -146,7 +149,7 @@ final class JdbcTestUtils {
         BasicFormatter formatter = new BasicFormatter(cols, data, CLI);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
-    
+
     static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
     }
@@ -154,7 +157,7 @@ final class JdbcTestUtils {
     /**
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
-     * 
+     *
      * Currently able to resolve resources inside the classpath either from:
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).
@@ -239,5 +242,19 @@ final class JdbcTestUtils {
     static Time asTime(long millis, ZoneId zoneId) {
         return new Time(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
                 .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
+    }
+
+    static long convertFromCalendarToUTC(long value, Calendar cal) {
+        if (cal == null) {
+            return value;
+        }
+        Calendar c = (Calendar) cal.clone();
+        c.setTimeInMillis(value);
+
+        ZonedDateTime convertedDateTime = ZonedDateTime
+            .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
+            .withZoneSameLocal(ZoneOffset.UTC);
+
+        return convertedDateTime.toInstant().toEpochMilli();
     }
 }

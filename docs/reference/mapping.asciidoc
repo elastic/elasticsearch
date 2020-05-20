@@ -13,29 +13,22 @@ are stored and indexed. For instance, use mappings to define:
 * custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
 
-[float]
-[[mapping-type]]
-== Mapping Type
-
-Each index has one _mapping type_ which determines how the document will be
-indexed.
-
-deprecated::[6.0.0,See <<removal-of-types>>]
-
-A mapping type has:
+A mapping definition has:
 
 <<mapping-fields,Meta-fields>>::
 
-Meta-fields are used to customize how a document's metadata associated is
+Meta-fields are used to customize how a document's associated metadata is
 treated. Examples of meta-fields include the document's
-<<mapping-index-field,`_index`>>, <<mapping-type-field,`_type`>>,
-<<mapping-id-field,`_id`>>,  and <<mapping-source-field,`_source`>> fields.
+<<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
+<<mapping-source-field,`_source`>> fields.
 
 <<mapping-types,Fields>> or _properties_::
 
-A mapping type contains a list of fields or `properties` pertinent to the
+A mapping contains a list of fields or `properties` pertinent to the
 document.
 
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
+For more details, please see <<removal-of-types>>.
 
 [float]
 [[field-datatypes]]
@@ -65,17 +58,16 @@ via the <<multi-fields>> parameter.
 [float]
 === Settings to prevent mappings explosion
 
-Defining too many fields in an index is a condition that can lead to a
+Defining too many fields in an index can lead to a
 mapping explosion, which can cause out of memory errors and difficult
-situations to recover from. This problem may be more common than expected.
-As an example, consider a situation in which every new document inserted
-introduces new fields. This is quite common with dynamic mappings.
-Every time a document contains new fields, those will end up in the index's
-mappings. This isn't worrying for a small amount of data, but it can become a
+situations to recover from.
+
+Consider a situation where every new document inserted
+introduces new fields, such as with <<dynamic-mapping,dynamic mapping>>.
+Each new field is added to the index mapping, which can become a
 problem as the mapping grows.
-The following settings allow you to limit the number of field mappings that
-can be created manually or dynamically, in order to prevent bad documents from
-causing a mapping explosion:
+
+Use the following settings to limit the number of field mappings (created manually or dynamically) and prevent documents from causing a mapping explosion:
 
 `index.mapping.total_fields.limit`::
     The maximum number of fields in an index. Field and object mappings, as well as
@@ -91,26 +83,37 @@ If you increase this setting, we recommend you also increase the
 <<search-settings,`indices.query.bool.max_clause_count`>> setting, which
 limits the maximum number of <<query-dsl-bool-query,boolean clauses>> in a query.
 ====
++
+[TIP]
+====
+If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> datatype.
+====
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
     objects. For instance, if all fields are defined at the root object level,
     then the depth is `1`. If there is one object mapping, then the depth is
-    `2`, etc. The default is `20`.
+    `2`, etc. Default is `20`.
 
+// tag::nested-fields-limit[]
 `index.mapping.nested_fields.limit`::
-    The maximum number of distinct `nested` mappings in an index, defaults to `50`.
+    The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting
+    limits the number of unique `nested` types per index. Default is `50`.
+// end::nested-fields-limit[]
 
+// tag::nested-objects-limit[]
 `index.mapping.nested_objects.limit`::
-    The maximum number of `nested` JSON objects within a single document across
-    all nested types, defaults to 10000.
+    The maximum number of nested JSON objects that a single document can contain across all
+    `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested
+    objects. Default is `10000`.
+// end::nested-objects-limit[]
 
 `index.mapping.field_name_length.limit`::
-    Setting for the maximum length of a field name. The default value is
-    Long.MAX_VALUE (no limit). This setting isn't really something that addresses
+    Setting for the maximum length of a field name. This setting isn't really something that addresses
     mappings explosion but might still be useful if you want to limit the field length.
     It usually shouldn't be necessary to set this setting. The default is okay
-    unless a user starts to add a huge number of fields with really long names.
+    unless a user starts to add a huge number of fields with really long names. Default is
+    `Long.MAX_VALUE` (no limit).
 
 [float]
 == Dynamic mapping

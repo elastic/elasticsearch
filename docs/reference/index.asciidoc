@@ -16,23 +16,25 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::setup/bootstrap-checks-xes.asciidoc[]
-
 include::upgrade.asciidoc[]
 
-include::aggregations.asciidoc[]
+include::search/index.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
-include::modules/cross-cluster-search.asciidoc[]
+ifdef::permanently-unreleased-branch[]
+include::eql/index.asciidoc[]
+endif::[]
+
+include::sql/index.asciidoc[]
+
+include::aggregations.asciidoc[]
 
 include::scripting.asciidoc[]
 
 include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
-
-include::modules.asciidoc[]
 
 include::index-modules.asciidoc[]
 
@@ -44,11 +46,7 @@ ifdef::permanently-unreleased-branch[]
 
 include::autoscaling/index.asciidoc[]
 
-include::eql/index.asciidoc[]
-
 endif::[]
-
-include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
@@ -67,8 +65,6 @@ include::{xes-repo-dir}/watcher/index.asciidoc[]
 include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
-
-include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 

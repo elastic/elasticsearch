@@ -5,8 +5,8 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 archivesBaseName = 'x-pack-core'
 
@@ -92,7 +92,7 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/hasher-signatures.txt')
 }
 
@@ -149,7 +149,3 @@ thirdPartyAudit.ignoreMissingClasses(
 // so we disable integ tests
 integTest.enabled = false
 
-// There are some integ tests that don't require a cluster, we still want to run those
-task internalClusterTest(type: Test) {
-  include "**/*IT.class"
-}

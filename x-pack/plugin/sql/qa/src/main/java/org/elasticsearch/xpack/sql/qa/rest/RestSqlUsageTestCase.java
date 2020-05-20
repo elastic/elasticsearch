@@ -29,7 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_STATS_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.query;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     private List<IndexDocument> testData = Arrays.asList(
@@ -250,23 +250,23 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity(query(sql).toString(), ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
-    
+
     private void runSql(String sql) throws IOException {
-        String mode = Mode.PLAIN.toString();
+        Mode mode = Mode.PLAIN;
         if (clientType.equals(ClientType.JDBC.toString())) {
-            mode = Mode.JDBC.toString();
+            mode = Mode.JDBC;
         } else if (clientType.startsWith(ClientType.ODBC.toString())) {
-            mode = Mode.ODBC.toString();
+            mode = Mode.ODBC;
         } else if (clientType.equals(ClientType.CLI.toString())) {
-            mode = Mode.CLI.toString();
+            mode = Mode.CLI;
         }
 
-        runSql(mode, clientType, sql);
+        runSql(mode.toString(), clientType, sql);
     }
-    
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void assertTranslateQueryMetric(int expected, Map<String, Object> responseAsMap) throws IOException {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
@@ -278,7 +278,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         }
         assertEquals(expected, actualMetricValue);
     }
-    
+
     private void runSql(String mode, String restClient, String sql) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
@@ -293,9 +293,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             options.addHeader("Accept", randomFrom("*/*", "application/json"));
             request.setOptions(options);
         }
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) +
-                (ignoreClientType ? StringUtils.EMPTY : ",\"client_id\":\"" + restClient + "\"") + "}",
-                ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity(query(sql).mode(mode).clientId(ignoreClientType ? StringUtils.EMPTY : restClient).toString(),
+            ContentType.APPLICATION_JSON));
         client().performRequest(request);
     }
     

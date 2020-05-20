@@ -17,11 +17,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -84,7 +86,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         if (enabled == false) {
-            MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(), enabled,
+            MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
+                licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING), enabled,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
@@ -100,7 +103,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         ActionListener<SearchResponse> trainedModelConfigCountListener = ActionListener.wrap(
             response -> {
                 addTrainedModelStats(response, inferenceUsage);
-                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(licenseState.isMachineLearningAllowed(),
+                MachineLearningFeatureSetUsage usage = new MachineLearningFeatureSetUsage(
+                    licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING),
                     enabled, jobsUsage, datafeedsUsage, analyticsUsage, inferenceUsage, nodeCount);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             },
@@ -113,6 +117,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 addInferenceIngestUsage(response, inferenceUsage);
                 SearchRequestBuilder requestBuilder = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
                     .setSize(0)
+                    .setQuery(QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME)))
                     .setTrackTotalHits(true);
                 ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
                     ClientHelper.ML_ORIGIN,
@@ -128,7 +134,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             response -> {
                 addDataFrameAnalyticsUsage(response, analyticsUsage);
                 String[] ingestNodes = ingestNodes(state);
-                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear().ingest(true);
+                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
+                    .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
                 client.execute(NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
             },
             listener::onFailure
@@ -146,10 +153,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             listener::onFailure);
 
         // Step 1. Extract usage from jobs stats and then request stats for all datafeeds
-        GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(MetaData.ALL);
+        GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(Metadata.ALL);
         ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(
             response -> {
-                jobManagerHolder.getJobManager().expandJobs(MetaData.ALL, true, ActionListener.wrap(jobs -> {
+                jobManagerHolder.getJobManager().expandJobs(Metadata.ALL, true, ActionListener.wrap(jobs -> {
                     addJobsUsage(response, jobs.results(), jobsUsage);
                     GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(
                         GetDatafeedsStatsAction.ALL);

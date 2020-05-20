@@ -1632,7 +1632,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                         .field("keyword");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
                         .subAggregation(
-                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                                 .field("terms")
                                 .collectMode(mode)
                                 .subAggregation(new MaxAggregationBuilder("max").field("long"))
@@ -1660,7 +1660,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                         .field("keyword");
                     return new CompositeAggregationBuilder("name", Collections.singletonList(terms))
                         .subAggregation(
-                            new TermsAggregationBuilder("terms", ValueType.STRING)
+                            new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
                                 .field("terms")
                                 .collectMode(mode)
                                 .subAggregation(new MaxAggregationBuilder("max").field("long"))
@@ -2077,40 +2077,52 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
 
     private static Sort buildIndexSort(List<CompositeValuesSourceBuilder<?>> sources, Map<String, MappedFieldType> fieldTypes) {
         List<SortField> sortFields = new ArrayList<>();
+        Map<String, MappedFieldType> remainingFieldTypes = new HashMap<>(fieldTypes);
         for (CompositeValuesSourceBuilder<?> source : sources) {
-            MappedFieldType type = fieldTypes.get(source.field());
-            if (type instanceof KeywordFieldMapper.KeywordFieldType) {
-                sortFields.add(new SortedSetSortField(type.name(), false));
-            } else if (type instanceof DateFieldMapper.DateFieldType) {
-                sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.LONG, false));
-            } else if (type instanceof NumberFieldMapper.NumberFieldType) {
-                boolean comp = false;
-                switch (type.typeName()) {
-                    case "byte":
-                    case "short":
-                    case "integer":
-                        comp = true;
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.INT, false));
-                        break;
-
-                    case "long":
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.LONG, false));
-                        break;
-
-                    case "float":
-                    case "double":
-                        comp = true;
-                        sortFields.add(new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false));
-                        break;
-
-                    default:
-                        break;
-                }
-                if (comp == false) {
-                    break;
-                }
+            MappedFieldType type = fieldTypes.remove(source.field());
+            remainingFieldTypes.remove(source.field());
+            SortField sortField = sortFieldFrom(type);
+            if (sortField == null) {
+                break;
+            }
+            sortFields.add(sortField);
+            if (sortField instanceof SortedNumericSortField && ((SortedNumericSortField) sortField).getType() == SortField.Type.LONG) {
+                break;
             }
         }
-        return sortFields.size() > 0 ? new Sort(sortFields.toArray(new SortField[0])) : null;
+        while (remainingFieldTypes.size() > 0 && randomBoolean()) {
+            // Add extra unused sorts
+            List<String> fields = new ArrayList<>(remainingFieldTypes.keySet());
+            Collections.sort(fields);
+            String field = fields.get(between(0, fields.size() - 1));
+            SortField sortField = sortFieldFrom(remainingFieldTypes.remove(field));
+            if (sortField != null) {
+                sortFields.add(sortField);
+            }
+        }
+        return sortFields.size() > 0 ? new Sort(sortFields.toArray(SortField[]::new)) : null;
+    }
+    
+    private static SortField sortFieldFrom(MappedFieldType type) {
+        if (type instanceof KeywordFieldMapper.KeywordFieldType) {
+            return new SortedSetSortField(type.name(), false);
+        } else if (type instanceof DateFieldMapper.DateFieldType) {
+            return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
+        } else if (type instanceof NumberFieldMapper.NumberFieldType) {
+            switch (type.typeName()) {
+                case "byte":
+                case "short":
+                case "integer":
+                    return new SortedNumericSortField(type.name(), SortField.Type.INT, false);
+                case "long":
+                    return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
+                case "float":
+                case "double":
+                    return new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
+                default:
+                    return null;
+            }
+        }
+        return null;
     }
 }

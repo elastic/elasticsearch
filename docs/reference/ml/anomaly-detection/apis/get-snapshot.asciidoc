@@ -60,6 +60,7 @@ all model snapshots.
 `start`::
   (Optional, string) Returns snapshots with timestamps after this time.
 
+[role="child_attributes"]
 [[ml-get-snapshot-results]]
 ==== {api-response-body-title}
 
@@ -82,17 +83,21 @@ properties:
 `min_version`::
 (string) The minimum version required to be able to restore the model snapshot.
 
+//Begin model_size_stats
 `model_size_stats`::
 (object) Summary information describing the model.
-
-`model_size_stats`.`bucket_allocation_failures_count`:::
++
+.Properties of `model_size_stats`
+[%collapsible%open]
+====
+`bucket_allocation_failures_count`:::
 (long) The number of buckets for which entities were not processed due to memory
 limit constraints.
 
-`model_size_stats`.`categorized_doc_count`:::
+`categorized_doc_count`:::
 (long) The number of documents that have had a field categorized.
 
-`model_size_stats`.`categorization_status`:::
+`categorization_status`:::
 (string) The status of categorization for this job.
 Contains one of the following values.
 +
@@ -108,25 +113,29 @@ matched categories, or more than 50% of categories are dead.
 
 --
 
-`model_size_stats`.`dead_category_count`:::
+`dead_category_count`:::
 (long) The number of categories created by categorization that will
 never be assigned again because another category's definition
 makes it a superset of the dead category.  (Dead categories are a
 side effect of the way categorization has no prior training.)
 
-`model_size_stats`.`frequent_category_count`:::
+`failed_category_count`:::
+(long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=failed-category-count]
+
+`frequent_category_count`:::
 (long) The number of categories that match more than 1% of categorized
 documents.
 
-`model_size_stats`.`job_id`:::
+`job_id`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-`model_size_stats`.`log_time`:::
+`log_time`:::
 (date) The timestamp that the `model_size_stats` were recorded, according to
 server-time.
 
-`model_size_stats`.`memory_status`:::
+`memory_status`:::
 (string) The status of the memory in relation to its `model_memory_limit`.
 Contains one of the following values.
 +
@@ -139,38 +148,40 @@ memory limit and more aggressive pruning will be performed in order to try to
 reclaim space.
 --
 
-`model_size_stats`.`model_bytes`:::
+`model_bytes`:::
 (long) An approximation of the memory resources required for this analysis.
 
-`model_size_stats`.`model_bytes_exceeded`:::
+`model_bytes_exceeded`:::
 (long) The number of bytes over the high limit for memory usage at the last allocation failure.
 
-`model_size_stats`.`model_bytes_memory_limit`:::
+`model_bytes_memory_limit`:::
 (long) The upper limit for memory usage, checked on increasing values.
 
-`model_size_stats`.`rare_category_count`:::
+`rare_category_count`:::
 (long) The number of categories that match just one categorized document.
 
-`model_size_stats`.`result_type`:::
+`result_type`:::
 (string) Internal. This value is always `model_size_stats`.
 
-`model_size_stats`.`timestamp`:::
+`timestamp`:::
 (date) The timestamp that the `model_size_stats` were recorded, according to the
 bucket timestamp of the data.
 
-`model_size_stats`.`total_by_field_count`:::
+`total_by_field_count`:::
 (long) The number of _by_ field values analyzed. Note that these are counted
 separately for each detector and partition.
 
-`model_size_stats`.`total_category_count`:::
+`total_category_count`:::
 (long) The number of categories created by categorization.
 
-`model_size_stats`.`total_over_field_count`:::
+`total_over_field_count`:::
 (long) The number of _over_ field values analyzed. Note that these are counted
 separately for each detector and partition.
 
-`model_size_stats`.`total_partition_field_count`:::
+`total_partition_field_count`:::
 (long) The number of _partition_ field values analyzed.
+====
+//End model_size_stats
 
 `retain`::
 (boolean)

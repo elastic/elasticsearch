@@ -22,7 +22,6 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -33,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -43,6 +42,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,7 +84,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
      */
     public static ParentJoinFieldMapper getMapper(MapperService service) {
         MetaJoinFieldMapper.MetaJoinFieldType fieldType =
-            (MetaJoinFieldMapper.MetaJoinFieldType) service.fullName(MetaJoinFieldMapper.NAME);
+            (MetaJoinFieldMapper.MetaJoinFieldType) service.fieldType(MetaJoinFieldMapper.NAME);
         return fieldType == null ? null : fieldType.getMapper();
     }
 
@@ -92,7 +93,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
-        if (settings.getIndexMetaData().isRoutingPartitionedIndex()) {
+        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             throw new IllegalStateException("cannot create join field [" + name + "] " +
                 "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
@@ -120,7 +121,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ParentJoinFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
         boolean eagerGlobalOrdinals = true;
 
@@ -167,7 +168,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
             checkIndexCompatibility(indexSettings, name);
 
@@ -224,7 +225,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -312,17 +318,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) mergeWith;
-        List<String> conflicts = new ArrayList<>();
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) other;
+        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
         for (ParentIdFieldMapper mapper : parentIdFields) {
             if (joinMergeWith.getParentIdFieldMapper(mapper.getParentName(), true) == null) {
                 conflicts.add("cannot remove parent [" + mapper.getParentName() + "] in join field [" + name() + "]");
             }
         }
-
-        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
         for (ParentIdFieldMapper mergeWithMapper : joinMergeWith.parentIdFields) {
             ParentIdFieldMapper self = getParentIdFieldMapper(mergeWithMapper.getParentName(), true);
             if (self == null) {
@@ -347,9 +350,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 newParentIdFields.add(merged);
             }
         }
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalStateException("invalid update for join field [" + name() + "]:\n" + conflicts.toString());
-        }
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
         this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper);
@@ -370,7 +370,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("parsing is implemented in parse(), this method should NEVER be called");
     }
 

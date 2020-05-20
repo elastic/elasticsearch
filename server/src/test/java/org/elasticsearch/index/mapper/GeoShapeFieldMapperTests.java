@@ -26,23 +26,37 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
+public class GeoShapeFieldMapperTests extends FieldMapperTestCase<GeoShapeFieldMapper.Builder> {
+
+    @Override
+    protected GeoShapeFieldMapper.Builder newBuilder() {
+        return new GeoShapeFieldMapper.Builder("geoshape");
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier("orientation", true, (a, b) -> {
+            a.orientation(ShapeBuilder.Orientation.LEFT);
+            b.orientation(ShapeBuilder.Orientation.RIGHT);
+        });
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -282,7 +296,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             String serialized = toXContentString((GeoShapeFieldMapper) defaultMapper.mappers().getMapper("location"));
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-                AbstractGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
+                AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         }
     }
 
@@ -301,5 +315,4 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     public String toXContentString(GeoShapeFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
     }
-
 }

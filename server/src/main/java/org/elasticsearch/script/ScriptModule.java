@@ -66,7 +66,8 @@ public class ScriptModule {
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
-    private final ScriptService scriptService;
+    public final Map<String, ScriptEngine> engines;
+    public final Map<String, ScriptContext<?>> contexts;
 
     public ScriptModule(Settings settings, List<ScriptPlugin> scriptPlugins) {
         Map<String, ScriptEngine> engines = new HashMap<>();
@@ -89,20 +90,14 @@ public class ScriptModule {
                 }
             }
         }
-        scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
-    }
-
-    /**
-     * Service responsible for managing scripts.
-     */
-    public ScriptService getScriptService() {
-        return scriptService;
+        this.engines = Collections.unmodifiableMap(engines);
+        this.contexts = Collections.unmodifiableMap(contexts);
     }
 
     /**
      * Allow the script service to register any settings update handlers on the cluster settings
      */
-    public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+    public void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

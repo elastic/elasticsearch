@@ -74,7 +74,7 @@ public final class MapperRegistry {
     /**
      * Returns true if the provided field is a registered metadata field, false otherwise
      */
-    public boolean isMetaDataField(Version indexCreatedVersion, String field) {
+    public boolean isMetadataField(Version indexCreatedVersion, String field) {
         return getMetadataMapperParsers(indexCreatedVersion).containsKey(field);
     }
 

@@ -67,33 +67,33 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    public abstract void testEmptyAggregation() throws Exception;
+    public void testEmptyAggregation() throws Exception {}
 
-    public abstract void testUnmapped() throws Exception;
+    public void testUnmapped() throws Exception {}
 
-    public abstract void testSingleValuedField() throws Exception;
+    public void testSingleValuedField() throws Exception {}
 
-    public abstract void testSingleValuedFieldGetProperty() throws Exception;
+    public void testSingleValuedFieldGetProperty() throws Exception {}
 
-    public abstract void testSingleValuedFieldPartiallyUnmapped() throws Exception;
+    public void testSingleValuedFieldPartiallyUnmapped() throws Exception {}
 
-    public abstract void testSingleValuedFieldWithValueScript() throws Exception;
+    public void testSingleValuedFieldWithValueScript() throws Exception {}
 
-    public abstract void testSingleValuedFieldWithValueScriptWithParams() throws Exception;
+    public void testSingleValuedFieldWithValueScriptWithParams() throws Exception {}
 
-    public abstract void testMultiValuedField() throws Exception;
+    public void testMultiValuedField() throws Exception {}
 
-    public abstract void testMultiValuedFieldWithValueScript() throws Exception;
+    public void testMultiValuedFieldWithValueScript() throws Exception {}
 
-    public abstract void testMultiValuedFieldWithValueScriptWithParams() throws Exception;
+    public void testMultiValuedFieldWithValueScriptWithParams() throws Exception {}
 
-    public abstract void testScriptSingleValued() throws Exception;
+    public void testScriptSingleValued() throws Exception {}
 
-    public abstract void testScriptSingleValuedWithParams() throws Exception;
+    public void testScriptSingleValuedWithParams() throws Exception {}
 
-    public abstract void testScriptMultiValued() throws Exception;
+    public void testScriptMultiValued() throws Exception {}
 
-    public abstract void testScriptMultiValuedWithParams() throws Exception;
+    public void testScriptMultiValuedWithParams() throws Exception {}
 
-    public abstract void testOrderByEmptyAggregation() throws Exception;
+    public void testOrderByEmptyAggregation() throws Exception {}
 }

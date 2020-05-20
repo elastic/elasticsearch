@@ -26,7 +26,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -39,6 +38,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
@@ -156,7 +156,7 @@ public class Docker {
         // Bind-mount any volumes
         if (volumes != null) {
             volumes.forEach((localPath, containerPath) -> {
-                assertTrue(localPath + " doesn't exist", Files.exists(localPath));
+                assertThat(localPath, fileExists());
 
                 if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
                     // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
@@ -290,6 +290,36 @@ public class Docker {
             assert containerId != null;
 
             return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
+        }
+
+        /**
+         * Overrides {@link Shell#run(String)} to attempt to collect Docker container
+         * logs when a command fails to execute successfully.
+         * @param script the command to run
+         * @return the command's output
+         */
+        @Override
+        public Result run(String script) {
+            try {
+                return super.run(script);
+            } catch (ShellException e) {
+                try {
+                    final Shell.Result dockerLogs = getContainerLogs();
+                    logger.error(
+                        "Command [{}] failed.\n\nContainer stdout: [{}]\n\nContainer stderr: [{}]",
+                        script,
+                        dockerLogs.stdout,
+                        dockerLogs.stderr
+                    );
+                } catch (ShellException shellException) {
+                    logger.error(
+                        "Command [{}] failed.\n\nTried to dump container logs but that failed too: [{}]",
+                        script,
+                        shellException.getMessage()
+                    );
+                }
+                throw e;
+            }
         }
     }
 

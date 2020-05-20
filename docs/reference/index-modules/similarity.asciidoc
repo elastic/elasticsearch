@@ -124,7 +124,7 @@ This similarity has the following options:
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceSaturated.html[`saturated`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceChiSquared.html[`chisquared`].
 
-When using this similarity, it is highly recommended to remove stop words to get
+When using this similarity, it is highly recommended *not* to remove stop words to get
 good relevance. Also beware that terms whose frequency is less than the expected
 frequency will get a score equal to 0.
 

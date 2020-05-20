@@ -58,15 +58,18 @@ gets indexed and when it becomes visible, increasing the
 `30s`, might help improve indexing speed.
 
 [float]
-=== Disable refresh and replicas for initial loads
+=== Disable replicas for initial loads
 
-If you need to load a large amount of data at once, you should disable refresh
-by setting `index.refresh_interval` to `-1` and set `index.number_of_replicas`
-to `0`. This will temporarily put your index at risk since the loss of any shard
-will cause data loss, but at the same time indexing will be faster since
-documents will be indexed only once. Once the initial loading is finished, you
-can set `index.refresh_interval` and `index.number_of_replicas` back to their
-original values.
+If you have a large amount of data that you want to load all at once into
+Elasticsearch, it may be beneficial to set `index.number_of_replicas` to `0` in
+order to speep up indexing. Having no replicas means that losing a single node
+may incur data loss, so it is important that the data lives elsewhere so that
+this initial load can be retried in case of an issue. Once the initial load is
+finished, you can set `index.number_of_replicas` back to its original value.
+
+If `index.refresh_interval` is configured in the index settings, it may further
+help to unset it during this initial load and setting it back to its original
+value once the initial load is finished.
 
 [float]
 === Disable swapping
@@ -127,6 +130,15 @@ indexing.
 The default is `10%` which is often plenty: for example, if you give the JVM
 10GB of memory, it will give 1GB to the index buffer, which is enough to host
 two shards that are heavily indexing.
+
+[float]
+=== Use {ccr} to prevent searching from stealing resources from indexing
+
+Within a single cluster, indexing and searching can compete for resources. By
+setting up two clusters, configuring <<xpack-ccr,{ccr}>> to replicate data from
+one cluster to the other one, and routing all searches to the cluster that has
+the follower indices, search activity will no longer steal resources from
+indexing on the cluster that hosts the leader indices.
 
 [float]
 === Additional optimizations

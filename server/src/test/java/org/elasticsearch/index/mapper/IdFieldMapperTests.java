@@ -80,7 +80,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         IndexService service = createIndex("test", Settings.EMPTY);
         MapperService mapperService = service.mapperService();
         mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fullName("_id");
+        IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fieldType("_id");
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),

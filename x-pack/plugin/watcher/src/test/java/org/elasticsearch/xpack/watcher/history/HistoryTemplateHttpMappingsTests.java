@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -156,9 +156,9 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
-        Iterator<MappingMetaData> iterator = mappingsResponse.getMappings().valuesIt();
+        Iterator<MappingMetadata> iterator = mappingsResponse.getMappings().valuesIt();
         while (iterator.hasNext()) {
-            MappingMetaData mapping = iterator.next();
+            MappingMetadata mapping = iterator.next();
             Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {
                 Boolean enabled = ObjectPath.eval("properties.result.properties.input.properties.error.enabled", docMapping);

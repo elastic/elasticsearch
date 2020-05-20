@@ -34,6 +34,10 @@ public abstract class AbstractSqlRequest implements ToXContentFragment {
         return requestInfo.clientId();
     }
 
+    public SqlVersion version() {
+        return requestInfo.version();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -118,11 +118,16 @@ SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
 an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
 
-[float]
-=== Using aggregation functions on top of scalar functions
+Moreover, the aggregation(s) used in the `ORDER BY` must be only plain aggregate functions. No scalar
+functions or operators can be used, and therefore no complex columns that combine two ore more aggregate
+functions can be used for ordering. Here are some examples of queries that are *not allowed*:
 
-Aggregation functions like <<sql-functions-aggs-min,`MIN`>>, <<sql-functions-aggs-max,`MAX`>>, etc. can only be used
-directly on fields, and so queries like `SELECT MAX(abs(age)) FROM test` are not possible.
+[source, sql]
+--------------------------------------------------
+SELECT age, ROUND(AVG(salary)) AS avg FROM test GROUP BY age ORDER BY avg;
+
+SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY diff;
+--------------------------------------------------
 
 [float]
 === Using a sub-select

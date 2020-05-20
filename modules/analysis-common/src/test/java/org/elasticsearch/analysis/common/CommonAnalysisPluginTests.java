@@ -21,7 +21,7 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -40,7 +40,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -56,7 +56,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
         }
 
         final Settings settingsPre7 = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0))
                 .put("index.analysis.analyzer.custom_analyzer.type", "custom")
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.custom_analyzer.filter", "my_ngram").put("index.analysis.filter.my_ngram.type", "nGram")
@@ -74,7 +74,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
      */
     public void testEdgeNGramFilterInCustomAnalyzerDeprecationError() throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
+            .put(IndexMetadata.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT))
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -90,7 +90,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
         }
 
         final Settings settingsPre7 = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
+                .put(IndexMetadata.SETTING_VERSION_CREATED,
                     VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_6_0))
                 .put("index.analysis.analyzer.custom_analyzer.type", "custom")
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
@@ -149,7 +149,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void doTestPrebuiltTokenizerDeprecation(String deprecatedName, String replacement, Version version, boolean expectWarning)
             throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
             Map<String, TokenizerFactory> tokenizers = createTestAnalysis(
@@ -168,7 +168,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void doTestCustomTokenizerDeprecation(String deprecatedName, String replacement, Version version, boolean expectWarning)
             throws IOException {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "my_tokenizer")
             .put("index.analysis.tokenizer.my_tokenizer.type", deprecatedName)

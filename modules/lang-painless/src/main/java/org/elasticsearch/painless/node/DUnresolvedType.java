@@ -30,11 +30,11 @@ import java.util.Objects;
  */
 public class DUnresolvedType extends DType {
 
-    protected final String typeName;
+    protected final String canonicalTypeName;
 
     public DUnresolvedType(Location location, String typeName) {
         super(location);
-        this.typeName = Objects.requireNonNull(typeName);
+        this.canonicalTypeName = Objects.requireNonNull(typeName);
     }
 
     /**
@@ -44,18 +44,19 @@ public class DUnresolvedType extends DType {
      */
     @Override
     public DResolvedType resolveType(PainlessLookup painlessLookup) {
-        Class<?> type = painlessLookup.canonicalTypeNameToType(typeName);
+        Class<?> type = painlessLookup.canonicalTypeNameToType(canonicalTypeName);
 
         if (type == null) {
-            throw location.createError(new IllegalArgumentException("cannot resolve type [" + typeName + "]"));
+            throw location.createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
         }
 
         return new DResolvedType(location, type);
     }
 
+    /** @return the canonical Painless type name */
     @Override
-    public String toString() {
-        return "(DUnresolvedType [" + typeName + "])";
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
     }
 }
  

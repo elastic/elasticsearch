@@ -18,11 +18,12 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
 
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
-
 apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.jdk-download'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
@@ -31,8 +32,8 @@ esplugin {
 
 testClusters.integTest {
   // Modules who's integration is explicitly tested in integration tests
-  module file(project(':modules:parent-join').tasks.bundlePlugin.archiveFile)
-  module file(project(':modules:lang-painless').tasks.bundlePlugin.archiveFile)
+  module project(':modules:parent-join').tasks.bundlePlugin.archiveFile
+  module project(':modules:lang-painless').tasks.bundlePlugin.archiveFile
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
@@ -53,6 +54,13 @@ dependencies {
   testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
   // for parent/child testing
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
+                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'
+  }
 }
 
 thirdPartyAudit.ignoreMissingClasses(
@@ -87,6 +95,15 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
+jdks {
+  legacy {
+    vendor = 'adoptopenjdk'
+    version = '8u242+b08'
+    platform = OS.current().name().toLowerCase()
+    architecture = Architecture.current().name().toLowerCase()
+  }
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   integTest.runner {
@@ -119,11 +136,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
 
     Task fixture = task("oldEs${version}Fixture", type: org.elasticsearch.gradle.test.AntFixture) {
-      dependsOn project.configurations.oldesFixture
+      dependsOn project.configurations.oldesFixture, jdks.legacy
       dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
-      env 'JAVA_HOME', getJavaHome(it, 8)
+      env 'JAVA_HOME', jdks.legacy.javaHomePath
       args 'oldes.OldElasticsearch',
         baseDir,
         unzip.temporaryDir,

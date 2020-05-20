@@ -1,0 +1,500 @@
+//
+// QueryFolder test
+//
+// A test is made up of a name (one line), a query that can span multiple lines and ends with ; and one or multiple assertions (one per line) that end with ;
+//
+// <name>
+// <eql query>;
+// <expectation 1>
+// <expectation 2>
+// ...
+// <expectation n>
+// ;
+
+
+basic
+process where true
+;
+null
+;
+
+singleNumericFilterEquals
+process where serial_event_id = 1
+;
+"term":{"serial_event_id":{"value":1
+;
+
+singleNumericFilterLess
+process where serial_event_id < 4
+;
+"range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":false
+;
+
+singleNumericFilterLessEquals
+process where serial_event_id <= 4
+;
+"range":{"serial_event_id":{"from":null,"to":4,"include_lower":false,"include_upper":true
+;
+
+singleNumericFilterGreater
+process where serial_event_id > 4
+;
+"range":{"serial_event_id":{"from":4,"to":null,"include_lower":false,"include_upper":false
+;
+
+singleNumericFilterGreaterEquals
+process where serial_event_id >= 4
+;
+"range":{"serial_event_id":{"from":4,"to":null,"include_lower":true,"include_upper":false
+;
+
+mixedTypeFilter
+process where process_name == "notepad.exe" or (serial_event_id < 4.5 and serial_event_id >= 3.1)
+;
+"term":{"process_name":{"value":"notepad.exe"
+"range":{"serial_event_id":{"from":3.1,"to":4.5,"include_lower":true,"include_upper":false
+;
+
+notFilter
+process where not (exit_code > -1)
+;
+"range":{"exit_code":{"from":null,"to":-1,"include_lower":false,"include_upper":true
+;
+
+inFilter
+process where process_name in ("python.exe", "SMSS.exe", "explorer.exe")
+;
+"terms":{"process_name":["python.exe","SMSS.exe","explorer.exe"],
+;
+
+equalsAndInFilter
+process where process_path == "*\\red_ttp\\wininit.*" and opcode in (0,1,2,3)
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+{"terms":{"opcode":[0,1,2,3]
+;
+
+functionEqualsTrue
+process where cidrMatch(source_address, "10.0.0.0/8") == true
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+functionEqualsFalse
+process where cidrMatch(source_address, "10.0.0.0/8") == false
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+functionNotEqualsTrue
+process where cidrMatch(source_address, "10.0.0.0/8") != true
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"must_not":[{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+functionNotEqualsFalse
+process where cidrMatch(source_address, "10.0.0.0/8") != false
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+twoFunctionsEqualsBooleanLiterals
+process where endsWith(process_path, 'x') == true and endsWith(process_path, 'yx') == false
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process",
+{"bool":{"must":[{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))","lang":"painless",
+"params":{"v0":"process_path","v1":"x"}}
+{"script":{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.not(
+InternalEqlScriptUtils.endsWith(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)))","lang":"painless",
+"params":{"v0":"process_path","v1":"yx"}}
+;
+
+endsWithFunction
+process where endsWith(user_name, 'c')
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.endsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1))",
+"params":{"v0":"user_name","v1":"c"}
+;
+
+lengthFunctionWithExactSubField
+process where length(file_name) > 0
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"file_name.keyword","v1":0}
+;
+
+lengthFunctionWithExactField
+process where 12 == length(user_name)
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"user_name","v1":12}
+;
+
+lengthFunctionWithConstantKeyword
+process where 5 > length(constant_keyword)
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lt(
+InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"constant_keyword","v1":5}
+;
+
+startsWithFunction-caseInSensitive
+process where startsWith(user_name, 'A')
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.startsWith(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))",
+"params":{"v0":"user_name","v1":"A","v2":false}}
+;
+
+startsWithFunctionSimple-caseSensitive
+process where startsWith(user_name, 'A')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"prefix":{"user_name":{"value":"A","boost":1.0}}}],"boost":1.0}}
+;
+
+startsWithFunctionWithCondition-caseSensitive
+process where startsWith(user_name, 'A') or startsWith(user_name, 'B')
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
+{"bool":{"should":[{"prefix":{"user_name":{"value":"A","boost":1.0}}},
+{"prefix":{"user_name":{"value":"B","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
+;
+
+stringContains
+process where stringContains(process_name, "foo")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
+"params":{"v0":"process_name","v1":"foo"}
+;
+
+stringFunction
+process where string(pid) == "123"
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"params":{"v0":"pid","v1":"123"}
+;
+
+indexOfFunction
+process where indexOf(user_name, 'A', 2) > 0
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"user_name","v1":"A","v2":2,"v3":0}
+;
+
+
+substringFunction
+process where substring(file_name, -4) == '.exe'
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
+;
+
+betweenFunction
+process where between(process_name, "s", "e") == "yst"
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
+"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
+;
+
+concatFunction
+process where concat(process_name, "::foo::", null, 1) == "net.exe::foo::1"
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3]),params.v4))",
+"params":{"v0":"process_name","v1":"::foo::","v2":null,"v3":1,"v4":"net.exe::foo::1"}
+;
+
+cidrMatchFunctionOne
+process where cidrMatch(source_address, "10.0.0.0/8")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+cidrMatchFunctionOneBool
+process where cidrMatch(source_address, "10.0.0.0/8") == true
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8"]
+;
+
+cidrMatchFunctionTwo
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16"]
+;
+
+cidrMatchFunctionTwoWithOr
+process where cidrMatch(source_address, "10.0.0.0/8") or cidrMatch(source_address, "192.168.0.0/16")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"bool":{"should":[{"terms":{"source_address":["10.0.0.0/8"],"boost":1.0}},{"terms":{"source_address":["192.168.0.0/16"],"boost":1.0}}
+;
+
+cidrMatchFunctionThree
+process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db8::/32")
+;
+{"bool":{"must":[{"term":{"event.category":{"value":"process"
+{"terms":{"source_address":["10.0.0.0/8","192.168.0.0/16","2001:db8::/32"]
+;
+
+cidrMatchFunctionWrapped
+process where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+;
+{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.string(
+InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)),params.v2))"
+"params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}
+;
+
+matchFunctionOne
+process where match(command_line, "^.*?net.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe"
+;
+
+matchFunctionTwo
+process where match(command_line, "^.*?net.exe", "net\\.exe")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe"
+;
+
+matchFunctionThree
+process where match(command_line, "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"
+;
+
+numberFunctionSingleArgument
+process where number(process_name) == 1;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":null,"v2":1}
+;
+
+matchFunctionScalar
+process where match(substring(command_line, 5), "^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.regex(InternalEqlScriptUtils.substring(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+"params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
+;
+
+
+numberFunctionTwoFieldArguments
+process where number(process_name, pid) != null;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1))))",
+"params":{"v0":"process_name","v1":"pid"}
+;
+
+numberFunctionTwoArguments
+process where number(process_name, 16) != null;
+InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
+"params":{"v0":"process_name","v1":16}
+;
+
+numberFunctionFoldedComparison
+process where serial_event_id == number("-32.5");
+{"term":{"serial_event_id":{"value":-32.5,
+;
+
+numberFunctionFoldedHexComparison
+process where serial_event_id == number("0x32", 16);
+{"term":{"serial_event_id":{"value":50,
+;
+
+
+wildcardFunctionSingleArgument
+process where wildcard(process_path, "*\\red_ttp\\wininit.*")
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+;
+
+wildcardFunctionTwoArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+;
+
+wildcardFunctionThreeArguments
+process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
+;
+"wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*"
+"wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*"
+"wildcard":{"process_path":{"wildcard":"*def*"
+;
+
+
+addOperator
+process where serial_event_id + 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+addOperatorReversed
+process where 2 + serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+addFunction
+process where add(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+addFunctionReversed
+process where add(2, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.add(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+divideOperator
+process where serial_event_id / 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+divideOperatorReversed
+process where 82 / serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":82,"v1":"serial_event_id","v2":41}
+;
+
+divideFunction
+process where divide(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+divideFunctionReversed
+process where divide(82, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.div(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":82,"v1":"serial_event_id","v2":41}
+;
+
+moduloOperator
+process where serial_event_id % 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+moduloOperatorReversed
+process where 42 % serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":42,"v1":"serial_event_id","v2":41}
+;
+
+moduloFunction
+process where modulo(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+moduloFunctionReversed
+process where modulo(42, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mod(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":42,"v1":"serial_event_id","v2":41}
+;
+
+multiplyOperator
+process where serial_event_id * 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+multiplyOperatorReversed
+process where 2 * serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+multiplyFunction
+process where multiply(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+multiplyFunctionReversed
+process where multiply(2, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.mul(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":2,"v1":"serial_event_id","v2":41}
+;
+
+subtractOperator
+process where serial_event_id - 2 == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+subtractOperatorReversed
+process where 43 - serial_event_id == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":43,"v1":"serial_event_id","v2":41}
+;
+
+subtractFunction
+process where subtract(serial_event_id, 2) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"params":{"v0":"serial_event_id","v1":2,"v2":41}
+;
+
+subtractFunctionReversed
+process where subtract(43, serial_event_id) == 41
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
+InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+"params":{"v0":43,"v1":"serial_event_id","v2":41}
+;

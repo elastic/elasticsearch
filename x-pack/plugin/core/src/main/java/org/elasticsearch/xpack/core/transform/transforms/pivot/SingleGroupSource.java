@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +33,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     public enum Type {
         TERMS(0),
         HISTOGRAM(1),
-        DATE_HISTOGRAM(2);
+        DATE_HISTOGRAM(2),
+        GEOTILE_GRID(3);
 
         private final byte id;
 
@@ -45,14 +48,16 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
         public static Type fromId(byte id) {
             switch (id) {
-            case 0:
-                return TERMS;
-            case 1:
-                return HISTOGRAM;
-            case 2:
-                return DATE_HISTOGRAM;
-            default:
-                throw new IllegalArgumentException("unknown type");
+                case 0:
+                    return TERMS;
+                case 1:
+                    return HISTOGRAM;
+                case 2:
+                    return DATE_HISTOGRAM;
+                case 3:
+                    return GEOTILE_GRID;
+                default:
+                    throw new IllegalArgumentException("unknown type");
             }
         }
 
@@ -62,46 +67,71 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     }
 
     protected static final ParseField FIELD = new ParseField("field");
+    protected static final ParseField SCRIPT = new ParseField("script");
 
-    // TODO: add script
     protected final String field;
+    protected final ScriptConfig scriptConfig;
 
-    static <T> void declareValuesSourceFields(AbstractObjectParser<? extends SingleGroupSource, T> parser) {
-        // either script or field
+    static <T> void declareValuesSourceFields(AbstractObjectParser<? extends SingleGroupSource, T> parser, boolean lenient) {
         parser.declareString(optionalConstructorArg(), FIELD);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> ScriptConfig.fromXContent(p, lenient), SCRIPT);
     }
 
-    public SingleGroupSource(final String field) {
+    public SingleGroupSource(final String field, final ScriptConfig scriptConfig) {
         this.field = field;
+        this.scriptConfig = scriptConfig;
     }
 
     public SingleGroupSource(StreamInput in) throws IOException {
         field = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+            scriptConfig = in.readOptionalWriteable(ScriptConfig::new);
+        } else {
+            scriptConfig = null;
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         if (field != null) {
             builder.field(FIELD.getPreferredName(), field);
         }
-        builder.endObject();
-        return builder;
+        if (scriptConfig != null) {
+            builder.field(SCRIPT.getPreferredName(), scriptConfig);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(field);
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+            out.writeOptionalWriteable(scriptConfig);
+        }
     }
 
     public abstract Type getType();
 
     public abstract boolean supportsIncrementalBucketUpdate();
 
-    public abstract QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets);
+    public abstract QueryBuilder getIncrementalBucketUpdateFilterQuery(
+        Set<String> changedBuckets,
+        String synchronizationField,
+        long synchronizationTimestamp
+    );
 
     public String getField() {
         return field;
+    }
+
+    public ScriptConfig getScriptConfig() {
+        return scriptConfig;
     }
 
     @Override
@@ -116,16 +146,34 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
         final SingleGroupSource that = (SingleGroupSource) other;
 
-        return Objects.equals(this.field, that.field);
+        return Objects.equals(this.field, that.field) && Objects.equals(this.scriptConfig, that.scriptConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field);
+        return Objects.hash(field, scriptConfig);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    /**
+     * @return The preferred mapping type if it exists. Is nullable.
+     */
+    @Nullable
+    public String getMappingType() {
+        return null;
+    }
+
+    /**
+     * This will transform a composite aggregation bucket key into the desired format for indexing.
+     *
+     * @param key The bucket key for this group source
+     * @return the transformed bucket key for indexing
+     */
+    public Object transformBucketKey(Object key) {
+        return key;
     }
 }

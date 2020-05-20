@@ -52,7 +52,7 @@ public final class TransportSamlLogoutAction
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {
                 final String token = request.getToken();
-                tokenService.getAuthenticationAndMetaData(token, ActionListener.wrap(
+                tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(
                         tuple -> {
                             Authentication authentication = tuple.v1();
                             final Map<String, Object> tokenMetadata = tuple.v2();

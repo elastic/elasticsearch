@@ -54,7 +54,7 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".not(" + script + ")");
+        return Scripts.formatTemplate(Scripts.QL_SCRIPTS + ".not(" + script + ")");
     }
 
     @Override

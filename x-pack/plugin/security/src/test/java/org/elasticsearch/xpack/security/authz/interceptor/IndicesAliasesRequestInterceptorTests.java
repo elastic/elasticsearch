@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -45,9 +46,9 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
     public void testInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
@@ -104,9 +105,9 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
     public void testInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(randomBoolean());
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),

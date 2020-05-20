@@ -405,8 +405,15 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        SecureSettings secureSettings = settings.getSecureSettings();
-        return settings.keySet().contains(getKey()) &&
+        return exists(settings.keySet(), settings.getSecureSettings());
+    }
+
+    public boolean exists(final Settings.Builder builder) {
+        return exists(builder.keys(), builder.getSecureSettings());
+    }
+
+    private boolean exists(final Set<String> keys, final SecureSettings secureSettings) {
+        return keys.contains(getKey()) &&
             (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
     }
 
@@ -439,7 +446,16 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                        if (setting instanceof AffixSetting) {
+                            // Collect all possible concrete settings
+                            AffixSetting<?> as = ((AffixSetting<?>)setting);
+                            for (String ns : as.getNamespaces(settings)) {
+                                Setting<?> s = as.getConcreteSettingForNamespace(ns);
+                                map.put(s, s.get(settings, false));
+                            }
+                        } else {
+                            map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                        }
                     }
                 } else {
                     map = Collections.emptyMap();
@@ -659,7 +675,12 @@ public class Setting<T> implements ToXContentObject {
 
     static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer,
                                                                                   final List<? extends Setting<?>> configuredSettings) {
+        return groupedSettingsUpdater(consumer, configuredSettings, (v) -> {});
+    }
 
+    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer,
+                                                                                  final List<? extends Setting<?>> configuredSettings,
+                                                                                  Consumer<Settings> validator) {
         return new AbstractScopedSettings.SettingUpdater<Settings>() {
 
             private Settings get(Settings settings) {
@@ -682,6 +703,7 @@ public class Setting<T> implements ToXContentObject {
 
             @Override
             public Settings getValue(Settings current, Settings previous) {
+                validator.accept(current);
                 return get(current);
             }
 
@@ -1257,6 +1279,12 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
 
+    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Validator<Boolean> validator,
+                                               Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, b -> parseBoolean(b, key,
+            isFiltered(properties)), validator, properties);
+    }
+
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
         return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
     }
@@ -1624,6 +1652,12 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
+    }
+
+    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallBackSetting, Validator<TimeValue> validator,
+                                                 Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallBackSetting, fallBackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key),
+            validator, properties);
     }
 
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {

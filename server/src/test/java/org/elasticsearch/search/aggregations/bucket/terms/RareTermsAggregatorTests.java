@@ -38,7 +38,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -52,7 +52,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -70,7 +69,6 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -240,15 +238,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
 
-        // Note: the search and reduce test will generate no segments (due to no docs)
-        // and so will return a null agg because the aggs aren't run/reduced
         testSearchAndReduceCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
-            Assert::assertNull, ValueType.NUMERIC
+            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.NUMERIC
         );
         testSearchAndReduceCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
-            Assert::assertNull, ValueType.STRING
+            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
     }
 
@@ -273,13 +269,14 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     ValueType[] valueTypes = new ValueType[]{ValueType.STRING, ValueType.LONG};
                     String[] fieldNames = new String[]{"string", "long"};
                     for (int i = 0; i < fieldNames.length; i++) {
-                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", valueTypes[i])
+                        RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
+                            .userValueTypeHint(valueTypes[i])
                             .field(fieldNames[i]);
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
-                        RareTerms result = (RareTerms) aggregator.buildAggregation(0L);
+                        RareTerms result = (RareTerms) aggregator.buildTopLevel();
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
                     }
@@ -308,9 +305,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", null)
+                    RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name")
                         .field("field");
-                    expectThrows(AggregationExecutionException.class,
+                    expectThrows(IllegalArgumentException.class,
                         () -> createAggregator(aggregationBuilder, indexSearcher, fieldType));
                 }
             }
@@ -322,7 +319,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         testBothCases(query, dataset, aggregation -> {
-                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms", ValueType.STRING).field(KEYWORD_FIELD);
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
+                    .field(KEYWORD_FIELD);
                 aggregation.field(LONG_FIELD).maxDocCount(1).subAggregation(terms);
             },
             agg -> {
@@ -340,7 +338,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         );
 
         testBothCases(query, dataset, aggregation -> {
-                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms", ValueType.STRING).field(KEYWORD_FIELD);
+                TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
+                    .field(KEYWORD_FIELD);
                 aggregation.field(KEYWORD_FIELD).maxDocCount(1).subAggregation(terms);
             },
             agg -> {
@@ -375,10 +374,12 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
                     GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global")
                         .subAggregation(
-                            new RareTermsAggregationBuilder("terms", ValueType.STRING)
+                            new RareTermsAggregationBuilder("terms")
+                                .userValueTypeHint(ValueType.STRING)
                                 .field("keyword")
                                 .subAggregation(
-                                    new RareTermsAggregationBuilder("sub_terms", ValueType.STRING)
+                                    new RareTermsAggregationBuilder("sub_terms")
+                                        .userValueTypeHint(ValueType.STRING)
                                         .field("keyword")
                                         .subAggregation(
                                             new TopHitsAggregationBuilder("top_hits")
@@ -422,14 +423,15 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
 
                 NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
-                    .subAggregation(new RareTermsAggregationBuilder("terms", ValueType.LONG)
+                    .subAggregation(new RareTermsAggregationBuilder("terms")
+                        .userValueTypeHint(ValueType.LONG)
                         .field("nested_value")
                         .maxDocCount(1)
                     );
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 fieldType.setHasDocValues(true);
                 fieldType.setName("nested_value");
-                try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     InternalNested result = searchAndReduce(newIndexSearcher(indexReader),
                         // match root document only
                         new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
@@ -455,7 +457,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
                 for (boolean withScore : new boolean[]{true, false}) {
                     NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
-                        .subAggregation(new RareTermsAggregationBuilder("terms", ValueType.LONG)
+                        .subAggregation(new RareTermsAggregationBuilder("terms")
+                            .userValueTypeHint(ValueType.LONG)
                             .field("nested_value")
                             .maxDocCount(2)
                             .subAggregation(
@@ -467,7 +470,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                     fieldType.setHasDocValues(true);
                     fieldType.setName("nested_value");
-                    try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                    try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
 
                         if (withScore) {
 
@@ -546,7 +549,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         Settings nodeSettings = Settings.builder()
             .put("search.max_buckets", 100000).build();
         return new IndexSettings(
-            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -580,7 +583,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
-                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", valueType);
+                RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name");
+                aggregationBuilder.userValueTypeHint(valueType);
                 if (configure != null) {
                     configure.accept(aggregationBuilder);
                 }

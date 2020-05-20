@@ -91,17 +91,17 @@
          refresh: true
          body:
            - '{"index": {"_index": "test_index"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
+           - '{"f1": "remote_cluster", "animal": "pig", "filter_field": 0}'
            - '{"index": {"_index": "test_index"}}'
-           - '{"f1": "remote_cluster", "filter_field": 1}'
+           - '{"f1": "remote_cluster", "animal": "pig", "filter_field": 1}'
            - '{"index": {"_index": "test_index"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
            - '{"index": {"_index": "test_index"}}'
-           - '{"f1": "remote_cluster", "filter_field": 1}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 1}'
            - '{"index": {"_index": "test_index"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
            - '{"index": {"_index": "test_index"}}'
-           - '{"f1": "remote_cluster", "filter_field": 0}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
 
   - do:
       search:

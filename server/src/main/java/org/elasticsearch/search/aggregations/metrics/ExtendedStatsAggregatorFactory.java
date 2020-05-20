@@ -20,52 +20,65 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double sigma;
 
     ExtendedStatsAggregatorFactory(String name,
-                                    ValuesSourceConfig<Numeric> config,
+                                    ValuesSourceConfig config,
                                     double sigma,
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
+    }
+
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(ExtendedStatsAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            (ExtendedStatsAggregatorProvider) ExtendedStatsAggregator::new);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new ExtendedStatsAggregator(name, null, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new ExtendedStatsAggregator(name, null, config.format(), searchContext, parent, sigma, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new ExtendedStatsAggregator(name, valuesSource, config.format(), searchContext,
-            parent, sigma, pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            ExtendedStatsAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof ExtendedStatsAggregatorProvider == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected ExtendedStatsAggregatorProvider, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((ExtendedStatsAggregatorProvider) aggregatorSupplier).build(name, (Numeric) valuesSource, config.format(), searchContext,
+            parent, sigma, metadata);
     }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -76,7 +76,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
         return reason;
     }
 
-    public boolean isStatusStale(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+    public boolean isStatusStale(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         return allocationId != task.getAllocationId();
     }
 

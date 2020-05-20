@@ -126,10 +126,10 @@ public class BaseClassTests extends ScriptTestCase {
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs2", "doc", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("variable [doc] is not defined", e.getMessage());
+        assertEquals("cannot resolve symbol [doc]", e.getMessage());
         e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
-        assertEquals("variable [_score] is not defined", e.getMessage());
+        assertEquals("cannot resolve symbol [_score]", e.getMessage());
 
         String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
         assertThat(debug, containsString("ACONST_NULL"));
@@ -557,7 +557,6 @@ public class BaseClassTests extends ScriptTestCase {
                         .newInstance().execute(), 0);
 
         String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
-        assertThat(debug, containsString("DCONST_1"));
         // The important thing here is that we have the bytecode for returning a double instead of an object
         assertThat(debug, containsString("DRETURN"));
 

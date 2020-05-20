@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
@@ -39,25 +39,25 @@ public class ShrinkStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         if (lifecycleState.getLifecycleDate() == null) {
-            throw new IllegalStateException("source index [" + indexMetaData.getIndex().getName() +
+            throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() +
                 "] is missing lifecycle date");
         }
 
-        String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings());
+        String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
 
         Settings relevantTargetSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, indexMetaData.getNumberOfReplicas())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
             .put(LifecycleSettings.LIFECYCLE_NAME, lifecycle)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null) // need to remove the single shard
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null) // need to remove the single shard
                                                                                              // allocation so replicas can be allocated
             .build();
 
-        String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
-        ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName())
+        String shrunkenIndexName = shrunkIndexPrefix + indexMetadata.getIndex().getName();
+        ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName())
             .masterNodeTimeout(getMasterTimeout(currentState));
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 

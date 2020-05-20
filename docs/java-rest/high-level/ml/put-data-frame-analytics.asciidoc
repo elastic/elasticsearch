@@ -121,7 +121,8 @@ include-tagged::{doc-tests-file}[{api}-classification]
 <8> The name of the prediction field in the results object.
 <9> The percentage of training-eligible rows to be used in training. Defaults to 100%.
 <10> The seed to be used by the random generator that picks which rows are used in training.
-<11> The number of top classes to be reported in the results. Defaults to 2.
+<11> The optimization objective to target when assigning class labels. Defaults to maximize_minimum_recall.
+<12> The number of top classes to be reported in the results. Defaults to 2.
 
 ===== Regression
 
@@ -142,6 +143,8 @@ include-tagged::{doc-tests-file}[{api}-regression]
 <8> The name of the prediction field in the results object.
 <9> The percentage of training-eligible rows to be used in training. Defaults to 100%.
 <10> The seed to be used by the random generator that picks which rows are used in training.
+<11> The loss function used for regression. Defaults to `mse`.
+<12> An optional parameter to the loss function.
 
 ==== Analyzed fields
 

@@ -16,53 +16,28 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public abstract class CommonEqlRestTestCase extends ESRestTestCase {
 
-    static class SearchTestConfiguration {
-        final String input;
-        final int expectedStatus;
-        final String expectedMessage;
+    private static final String defaultValidationIndexName = "eql_search_validation_test";
+    private static final String validQuery = "process where user = 'SYSTEM'";
 
-        SearchTestConfiguration(String input, int status, String msg) {
-            this.input = input;
-            this.expectedStatus = status;
-            this.expectedMessage = msg;
-        }
-    }
-
-    public static final String defaultValidationIndexName = "eql_search_validation_test";
-    private static final String validRule = "process where user = 'SYSTEM'";
-
-    public static final ArrayList<SearchTestConfiguration> searchValidationTests;
-    static {
-        searchValidationTests = new ArrayList<>();
-        searchValidationTests.add(new SearchTestConfiguration(null, 400, "request body or source parameter is required"));
-        searchValidationTests.add(new SearchTestConfiguration("{}", 400, "rule is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"\"}", 400, "rule is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"timestamp_field\": \"\"}",
-            400, "timestamp field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"event_type_field\": \"\"}",
-            400, "event type field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"implicit_join_key_field\": \"\"}",
-            400, "implicit join key field is null or empty"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"size\": 0}",
-            400, "size must be more than 0"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"size\": -1}",
-            400, "size must be more than 0"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"search_after\": null}",
-            400, "search_after doesn't support values of type: VALUE_NULL"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"search_after\": []}",
-            400, "must contains at least one value"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"query\": null}",
-            400, "query doesn't support values of type: VALUE_NULL"));
-        searchValidationTests.add(new SearchTestConfiguration("{\"rule\": \"" + validRule + "\", \"query\": {}}",
-            400, "query malformed, empty clause found"));
-    }
+    private static final String[][] testBadRequests = {
+            {null, "request body or source parameter is required"},
+            {"{}", "query is null or empty"},
+            {"{\"query\": \"\"}", "query is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"implicit_join_key_field\": \"\"}", "implicit join key field is null or empty"},
+            {"{\"query\": \"" + validQuery + "\", \"size\": 0}", "size must be greater than 0"},
+            {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than 0"},
+            {"{\"query\": \"" + validQuery + "\", \"search_after\": null}", "search_after doesn't support values of type: VALUE_NULL"},
+            {"{\"query\": \"" + validQuery + "\", \"search_after\": []}", "must contains at least one value"},
+            {"{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL"},
+            {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
+    };
 
     @BeforeClass
     public static void checkForSnapshot() {
@@ -79,24 +54,19 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
         deleteIndex(defaultValidationIndexName);
     }
 
-    public void testSearchValidationFailures() throws Exception {
+    public void testBadRequests() throws Exception {
         final String contentType = "application/json";
-        for (SearchTestConfiguration config : searchValidationTests) {
+        for (String[] test : testBadRequests) {
             final String endpoint = "/" + defaultValidationIndexName + "/_eql/search";
             Request request = new Request("GET", endpoint);
-            request.setJsonEntity(config.input);
+            request.setJsonEntity(test[0]);
 
-            Response response = null;
-            if (config.expectedStatus == 400) {
-                ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
-                response = e.getResponse();
-            } else {
-                response = client().performRequest(request);
-            }
+            ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+            Response response = e.getResponse();
 
             assertThat(response.getHeader("Content-Type"), containsString(contentType));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString(config.expectedMessage));
-            assertThat(response.getStatusLine().getStatusCode(), is(config.expectedStatus));
+            assertThat(EntityUtils.toString(response.getEntity()), containsString(test[1]));
+            assertThat(response.getStatusLine().getStatusCode(), is(400));
         }
     }
 }

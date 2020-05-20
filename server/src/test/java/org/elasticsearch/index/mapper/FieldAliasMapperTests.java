@@ -110,7 +110,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
             .endObject());
         mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        MappedFieldType firstFieldType = mapperService.fullName("alias-field");
+        MappedFieldType firstFieldType = mapperService.fieldType("alias-field");
         assertEquals("first-field", firstFieldType.name());
         assertTrue(firstFieldType instanceof KeywordFieldMapper.KeywordFieldType);
 
@@ -129,7 +129,7 @@ public class FieldAliasMapperTests extends ESSingleNodeTestCase {
             .endObject());
         mapperService.merge("type", new CompressedXContent(newMapping), MergeReason.MAPPING_UPDATE);
 
-        MappedFieldType secondFieldType = mapperService.fullName("alias-field");
+        MappedFieldType secondFieldType = mapperService.fieldType("alias-field");
         assertEquals("second-field", secondFieldType.name());
         assertTrue(secondFieldType instanceof TextFieldMapper.TextFieldType);
     }

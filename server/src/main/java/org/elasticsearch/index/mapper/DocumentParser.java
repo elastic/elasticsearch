@@ -619,7 +619,7 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context,
+    private static Mapper.Builder<?> createBuilderFromFieldType(final ParseContext context,
                                                                   MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof TextFieldType) {
@@ -666,15 +666,15 @@ final class DocumentParser {
         return builder;
     }
 
-    private static Mapper.Builder<?, ?> newLongBuilder(String name) {
+    private static Mapper.Builder<?> newLongBuilder(String name) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
     }
 
-    private static Mapper.Builder<?, ?> newFloatBuilder(String name) {
+    private static Mapper.Builder<?> newFloatBuilder(String name) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
-    private static Mapper.Builder<?, ?> newDateBuilder(String name, DateFormatter dateTimeFormatter) {
+    private static Mapper.Builder<?> newDateBuilder(String name, DateFormatter dateTimeFormatter) {
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
         if (dateTimeFormatter != null) {
             builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
@@ -682,7 +682,7 @@ final class DocumentParser {
         return builder;
     }
 
-    private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context,
+    private static Mapper.Builder<?> createBuilderFromDynamicValue(final ParseContext context,
                                                                      XContentParser.Token token,
                                                                      String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
@@ -803,7 +803,7 @@ final class DocumentParser {
         }
         final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final MappedFieldType existingFieldType = context.mapperService().fullName(path);
+        final MappedFieldType existingFieldType = context.mapperService().fieldType(path);
         final Mapper.Builder builder;
         if (existingFieldType != null) {
             // create a builder of the same type

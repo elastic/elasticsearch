@@ -23,7 +23,7 @@ import org.apache.commons.io.output.TeeOutputStream;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.LoggingOutputStream;
 import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.Util;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.internal.logging.progress.ProgressLogger;

@@ -502,7 +502,7 @@ public final class MethodWriter extends GeneratorAdapter {
             // method since java 8 did not check, but java 9 and 10 do
             if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
                 visitMethodInsn(Opcodes.INVOKESTATIC, type.getInternalName(),
-                        painlessMethod.javaMethod.getName(), painlessMethod.methodType.toMethodDescriptorString(), true);
+                        painlessMethod.javaMethod.getName(), method.getDescriptor(), true);
             } else {
                 invokeStatic(type, method);
             }

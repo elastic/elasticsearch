@@ -57,7 +57,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
-            (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
+            (s) -> Integer.toString(EsExecutors.allocatedProcessors(s)),
             (s) -> Setting.parseInt(s, 1, "transport.nio.worker_count"), Setting.Property.NodeScope);
     public static final Setting<Integer> NIO_HTTP_WORKER_COUNT =
         intSetting("http.nio.worker_count", 0, 0, Setting.Property.NodeScope);

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
@@ -41,6 +41,8 @@ import java.util.function.Consumer;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_TABLE;
+import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_VIEW;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -56,7 +58,7 @@ public class SysTablesTests extends ESTestCase {
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
     private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
 
-    private final Configuration FROZEN_CFG = new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
             Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null, false, true);
 
     //
@@ -105,9 +107,9 @@ public class SysTablesTests extends ESTestCase {
     public void testSysTablesTypesEnumerationWoString() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' ", r -> {
             assertEquals(2, r.size());
-            assertEquals("BASE TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
-            assertEquals("VIEW", r.column(3));
+            assertEquals(SQL_VIEW, r.column(3));
         }, alias, index);
     }
 
@@ -150,10 +152,10 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES", r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
-            assertEquals("BASE TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
-            assertEquals("VIEW", r.column(3));
+            assertEquals(SQL_VIEW, r.column(3));
         }, index, alias);
     }
 
@@ -161,49 +163,38 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES", r -> {
             assertEquals(3, r.size());
             assertEquals("frozen", r.column(2));
-            assertEquals("BASE TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("test", r.column(2));
-            assertEquals("BASE TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
-            assertEquals("VIEW", r.column(3));
+            assertEquals(SQL_VIEW, r.column(3));
         }, FROZEN_CFG, index, alias, frozen);
     }
 
-    public void testSysTablesWithLegacyTypes() throws Exception {
+    public void testSysTablesWithTypes() throws Exception {
         executeCommand("SYS TABLES TYPE 'TABLE', 'ALIAS'", r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
-            assertEquals("TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
-            assertEquals("VIEW", r.column(3));
+            assertEquals(SQL_VIEW, r.column(3));
         }, index, alias);
     }
 
-    public void testSysTablesWithProperTypes() throws Exception {
-        executeCommand("SYS TABLES TYPE 'BASE TABLE', 'ALIAS'", r -> {
-            assertEquals(2, r.size());
-            assertEquals("test", r.column(2));
-            assertEquals("BASE TABLE", r.column(3));
-            assertTrue(r.advanceRow());
-            assertEquals("alias", r.column(2));
-            assertEquals("VIEW", r.column(3));
-        }, index, alias);
-    }
-
-    public void testSysTablesWithProperTypesAndFrozen() throws Exception {
-        executeCommand("SYS TABLES TYPE 'BASE TABLE', 'ALIAS'", r -> {
+    public void testSysTablesWithTypesAndFrozen() throws Exception {
+        executeCommand("SYS TABLES TYPE 'TABLE', 'ALIAS'", r -> {
             assertEquals(3, r.size());
             assertEquals("frozen", r.column(2));
-            assertEquals("BASE TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("test", r.column(2));
-            assertEquals("BASE TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
-            assertEquals("VIEW", r.column(3));
+            assertEquals(SQL_VIEW, r.column(3));
         }, index, frozen, alias);
     }
 
@@ -211,7 +202,7 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES LIKE '%'", r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
-            assertEquals("BASE TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
         }, index, alias);
@@ -243,14 +234,14 @@ public class SysTablesTests extends ESTestCase {
     }
 
     public void testSysTablesOnlyIndices() throws Exception {
-        executeCommand("SYS TABLES LIKE 'test' TYPE 'BASE TABLE'", r -> {
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'TABLE'", r -> {
             assertEquals(1, r.size());
             assertEquals("test", r.column(2));
         }, index);
     }
 
     public void testSysTablesOnlyIndicesWithFrozen() throws Exception {
-        executeCommand("SYS TABLES LIKE 'test' TYPE 'BASE TABLE'", r -> {
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'TABLE'", r -> {
             assertEquals(2, r.size());
             assertEquals("frozen", r.column(2));
             assertTrue(r.advanceRow());
@@ -258,35 +249,27 @@ public class SysTablesTests extends ESTestCase {
         }, index, frozen);
     }
 
-    public void testSysTablesOnlyIndicesInLegacyMode() throws Exception {
-        executeCommand("SYS TABLES LIKE 'test' TYPE 'TABLE'", r -> {
-            assertEquals(1, r.size());
-            assertEquals("test", r.column(2));
-            assertEquals("TABLE", r.column(3));
-        }, index);
-    }
-
-    public void testSysTablesNoPatternWithTypesSpecifiedInLegacyMode() throws Exception {
+    public void testSysTablesNoPatternWithTypesSpecified() throws Exception {
         executeCommand("SYS TABLES TYPE 'TABLE','VIEW'", r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
-            assertEquals("TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
-            assertEquals("VIEW", r.column(3));
+            assertEquals(SQL_VIEW, r.column(3));
 
         }, index, alias);
     }
 
-    public void testSysTablesOnlyIndicesLegacyModeParameterized() throws Exception {
+    public void testSysTablesOnlyIndicesParameterizedTable() throws Exception {
         executeCommand("SYS TABLES LIKE 'test' TYPE ?", asList(param("TABLE")), r -> {
             assertEquals(1, r.size());
             assertEquals("test", r.column(2));
-            assertEquals("TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
         }, index);
     }
 
-    public void testSysTablesOnlyIndicesParameterized() throws Exception {
+    public void testSysTablesOnlyIndicesParameterizedAlias() throws Exception {
         executeCommand("SYS TABLES LIKE 'test' TYPE ?", asList(param("ALIAS")), r -> {
             assertEquals(1, r.size());
             assertEquals("test", r.column(2));
@@ -294,7 +277,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     public void testSysTablesOnlyIndicesAndAliases() throws Exception {
-        executeCommand("SYS TABLES LIKE 'test' TYPE 'VIEW', 'BASE TABLE'", r -> {
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'VIEW', 'TABLE'", r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
             assertTrue(r.advanceRow());
@@ -303,7 +286,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     public void testSysTablesOnlyIndicesAndAliasesParameterized() throws Exception {
-        List<SqlTypedParamValue> params = asList(param("VIEW"), param("BASE TABLE"));
+        List<SqlTypedParamValue> params = asList(param("VIEW"), param("TABLE"));
         executeCommand("SYS TABLES LIKE 'test' TYPE ?, ?", params, r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
@@ -317,10 +300,10 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES LIKE 'test' TYPE ?, ?", params, r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
-            assertEquals("TABLE", r.column(3));
+            assertEquals(SQL_TABLE, r.column(3));
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
-            assertEquals("VIEW", r.column(3));
+            assertEquals(SQL_VIEW, r.column(3));
         }, index, alias);
     }
 
@@ -348,11 +331,11 @@ public class SysTablesTests extends ESTestCase {
         return new SqlTypedParamValue(DataTypes.fromJava(value).typeName(), value);
     }
 
-    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Configuration cfg) {
+    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration cfg) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
                                          new Verifier(new Metrics()));
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId()), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
@@ -365,7 +348,7 @@ public class SysTablesTests extends ESTestCase {
         executeCommand(sql, emptyList(), consumer, infos);
     }
 
-    private void executeCommand(String sql, Consumer<SchemaRowSet> consumer, Configuration cfg, IndexInfo... infos) throws Exception {
+    private void executeCommand(String sql, Consumer<SchemaRowSet> consumer, SqlConfiguration cfg, IndexInfo... infos) throws Exception {
         executeCommand(sql, emptyList(), consumer, cfg, infos);
     }
 
@@ -375,7 +358,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, Configuration cfg,
+    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, SqlConfiguration cfg,
             IndexInfo... infos) throws Exception {
         Tuple<Command, SqlSession> tuple = sql(sql, params, cfg);
 

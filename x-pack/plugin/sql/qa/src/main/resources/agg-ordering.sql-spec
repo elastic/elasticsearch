@@ -80,7 +80,7 @@ aggNotSpecifiedInTheAggregateAndGroupWithHavingWithLimitAndDirection
 SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary) ASC, c DESC LIMIT 5;
 
 groupAndAggNotSpecifiedInTheAggregateWithHaving
-SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY gender, MAX(salary);
+SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY gender NULLS FIRST, MAX(salary);
 
 multipleAggsThatGetRewrittenWithAliasOnAMediumGroupBy
 SELECT languages, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY languages ORDER BY max;
@@ -136,5 +136,26 @@ SELECT gender AS g, first_name AS f, last_name AS l FROM test_emp GROUP BY f, ge
 multipleGroupingsAndOrderingByGroups_8
 SELECT gender AS g, first_name, last_name FROM test_emp GROUP BY g, last_name, first_name ORDER BY gender ASC, first_name DESC, last_name ASC;
 
-multipleGroupingsAndOrderingByGroupsWithFunctions
-SELECT first_name f, last_name l, gender g, CONCAT(first_name, last_name) c FROM test_emp GROUP BY gender, l, f, c ORDER BY gender, c DESC, first_name, last_name ASC;
+multipleGroupingsAndOrderingByGroupsAndAggs_1
+SELECT gender, MIN(salary) AS min, COUNT(*) AS c, MAX(salary) AS max FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY gender ASC NULLS FIRST, MAX(salary) DESC;
+
+multipleGroupingsAndOrderingByGroupsAndAggs_2
+SELECT gender, MIN(salary) AS min, COUNT(*) AS c, MAX(salary) AS max FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY gender DESC NULLS LAST, MAX(salary) ASC;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_1
+SELECT first_name f, last_name l, gender g, CONCAT(first_name, last_name) c FROM test_emp GROUP BY gender, l, f, c ORDER BY gender NULLS FIRST, c DESC, first_name, last_name ASC;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_2
+SELECT first_name f, last_name l, gender g, CONCAT(first_name, last_name) c FROM test_emp GROUP BY gender, l, f, c ORDER BY c DESC, gender DESC NULLS LAST, first_name, last_name ASC;
+
+multipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_1
+SELECT CONCAT('foo', gender) g, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY g ORDER BY 1 NULLS FIRST, 2, 3;
+
+multipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_2
+SELECT CONCAT('foo', gender) g, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY g ORDER BY 1 DESC NULLS LAST, 2, 3;
+
+multipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_3
+SELECT CONCAT('foo', gender) g, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY g ORDER BY 2, 1 NULLS FIRST, 3;
+
+multipleGroupingsAndOrderingByGroupsAndAggregatesWithFunctions_4
+SELECT CONCAT('foo', gender) g, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY g ORDER BY 3 DESC, 1 NULLS FIRST, 2;

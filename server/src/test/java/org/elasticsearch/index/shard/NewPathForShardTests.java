@@ -20,7 +20,7 @@ package org.elasticsearch.index.shard;
 
 
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
@@ -261,7 +261,7 @@ public class NewPathForShardTests extends ESTestCase {
         Map<Path,Integer> dataPathToShardCount = new HashMap<>();
         shardId = new ShardId("index2", "uid2", 0);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
-                Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
@@ -353,7 +353,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         shardId = new ShardId("index2", "uid2", 0);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
-                Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), (k, v) -> v == null ? 1 : v + 1);

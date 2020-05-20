@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,20 +34,28 @@ import java.io.IOException;
 public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
 
     public static final String DEFAULT_REASON = "by user request";
+    public static final boolean DEFAULT_WAIT_FOR_COMPLETION = false;
 
     private String reason = DEFAULT_REASON;
+    private boolean waitForCompletion = DEFAULT_WAIT_FOR_COMPLETION;
 
     public CancelTasksRequest() {}
 
     public CancelTasksRequest(StreamInput in) throws IOException {
         super(in);
         this.reason = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            waitForCompletion = in.readBoolean();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(reason);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeBoolean(waitForCompletion);
+        }
     }
 
     @Override
@@ -67,5 +76,17 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
      */
     public String getReason() {
         return reason;
+    }
+
+    /**
+     * If {@code true}, the request blocks until the cancellation of the task and its descendant tasks is completed.
+     * Otherwise, the request can return soon after the cancellation is started. Defaults to {@code false}.
+     */
+    public void setWaitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+    }
+
+    public boolean waitForCompletion() {
+        return waitForCompletion;
     }
 }

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -33,14 +33,14 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         return new InitializePolicyContextStep(key, nextKey);
@@ -53,16 +53,16 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
 
     public void testAddCreationDate() {
         long creationDate = randomNonNegativeLong();
-        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .creationDate(creationDate)
             .numberOfShards(1).numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(indexMetadata))
+            .put(IndexMetadata.builder(indexMetadata))
             .build();
         Index index = indexMetadata.getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         InitializePolicyContextStep step = new InitializePolicyContextStep(null, null);
         ClusterState newState = step.performAction(index, clusterState);
         assertThat(getIndexLifecycleDate(index, newState), equalTo(creationDate));
@@ -72,23 +72,23 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         long creationDate = randomNonNegativeLong();
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(creationDate);
-        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .creationDate(creationDate)
             .numberOfShards(1).numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(indexMetadata))
+            .put(IndexMetadata.builder(indexMetadata))
             .build();
         Index index = indexMetadata.getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         InitializePolicyContextStep step = new InitializePolicyContextStep(null, null);
         ClusterState newState = step.performAction(index, clusterState);
         assertTrue(newState == clusterState);
     }
 
     private long getIndexLifecycleDate(Index index, ClusterState clusterState) {
-        return LifecycleExecutionState.fromIndexMetadata(clusterState.getMetaData().index(index)).getLifecycleDate();
+        return LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index)).getLifecycleDate();
     }
 }

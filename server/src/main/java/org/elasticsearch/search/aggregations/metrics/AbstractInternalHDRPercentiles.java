@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -42,9 +41,8 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     protected final boolean keyed;
 
     AbstractInternalHDRPercentiles(String name, double[] keys, DoubleHistogram state, boolean keyed, DocValueFormat format,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -88,7 +86,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return value(Double.parseDouble(name));
     }
 
-    DocValueFormat formatter() {
+    public DocValueFormat formatter() {
         return format;
     }
 
@@ -98,8 +96,25 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
         return state.getEstimatedFootprintInBytes();
     }
 
-    DoubleHistogram getState() {
+    /**
+     * Return the internal {@link DoubleHistogram} sketch for this metric.
+     */
+    public DoubleHistogram getState() {
         return state;
+    }
+
+    /**
+     * Return the keys (percentiles) requested.
+     */
+    public double[] getKeys() {
+        return keys;
+    }
+
+    /**
+     * Should the output be keyed.
+     */
+    public boolean keyed() {
+        return keyed;
     }
 
     @Override
@@ -113,11 +128,11 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, pipelineAggregators(), getMetaData());
+        return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
     protected abstract AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
+            Map<String, Object> metadata);
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

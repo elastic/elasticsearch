@@ -1,8 +1,8 @@
 
 include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        8.5.0
-:lucene_version_path:   8_5_0
+:lucene_version:        8.6.0
+:lucene_version_path:   8_6_0
 :jdk:                   11.0.2
 :jdk_major:             11
 :build_flavor:          default
@@ -29,7 +29,7 @@ ifeval::["{release-state}"=="unreleased"]
 :rest-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client/{version}-SNAPSHOT
 :rest-client-sniffer-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client-sniffer/{version}-SNAPSHOT
 :rest-high-level-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-high-level-client/{version}-SNAPSHOT
-:mapper-extras-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/mapper-extras/{version}-SNAPSHOT
+:mapper-extras-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/mapper-extras-client/{version}-SNAPSHOT
 :painless-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}-SNAPSHOT
 :parent-join-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}-SNAPSHOT
 :percolator-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}-SNAPSHOT
@@ -44,7 +44,7 @@ ifeval::["{release-state}"!="unreleased"]
 :rest-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client/{version}
 :rest-client-sniffer-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-client-sniffer/{version}
 :rest-high-level-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/client/elasticsearch-rest-high-level-client/{version}
-:mapper-extras-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/mapper-extras/{version}
+:mapper-extras-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/mapper-extras-client/{version}
 :painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
 :parent-join-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/parent-join-client/{version}
 :percolator-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}
@@ -73,3 +73,12 @@ Shared attribute values are pulled from elastic/docs
 ///////
 
 include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
+
+///////
+APM does not build n.x documentation. Links from .x branches should point to master instead
+///////
+ifeval::["{source_branch}"=="7.x"]
+:apm-server-ref:       {apm-server-ref-m}
+:apm-server-ref-v:     {apm-server-ref-m}
+:apm-overview-ref-v:   {apm-overview-ref-m}
+endif::[]

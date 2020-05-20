@@ -23,7 +23,9 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.Scope.Variable;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -31,9 +33,9 @@ import java.util.Objects;
 /**
  * Represents a variable load/store.
  */
-public final class EVariable extends AStoreable {
+public class EVariable extends AExpression {
 
-    private final String name;
+    protected final String name;
 
     public EVariable(Location location, String name) {
         super(location);
@@ -42,39 +44,54 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        Variable variable = scope.getVariable(location, name);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+        Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(name);
 
-        if (write && variable.isFinal()) {
-            throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
+        if (type != null)  {
+            if (input.write) {
+                throw createError(new IllegalArgumentException("invalid assignment: " +
+                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
+            }
+
+            if (input.read == false) {
+                throw createError(new IllegalArgumentException("not a statement: " +
+                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
+            }
+
+            output.actual = type;
+            output.isStaticType = true;
+
+            StaticNode staticNode = new StaticNode();
+
+            staticNode.setLocation(location);
+            staticNode.setExpressionType(output.actual);
+
+            output.expressionNode = staticNode;
+        } else if (scope.isVariableDefined(name)) {
+            if (input.read == false && input.write == false) {
+                throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
+            }
+
+            Variable variable = scope.getVariable(location, name);
+
+            if (input.write && variable.isFinal()) {
+                throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
+            }
+
+            output.actual = variable.getType();
+
+            VariableNode variableNode = new VariableNode();
+
+            variableNode.setLocation(location);
+            variableNode.setExpressionType(output.actual);
+            variableNode.setName(name);
+
+            output.expressionNode = variableNode;
+        } else {
+            output.partialCanonicalTypeName = name;
         }
 
-        actual = variable.getType();
-    }
-
-    @Override
-    VariableNode write(ClassNode classNode) {
-        VariableNode variableNode = new VariableNode();
-
-        variableNode.setLocation(location);
-        variableNode.setExpressionType(actual);
-        variableNode.setName(name);
-
-        return variableNode;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(name);
+        return output;
     }
 }

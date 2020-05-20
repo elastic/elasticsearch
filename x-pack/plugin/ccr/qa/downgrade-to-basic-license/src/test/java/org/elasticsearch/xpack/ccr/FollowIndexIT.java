@@ -19,6 +19,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
@@ -48,7 +49,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             ensureYellow(index1);
             verifyDocuments(index1, 5, "filtered_field:true");
-        });
+        }, 60, TimeUnit.SECONDS);
 
         String index2 = "logs-20190102";
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -88,7 +89,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                     }
                 });
             }
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Manually following index2 also does not work after the downgrade:
         Exception e = expectThrows(ResponseException.class, () -> followIndex("leader_cluster", index2));
@@ -100,11 +101,12 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
-                return actual.level().equals("WARN") &&
-                    actual.component().equals("o.e.x.c.a.AutoFollowCoordinator") &&
-                    actual.nodeName().startsWith("follow-cluster-0") &&
-                    actual.message().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
-                    actual.stacktrace().contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +
+                return actual.getLevel().equals("WARN") &&
+                    actual.getComponent().contains("AutoFollowCoordinator") &&
+                    actual.getNodeName().startsWith("follow-cluster-0") &&
+                    actual.getMessage().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
+                    actual.stacktrace().get(0)
+                          .contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +
                         "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]" +
                         " on cluster [leader_cluster] does not enable [ccr]");
             }

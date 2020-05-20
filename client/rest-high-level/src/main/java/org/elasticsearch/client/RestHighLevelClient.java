@@ -54,6 +54,10 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.analytics.ParsedStringStats;
+import org.elasticsearch.client.analytics.ParsedTopMetrics;
+import org.elasticsearch.client.analytics.StringStatsAggregationBuilder;
+import org.elasticsearch.client.analytics.TopMetricsAggregationBuilder;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.GetSourceRequest;
@@ -123,10 +127,10 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -260,6 +264,8 @@ public class RestHighLevelClient implements Closeable {
     private final CcrClient ccrClient = new CcrClient(this);
     private final TransformClient transformClient = new TransformClient(this);
     private final EnrichClient enrichClient = new EnrichClient(this);
+    private final EqlClient eqlClient = new EqlClient(this);
+    private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -423,11 +429,21 @@ public class RestHighLevelClient implements Closeable {
      * A wrapper for the {@link RestHighLevelClient} that provides methods for
      * accessing the Elastic Index Lifecycle APIs.
      * <p>
-     * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com"> X-Pack APIs
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management-api.html"> X-Pack APIs
      * on elastic.co</a> for more information.
      */
     public IndexLifecycleClient indexLifecycle() {
         return ilmClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Index Async Search APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> X-Pack APIs on elastic.co</a>
+     * for more information.
+     */
+    public AsyncSearchClient asyncSearch() {
+        return asyncSearchClient;
     }
 
     /**
@@ -486,6 +502,20 @@ public class RestHighLevelClient implements Closeable {
 
     public EnrichClient enrich() {
         return enrichClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic EQL APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/eql.html">
+     *     EQL APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Data Frame API calls
+     */
+    public final EqlClient eql() {
+        return eqlClient;
     }
 
     /**
@@ -1869,12 +1899,7 @@ public class RestHighLevelClient implements Closeable {
      * emitted there just mean that you are talking to an old version of
      * Elasticsearch. There isn't anything you can do about the deprecation.
      */
-    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
-        @Override
-        public void usedDeprecatedName(String usedName, String modernName) {}
-        @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {}
-    };
+    private static final DeprecationHandler DEPRECATION_HANDLER = DeprecationHandler.IGNORE_DEPRECATIONS;
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
@@ -1926,6 +1951,8 @@ public class RestHighLevelClient implements Closeable {
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
+        map.put(StringStatsAggregationBuilder.NAME, (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c));
+        map.put(TopMetricsAggregationBuilder.NAME, (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c));
         List<NamedXContentRegistry.Entry> entries = map.entrySet().stream()
                 .map(entry -> new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());

@@ -79,11 +79,6 @@ Client libraries using this protocol should try and strive to do
 something similar on the client side, and reduce buffering as much as
 possible.
 
-The response to a bulk action is a large JSON structure with 
-the individual results of each action performed, 
-in the same order as the actions that appeared in the request. 
-The failure of a single action does not affect the remaining actions.
-
 There is no "correct" number of actions to perform in a single bulk request. 
 Experiment with different settings to find the optimal size for your particular workload.
 
@@ -97,6 +92,10 @@ as this will slow things down.
 Some of the officially supported clients provide helpers to assist with
 bulk requests and reindexing of documents from one index to another:
 
+Go::
+
+    See https://github.com/elastic/go-elasticsearch/tree/master/_examples/bulk#indexergo[esutil.BulkIndexer]
+
 Perl::
 
     See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
@@ -105,6 +104,10 @@ Perl::
 Python::
 
     See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+
+JavaScript::
+
+    See {jsclient-current}/client-helpers.html[client.helpers.*]
 
 [float]
 [[bulk-curl]]
@@ -182,12 +185,6 @@ participate in the `_bulk` request at all.
 ===== Security
 
 See <<url-access-control>>.
-
-[float]
-[[bulk-partial-responses]]
-===== Partial responses
-To ensure fast responses, the bulk API will respond with partial results if one or more shards fail. 
-See <<shard-failures, Shard failures>> for more information.
 
 [[docs-bulk-api-path-params]]
 ==== {api-path-parms-title}
@@ -275,17 +272,145 @@ Required for `update` operations.
 The document source to index.
 Required for `create` and `index` operations. 
 
+[role="child_attributes"]
 [[bulk-api-response-body]]
 ==== {api-response-body-title}
 
+The bulk API's response contains the individual results of each operation in the
+request, returned in the order submitted. The success or failure of an
+individual operation does not affect other operations in the request.
+
+[[bulk-partial-responses]]
+.Partial responses
+****
+To ensure fast responses, the bulk API will respond with partial results if one
+or more shards fail. See <<shard-failures, Shard failures>> for more
+information.
+****
+
 `took`::
-(milliseconds) How long it took to process the bulk request.
+(integer)
+How long, in milliseconds, it took to process the bulk request.
 
 `errors`::
-(boolean) If `true`, one or more of the operations in the bulk request did not complete successfully.
+(boolean)
+If `true`, one or more of the operations in the bulk request did not complete
+successfully.
 
 `items`::
-(array) The result of each operation in the bulk request in the order they were requested. 
+(array of objects)
+Contains the result of each operation in the bulk request, in the order they
+were submitted.
++
+.Properties of `items` objects
+[%collapsible%open]
+====
+<action>::
+(object)
+The parameter name is an action associated with the operation. Possible values
+are `create`, `delete`, `index`, and `update`.
++
+The parameter value is an object that contains information for the associated
+operation.
++
+.Properties of `<action>`
+[%collapsible%open]
+=====
+`_index`::
+(string)
+The index name or alias associated with the operation.
+
+`_id`::
+(integer)
+The document ID associated with the operation.
+
+`_version`::
+(integer)
+The document version associated with the operation. The document version is
+incremented each time the document is updated.
++
+This parameter is only returned for successful actions.
+
+`result`::
+(string)
+Result of the operation. Successful values are `created`, `deleted`, and
+`updated`.
++
+This parameter is only returned for successful operations.
+
+`_shards`::
+(object)
+Contains shard information for the operation.
++
+This parameter is only returned for successful operations.
++
+.Properties of `_shards`
+[%collapsible%open]
+======
+`total`::
+(integer)
+Number of shards the operation attempted to execute on.
+
+`successful`::
+(integer)
+Number of shards the operation succeeded on.
+
+`failed`::
+(integer)
+Number of shards the operation attempted to execute on but failed.
+======
+
+`_seq_no`::
+(integer)
+The sequence number assigned to the document for the operation.
+Sequence numbers are used to ensure an older version of a document
+doesn’t overwrite a newer version. See <<optimistic-concurrency-control-index>>.
++
+This parameter is only returned for successful operations.
+
+`_primary_term`::
+(integer)
+The primary term assigned to the document for the operation.
+See <<optimistic-concurrency-control-index>>.
++
+This parameter is only returned for successful operations.
+
+`status`::
+(integer)
+HTTP status code returned for the operation.
+
+`error`::
+(object)
+Contains additional information about the failed operation.
++
+The parameter is only returned for failed operations.
++
+.Properties of `error`
+[%collapsible%open]
+======
+`type`::
+(string)
+Error type for the operation.
+
+`reason`::
+(string)
+Reason for the failed operation.
+
+`index_uuid`::
+(string)
+The universally unique identifier (UUID) of the index associated with the failed
+operation.
+
+`shard`::
+(string)
+ID of the shard associated with the failed operation.
+
+`index`::
+(string)
+The index name or alias associated with the failed operation.
+======
+=====
+====
 
 [[docs-bulk-api-example]]
 ==== {api-examples-title}
@@ -415,5 +540,134 @@ POST _bulk
 { "update" : {"_id" : "4", "_index" : "index1"} }
 { "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
+
+[discrete]
+[[bulk-failures-ex]]
+===== Example with failed actions
+
+The following bulk API request includes operations that update non-existent
+documents.
+
+[source,console]
+----
+POST /_bulk
+{ "update": {"_id": "5", "_index": "index1"} }
+{ "doc": {"my_field": "foo"} }
+{ "update": {"_id": "6", "_index": "index1"} }
+{ "doc": {"my_field": "foo"} }
+{ "create": {"_id": "7", "_index": "index1"} }
+{ "my_field": "foo" }
+----
+
+Because these operations cannot complete successfully, the API returns a
+response with an `errors` flag of `true`.
+
+The response also includes an `error` object for any failed operations. The
+`error` object contains additional information about the failure, such as the
+error type and reason.
+
+[source,console-result]
+----
+{
+  "took": 486,
+  "errors": true,
+  "items": [
+    {
+      "update": {
+        "_index": "index1",
+        "_id": "5",
+        "status": 404,
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[5]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "update": {
+        "_index": "index1",
+        "_id": "6",
+        "status": 404,
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[6]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "create": {
+        "_index": "index1",
+        "_id": "7",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 1,
+          "failed": 0
+        },
+        "_seq_no": 0,
+        "_primary_term": 1,
+        "status": 201
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"took": 486/"took": $body.took/]
+// TESTRESPONSE[s/"_seq_no": 0/"_seq_no": $body.items.2.create._seq_no/]
+// TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]
+
+To return only information about failed operations, use the
+<<common-options-response-filtering,`filter_path`>> query parameter with an
+argument of `items.*.error`.
+
+[source,console]
+----
+POST /_bulk?filter_path=items.*.error
+{ "update": {"_id": "5", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+{ "update": {"_id": "6", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+{ "update": {"_id": "7", "_index": "index1"} }
+{ "doc": {"my_field": "baz"} }
+----
 // TEST[continued]
 
+The API returns the following result.
+
+[source,console-result]
+----
+{
+  "items": [
+    {
+      "update": {
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[5]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    },
+    {
+      "update": {
+        "error": {
+          "type": "document_missing_exception",
+          "reason": "[6]: document missing",
+          "index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA",
+          "shard": "0",
+          "index": "index1"
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"index_uuid": "aAsFqTI0Tc2W0LCWgPNrOA"/"index_uuid": $body.$_path/]

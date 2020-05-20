@@ -50,7 +50,7 @@ public class RuleScope implements ToXContentObject {
                     Map<String, ?> value = (Map<String, ?>) entry.getValue();
                     builder.map(value);
                     try (XContentParser scopeParser = XContentFactory.xContent(builder.contentType()).createParser(
-                            NamedXContentRegistry.EMPTY, DEPRECATION_HANDLER, Strings.toString(builder))) {
+                            NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, Strings.toString(builder))) {
                         scope.put(entry.getKey(), FilterRef.PARSER.parse(scopeParser, null));
                     }
                 }
@@ -58,15 +58,6 @@ public class RuleScope implements ToXContentObject {
             return new RuleScope(scope);
         };
     }
-
-    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
-
-        @Override
-        public void usedDeprecatedName(String usedName, String modernName) {}
-
-        @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {}
-    };
 
     private final Map<String, FilterRef> scope;
 

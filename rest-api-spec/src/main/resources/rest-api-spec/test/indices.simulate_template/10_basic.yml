@@ -83,7 +83,7 @@
   - is_true: template.aliases.test_alias
 
 ---
-"Simulate template matches overlapping V1 and V2 templates":
+"Simulate template matches overlapping legacy and composable templates":
   - skip:
       version: " - 7.99.99"
       reason: "not yet backported"

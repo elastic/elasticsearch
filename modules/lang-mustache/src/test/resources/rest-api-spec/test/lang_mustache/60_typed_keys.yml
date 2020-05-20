@@ -21,7 +21,7 @@ setup:
 
   - do:
      allowed_warnings:
-      - "index [test-0] matches multiple v1 templates [global, index_template], v2 index templates will only match a single index template"
+      - "index [test-0] matches multiple legacy templates [global, index_template], composable templates will only match a single template"
      bulk:
         refresh: true
         body:

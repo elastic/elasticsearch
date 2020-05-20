@@ -356,7 +356,7 @@ public class MetadataIndexTemplateService {
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
             Settings mergedSettings = resolveSettings(metadata, template);
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
-                throw new InvalidIndexTemplateException(name, "global V2 templates may not specify the setting "
+                throw new InvalidIndexTemplateException(name, "global composable templates may not specify the setting "
                     + IndexMetadata.INDEX_HIDDEN_SETTING.getKey());
             }
         }
@@ -462,7 +462,7 @@ public class MetadataIndexTemplateService {
             IndexTemplateMetadata template = cursor.value;
             Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
-                logger.debug("index template {} and old template {} would overlap: {} <=> {}",
+                logger.debug("composable template {} and legacy template {} would overlap: {} <=> {}",
                     candidateName, name, indexPatterns, template.patterns());
                 overlappingTemplates.put(name, template.patterns());
             }
@@ -499,7 +499,7 @@ public class MetadataIndexTemplateService {
             Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
                 if (checkPriority == false || priority == template.priorityOrZero()) {
-                    logger.debug("old template {} and index template {} would overlap: {} <=> {}",
+                    logger.debug("legacy template {} and composable template {} would overlap: {} <=> {}",
                         candidateName, name, indexPatterns, template.indexPatterns());
                     overlappingTemplates.put(name, template.indexPatterns());
                 }
@@ -631,9 +631,9 @@ public class MetadataIndexTemplateService {
         if (overlaps.size() > 0) {
             // Be less strict (just a warning) if we're updating an existing template or this is a match-all template
             if (isUpdateAndPatternsAreUnchanged || request.indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
-                String warning = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
-                        " from existing index templates [%s] with patterns (%s); this template [%s] may be ignored in favor of " +
-                        "an index template at index creation time",
+                String warning = String.format(Locale.ROOT, "legacy template [%s] has index patterns %s matching patterns" +
+                        " from existing composable templates [%s] with patterns (%s); this template [%s] may be ignored in favor" +
+                        " of a composable template at index creation time",
                     request.name,
                     request.indexPatterns,
                     Strings.collectionToCommaDelimitedString(overlaps.keySet()),
@@ -645,8 +645,9 @@ public class MetadataIndexTemplateService {
                 deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
-                String error = String.format(Locale.ROOT, "template [%s] has index patterns %s matching patterns" +
-                        " from existing index templates [%s] with patterns (%s), use index templates (/_index_template) instead",
+                String error = String.format(Locale.ROOT, "legacy template [%s] has index patterns %s matching patterns" +
+                        " from existing composable templates [%s] with patterns (%s), use composable templates" +
+                        " (/_index_template) instead",
                     request.name,
                     request.indexPatterns,
                     Strings.collectionToCommaDelimitedString(overlaps.keySet()),

@@ -4,14 +4,14 @@
 <titleabbrev>Index template</titleabbrev>
 ++++
 
-This documentation is about V2 (version 2) index templates. For V1 templates please see the
-<<indices-templates-v1,V1 template documentation>>.
+This documentation is about composable templates. For legacy templates please see the
+<<indices-templates-v1,legacy template documentation>>.
 
 [NOTE]
 ====
-In {es} 7.8 V2 templates were introduced. When a V2 index template matches a given index it always
-takes precedence over a V1 template. If no V2 index template matches, a V1 template may still match
-and be applied.
+In {es} 7.8 composable templates were introduced. When a composable template matches a given index
+it always takes precedence over a legacy template. If no composable template matches, a legacy
+template may still match and be applied.
 ====
 
 An index template is a way to tell {es} how to configure an index when it is created. Templates are

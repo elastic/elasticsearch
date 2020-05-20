@@ -76,6 +76,6 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
         List<String> validationErrors = validationException.validationErrors();
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
-        assertThat(error, is("global V2 templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
+        assertThat(error, is("global composable templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
     }
 }

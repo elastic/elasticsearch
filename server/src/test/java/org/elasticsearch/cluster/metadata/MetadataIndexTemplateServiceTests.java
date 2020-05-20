@@ -474,9 +474,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         req.patterns(Arrays.asList("*", "baz"));
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertWarnings("template [v1-template] has index patterns [*, baz] matching patterns from existing " +
-            "index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of an index template at index creation time");
+        assertWarnings("legacy template [v1-template] has index patterns [*, baz] matching patterns from existing " +
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
+            "be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("*", "baz"));
@@ -496,8 +496,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             () -> MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template")));
 
         assertThat(e.getMessage(),
-            equalTo("template [v1-template] has index patterns [egg*, baz] matching patterns from existing index " +
-                "templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use index templates " +
+            equalTo("legacy template [v1-template] has index patterns [egg*, baz] matching patterns from existing composable " +
+                "templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use composable templates " +
                 "(/_index_template) instead"));
 
         assertNull(state.metadata().templates().get("v1-template"));
@@ -536,9 +536,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         req.patterns(Arrays.asList("fo*", "baz"));
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
-        assertWarnings("template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
-            "index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
-            "be ignored in favor of an index template at index creation time");
+        assertWarnings("legacy template [v1-template] has index patterns [fo*, baz] matching patterns from existing " +
+            "composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]); this template [v1-template] may " +
+            "be ignored in favor of a composable template at index creation time");
 
         assertNotNull(state.metadata().templates().get("v1-template"));
         assertThat(state.metadata().templates().get("v1-template").patterns(), containsInAnyOrder("fo*", "baz"));
@@ -578,8 +578,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> MetadataIndexTemplateService.innerPutTemplate(finalState, req, IndexTemplateMetadata.builder("v1-template")));
 
-        assertThat(e.getMessage(), equalTo("template [v1-template] has index patterns [egg*, baz] matching patterns " +
-            "from existing index templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use index " +
+        assertThat(e.getMessage(), equalTo("legacy template [v1-template] has index patterns [egg*, baz] matching patterns " +
+            "from existing composable templates [v2-template] with patterns (v2-template => [foo-bar-*, eggplant]), use composable " +
             "templates (/_index_template) instead"));
     }
 

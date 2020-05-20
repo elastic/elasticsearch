@@ -894,8 +894,8 @@ public class WildcardFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
-        return value;
+    protected String parseSourceValue(Object value) {
+        return value.toString();
     }
 
     // For internal use by Lucene only - used to define ngram index

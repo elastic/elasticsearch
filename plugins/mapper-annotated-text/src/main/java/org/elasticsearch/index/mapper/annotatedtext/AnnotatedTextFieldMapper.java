@@ -600,7 +600,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
+    protected String parseSourceValue(Object value) {
         return value.toString();
     }
 

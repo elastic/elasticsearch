@@ -195,8 +195,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return handleSpecialFields(u, matches.get(0), allowCompound);
         }
 
-        return u.withUnresolvedMessage("Reference [" + u.qualifiedName() + "] is ambiguous " +
-            "(to disambiguate use quotes, qualifiers or different aliases)");
+        return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
+                + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
+                 matches.stream()
+                 .map(a -> (a.qualifier() != null ? "\"" + a.qualifier() + "\"." : "") + "\"" + a.name() + "\"")
+                 .sorted()
+                 .collect(toList())
+                );
     }
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transform.transforms;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,7 +44,7 @@ public class TransformCheckpointingInfoTests extends ESTestCase {
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomLongBetween(0, 10000),
-            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
+            randomBoolean() ? null : Instant.ofEpochMilli(randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999)));
     }
 
     public static void toXContent(TransformCheckpointingInfo info, XContentBuilder builder) throws IOException {

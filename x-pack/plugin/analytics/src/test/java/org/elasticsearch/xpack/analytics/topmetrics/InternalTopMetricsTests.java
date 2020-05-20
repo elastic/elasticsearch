@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -32,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -223,15 +225,18 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
 
     @Override
     protected InternalTopMetrics createTestInstance(String name, Map<String, Object> metadata) {
-        return createTestInstance(name, metadata, InternalAggregationTestCase::randomNumericDocValueFormat);
+        return createTestInstance(name, metadata, InternalAggregationTestCase::randomNumericDocValueFormat,
+            InternalTopMetricsTests::randomSortValue);
     }
 
-    private InternalTopMetrics createTestInstance(String name, 
-            Map<String, Object> metadata, Supplier<DocValueFormat> randomDocValueFormat) {
+    private InternalTopMetrics createTestInstance(String name,
+            Map<String, Object> metadata, Supplier<DocValueFormat> randomDocValueFormat,
+                                                  Function<DocValueFormat,SortValue> sortValueSupplier) {
         int metricCount = between(1, 5);
         List<String> metricNames = randomMetricNames(metricCount);
         int size = between(1, 100);
-        List<InternalTopMetrics.TopMetric> topMetrics = randomTopMetrics(randomDocValueFormat, between(0, size), metricCount);
+        List<InternalTopMetrics.TopMetric> topMetrics = randomTopMetrics(randomDocValueFormat, between(0, size), metricCount,
+            sortValueSupplier);
         return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, metadata);
     }
 
@@ -261,7 +266,8 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             int fixedSize = size;
             int fixedMetricsSize = metricNames.size();
             topMetrics = randomValueOtherThan(topMetrics, () -> randomTopMetrics(
-                    InternalAggregationTestCase::randomNumericDocValueFormat, between(1, fixedSize), fixedMetricsSize));
+                    InternalAggregationTestCase::randomNumericDocValueFormat, between(1, fixedSize), fixedMetricsSize,
+                InternalTopMetricsTests::randomSortValue));
             break;
         default:
             throw new IllegalArgumentException("bad mutation");
@@ -275,7 +281,8 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
      * implement {@link Object#equals(Object)}.
      */
     public void testFromXContentDates() throws IOException {
-        InternalTopMetrics aggregation = createTestInstance(randomAlphaOfLength(3), emptyMap(), InternalTopMetricsTests::strictDateTime);
+        InternalTopMetrics aggregation = createTestInstance(randomAlphaOfLength(3),
+            emptyMap(), InternalTopMetricsTests::strictDateTime, InternalTopMetricsTests::randomSortValue);
         ParsedAggregation parsedAggregation = parseAndAssert(aggregation, randomBoolean(), randomBoolean());
         assertFromXContent(aggregation, parsedAggregation);
     }
@@ -320,12 +327,16 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         assertThat(reduced.getTopMetrics(), equalTo(winners));
     }
 
-    private List<InternalTopMetrics.TopMetric> randomTopMetrics(
-            Supplier<DocValueFormat> randomDocValueFormat, int length, int metricCount) {
+    private List<InternalTopMetrics.TopMetric> randomTopMetrics(Supplier<DocValueFormat> randomDocValueFormat, int length, int metricCount,
+            Function<DocValueFormat,SortValue> sortValueSupplier) {
         return IntStream.range(0, length)
-                .mapToObj(i -> new InternalTopMetrics.TopMetric(
-                        randomDocValueFormat.get(), randomSortValue(), randomMetricValues(randomDocValueFormat, metricCount)
-                ))
+                .mapToObj(i -> {
+                    DocValueFormat docValueFormat = randomDocValueFormat.get();
+                    return new InternalTopMetrics.TopMetric(
+                        docValueFormat, sortValueSupplier.apply(docValueFormat),
+                        randomMetricValues(randomDocValueFormat, metricCount, sortValueSupplier)
+                    );
+                })
                 .sorted((lhs, rhs) -> sortOrder.reverseMul() * lhs.getSortValue().compareTo(rhs.getSortValue()))
                 .collect(toList());
     }
@@ -338,9 +349,13 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         return new ArrayList<>(names);
     }
 
-    private List<InternalTopMetrics.MetricValue> randomMetricValues(Supplier<DocValueFormat> randomDocValueFormat, int metricCount) {
+    private List<InternalTopMetrics.MetricValue> randomMetricValues(Supplier<DocValueFormat> randomDocValueFormat, int metricCount,
+                                                                    Function<DocValueFormat,SortValue> sortValueSupplier) {
         return IntStream.range(0, metricCount)
-                .mapToObj(i -> new InternalTopMetrics.MetricValue(randomDocValueFormat.get(), randomSortValue()))
+                .mapToObj(i -> {
+                    DocValueFormat format = randomDocValueFormat.get();
+                    return new InternalTopMetrics.MetricValue(format, sortValueSupplier.apply(format));
+                })
                 .collect(toList());
     }
 
@@ -356,6 +371,18 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         }
         return SortValue.from(randomDouble());
     }
+
+    private static SortValue randomSortValue(DocValueFormat docValueFormat) {
+        if(docValueFormat instanceof DocValueFormat.DateTime){
+            if (randomBoolean()) {
+                return SortValue.from(randomLongBetween(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999, DateUtils.MAX_MILLIS_BEFORE_9999));
+            }
+            return SortValue.from(
+                randomDoubleBetween(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999, DateUtils.MAX_MILLIS_BEFORE_9999, true));
+        }
+       return randomSortValue();
+    }
+
 
     @Override
     protected Predicate<String> excludePathsFromXContentInsertion() {

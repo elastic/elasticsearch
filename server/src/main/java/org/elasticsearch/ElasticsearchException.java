@@ -1042,7 +1042,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.ingest.IngestProcessorException::new,
                 157,
                 Version.V_7_5_0),
-        FS_HEALTH_CHECK_FAILURE_EXCEPTION(
+        NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
                 org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
                 org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
                 158,

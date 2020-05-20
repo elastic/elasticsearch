@@ -1204,7 +1204,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         }
 
                         if (nodeHealthService.getHealth().getStatus() == UNHEALTHY) {
-                            logger.debug("skip prevoting as local due to {} : {}", nodeHealthService.getHealth().getInfo(),
+                            logger.debug("skip prevoting due to {} : {}", nodeHealthService.getHealth().getInfo(),
                                 lastAcceptedState.coordinationMetadata());
                             return;
                         }

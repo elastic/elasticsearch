@@ -584,6 +584,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return fieldTypes.get(fullName);
     }
 
+    public Mapper fieldMapper(String fieldName) {
+        return documentMapper().mappers().getMapper(fieldName);
+    }
+
     /**
      * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
      * then the fields will be returned with a type prefix.

@@ -79,7 +79,6 @@ import static java.util.Collections.singletonList;
 public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin, XPackSharedPlugin {
 
     private final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
-    // not sure it is important this can be overridden?
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
         assert this.licenseState.get() != null;

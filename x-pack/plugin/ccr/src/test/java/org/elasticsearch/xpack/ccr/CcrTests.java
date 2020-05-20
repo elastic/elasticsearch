@@ -41,9 +41,7 @@ public class CcrTests extends ESTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build();
-            // not sure of the licensing here too, does not seem to be part of the test?
-//            final Ccr ccr = new Ccr(Settings.EMPTY, new CcrLicenseChecker(() -> true, () -> false));
-            final Ccr ccr = new Ccr(Settings.EMPTY);
+            final Ccr ccr = new Ccr(Settings.EMPTY, new CcrLicenseChecker(() -> true, () -> false));
             final Optional<EngineFactory> engineFactory = ccr.getEngineFactory(new IndexSettings(indexMetadata, Settings.EMPTY));
             if (value != null && value) {
                 assertTrue(engineFactory.isPresent());

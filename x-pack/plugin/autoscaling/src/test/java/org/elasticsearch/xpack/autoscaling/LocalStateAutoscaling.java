@@ -15,15 +15,10 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin implements ExtensiblePlugin, AutoscalingPlugin {
+public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin implements ExtensiblePlugin {
 
     public LocalStateAutoscaling(final Settings settings) {
         super(settings, null);
         plugins.add(new Autoscaling(settings));
-    }
-
-    @Override
-    public Collection<AutoscalingDeciderService<? extends AutoscalingDecider>> deciders() {
-        return filterPlugins(AutoscalingPlugin.class).stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toList());
     }
 }

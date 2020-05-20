@@ -576,10 +576,8 @@ public class WildcardFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        this.ignoreAbove = ((WildcardFieldMapper) mergeWith).ignoreAbove;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        this.ignoreAbove = ((WildcardFieldMapper) other).ignoreAbove;
     }
 }

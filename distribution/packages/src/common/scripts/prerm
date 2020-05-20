@@ -72,10 +72,6 @@ if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v chkconfig >/dev/null; then
         chkconfig --del elasticsearch 2> /dev/null || true
     fi
-
-    if command -v update-rc.d >/dev/null; then
-        update-rc.d elasticsearch remove >/dev/null || true
-    fi
 fi
 
 ${scripts.footer}

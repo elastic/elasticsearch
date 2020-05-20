@@ -15,8 +15,8 @@ teardown:
 ---
 "Verify get index api":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "wait until backported"
 
   - do:
       indices.get:
@@ -27,8 +27,8 @@ teardown:
 ---
 "Verify get mapping api":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "wait until backported"
 
   - do:
       indices.get_mapping:

@@ -196,28 +196,74 @@ public class NumericTermsAggregator extends TermsAggregator {
             return result;
         }
 
+        /**
+         * Short description of the collection mechanism added to the profile
+         * output to help with debugging.
+         */
         abstract String describe();
 
+        /**
+         * Resolve the doc values to collect results of this type.
+         */
         abstract SortedNumericDocValues getValues(LeafReaderContext ctx) throws IOException;
 
+        /**
+         * Wrap the "standard" numeric terms collector to collect any more
+         * information that this result type may need.
+         */
         abstract LeafBucketCollector wrapCollector(LeafBucketCollector primary);
 
+        /**
+         * Build an array to hold the "top" buckets for each ordinal.
+         */
         abstract B[][] buildTopBucketsPerOrd(int size);
 
+        /**
+         * Build an array of buckets for a particular ordinal. These arrays
+         * are asigned to the value returned by {@link #buildTopBucketsPerOrd}.
+         */
         abstract B[] buildBuckets(int size);
 
+        /**
+         * Build a {@linkplain Supplier} that can be used to build "empty"
+         * buckets. Those buckets will then be {@link #updateBucket updated}
+         * for each collected bucket.
+         */
         abstract Supplier<B> emptyBucketBuilder(long owningBucketOrd);
 
+        /**
+         * Update fields in {@code spare} to reflect information collected for
+         * this bucket ordinal.
+         */
         abstract void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
 
+        /**
+         * Build a {@link PriorityQueue} to sort the buckets. After we've
+         * collected all of the buckets we'll collect all entries in the queue.
+         */
         abstract PriorityQueue<B> buildPriorityQueue(int size);
 
+        /**
+         * Build the sub-aggregations into the buckets. This will usually
+         * delegate to {@link #buildSubAggsForAllBuckets}.
+         */
         abstract void buildSubAggs(B[][] topBucketsPerOrd) throws IOException;
 
+        /**
+         * Collect extra entries for "zero" hit documents if they were requested
+         * and required.
+         */
         abstract void collectZeroDocEntriesIfNeeded(long ord) throws IOException;
 
+        /**
+         * Turn the buckets into an aggregation result.
+         */
         abstract R buildResult(long owningBucketOrd, long otherDocCounts, B[] topBuckets);
 
+        /**
+         * Build an "empty" result. Only called if there isn't any data on this
+         * shard.
+         */
         abstract R buildEmptyResult();
     }
 

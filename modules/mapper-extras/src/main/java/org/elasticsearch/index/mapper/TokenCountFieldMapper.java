@@ -151,8 +151,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
-        return value;
+    protected String parseSourceValue(Object value) {
+        return value.toString();
     }
 
     /**

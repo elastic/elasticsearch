@@ -299,7 +299,7 @@ computation as part of a hit. Defaults to `false`.
 --
 [IMPORTANT]
 ====
-You can also specify this value using the `explain` request body parameter. If
+You can also specify this value using the `explain` query parameter. If
 both parameters are specified, only the query parameter is used.
 ====
 --

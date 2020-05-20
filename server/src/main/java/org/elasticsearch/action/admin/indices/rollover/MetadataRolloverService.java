@@ -48,7 +48,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTemplateForDataStream;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 
@@ -141,7 +141,7 @@ public class MetadataRolloverService {
     private RolloverResult rolloverDataStream(ClusterState currentState, IndexAbstraction.DataStream dataStream, String dataStreamName,
                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
                                               boolean silent) throws Exception {
-        validateTemplateForDataStream(dataStreamName, currentState.metadata());
+        lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();

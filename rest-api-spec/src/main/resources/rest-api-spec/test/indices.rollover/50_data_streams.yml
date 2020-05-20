@@ -18,8 +18,6 @@
   - do:
       indices.create_data_stream:
         name: data-stream-for-rollover
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   # rollover data stream to create new backing index

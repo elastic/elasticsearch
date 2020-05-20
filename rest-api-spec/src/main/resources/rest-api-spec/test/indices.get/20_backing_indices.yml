@@ -18,8 +18,6 @@
   - do:
       indices.create_data_stream:
         name: data-stream1
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   - do:

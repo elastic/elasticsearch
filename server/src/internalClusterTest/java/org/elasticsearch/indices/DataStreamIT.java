@@ -86,12 +86,10 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testBasicScenario() throws Exception {
         createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
-        createDataStreamRequest.setTimestampFieldName("@timestamp1");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         createIndexTemplate("id2", "metrics-bar*", "@timestamp2");
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
-        createDataStreamRequest.setTimestampFieldName("@timestamp2");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
@@ -167,7 +165,6 @@ public class DataStreamIT extends ESIntegTestCase {
         createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
         String dataStreamName = "metrics-foobar";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        createDataStreamRequest.setTimestampFieldName("@timestamp1");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         {
@@ -217,7 +214,6 @@ public class DataStreamIT extends ESIntegTestCase {
         createIndexTemplate("id", "logs-*", "ts");
         String dataStreamName = "logs-foobar";
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
-        request.setTimestampFieldName("ts");
         client().admin().indices().createDataStream(request).actionGet();
 
         verifyResolvability(dataStreamName, client().prepareIndex(dataStreamName)
@@ -245,7 +241,6 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().prepareFieldCaps(dataStreamName).setFields("*"), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
-        request.setTimestampFieldName("ts");
         client().admin().indices().createDataStream(request).actionGet();
         verifyResolvability("logs-barbaz", client().prepareIndex("logs-barbaz")
                 .setSource("{}", XContentType.JSON)

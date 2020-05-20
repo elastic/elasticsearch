@@ -101,14 +101,11 @@ public class MetadataCreateDataStreamService {
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;
-        private final String timestampFieldName;
 
         public CreateDataStreamClusterStateUpdateRequest(String name,
-                                                         String timestampFieldName,
                                                          TimeValue masterNodeTimeout,
                                                          TimeValue timeout) {
             this.name = name;
-            this.timestampFieldName = timestampFieldName;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
         }
@@ -131,7 +128,7 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
         }
 
-        validateTemplateForDataStream(request.name, currentState.metadata());
+        IndexTemplateV2 template = lookupTemplateForDataStream(request.name, currentState.metadata());
 
         String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
@@ -142,12 +139,12 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex != null;
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
-            new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));
+            new DataStream(request.name, template.getDataStreamTemplate().getTimestampField(), List.of(firstBackingIndex.getIndex())));
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
-    public static void validateTemplateForDataStream(String dataStreamName, Metadata metadata) {
+    public static IndexTemplateV2 lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {
         final String v2Template = MetadataIndexTemplateService.findV2Template(metadata, dataStreamName, false);
         if (v2Template == null) {
             throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
@@ -157,6 +154,7 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("matching index template [" + v2Template + "] for data stream [" + dataStreamName  +
                 "] has no data stream template");
         }
+        return indexTemplateV2;
     }
 
 }

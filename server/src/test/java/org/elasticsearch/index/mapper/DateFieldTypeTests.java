@@ -58,33 +58,37 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Locale;
 
-public class DateFieldTypeTests extends FieldTypeTestCase {
+public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new DateFieldMapper.DateFieldType();
+    protected DateFieldType createDefaultFieldType() {
+        return new DateFieldType();
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier(t -> {
+            DateFieldType copy = (DateFieldType) t.clone();
+            if (copy.dateTimeFormatter == DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) {
+                copy.setDateTimeFormatter(DateFormatter.forPattern("epoch_millis"));
+            } else {
+                copy.setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+            }
+            return copy;
+        });
+        addModifier(t -> {
+            DateFieldType copy = (DateFieldType) t.clone();
+            if (copy.resolution() == Resolution.MILLISECONDS) {
+                copy.setResolution(Resolution.NANOSECONDS);
+            } else {
+                copy.setResolution(Resolution.MILLISECONDS);
+            }
+            return copy;
+        });
     }
 
     private static long nowInMillis;
 
-    @Before
-    public void setupProperties() {
-        setDummyNullValue(10);
-        addModifier(new Modifier("format", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
-            }
-        });
-        addModifier(new Modifier("locale", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("strict_date_optional_time").withLocale(Locale.CANADA));
-            }
-        });
-        nowInMillis = randomNonNegativeLong();
-    }
 
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);

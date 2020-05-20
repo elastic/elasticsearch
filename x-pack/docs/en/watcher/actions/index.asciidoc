@@ -91,7 +91,7 @@ The following snippet shows a multi-document `index` action definition:
           "severity": "Sev: " + hit._source.severity <3>
         ])
         .collect(Collectors.toList());
-      return [ '_doc' : documents]; <4>
+      return [ "_doc" : documents]; <4>
       """
     },
     "index": {} <5>

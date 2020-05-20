@@ -22,7 +22,7 @@ public class TimeParse extends BaseDateTimeParseFunction {
     public TimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
         super(source, timestamp, pattern, zoneId);
     }
-    
+
     @Override
     protected Parser parser() {
         return TIME;
@@ -32,7 +32,7 @@ public class TimeParse extends BaseDateTimeParseFunction {
     protected NodeInfo.NodeCtor3<Expression, Expression, ZoneId, BaseDateTimeParseFunction> ctorForInfo() {
         return TimeParse::new;
     }
-    
+
     @Override
     public DataType dataType() {
         return SqlDataTypes.TIME;

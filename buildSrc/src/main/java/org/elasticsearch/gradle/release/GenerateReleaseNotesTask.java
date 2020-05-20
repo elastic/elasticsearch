@@ -20,8 +20,6 @@
 package org.elasticsearch.gradle.release;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
@@ -33,23 +31,16 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -68,8 +59,8 @@ import static org.elasticsearch.gradle.util.Util.capitalize;
  *
  * <p>See {@link ReleaseToolsPlugin} for this is wired up.
  */
-public class ReleaseNotesTask extends DefaultTask {
-    private static final Logger LOGGER = Logging.getLogger(ReleaseNotesTask.class);
+public class GenerateReleaseNotesTask extends DefaultTask {
+    private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
     private static final String BASE_URL = "https://api.github.com/repos/";
     private static final String USER_REPO = "elastic/elasticsearch/";
 
@@ -146,21 +137,18 @@ public class ReleaseNotesTask extends DefaultTask {
     }
 
     /**
-     * Used to parse JSON responses from GitHub.
-     */
-    private ObjectMapper objectMapper;
-
-    /**
      * Holds the version for which release notes will be generated. Defaults to {@link VersionProperties#getElasticsearchVersion()}
      * but can be overridden via <code>--release-version</code> on the command line.
      */
-    private Version version = null;
+    private Optional<String> versionOption = Optional.empty();
+
+    private Version version;
 
     /**
      * Holds the output path for the release notes, if one has been specified, otherwise the default is
      * <code>docs/reference/release-notes/{version}.asciidoc</code>
      */
-    private String outputPath = null;
+    private Optional<String> outputPath = Optional.empty();
 
     /**
      * Used for writing the release notes.
@@ -168,54 +156,52 @@ public class ReleaseNotesTask extends DefaultTask {
     private PrintStream out = null;
 
     /**
-     * Holds the value of the <code>Authorization</code> header, when a GitHub key is successfully loaded.
+     * Used to fetch data from GitHub.
      */
-    private String basicAuthPayload = null;
+    private GitHubApi githubApi;
 
     @Option(option = "release-version", description = "Override the version for generating release notes")
     public void setVersion(String overrideVersion) {
-        this.version = Version.fromString(overrideVersion);
+        this.versionOption = Optional.of(overrideVersion);
     }
 
     @Input
     public String getVersion() {
-        return this.version.toString();
+        return this.versionOption.orElse("");
     }
 
     @Option(option = "release-output", description = "Override the output file path for the generated release notes")
     public void setOutput(String overrideOutputPath) {
-        this.outputPath = overrideOutputPath;
+        this.outputPath = Optional.of(overrideOutputPath);
     }
 
     @Input
     public String getOutput() {
-        return this.outputPath;
+        return this.outputPath.orElse("");
     }
 
     @TaskAction
     public void executeTask() throws IOException {
-        loadGitHubKey();
+        this.githubApi = new GitHubApi(false);
 
-        this.objectMapper = new ObjectMapper();
-
-        if (this.version == null) {
-            this.version = VersionProperties.getElasticsearchVersion();
-        }
+        this.version = this.versionOption.map(Version::fromString).orElse(VersionProperties.getElasticsearchVersion());
 
         final Set<String> versionLabels = fetchVersionLabels();
 
-        assert versionLabels.contains("v" + this.version);
+        if (!versionLabels.contains("v" + this.version)) {
+            throw new GradleException("Version 'v" + this.version + "' does not exist in GitHub");
+        }
 
-        final Map<String, Map<String, List<Issue>>> groupedIssues = fetchIssues();
+        final Map<String, Map<String, List<GitHubIssue>>> groupedIssues = fetchIssues();
 
-        final String output = this.outputPath != null ? this.outputPath : "docs/reference/release-notes/" + this.version + ".asciidoc";
+        final String output = this.outputPath.orElse("docs/reference/release-notes/" + this.version + ".asciidoc");
 
         this.out = new PrintStream(output);
 
         generateReleaseNotes(groupedIssues);
     }
 
-    private void generateReleaseNotes(Map<String, Map<String, List<Issue>>> groupedIssues) {
+    private void generateReleaseNotes(Map<String, Map<String, List<GitHubIssue>>> groupedIssues) {
         generateHeader();
 
         List<String> groups = new ArrayList<>(GROUPS);
@@ -228,19 +214,21 @@ public class ReleaseNotesTask extends DefaultTask {
 
             generateGroupHeader(group);
 
-            final Map<String, List<Issue>> issuesByHeader = groupedIssues.get(group);
+            final Map<String, List<GitHubIssue>> issuesByHeader = groupedIssues.get(group);
 
             issuesByHeader.forEach((header, issues) -> {
                 out.println((header.isEmpty() ? "HEADER MISSING" : header) + "::");
 
-                for (Issue issue : issues) {
+                for (GitHubIssue issue : issues) {
                     String title = prepareIssueTitle(header, issue);
 
-                    out.print("* " + title + " {pull}" + issue.number + "[#" + issue.number + "]");
+                    out.print("* " + title + " {pull}" + issue.getNumber() + "[#" + issue.getNumber() + "]");
 
-                    if (issue.relatedIssues.isEmpty() == false) {
-                        out.print(issue.relatedIssues.size() == 1 ? " (issue: " : " (issues: ");
-                        out.print(issue.relatedIssues.stream().map(i -> "{issue}" + i + "[#" + i + "]").collect(Collectors.joining(", ")));
+                    if (issue.getRelatedIssues().isEmpty() == false) {
+                        out.print(issue.getRelatedIssues().size() == 1 ? " (issue: " : " (issues: ");
+                        out.print(
+                            issue.getRelatedIssues().stream().map(i -> "{issue}" + i + "[#" + i + "]").collect(Collectors.joining(", "))
+                        );
                         out.print(")");
                     }
                     out.println();
@@ -253,8 +241,8 @@ public class ReleaseNotesTask extends DefaultTask {
         }
     }
 
-    private String prepareIssueTitle(String header, Issue issue) {
-        String title = issue.title;
+    private String prepareIssueTitle(String header, GitHubIssue issue) {
+        String title = issue.getTitle();
 
         // Remove redundant prefixes from the title. For example,
         // given:
@@ -271,11 +259,11 @@ public class ReleaseNotesTask extends DefaultTask {
 
         title = capitalize(title);
 
-        if (issue.state == Issue.State.OPEN) {
+        if (issue.getState() == GitHubIssue.State.OPEN) {
             title += " [OPEN]";
         }
 
-        if (issue.isPullRequest == false) {
+        if (issue.isPullRequest() == false) {
             title += " [ISSUE]";
         }
         return title;
@@ -305,28 +293,7 @@ public class ReleaseNotesTask extends DefaultTask {
         out.println();
     }
 
-    private void loadGitHubKey() throws IOException {
-        final Path keyPath = Path.of(System.getenv("HOME"), ".elastic", "github_auth");
-        LOGGER.debug("Attempting to load API key from {}", keyPath);
-
-        if (Files.notExists(keyPath)) {
-            LOGGER.warn(
-                "File ~/.elastic/github_auth doesn't exist - using anonymous API. "
-                    + "Generate a Personal Access Token at https://github.com/settings/applications"
-            );
-        }
-
-        final String keyString = Files.readString(keyPath).trim();
-
-        if (keyString.matches("^[0-9a-fA-F]{40}$") == false) {
-            throw new GradleException("Invalid GitHub key: " + keyString);
-        }
-
-        this.basicAuthPayload = "Basic "
-            + Base64.getEncoder().encodeToString((keyString + ":x-oauth-basic").getBytes(StandardCharsets.UTF_8));
-    }
-
-    private Set<String> fetchVersionLabels() throws IOException {
+    private Set<String> fetchVersionLabels() {
         LOGGER.quiet("Fetching GitHub labels...");
 
         final Set<String> versionLabels = new HashSet<>();
@@ -336,8 +303,9 @@ public class ReleaseNotesTask extends DefaultTask {
         while (true) {
             page++;
 
-            final URL url = new URL(BASE_URL + USER_REPO + "labels?page=" + page);
-            final JsonNode labels = fetchUrl(url);
+            final String url = BASE_URL + USER_REPO + "labels?page=" + page;
+            LOGGER.quiet(url);
+            final JsonNode labels = this.githubApi.get(url);
 
             if (labels.isArray() == false) {
                 throw new GradleException("Expect JSON array from GitHub, but received: " + labels.getNodeType());
@@ -358,12 +326,12 @@ public class ReleaseNotesTask extends DefaultTask {
         return versionLabels;
     }
 
-    private Map<String, Map<String, List<Issue>>> fetchIssues() throws IOException {
-        final List<Issue> issues = new ArrayList<>();
+    private Map<String, Map<String, List<GitHubIssue>>> fetchIssues() {
+        LOGGER.quiet("Fetching issues for " + this.version + " ...");
 
-        Set<Integer> seen = new HashSet<>();
-
-        String currentVersionLabel = "v" + this.version;
+        final List<GitHubIssue> issues = new ArrayList<>();
+        final Set<Integer> seen = new HashSet<>();
+        final String currentVersionLabel = "v" + this.version;
 
         for (String state : List.of("open", "closed")) {
             int page = 0;
@@ -371,11 +339,17 @@ public class ReleaseNotesTask extends DefaultTask {
             while (true) {
                 page++;
 
-                URL url = new URL(
-                    BASE_URL + USER_REPO + "issues?labels=" + currentVersionLabel + "&pagesize=100&state=" + state + "&page=" + page
-                );
+                String url = BASE_URL
+                    + USER_REPO
+                    + "issues?labels="
+                    + currentVersionLabel
+                    + "&pagesize=100&state="
+                    + state
+                    + "&page="
+                    + page;
 
-                final JsonNode tranche = fetchUrl(url);
+                LOGGER.quiet(url);
+                final JsonNode tranche = this.githubApi.get(url);
 
                 if (tranche.isArray() == false) {
                     throw new GradleException("Expect JSON array from GitHub, but received: " + tranche.getNodeType());
@@ -386,47 +360,34 @@ public class ReleaseNotesTask extends DefaultTask {
                 }
 
                 for (JsonNode jsonIssue : tranche) {
-
-                    Set<String> labels = new HashSet<>();
-                    for (JsonNode labelJson : jsonIssue.get("labels")) {
-                        labels.add(labelJson.get("name").asText());
-                    }
-
-                    Issue issue = new Issue(
-                        jsonIssue.get("number").asInt(),
-                        jsonIssue.get("title").asText(),
-                        jsonIssue.get("body").asText(),
-                        labels,
-                        jsonIssue.has("pull_request"),
-                        jsonIssue.get("state").asText()
-                    );
+                    GitHubIssue issue = GitHubIssue.fromJson(jsonIssue);
 
                     issues.add(issue);
 
-                    if (issue.isPullRequest) {
+                    if (issue.isPullRequest()) {
                         Pattern pattern = Pattern.compile("(?:#|" + USER_REPO + "issues/)(\\d+)");
 
-                        final Matcher matcher = pattern.matcher(issue.body);
+                        final Matcher matcher = pattern.matcher(issue.getBody());
 
                         while (matcher.find()) {
                             final Integer referencedIssue = Integer.parseInt(matcher.group(1));
                             seen.add(referencedIssue);
 
-                            issue.relatedIssues.add(referencedIssue);
+                            issue.getRelatedIssues().add(referencedIssue);
                         }
                     }
                 }
             }
         }
 
-        final Map<String, Map<String, List<Issue>>> groupedIssues = new HashMap<>();
+        final Map<String, Map<String, List<GitHubIssue>>> groupedIssues = new HashMap<>();
 
-        ISSUE: for (Issue issue : issues) {
-            if (seen.contains(issue.number) && issue.isPullRequest == false) {
+        ISSUE: for (GitHubIssue issue : issues) {
+            if (seen.contains(issue.getNumber()) && issue.isPullRequest() == false) {
                 continue;
             }
 
-            for (String label : issue.labels) {
+            for (String label : issue.getLabels()) {
                 if (IGNORE.contains(label)) {
                     continue ISSUE;
                 }
@@ -437,7 +398,7 @@ public class ReleaseNotesTask extends DefaultTask {
             }
 
             List<String> areaLabels = new ArrayList<>();
-            for (String label : issue.labels) {
+            for (String label : issue.getLabels()) {
                 if (label.startsWith(":")) {
                     String areaOfInterest = label.substring(1);
                     if (areaOfInterest.contains("/")) {
@@ -457,22 +418,22 @@ public class ReleaseNotesTask extends DefaultTask {
             }
 
             for (String group : GROUPS) {
-                if (issue.labels.contains(group)) {
-                    Map<String, List<Issue>> issuesByHeader = groupedIssues.computeIfAbsent(group, _group -> new TreeMap<>());
+                if (issue.getLabels().contains(group)) {
+                    Map<String, List<GitHubIssue>> issuesByHeader = groupedIssues.computeIfAbsent(group, _group -> new TreeMap<>());
                     issuesByHeader.computeIfAbsent(header, (_header) -> new ArrayList<>()).add(issue);
 
                     continue ISSUE;
                 }
             }
             // else if not grouped:
-            Map<String, List<Issue>> issuesByHeader = groupedIssues.computeIfAbsent("other", _group -> new TreeMap<>());
+            Map<String, List<GitHubIssue>> issuesByHeader = groupedIssues.computeIfAbsent("other", _group -> new TreeMap<>());
             issuesByHeader.computeIfAbsent(header, (_header) -> new ArrayList<>()).add(issue);
         }
 
         return groupedIssues;
     }
 
-    private boolean isPrReleasedInEarlierVersion(Issue issue) {
+    private boolean isPrReleasedInEarlierVersion(GitHubIssue issue) {
         final Set<String> versionLabels = issue.getVersionLabels();
 
         final boolean isReleasingNewMajorSeries = this.version.getMinor() == 0 && this.version.getRevision() == 0;
@@ -507,56 +468,5 @@ public class ReleaseNotesTask extends DefaultTask {
         final Version earliestVersion = sortableVersions.get(0);
 
         return earliestVersion.equals(this.version) == false;
-    }
-
-    private JsonNode fetchUrl(URL url) throws IOException {
-        LOGGER.debug("Fetching {}", url);
-
-        // Connect to the web server endpoint
-        HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-
-        // Set HTTP method as GET
-        urlConnection.setRequestMethod("GET");
-
-        if (this.basicAuthPayload != null) {
-            // Include the HTTP Basic Authentication payload
-            urlConnection.addRequestProperty("Authorization", basicAuthPayload);
-        }
-
-        // Read response from web server, which will trigger HTTP Basic Authentication request to be sent.
-        try (InputStream httpResponseReader = urlConnection.getInputStream()) {
-            final byte[] content = IOUtils.toByteArray(httpResponseReader);
-            return this.objectMapper.readTree(content);
-        }
-    }
-
-    private static class Issue {
-        private enum State {
-            OPEN,
-            CLOSED
-        }
-
-        private final int number;
-        private final String title;
-        private final String body;
-        private final Set<String> labels;
-        private final boolean isPullRequest;
-        private final Set<Integer> relatedIssues;
-        private final State state;
-
-        public Issue(int number, String title, String body, Set<String> labels, boolean isPullRequest, String state) {
-            this.number = number;
-            this.title = title;
-            this.body = body;
-            this.labels = labels;
-            this.isPullRequest = isPullRequest;
-            this.state = State.valueOf(state.toUpperCase());
-
-            this.relatedIssues = new TreeSet<>();
-        }
-
-        public Set<String> getVersionLabels() {
-            return this.labels.stream().filter(label -> label.matches("^v\\d+\\.\\d+\\.\\d+$")).collect(Collectors.toSet());
-        }
     }
 }

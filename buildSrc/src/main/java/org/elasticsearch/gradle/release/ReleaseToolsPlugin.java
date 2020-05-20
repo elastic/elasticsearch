@@ -29,7 +29,12 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
 
-        project.getTasks().register("buildReleaseNotes", ReleaseNotesTask.class);
-        project.getTasks().register("githubRelabel", GitHubRelabelTask.class);
+        project.getTasks()
+            .register("buildReleaseNotes", GenerateReleaseNotesTask.class)
+            .configure(action -> action.setDescription("Generates release notes from issue and PR information in GitHub"));
+
+        project.getTasks()
+            .register("githubRelabel", RelabelGitHubIssuesTask.class)
+            .configure(action -> action.setDescription("Adds and/or removes labels from issues and PRs"));
     }
 }

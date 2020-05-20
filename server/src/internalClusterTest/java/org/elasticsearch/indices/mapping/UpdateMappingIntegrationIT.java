@@ -168,7 +168,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                     .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON).execute().actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [body] of different type, current_type [text], merged_type [integer]"));
+            assertThat(e.getMessage(), containsString("mapper [body] cannot be changed from type [text] to [integer]"));
         }
     }
 

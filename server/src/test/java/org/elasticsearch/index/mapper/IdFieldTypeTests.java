@@ -31,7 +31,7 @@ import org.mockito.Mockito;
 import java.util.Collection;
 import java.util.Collections;
 
-public class IdFieldTypeTests extends FieldTypeTestCase {
+public class IdFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new IdFieldMapper.IdFieldType();

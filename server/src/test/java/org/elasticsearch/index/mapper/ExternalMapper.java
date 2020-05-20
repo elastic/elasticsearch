@@ -37,6 +37,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -207,11 +208,6 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        // ignore this for now
-    }
-
-    @Override
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         ExternalMapper update = (ExternalMapper) super.updateFieldType(fullNameToFieldType);
         MultiFields multiFieldsUpdate = multiFields.updateFieldType(fullNameToFieldType);
@@ -245,6 +241,11 @@ public class ExternalMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         return Iterators.concat(super.iterator(), Arrays.asList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

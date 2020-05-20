@@ -361,34 +361,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             return CONTENT_TYPE;
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
-            GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
-            // prevent user from changing strategies
-            if (strategy() != other.strategy()) {
-                conflicts.add("mapper [" + name() + "] has different [strategy]");
-            }
-
-            // prevent user from changing trees (changes encoding)
-            if (tree().equals(other.tree()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [tree]");
-            }
-
-            if ((pointsOnly() != other.pointsOnly())) {
-                conflicts.add("mapper [" + name() + "] has different points_only");
-            }
-
-            // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
-            // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
-            if (treeLevels() != other.treeLevels()) {
-                conflicts.add("mapper [" + name() + "] has different [tree_levels]");
-            }
-            if (precisionInMeters() != other.precisionInMeters()) {
-                conflicts.add("mapper [" + name() + "] has different [precision]");
-            }
-        }
-
         public String tree() {
             return tree;
         }
@@ -550,14 +522,38 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
+
         if (mergeWith instanceof GeoShapeFieldMapper) {
             GeoShapeFieldMapper fieldMapper = (GeoShapeFieldMapper) mergeWith;
             throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
                 "using [" + fieldType().strategy() + "] strategy cannot be merged with " + "[" + fieldMapper.typeName() +
                 "] with [BKD] strategy");
         }
-        super.doMerge(mergeWith);
+
+        GeoShapeFieldType g = (GeoShapeFieldType)mergeWith.fieldType();
+        // prevent user from changing strategies
+        if (fieldType().strategy() != g.strategy()) {
+            conflicts.add("mapper [" + name() + "] has different [strategy]");
+        }
+
+        // prevent user from changing trees (changes encoding)
+        if (fieldType().tree().equals(g.tree()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [tree]");
+        }
+
+        if (fieldType().pointsOnly() != g.pointsOnly()) {
+            conflicts.add("mapper [" + name() + "] has different points_only");
+        }
+
+        // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
+        // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
+        if (fieldType().treeLevels() != g.treeLevels()) {
+            conflicts.add("mapper [" + name() + "] has different [tree_levels]");
+        }
+        if (fieldType().precisionInMeters() != g.precisionInMeters()) {
+            conflicts.add("mapper [" + name() + "] has different [precision]");
+        }
     }
 
     @Override

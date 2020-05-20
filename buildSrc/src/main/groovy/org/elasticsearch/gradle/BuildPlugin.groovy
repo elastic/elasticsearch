@@ -22,7 +22,6 @@ package org.elasticsearch.gradle
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
@@ -84,6 +83,7 @@ class BuildPlugin implements Plugin<Project> {
         }
         project.pluginManager.apply('elasticsearch.java')
         project.pluginManager.apply('elasticsearch.publish')
+        project.pluginManager.apply(DependenciesInfoPlugin)
 
         // apply global test task failure listener
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
@@ -93,7 +93,6 @@ class BuildPlugin implements Plugin<Project> {
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         PrecommitTasks.create(project, true)
-        configureDependenciesInfo(project)
         configureFips140(project)
     }
 
@@ -255,16 +254,6 @@ class BuildPlugin implements Plugin<Project> {
                     uri.toURL())
             throw new GradleException(message)
         }
-    }
-
-    private static configureDependenciesInfo(Project project) {
-        project.tasks.register("dependenciesInfo", DependenciesInfoTask, { DependenciesInfoTask task ->
-            task.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
-            task.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
-            task.getConventionMapping().map('mappings') {
-                (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).mappings
-            }
-        } as Action<DependenciesInfoTask>)
     }
 
     private static class TestFailureReportingPlugin implements Plugin<Project> {

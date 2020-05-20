@@ -37,9 +37,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -53,7 +53,40 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class LegacyGeoShapeFieldMapperTests extends ESSingleNodeTestCase {
+public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGeoShapeFieldMapper.Builder> {
+
+    @Override
+    protected LegacyGeoShapeFieldMapper.Builder newBuilder() {
+        return new LegacyGeoShapeFieldMapper.Builder("geoshape");
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier("tree", false, (a, b) -> {
+            a.fieldType().setTree("geohash");
+            b.fieldType().setTree("quadtree");
+        });
+        addModifier("strategy", false, (a, b) -> {
+            a.fieldType().setStrategy(SpatialStrategy.TERM);
+            b.fieldType().setStrategy(SpatialStrategy.RECURSIVE);
+        });
+        addModifier("tree_levels", false, (a, b) -> {
+            a.fieldType().setTreeLevels(2);
+            b.fieldType().setTreeLevels(3);
+        });
+        addModifier("precision", false, (a, b) -> {
+            a.fieldType().setPrecisionInMeters(10);
+            b.fieldType().setPrecisionInMeters(20);
+        });
+        addModifier("distance_error_pct", true, (a, b) -> {
+            a.fieldType().setDistanceErrorPct(0.5);
+            b.fieldType().setDistanceErrorPct(0.6);
+        });
+        addModifier("orientation", true, (a, b) -> {
+            a.fieldType().setOrientation(ShapeBuilder.Orientation.RIGHT);
+            b.fieldType().setOrientation(ShapeBuilder.Orientation.LEFT);
+        });
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

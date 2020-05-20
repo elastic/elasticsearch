@@ -35,14 +35,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -53,7 +54,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase {
+public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<GeoShapeWithDocValuesFieldMapper.Builder> {
+
+    @Override
+    protected GeoShapeWithDocValuesFieldMapper.Builder newBuilder() {
+        return new GeoShapeWithDocValuesFieldMapper.Builder("geoshape");
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier("orientation", true, (a, b) -> {
+            a.orientation(ShapeBuilder.Orientation.RIGHT);
+            b.orientation(ShapeBuilder.Orientation.LEFT);
+        });
+    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
@@ -398,5 +412,4 @@ public class GeoShapeWithDocValuesFieldMapperTests extends ESSingleNodeTestCase 
     public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper) throws IOException {
         return toXContentString(mapper, true);
     }
-
 }

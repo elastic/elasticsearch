@@ -28,6 +28,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -54,6 +55,7 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.InboundMessage;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
@@ -105,6 +107,16 @@ public class MockNioTransport extends TcpTransport {
         serverChannel.addBindListener(ActionListener.toBiConsumer(future));
         future.actionGet();
         return serverChannel;
+    }
+
+    @Override
+    public void inboundMessage(TcpChannel channel, InboundMessage message) {
+        super.inboundMessage(channel, adjustInboundMessage(message));
+    }
+
+    // for tests to inject corruptions
+    protected InboundMessage adjustInboundMessage(InboundMessage message) {
+        return message;
     }
 
     @Override

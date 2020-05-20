@@ -26,8 +26,8 @@ import org.gradle.api.tasks.TaskProvider;
 public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<TestingConventionsTasks> testingConventions =
-            project.getTasks().register("testingConventions", TestingConventionsTasks.class);
+        TaskProvider<TestingConventionsTasks> testingConventions = project.getTasks()
+            .register("testingConventions", TestingConventionsTasks.class);
         testingConventions.configure(t -> {
             TestingConventionRule testsRule = t.getNaming().maybeCreate("Tests");
             testsRule.baseClass("org.apache.lucene.util.LuceneTestCase");

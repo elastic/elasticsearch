@@ -43,12 +43,16 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
         TaskProvider<Task> precommit = project.getTasks().named(PRECOMMIT_TASK_NAME);
         precommit.configure(t -> t.dependsOn(task));
 
-        project.getPluginManager().withPlugin("java", p -> {
-            // We want to get any compilation error before running the pre-commit checks.
-            for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
-                task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()));
-            }
-        });
+        project.getPluginManager()
+            .withPlugin(
+                "java",
+                p -> {
+                    // We want to get any compilation error before running the pre-commit checks.
+                    for (SourceSet sourceSet : GradleUtils.getJavaSourceSets(project)) {
+                        task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()));
+                    }
+                }
+            );
     }
 
     public abstract TaskProvider<? extends Task> createTask(Project project);

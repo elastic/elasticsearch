@@ -29,14 +29,15 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<DependencyLicensesTask> dependencyLicenses =
-            project.getTasks().register("dependencyLicenses", DependencyLicensesTask.class);
+        TaskProvider<DependencyLicensesTask> dependencyLicenses = project.getTasks()
+            .register("dependencyLicenses", DependencyLicensesTask.class);
 
         // only require dependency licenses for non-elasticsearch deps
         dependencyLicenses.configure(t -> {
             Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
-            t.setDependencies(runtimeClasspath.fileCollection(dependency ->
-                dependency.getGroup().startsWith("org.elasticsearch") == false));
+            t.setDependencies(
+                runtimeClasspath.fileCollection(dependency -> dependency.getGroup().startsWith("org.elasticsearch") == false)
+            );
         });
 
         // we also create the updateShas helper task that is associated with dependencyLicenses

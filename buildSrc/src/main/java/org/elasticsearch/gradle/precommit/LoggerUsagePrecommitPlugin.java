@@ -29,8 +29,9 @@ import org.gradle.api.tasks.TaskProvider;
 public class LoggerUsagePrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        Object dependency = BuildParams.isInternal() ? project.project(":test:logger-usage") :
-            ("org.elasticsearch.test:logger-usage:" + VersionProperties.getElasticsearch());
+        Object dependency = BuildParams.isInternal()
+            ? project.project(":test:logger-usage")
+            : ("org.elasticsearch.test:logger-usage:" + VersionProperties.getElasticsearch());
 
         Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");
         project.getDependencies().add("loggerUsagePlugin", dependency);

@@ -31,8 +31,8 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
         project.getConfigurations().create("forbiddenApisCliJar");
         project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:2.7");
 
-        TaskProvider<ExportElasticsearchBuildResourcesTask> buildResources =
-            project.getTasks().named("buildResources", ExportElasticsearchBuildResourcesTask.class);
+        TaskProvider<ExportElasticsearchBuildResourcesTask> buildResources = project.getTasks()
+            .named("buildResources", ExportElasticsearchBuildResourcesTask.class);
 
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
         audit.configure(t -> {

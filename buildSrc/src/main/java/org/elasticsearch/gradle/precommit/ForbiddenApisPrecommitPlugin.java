@@ -43,8 +43,8 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPluginManager().apply(ForbiddenApisPlugin.class);
 
-        TaskProvider<ExportElasticsearchBuildResourcesTask> buildResources =
-            project.getTasks().named("buildResources", ExportElasticsearchBuildResourcesTask.class);
+        TaskProvider<ExportElasticsearchBuildResourcesTask> buildResources = project.getTasks()
+            .named("buildResources", ExportElasticsearchBuildResourcesTask.class);
         project.getTasks().withType(CheckForbiddenApis.class).configureEach(t -> {
             ExportElasticsearchBuildResourcesTask buildResourcesTask = buildResources.get();
             t.dependsOn(buildResources);
@@ -54,7 +54,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             if (ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.equals(t.getName())) {
                 sourceSetName = "main";
             } else {
-                //parse out the sourceSetName
+                // parse out the sourceSetName
                 char[] chars = t.getName().substring(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME.length()).toCharArray();
                 chars[0] = Character.toLowerCase(chars[0]);
                 sourceSetName = new String(chars);
@@ -70,19 +70,27 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 t.setTargetCompatibility(JavaVersion.VERSION_14.getMajorVersion());
             }
             t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"));
-            t.setSignaturesFiles(project.files(
-                buildResourcesTask.copy("forbidden/jdk-signatures.txt"),
-                buildResourcesTask.copy("forbidden/es-all-signatures.txt")
-            ));
+            t.setSignaturesFiles(
+                project.files(
+                    buildResourcesTask.copy("forbidden/jdk-signatures.txt"),
+                    buildResourcesTask.copy("forbidden/es-all-signatures.txt")
+                )
+            );
             t.setSuppressAnnotations(Set.of("**.SuppressForbidden"));
             if (t.getName().endsWith("Test")) {
-                t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files(
-                    buildResourcesTask.copy("forbidden/es-test-signatures.txt"),
-                    buildResourcesTask.copy("forbidden/http-signatures.txt")
-                )));
+                t.setSignaturesFiles(
+                    t.getSignaturesFiles()
+                        .plus(
+                            project.files(
+                                buildResourcesTask.copy("forbidden/es-test-signatures.txt"),
+                                buildResourcesTask.copy("forbidden/http-signatures.txt")
+                            )
+                        )
+                );
             } else {
-                t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files(
-                    buildResourcesTask.copy("forbidden/es-server-signatures.txt"))));
+                t.setSignaturesFiles(
+                    t.getSignaturesFiles().plus(project.files(buildResourcesTask.copy("forbidden/es-server-signatures.txt")))
+                );
             }
             ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();
             ext.set("replaceSignatureFiles", new Closure<Void>(t) {

@@ -59,25 +59,22 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
                 throw new UncheckedIOException(e);
             }
         } else if ("file".equals(checkstyleConfUrl.getProtocol())) {
-            copyCheckstyleConf.configure(t ->
-                t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
+            copyCheckstyleConf.configure(t -> t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
         }
 
-        copyCheckstyleConf.configure(t ->
-            t.doLast(task -> {
-                checkstyleDir.mkdirs();
-                try (InputStream stream = checkstyleConfUrl.openStream()) {
-                    Files.copy(stream, checkstyleConf.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                try (InputStream stream = checkstyleSuppressionsUrl.openStream()) {
-                    Files.copy(stream, checkstyleSuppressions.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            })
-        );
+        copyCheckstyleConf.configure(t -> t.doLast(task -> {
+            checkstyleDir.mkdirs();
+            try (InputStream stream = checkstyleConfUrl.openStream()) {
+                Files.copy(stream, checkstyleConf.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            try (InputStream stream = checkstyleSuppressionsUrl.openStream()) {
+                Files.copy(stream, checkstyleSuppressions.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }));
 
         TaskProvider<Task> checkstyleTask = project.getTasks().register("checkstyle");
         checkstyleTask.configure(t -> t.dependsOn(project.getTasks().withType(Checkstyle.class)));

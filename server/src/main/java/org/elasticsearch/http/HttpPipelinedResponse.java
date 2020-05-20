@@ -16,25 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.http;
 
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper.GeoShapeFieldType;
-import org.junit.Before;
+public class HttpPipelinedResponse implements HttpPipelinedMessage, HttpResponse {
 
-public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldType();
+    private final int sequence;
+    private final HttpResponse delegate;
+
+    public HttpPipelinedResponse(int sequence, HttpResponse delegate) {
+        this.sequence = sequence;
+        this.delegate = delegate;
     }
 
-    @Before
-    public void setupProperties() {
-        addModifier(new FieldTypeTestCase.Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
-            }
-        });
+    @Override
+    public int getSequence() {
+        return sequence;
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        delegate.addHeader(name, value);
+    }
+
+    @Override
+    public boolean containsHeader(String name) {
+        return delegate.containsHeader(name);
+    }
+
+    public HttpResponse getDelegateRequest() {
+        return delegate;
     }
 }

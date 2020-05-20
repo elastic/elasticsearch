@@ -40,9 +40,6 @@ the setting is the same on all nodes. If, on the other hand, you define differen
 settings on different nodes by accident using the configuration file, it is very
 difficult to notice these discrepancies.
 
-You can find the list of settings that you can dynamically update in 
-<<modules,Modules>>.
-
 
 [[cluster-update-settings-api-query-params]]
 ==== {api-query-parms-title}

@@ -35,8 +35,10 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
         // only require dependency licenses for non-elasticsearch deps
         dependencyLicenses.configure(t -> {
             Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
+            Configuration compileOnly = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
             t.setDependencies(
                 runtimeClasspath.fileCollection(dependency -> dependency.getGroup().startsWith("org.elasticsearch") == false)
+                    .minus(compileOnly)
             );
         });
 

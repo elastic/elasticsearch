@@ -39,9 +39,6 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
         plugins.add(new Autoscaling(settings));
 
         plugins.add(new MockedRollupPlugin());
-        filterPlugins(AutoscalingPlugin.class).stream().filter(p -> p instanceof Autoscaling == false)
-            .forEach(p -> filterPlugins(Autoscaling.class)
-                .forEach(autoscaling -> autoscaling.extensionPlugin((Plugin) p)));
     }
 
     /**

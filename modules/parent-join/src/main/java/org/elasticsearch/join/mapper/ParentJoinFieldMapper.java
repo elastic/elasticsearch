@@ -85,7 +85,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     public static ParentJoinFieldMapper getMapper(MapperService service) {
         MetaJoinFieldMapper.MetaJoinFieldType fieldType =
             (MetaJoinFieldMapper.MetaJoinFieldType) service.fieldType(MetaJoinFieldMapper.NAME);
-        return fieldType == null ? null : fieldType.getMapper();
+        return fieldType == null ? null :
+            (ParentJoinFieldMapper) service.fieldMapper(fieldType.getJoinField());
     }
 
     private static String getParentIdFieldName(String joinFieldName, String parentName) {
@@ -160,7 +161,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 })
                 .forEach(parentIdFields::add);
             checkParentFields(name(), parentIdFields);
-            MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder().build(context);
+            MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder(name).build(context);
             return new ParentJoinFieldMapper(name, fieldType, context.indexSettings(),
                 unique, Collections.unmodifiableList(parentIdFields), eagerGlobalOrdinals);
         }
@@ -262,7 +263,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
-        this.uniqueFieldMapper.setFieldMapper(this);
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
     }
 
@@ -353,7 +353,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
         this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper);
-        uniqueFieldMapper.setFieldMapper(this);
     }
 
     @Override

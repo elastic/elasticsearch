@@ -197,7 +197,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
         private boolean isBlockUpload(String request) {
             return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request)
-                || Regex.simpleMatch("PUT /*/*?*blockid=*comp=block*", request);
+                || (Regex.simpleMatch("PUT /*/*?*comp=block*", request) && request.contains("blockid="));
         }
     }
 }

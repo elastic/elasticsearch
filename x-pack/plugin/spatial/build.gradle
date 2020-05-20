@@ -18,7 +18,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search'
+    includeCore '_common', 'bulk', 'indices', 'index', 'search'
   }
   restTests {
     includeCore 'geo_shape'
@@ -26,6 +26,8 @@ restResources {
 }
 
 testClusters.integTest {
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'indices.breaker.request.limit', '25kb'
   testDistribution = 'DEFAULT'
 }
 

@@ -30,6 +30,27 @@
       },
       "type" : {
         "type" : "keyword"
+      },
+      "detector_index" : {
+        "type" : "integer"
+      },
+      "partition_field_name" : {
+        "type" : "keyword"
+      },
+      "partition_field_value" : {
+        "type" : "keyword"
+      },
+      "over_field_name" : {
+        "type" : "keyword"
+      },
+      "over_field_value" : {
+        "type" : "keyword"
+      },
+      "by_field_name" : {
+        "type" : "keyword"
+      },
+      "by_field_value" : {
+        "type" : "keyword"
       }
     }
   }

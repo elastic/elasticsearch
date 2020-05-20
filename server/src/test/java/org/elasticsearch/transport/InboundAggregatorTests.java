@@ -130,6 +130,7 @@ public class InboundAggregatorTests extends ESTestCase {
         assertThat(aggregated, notNullValue());
         assertTrue(aggregated.isShortCircuit());
         assertThat(aggregated.getException(), instanceOf(ActionNotFoundTransportException.class));
+        assertNotNull(aggregated.takeBreakerReleaseControl());
     }
 
     public void testCircuitBreak() throws IOException {

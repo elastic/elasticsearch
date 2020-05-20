@@ -19,11 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import java.io.IOException;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.util.Objects;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
@@ -45,6 +40,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.Objects;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
@@ -255,7 +255,9 @@ public class DateHistogramValuesSourceBuilder
         }
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
-            RoundingValuesSource vs = new RoundingValuesSource(numeric, rounding);
+            // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it here
+            Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
+            RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;

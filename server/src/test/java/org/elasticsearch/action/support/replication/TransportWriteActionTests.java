@@ -359,7 +359,7 @@ public class TransportWriteActionTests extends ESTestCase {
         protected TestAction(boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(Settings.EMPTY, "internal:test",
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                        x -> null, null, Collections.emptySet()), null, null, null, null,
+                        x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false);
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;

@@ -85,9 +85,9 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         when(storage.batch()).thenReturn(batch);
 
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
-        when(storageService.client(any(String.class))).thenReturn(storage);
+        when(storageService.client(any(String.class), any(String.class), any(GoogleCloudStorageOperationsStats.class))).thenReturn(storage);
 
-        try (BlobStore store = new GoogleCloudStorageBlobStore("bucket", "test", storageService)) {
+        try (BlobStore store = new GoogleCloudStorageBlobStore("bucket", "test", "repo", storageService)) {
             final BlobContainer container = store.blobContainer(new BlobPath());
 
             IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs));

@@ -68,6 +68,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                        HttpHandlingSettings settings, ThreadContext threadContext, @Nullable HttpTracer tracerLog) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
+        // TODO: Fix
         this.httpRequest = httpRequest;
         this.bigArrays = bigArrays;
         this.settings = settings;

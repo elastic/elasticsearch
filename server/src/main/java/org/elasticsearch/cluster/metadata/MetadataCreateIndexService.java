@@ -478,7 +478,7 @@ public class MetadataCreateIndexService {
                                                                final String templateName,
                                                                final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                     throws Exception {
-        logger.debug("applying create index request using the composable template [{}]", templateName);
+        logger.debug("applying create index request using composable template [{}]", templateName);
 
         final Map<String, Object> mappings = resolveV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
 

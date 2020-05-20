@@ -242,9 +242,6 @@ PUT _index_template/template
 [source,console]
 --------------------------------------------------
 PUT /_data_stream/my-data-stream <1>
-{
-  "timestamp_field": "date"
-}
 
 # Add > 1000 documents to my-data-stream
 

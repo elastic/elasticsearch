@@ -95,6 +95,5 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         idea.module.scopes.put('TEST', [plus: [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]] as Map<String, Collection<Configuration>>)
 
         PrecommitTasks.create(project, false)
-        project.tasks.named('check').configure { it.dependsOn(project.tasks.named('precommit')) }
     }
 }

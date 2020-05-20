@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.containsString;
  * user rather than to the JDBC driver or CLI.
  */
 public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements ErrorsTestCase {
-    
+
     public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
     private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
     /**
@@ -78,7 +78,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> expected = new HashMap<>();
         String mode = randomMode();
         boolean columnar = randomBoolean();
-        
+
         expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         if (columnar) {
             expected.put("values", singletonList(Arrays.asList("test", "test")));
@@ -99,7 +99,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
-        
+
         boolean columnar = randomBoolean();
         String sqlRequest = query(
             "SELECT text, number, SQRT(number) AS s, SCORE()"
@@ -126,7 +126,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                         columnInfo(mode, "s", "double", JDBCType.DOUBLE, 25),
                         columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
             }
-            
+
             if (columnar) {
                 expected.put("values", Arrays.asList(
                         Arrays.asList("text" + i, "text" + (i + 1)),
@@ -257,7 +257,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         } else {
             expected.put("rows", singletonList(Arrays.asList("test", 10, value)));
         }
-        
+
         assertResponse(expected, runSql(mode, "SELECT *, SCORE() FROM test ORDER BY SCORE()", columnar));
         assertResponse(expected, runSql(mode, "SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()", columnar));
     }
@@ -395,14 +395,14 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     @Override
     public void testHardLimitForSortOnAggregate() throws Exception {
         index("{\"a\": 1, \"b\": 2}");
-        expectBadRequest(() -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000"),
-            containsString("The maximum LIMIT for aggregate sorting is [10000], received [12000]"));
+        expectBadRequest(() -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000"),
+            containsString("The maximum LIMIT for aggregate sorting is [65535], received [120000]"));
     }
 
     public void testUseColumnarForUnsupportedFormats() throws Exception {
         String format = randomFrom("txt", "csv", "tsv");
         index("{\"foo\":1}");
-        
+
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("pretty", "true");
@@ -415,7 +415,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 return Collections.emptyMap();
             }, containsString("Invalid use of [columnar] argument: cannot be used in combination with txt, csv or tsv formats"));
     }
-    
+
     public void testUseColumnarForTranslateRequest() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
 
@@ -453,7 +453,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     private Map<String, Object> runSql(String mode, String sql) throws IOException {
         return runSql(mode, sql, StringUtils.EMPTY, randomBoolean());
     }
-    
+
     private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
         return runSql(mode, sql, StringUtils.EMPTY, columnar);
     }
@@ -463,7 +463,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         return runSql(new StringEntity(query(sql).mode(mode).columnar(columnarValue(columnar)).toString(),
                 ContentType.APPLICATION_JSON), suffix, mode);
     }
-    
+
     protected Map<String, Object> runTranslateSql(String sql) throws IOException {
         return runSql(new StringEntity(sql, ContentType.APPLICATION_JSON), "/translate/", Mode.PLAIN.toString());
     }
@@ -528,7 +528,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         executeAndAssertPrettyPrinting(expected, "true", columnar);
     }
-    
+
     public void testPrettyPrintingDisabled() throws IOException {
         boolean columnar = randomBoolean();
         String expected = "";
@@ -539,7 +539,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
     }
-    
+
     private void executeAndAssertPrettyPrinting(String expectedJson, String prettyParameter, boolean columnar)
             throws IOException {
         index("{\"test1\":\"test1\"}",
@@ -611,7 +611,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         } else {
             expected.put("rows", Arrays.asList(Arrays.asList("foo", 10)));
         }
-        
+
         String params = mode.equals("jdbc") ? "{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}" :
             "10, \"foo\"";
         assertResponse(expected, runSql(
@@ -816,7 +816,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
         assertEquals(expected, response.v1());
     }
-    
+
     public void testNextPageCSV() throws IOException {
         executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
     }
@@ -838,11 +838,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         response = runSqlAsTextFormat(query, "tsv");
         assertEquals(expected, response.v1());
     }
-    
+
     public void testNextPageTSV() throws IOException {
         executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
     }
-    
+
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
         int size = 20;
         String[] docs = new String[size];

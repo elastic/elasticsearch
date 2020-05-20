@@ -110,7 +110,6 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
-        consumeBucketsAndMaybeBreak(size);
 
         BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         InternalGeoGridBucket spare = null;

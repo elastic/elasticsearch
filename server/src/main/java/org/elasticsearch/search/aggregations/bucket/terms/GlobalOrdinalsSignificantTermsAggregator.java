@@ -136,9 +136,6 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             // global stats
             spare.updateScore(significanceHeuristic);
             spare = ordered.insertWithOverflow(spare);
-            if (spare == null) {
-                consumeBucketsAndMaybeBreak(1);
-            }
         }
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];

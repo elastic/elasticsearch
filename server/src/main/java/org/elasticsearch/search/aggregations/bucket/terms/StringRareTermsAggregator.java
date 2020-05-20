@@ -119,8 +119,6 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                     StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(BytesRef.deepCopyOf(oldKey), docCount, null, format);
                     bucket.bucketOrd = newBucketOrd;
                     buckets.add(bucket);
-
-                    consumeBucketsAndMaybeBreak(1);
                 } else {
                     // Make a note when one of the ords has been deleted
                     deletionCount += 1;

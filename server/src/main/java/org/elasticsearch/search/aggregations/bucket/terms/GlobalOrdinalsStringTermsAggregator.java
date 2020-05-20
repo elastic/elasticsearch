@@ -208,7 +208,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                 spare = ordered.insertWithOverflow(spare);
                 if (spare == null) {
-                    consumeBucketsAndMaybeBreak(1);
                     spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
                 }
             }

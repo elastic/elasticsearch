@@ -146,9 +146,6 @@ public class LongTermsAggregator extends TermsAggregator {
                 spare.bucketOrd = ordsEnum.ord();
                 if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                     spare = ordered.insertWithOverflow(spare);
-                    if (spare == null) {
-                        consumeBucketsAndMaybeBreak(1);
-                    }
                 }
             }
 

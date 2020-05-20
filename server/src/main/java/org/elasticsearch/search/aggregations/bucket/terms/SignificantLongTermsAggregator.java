@@ -100,9 +100,6 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
             spare.bucketOrd = ordsEnum.ord();
             spare = ordered.insertWithOverflow(spare);
-            if (spare == null) {
-                consumeBucketsAndMaybeBreak(1);
-            }
         }
 
         SignificantLongTerms.Bucket[] list = new SignificantLongTerms.Bucket[ordered.size()];
@@ -110,7 +107,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             list[i] = ordered.pop();
         }
 
-        buildSubAggsForBuckets(list, bucket -> bucket.bucketOrd, (bucket, aggs) -> bucket.aggregations = aggs); 
+        buildSubAggsForBuckets(list, bucket -> bucket.bucketOrd, (bucket, aggs) -> bucket.aggregations = aggs);
 
         return new InternalAggregation[] {
             new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),

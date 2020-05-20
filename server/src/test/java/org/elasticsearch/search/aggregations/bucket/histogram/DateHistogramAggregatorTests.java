@@ -230,7 +230,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             assertThat(ak1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()), equalTo(List.of(
                 "2020-01-01T00:00Z", "2021-01-01T00:00Z"
             )));
-    
+
             StringTerms.Bucket b = terms.getBucketByKey("b");
             StringTerms bk1 = b.getAggregations().get("k1");
             StringTerms.Bucket bk1a = bk1.getBucketByKey("a");
@@ -975,9 +975,10 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             "2017-01-01T00:00:00.000Z"
         );
 
-        expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
+        // Shouldn't throw until reduction
+        testSearchCase(query, timestamps,
             aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
-            histogram -> {}, 2, false));
+            histogram -> {}, 2, false);
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
@@ -1007,9 +1008,10 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             "2017-01-01T00:00:00.000Z"
         );
 
-        expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
+        // Shouldn't throw until reduction
+        testSearchCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
-            histogram -> {}, 2, false));
+            histogram -> {}, 2, false);
 
         expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
             aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),

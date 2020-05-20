@@ -1,0 +1,37 @@
+---
+setup:
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+        body:
+          timestamp_field: "@timestamp"
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+
+---
+"Verify get index api":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.get:
+        index: logs-foobar
+  - is_true: logs-foobar-000001
+  - is_false: logs-foobar
+
+---
+"Verify get mapping api":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.get_mapping:
+        index: logs-foobar
+  - is_true: logs-foobar-000001.mappings
+  - is_false: logs-foobar.mappings

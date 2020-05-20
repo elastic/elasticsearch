@@ -221,8 +221,9 @@ public class RestIndicesAction extends AbstractCatAction {
                         .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
 
                     ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
-                    Map<String, IndexMetadata> indicesStates = StreamSupport.stream(stateResponse.getState().getMetadata().spliterator(), false)
-                        .collect(Collectors.toMap(indexMetadata -> indexMetadata.getIndex().getName(), Function.identity()));
+                    Map<String, IndexMetadata> indicesStates =
+                        StreamSupport.stream(stateResponse.getState().getMetadata().spliterator(), false)
+                            .collect(Collectors.toMap(indexMetadata -> indexMetadata.getIndex().getName(), Function.identity()));
 
                     ClusterHealthResponse healthResponse = extractResponse(responses, ClusterHealthResponse.class);
                     Map<String, ClusterIndexHealth> indicesHealths = healthResponse.getIndices();

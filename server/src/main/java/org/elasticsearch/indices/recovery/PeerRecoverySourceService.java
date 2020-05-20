@@ -178,8 +178,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             assert lifecycle.started();
             final ShardRecoveryContext shardContext = ongoingRecoveries.get(shard);
             if (shardContext == null) {
-                throw new ResourceNotFoundException("Cannot reestablish recovery, recovery id [" + request.recoveryId()
-                    + "] not found.");
+                throw new PeerRecoveryNotFound(request.recoveryId(), request.shardId(), request.targetAllocationId());
             }
             shardContext.reestablishRecovery(request, listener);
         }

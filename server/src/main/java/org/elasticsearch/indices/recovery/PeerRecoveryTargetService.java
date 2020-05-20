@@ -27,7 +27,6 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -618,7 +617,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 return;
             }
 
-            if (cause instanceof DelayRecoveryException || cause instanceof ResourceNotFoundException) {
+            // PeerRecoveryNotFound is returned when the source node cannot find the recovery requested by
+            // the REESTABLISH_RECOVERY request. In this case, we delay and then attempt to restart.
+            if (cause instanceof DelayRecoveryException || cause instanceof PeerRecoveryNotFound) {
                 retryRecovery(recoveryId, cause, recoverySettings.retryDelayStateSync(),
                     recoverySettings.activityTimeout());
                 return;

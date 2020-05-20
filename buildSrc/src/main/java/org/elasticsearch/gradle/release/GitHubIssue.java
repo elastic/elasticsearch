@@ -26,6 +26,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+/**
+ * Models some basic information about a GitHub issue.
+ */
 class GitHubIssue {
     public static GitHubIssue fromJson(JsonNode jsonIssue) {
         Set<String> labels = new HashSet<>();

@@ -24,10 +24,20 @@ import java.util.Iterator;
 import java.util.Queue;
 import java.util.function.Supplier;
 
+/**
+ * Implements a queue that knows how to re-fill itself. This class intentionally doesn't implement {@link Queue}
+ * as the intended usage is much simpler.
+ * @param <T> the type of objects that the Spool returns.
+ */
 class Spool<T> implements Iterable<T> {
     private final Supplier<Iterable<T>> supplier;
     private final Queue<T> queue;
 
+    /**
+     * Creates a new <code>Spool</code> object.
+     * @param supplier Whenever this <code>Spool</code> is empty, this supplier will be called to refill
+     *                 the spool.
+     */
     public Spool(Supplier<Iterable<T>> supplier) {
         this.supplier = supplier;
         queue = new ArrayDeque<>();

@@ -34,12 +34,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
-import java.util.concurrent.Flow;
 
+/**
+ * This class encapsulates some of the cumbersome details of making calls to the GitHub v3 API.
+ * It doesn't attempt to model the endpoints and payloads, it just makes it easy to perform the
+ * HTTP calls, and automatically parses the JSON responses.
+ *
+ * @see <a href="https://developer.github.com/v3/">GitHub API v3</a>
+ */
 public class GitHubApi {
     private static final Logger LOGGER = Logging.getLogger(GitHubApi.class);
     private final ObjectMapper objectMapper;
@@ -52,6 +57,10 @@ public class GitHubApi {
         this.accessToken = loadGitHubKey();
     }
 
+    /**
+     * Performs a GET to the specified URI. This method expects a <code>200 OK</code> response.
+     * @return a parsed representation of the JSON response.
+     */
     public JsonNode get(String uri) {
         LOGGER.debug("Sending GET request to {}", uri);
 
@@ -69,6 +78,9 @@ public class GitHubApi {
         }
     }
 
+    /**
+     * Performs a DELETE to the specified URI. This method expects a <code>200 OK</code> response. Any response payload is ignored.
+     */
     public void delete(String uri) {
         LOGGER.debug("Sending DELETE request to {}", uri);
 
@@ -84,6 +96,10 @@ public class GitHubApi {
         }
     }
 
+    /**
+     * Performs a POST to the specified URI. The supplied payload will be serialised to JSON and included in the request.
+     * This method expects a <code>200 OK</code> response. Any response payload is ignored.
+     */
     public void post(String uri, Object payload) {
         LOGGER.debug("Sending POST request to {}", uri);
 
@@ -104,6 +120,9 @@ public class GitHubApi {
         }
     }
 
+    /**
+     * Builds a request object, adding the standard headers.
+     */
     private HttpRequest.Builder makeRequest(String uri) {
         return HttpRequest.newBuilder()
             .uri(makeURI(uri))
@@ -111,6 +130,15 @@ public class GitHubApi {
             .header("Authorization", "token " + this.accessToken);
     }
 
+    /**
+     * A wrapper around {@link HttpClient#send(HttpRequest, HttpResponse.BodyHandler)}. If {@link #simulate} is
+     * <code>true</code>, only <code>GET</code> requests will be send, and all other requests will cause some
+     * information to be logged but the request will not be sent.
+     *
+     * @param request the request to send
+     * @param payload the payload, or <code>null</code>. This is required so that it can be included in the logged tracing information.
+     * @param responseBodyHandler a handler for the response body
+     */
     private <T> HttpResponse<T> sendRequest(HttpRequest request, String payload, HttpResponse.BodyHandler<T> responseBodyHandler)
         throws IOException, InterruptedException {
         if (simulate) {
@@ -127,14 +155,17 @@ public class GitHubApi {
         return HttpClient.newHttpClient().send(request, responseBodyHandler);
     }
 
+    /**
+     * Fetches the user's GitHub Personal Access token from disk, specifically from
+     * <code>$HOME/.elastic/github_auth</code>
+     */
     private String loadGitHubKey() throws IOException {
         final Path keyPath = Path.of(System.getenv("HOME"), ".elastic", "github_auth");
         LOGGER.debug("Attempting to load API key from {}", keyPath);
 
         if (Files.notExists(keyPath)) {
-            LOGGER.warn(
-                "File ~/.elastic/github_auth doesn't exist - using anonymous API. "
-                    + "Generate a Personal Access Token at https://github.com/settings/applications"
+            throw new GradleException(
+                "File ~/.elastic/github_auth doesn't exist. Generate a Personal Access Token at https://github.com/settings/applications"
             );
         }
 
@@ -147,6 +178,9 @@ public class GitHubApi {
         return keyString;
     }
 
+    /**
+     * Constructs a URI, changing any checked exceptions into runtime exceptions.
+     */
     private static URI makeURI(String uri) {
         try {
             return new URI(uri);
@@ -155,6 +189,11 @@ public class GitHubApi {
         }
     }
 
+    /**
+     * Used when {@link #simulate} is <code>true</code>.
+     * @see #sendRequest(HttpRequest, String, BodyHandler)
+     * @param <T>
+     */
     private static class StubHttpResponse<T> implements HttpResponse<T> {
         @Override
         public int statusCode() {

@@ -391,19 +391,7 @@ public class BulkProcessor implements Closeable {
         //execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
         //run this in a Async manner in order to release the add call as quick as possible
         if (bulkRequestToExecute != null) {
-            try {
-                addExecutionSemaphore.acquire();
-                new Thread(() -> {
-                    try {
-                        execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
-                    }finally {
-                        addExecutionSemaphore.release();
-                    }
-                }).start();
-            } catch (InterruptedException e) {
-                //Thread is interrupted
-                addExecutionSemaphore.release();
-            }
+            addExecution(bulkRequestToExecute);
         }
     }
 
@@ -425,21 +413,25 @@ public class BulkProcessor implements Closeable {
 
         //run this in a Async manner in order to release the add call as quick as possible
         if (bulkRequestToExecute != null) {
-            try {
-                addExecutionSemaphore.acquire();
-                new Thread(() -> {
-                    try {
-                        execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
-                    }finally {
-                        addExecutionSemaphore.release();
-                    }
-                }).start();
-            } catch (InterruptedException e) {
-                //Thread is interrupted
-                addExecutionSemaphore.release();
-            }
+            addExecution(bulkRequestToExecute);
         }
         return this;
+    }
+
+    private void addExecution(final Tuple<BulkRequest, Long> bulkRequestToExecute) {
+        try {
+            addExecutionSemaphore.acquire();
+            new Thread(() -> {
+                try {
+                    execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+                }finally {
+                    addExecutionSemaphore.release();
+                }
+            }).start();
+        } catch (InterruptedException e) {
+            //Thread is interrupted
+            addExecutionSemaphore.release();
+        }
     }
 
     private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, Scheduler scheduler) {

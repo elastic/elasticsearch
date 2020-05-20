@@ -8,12 +8,7 @@ package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDecider;
-import org.elasticsearch.xpack.autoscaling.decision.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-
-import java.util.Collection;
-import java.util.stream.Collectors;
 
 public class LocalStateAutoscaling extends LocalStateCompositeXPackPlugin implements ExtensiblePlugin {
 

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-public class HistogramFieldTypeTests extends FieldTypeTestCase {
+public class HistogramFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {

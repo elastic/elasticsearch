@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -46,7 +47,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
         byte byteVal = randomByte();
         short shortVal = randomShort();
         BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
-        long millis = randomNonNegativeLong();
+        long millis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         Calendar calendarVal = Calendar.getInstance(randomTimeZone(), Locale.ROOT);
         Timestamp timestampVal = new Timestamp(millis);
         Timestamp timestampValWithCal = new Timestamp(convertFromCalendarToUTC(timestampVal.getTime(), calendarVal));
@@ -118,7 +119,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testDatetime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -136,7 +137,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testDate() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -157,7 +158,7 @@ public class PreparedStatementTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testTime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {

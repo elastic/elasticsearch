@@ -22,7 +22,6 @@ package org.elasticsearch.gradle
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
@@ -48,10 +47,8 @@ import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
-import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.testing.Test
 import org.gradle.authentication.http.HttpHeaderAuthentication
-import org.gradle.language.base.plugins.LifecycleBasePlugin
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
@@ -95,7 +92,7 @@ class BuildPlugin implements Plugin<Project> {
 
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
-        configurePrecommit(project)
+        PrecommitTasks.create(project, true)
         configureFips140(project)
     }
 
@@ -256,18 +253,6 @@ class BuildPlugin implements Plugin<Project> {
                     projectPath,
                     uri.toURL())
             throw new GradleException(message)
-        }
-    }
-
-    private static configurePrecommit(Project project) {
-        TaskProvider precommit = PrecommitTasks.create(project, true)
-        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(precommit) }
-        project.tasks.named(JavaPlugin.TEST_TASK_NAME).configure { it.mustRunAfter(precommit) }
-        // only require dependency licenses for non-elasticsearch deps
-        project.tasks.withType(DependencyLicensesTask).named('dependencyLicenses').configure {
-            it.dependencies = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME).fileCollection { Dependency dependency ->
-                dependency.group.startsWith('org.elasticsearch') == false
-            } - project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
         }
     }
 

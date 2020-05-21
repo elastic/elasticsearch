@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public class Murmur3FieldMapper extends FieldMapper {
@@ -167,6 +168,11 @@ public class Murmur3FieldMapper extends FieldMapper {
                 context.doc().add(new StoredField(name(), hash));
             }
         }
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
 }

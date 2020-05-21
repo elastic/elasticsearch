@@ -235,7 +235,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
                     MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot remove parent [parent] in join field [join_field]"));
@@ -251,7 +251,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
                     MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot remove child [grand_child2] in join field [join_field]"));
@@ -268,7 +268,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
                     MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot create child [parent] from an existing parent"));
@@ -285,7 +285,7 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject());
-            IllegalStateException exc = expectThrows(IllegalStateException.class,
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
                 () -> indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
                     MapperService.MergeReason.MAPPING_UPDATE));
             assertThat(exc.getMessage(), containsString("cannot create parent [grand_child2] from an existing child]"));

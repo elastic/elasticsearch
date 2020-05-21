@@ -50,8 +50,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -415,6 +417,13 @@ public class RangeFieldMapper extends FieldMapper {
         Map<String, Object> parsedRange = new HashMap<>();
         for (Map.Entry<String, Object> entry : range.entrySet()) {
             Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
+
+            if (rangeType == RangeType.DATE) {
+                long timestamp = (long) parsedValue;
+                ZonedDateTime dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC);
+                parsedValue = fieldType().dateTimeFormatter().format(dateTime);
+            }
+
             parsedRange.put(entry.getKey(), parsedValue);
         }
         return parsedRange;

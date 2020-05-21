@@ -497,8 +497,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
         assertEquals(Map.of("gte", "127.0.0.1"), ipMapper.parseSourceValue(ipRange));
         assertEquals("2001:db8::/32", ipMapper.parseSourceValue("2001:db8::/32"));
 
-        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE).build(context);
-        Map<String, Object> dateRange = Map.of("lt", "2020-05-15T21:33:02+00:00");
-        assertEquals(Map.of("lt", 1589578382000L), dateMapper.parseSourceValue(dateRange));
+        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
+            .format("yyyy/MM/dd||epoch_millis")
+            .build(context);
+        Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
+        assertEquals(Map.of("lt", "1990/12/29", "gte", "1988/12/06"),
+            dateMapper.parseSourceValue(dateRange));
     }
 }

@@ -184,7 +184,7 @@ public enum RangeType {
         }
 
         @Override
-        public Number parseValue(Object dateStr, boolean coerce, @Nullable DateMathParser dateMathParser) {
+        public Long parseValue(Object dateStr, boolean coerce, @Nullable DateMathParser dateMathParser) {
             assert dateMathParser != null;
             return dateMathParser.parse(dateStr.toString(), () -> {
                 throw new IllegalArgumentException("now is not used at indexing time");

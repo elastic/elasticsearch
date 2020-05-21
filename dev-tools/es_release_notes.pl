@@ -32,7 +32,7 @@ my @Groups = (
     ">enhancement", ">bug",           ">regression",  ">upgrade"
 );
 my %Ignore = map { $_ => 1 }
-    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ">test-mute", ":Core/Infra/Build", "backport" );
+    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ">test-mute", ":Core/Infra/Build", "backport", "WIP" );
 
 my %Group_Labels = (
     '>breaking'      => 'Breaking changes',
@@ -78,6 +78,11 @@ sub dump_issues {
     my $branch = $version;
     $branch =~ s/\.\d+$//;
 
+    my %header_reverse_lookup;
+    while (my ($label, $override) = each %Area_Overrides) {
+        $header_reverse_lookup{$override} = substr $label, 1;
+    }
+
     my ( $day, $month, $year ) = (gmtime)[ 3 .. 5 ];
     $month++;
     $year += 1900;
@@ -109,6 +114,21 @@ ASCIIDOC
 
             for my $issue (@$header_issues) {
                 my $title = $issue->{title};
+
+                # Remove redundant prefixes from the title. For example,
+                # given:
+                #
+                #     SQL: add support for foo queries
+                #
+                # the prefix is redundant under the "SQL" section.
+                my $header_prefix = $header_reverse_lookup{$header} || $header;
+                $title =~ s/^\[$header_prefix\]\s+//i;
+                $title =~ s/^$header_prefix:\s+//i;
+
+                # Remove any issue number prefix
+                $title =~ s/^#\d+\s+//;
+
+                $title = ucfirst $title;
 
                 if ( $issue->{state} eq 'open' ) {
                     $title .= " [OPEN]";
@@ -174,8 +194,12 @@ ISSUE:
     for my $issue (@issues) {
         next if $seen{ $issue->{number} } && !$issue->{pull_request};
 
-        for ( @{ $issue->{labels} } ) {
-            next ISSUE if $Ignore{ $_->{name} };
+        foreach my $label ( @{ $issue->{labels} } ) {
+            next ISSUE if $Ignore{ $label->{name} };
+
+            # If this PR was backported to an earlier version, don't
+            # include it in the docs.
+            next ISSUE if is_pr_released_in_earlier_version($issue);
         }
 
         # uncomment for including/excluding PRs already issued in other versions
@@ -235,20 +259,23 @@ sub fetch {
 #===================================
 sub load_github_key {
 #===================================
-    my ($file) = glob("~/.github_auth");
+    my $file = "$ENV{HOME}/.github_auth";
     unless ( -e $file ) {
         warn "File ~/.github_auth doesn't exist - using anonymous API. "
             . "Generate a Personal Access Token at https://github.com/settings/applications\n";
         return '';
     }
-    open my $fh, $file or die "Couldn't open $file: $!";
-    my ($key) = <$fh> || die "Couldn't read $file: $!";
+
+    open KEYFILE, '<', $file or die "Couldn't open $file: $!";
+    my ($key) = <KEYFILE> || die "Couldn't read $file: $!";
+    close KEYFILE;
+
     $key =~ s/^\s+//;
     $key =~ s/\s+$//;
     die "Invalid GitHub key: $key"
         unless $key =~ /^[0-9a-f]{40}$/;
-    return "$key:x-oauth-basic@";
 
+    return "$key:x-oauth-basic@";
 }
 
 #===================================
@@ -258,13 +285,57 @@ sub dump_labels {
     if ($error) {
         $error = "\nERROR: $error\n";
     }
-    my $labels = join( "\n     - ", '', ( sort keys %All_Labels ) );
+    my $labels = join '', map { "    - $_\n" } sort keys %All_Labels;
     die <<USAGE
-    $error
-    USAGE: $0 version > outfile
+$error
+USAGE: $0 version > outfile
 
-    Known versions:$labels
-
+Known versions:
+$labels
 USAGE
 
+}
+
+#===================================
+sub is_pr_released_in_earlier_version {
+#===================================
+    my ($pr) = @_;
+
+    my @labels =
+        grep /^v \d+ \. \d+ \. \d+ $/x,
+        map { $_->{name} }
+        @{ $pr->{labels} };
+
+    my $is_releasing_new_major_series = $version =~ m/^v \d+ \. 0 \. 0 $/x;
+
+    # We assume that if we're releasing the first version in a major
+    # series, there does not (yet) exist any later major series, and any
+    # other release versions are for a prior major. We should therefore
+    # skip this PR as being already released.
+    if ($is_releasing_new_major_series and scalar(@labels) > 1) {
+        return 0;
+    }
+
+    my ($current_major) = $version =~ m/^(v\d+\.)/;
+
+    my @sortable_versions;
+
+    foreach my $label (@labels) {
+        # We filter by the current major, because we might release a change
+        # at roughly the same time to a major series and the prior major
+        # series. A user shouldn't have to consult release notes for the
+        # prior major in order to see all the relevant changes.
+        next unless $label =~ m/^$current_major/;
+
+        $label =~ m/^v (\d+) \. (\d+) \. (\d+) $/x;
+
+        push @sortable_versions, sprintf('%2d%2d%2d', $1, $2, $3);
+    }
+
+    # I apologise for this line. I'm just picking the earliest version,
+    # picking it apart and joining it back together as a version label
+    # string.
+    my $earliest_version = sprintf 'v%d.%d.%d', unpack 'A2A2A2', (sort @sortable_versions)[0];
+
+    return $earliest_version ne $version;
 }

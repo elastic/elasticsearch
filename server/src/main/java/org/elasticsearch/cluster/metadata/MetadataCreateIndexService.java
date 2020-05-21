@@ -447,7 +447,7 @@ public class MetadataCreateIndexService {
                                                                 final List<IndexTemplateMetadata> templates,
                                                                 final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                         throws Exception {
-        logger.info("applying create index request using v1 templates {}",
+        logger.debug("applying create index request using legacy templates {}",
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList()));
 
         final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(parseV1Mappings(request.mappings(),
@@ -484,7 +484,7 @@ public class MetadataCreateIndexService {
                                                                final String templateName,
                                                                final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                     throws Exception {
-        logger.info("applying create index request using v2 template [{}]", templateName);
+        logger.debug("applying create index request using composable template [{}]", templateName);
 
         final String sourceMappings;
         if (request.mappings().size() > 0) {

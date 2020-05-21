@@ -195,7 +195,7 @@ public class GitHubApi {
 
         if (Files.notExists(keyPath)) {
             throw new GradleException(
-                "File ~/.elastic/github_auth doesn't exist. Generate a Personal Access Token at https://github.com/settings/applications"
+                "File " + keyPath + " doesn't exist. Generate a Personal Access Token at https://github.com/settings/applications"
             );
         }
 

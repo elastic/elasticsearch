@@ -73,9 +73,9 @@ public class TimeUtilsTests extends ESTestCase {
     }
 
     public void testParseToEpochMs() {
-        assertEquals(Long.valueOf(1462096800000L), TimeUtils.parseToEpochMs("1462096800000"));
-        assertEquals(Long.valueOf(1462096800000L), TimeUtils.parseToEpochMs("1462096800000.005"));
-        assertEquals(Long.valueOf(0L), TimeUtils.parseToEpochMs(".005"));
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000"));
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000.005"));
+        assertEquals(0L, TimeUtils.parseToEpochMs(".005"));
     }
 
     public void testCheckMultiple_GivenMultiples() {

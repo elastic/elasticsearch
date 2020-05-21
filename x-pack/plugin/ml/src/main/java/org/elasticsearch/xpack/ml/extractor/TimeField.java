@@ -45,7 +45,7 @@ public class TimeField extends AbstractField {
             return value;
         }
         if (value[0] instanceof String) { // doc_value field with the epoch_millis format
-           value[0] = TimeUtils.parseToEpochMs((String)value[0]);
+            value[0] = TimeUtils.parseToEpochMs((String)value[0]);
         } else if (value[0] instanceof Long == false) { // pre-6.0 field
             throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
         }

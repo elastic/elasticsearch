@@ -61,20 +61,19 @@ public final class TimeUtils {
      * JSON.  So String is really the only format that could be used, but the consumers of time
      * are expecting a number.
      *
-     * @param epoch The
+     * @param epoch The epoch value as a string. This may contain a fractional component.
      * @return The epoch value.
      */
-    public static Long parseToEpochMs(String epoch) {
+    public static long parseToEpochMs(String epoch) {
         int dotPos = epoch.indexOf('.');
-        long epochMs = 0L;
         if (dotPos == -1) {
-            epochMs = Long.parseLong(epoch);
+            return Long.parseLong(epoch);
         } else if (dotPos > 0) {
-            epochMs = Long.parseLong(epoch.substring(0, dotPos));
+            return Long.parseLong(epoch.substring(0, dotPos));
+        } else {
+            // The first character is '.' so round down to 0
+            return 0L;
         }
-        // else the first character is '.' so round down to 0
-
-        return epochMs;
     }
 
     /**

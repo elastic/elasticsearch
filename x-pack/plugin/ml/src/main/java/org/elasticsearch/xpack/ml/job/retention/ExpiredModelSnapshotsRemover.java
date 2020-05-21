@@ -133,7 +133,13 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     }
 
     @Override
-    protected void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener) {
+    protected void removeDataBefore(
+        Job job,
+        float requestsPerSec,
+        long latestTimeMs,
+        long cutoffEpochMs,
+        ActionListener<Boolean> listener
+    ) {
         // TODO: delete this test if we ever allow users to revert a job to no model snapshot, e.g. to recover from data loss
         if (job.getModelSnapshotId() == null) {
             // No snapshot to remove

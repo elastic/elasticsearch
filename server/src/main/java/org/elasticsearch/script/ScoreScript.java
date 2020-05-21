@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +79,9 @@ public abstract class ScoreScript {
                         "Accessing variable [doc] via [params._doc] from within an score-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
-            });
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     public static final String[] PARAMETERS = new String[]{ "explanation" };
 

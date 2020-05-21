@@ -34,7 +34,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             .configure(action -> action.setDescription("Generates release notes from issue and PR information in GitHub"));
 
         project.getTasks()
-            .register("githubRelabel", RelabelGitHubIssuesTask.class)
+            .register("relabelGithubIssues", RelabelGitHubIssuesTask.class)
             .configure(action -> action.setDescription("Adds and/or removes labels from issues and PRs"));
     }
 }

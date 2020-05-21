@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.release;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.gradle.api.GradleException;
@@ -41,14 +42,26 @@ import java.util.Optional;
 /**
  * This class encapsulates some of the cumbersome details of making calls to the GitHub v3 API.
  * It doesn't attempt to model the endpoints and payloads, it just makes it easy to perform the
- * HTTP calls, and automatically parses the JSON responses.
+ * HTTP calls, and automatically parses the JSON responses for GET requests.
+ * <p>
+ * Additionally, if <code>true</code> is passed to {@link #GitHubApi(boolean)}, then all requests
+ * will cause a line of trace information to be logged, along with requests payloads, and only
+ * <code>GET</code> requests will actually be executed.
  *
  * @see <a href="https://developer.github.com/v3/">GitHub API v3</a>
  */
 public class GitHubApi {
     private static final Logger LOGGER = Logging.getLogger(GitHubApi.class);
+
+    /**
+     * Used to parse JSON responses and serialise request payloads to JSON.
+     */
     private final ObjectMapper objectMapper;
+
+    /** Holds a GitHub personal access token (oauth) */
     private final String accessToken;
+
+    /** Whether to only simulate state-modifying requests */
     private final boolean simulate;
 
     public GitHubApi(boolean simulate) throws IOException {
@@ -64,17 +77,23 @@ public class GitHubApi {
     public JsonNode get(String uri) {
         LOGGER.debug("Sending GET request to {}", uri);
 
+        HttpRequest request = makeRequest(uri).build();
+
+        HttpResponse<InputStream> response;
         try {
-            HttpRequest request = makeRequest(uri).build();
+            response = sendRequest(request, null, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (IOException | InterruptedException e) {
+            throw new GradleException("GET request failed: " + e.getMessage(), e);
+        }
 
-            HttpResponse<InputStream> response = sendRequest(request, null, HttpResponse.BodyHandlers.ofInputStream());
-            if (response.statusCode() != 200) {
-                throw new GradleException("Expect 200 OK for GET [" + response.uri() + "] but received [" + response.statusCode() + "]");
-            }
+        if (response.statusCode() != 200) {
+            throw new GradleException("Expect 200 OK for GET [" + response.uri() + "] but received [" + response.statusCode() + "]");
+        }
 
+        try {
             return objectMapper.readTree(response.body());
-        } catch (Exception e) {
-            throw new GradleException("GET request failed", e);
+        } catch (IOException e) {
+            throw new GradleException("Failed to parse response body: " + e.getMessage(), e);
         }
     }
 
@@ -84,15 +103,16 @@ public class GitHubApi {
     public void delete(String uri) {
         LOGGER.debug("Sending DELETE request to {}", uri);
 
-        try {
-            HttpRequest request = makeRequest(uri).DELETE().build();
+        HttpRequest request = makeRequest(uri).DELETE().build();
 
-            HttpResponse<Void> response = sendRequest(request, null, HttpResponse.BodyHandlers.discarding());
-            if (response.statusCode() != 200) {
-                throw new GradleException("Expect 200 OK for DELETE [" + response.uri() + "] but received [" + response.statusCode() + "]");
-            }
-        } catch (Exception e) {
-            throw new GradleException("DELETE request failed", e);
+        HttpResponse<Void> response;
+        try {
+            response = sendRequest(request, null, HttpResponse.BodyHandlers.discarding());
+        } catch (IOException | InterruptedException e) {
+            throw new GradleException("DELETE request failed: " + e.getMessage(), e);
+        }
+        if (response.statusCode() != 200) {
+            throw new GradleException("Expect 200 OK for DELETE [" + response.uri() + "] but received [" + response.statusCode() + "]");
         }
     }
 
@@ -103,20 +123,26 @@ public class GitHubApi {
     public void post(String uri, Object payload) {
         LOGGER.debug("Sending POST request to {}", uri);
 
+        String serialisedPayload;
         try {
-            String serialisedPayload = objectMapper.writer().writeValueAsString(payload);
+            serialisedPayload = objectMapper.writer().writeValueAsString(payload);
+        } catch (JsonProcessingException e) {
+            throw new GradleException("Failed to serialise POST request payload: " + e.getMessage(), e);
+        }
 
-            HttpRequest request = makeRequest(uri).header("Content-Type", "application/json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(serialisedPayload))
-                .build();
+        HttpRequest request = makeRequest(uri).header("Content-Type", "application/json; charset=utf-8")
+            .POST(HttpRequest.BodyPublishers.ofString(serialisedPayload))
+            .build();
 
-            HttpResponse<Void> response = sendRequest(request, serialisedPayload, HttpResponse.BodyHandlers.discarding());
+        HttpResponse<Void> response;
+        try {
+            response = sendRequest(request, serialisedPayload, HttpResponse.BodyHandlers.discarding());
+        } catch (IOException | InterruptedException e) {
+            throw new GradleException("POST request failed: " + e.getMessage(), e);
+        }
 
-            if (response.statusCode() != 200) {
-                throw new GradleException("Expect 200 OK for POST [" + response.uri() + "] but received [" + response.statusCode() + "]");
-            }
-        } catch (Exception e) {
-            throw new GradleException("POST request failed", e);
+        if (response.statusCode() != 200) {
+            throw new GradleException("Expect 200 OK for POST [" + response.uri() + "] but received [" + response.statusCode() + "]");
         }
     }
 
@@ -126,6 +152,7 @@ public class GitHubApi {
     private HttpRequest.Builder makeRequest(String uri) {
         return HttpRequest.newBuilder()
             .uri(makeURI(uri))
+            // GitHub recommends setting this header.
             .header("Accept", "application/vnd.github.v3+json")
             .header("Authorization", "token " + this.accessToken);
     }
@@ -136,7 +163,8 @@ public class GitHubApi {
      * information to be logged but the request will not be sent.
      *
      * @param request the request to send
-     * @param payload the payload, or <code>null</code>. This is required so that it can be included in the logged tracing information.
+     * @param payload the payload, or <code>null</code>. This is required so that it can be included in the logged tracing information,
+     *                which is otherwise painful to extract from <code>request</code>
      * @param responseBodyHandler a handler for the response body
      */
     private <T> HttpResponse<T> sendRequest(HttpRequest request, String payload, HttpResponse.BodyHandler<T> responseBodyHandler)

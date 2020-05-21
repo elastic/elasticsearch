@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,11 +42,27 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 
+/**
+ * This task finds issues in GitHub, by matching on one or more label, then adds and / or
+ * removes one or more labels. This is useful code-freezing for a release, as anything
+ * that has missed the cut-off needs to retarget the next release.
+ *
+ * <p>For example, to move issues and PRs from the v7.8.0 to the next patch release, run:
+ *
+ * <pre>./gradlew relabelGithubIssues --labels v7.8.0 --remove v7.8.0  --add v7.8.1</pre>
+ *
+ * <p>While the default repository it <code>elastic/elasticsearch</code>, you can override
+ * this using the <code>relabel.repository</code> system property:
+ *
+ * <pre>./gradlew -Drelabel.repository="foo/bar" relabelGithubIssues # etc</pre>
+ *
+ * <p>See {@link ReleaseToolsPlugin} for this is wired up.
+ */
 public class RelabelGitHubIssuesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(RelabelGitHubIssuesTask.class);
 
     private static final String BASE_URL = "https://api.github.com/repos";
-    private static final String USER_REPO = "elastic/elasticsearch";
+    private static final String USER_REPO = System.getProperty("relabel.repository", "elastic/elasticsearch");
     private static final String ISSUE_URL = "https://github.com/" + USER_REPO + "/issues";
 
     private State labelState = State.open;
@@ -55,13 +72,14 @@ public class RelabelGitHubIssuesTask extends DefaultTask {
     private GitHubApi githubApi;
     private boolean simulate;
 
+    /** Represents the state of the GitHub issues to match */
     private enum State {
         open,
         closed,
         all
     }
 
-    @Option(option = "state", description = "State of GitHub issues to relabel: open|closed|all")
+    @Option(option = "state", description = "State of GitHub issues to relabel: open|closed|all. Default: open")
     public void setLabelState(State labelState) {
         this.labelState = labelState;
     }
@@ -71,7 +89,7 @@ public class RelabelGitHubIssuesTask extends DefaultTask {
         return this.labelState;
     }
 
-    @Option(option = "labels", description = "Labels for matching GitHub issues to relabel. CSV string")
+    @Option(option = "labels", description = "CSV string of labels for matching GitHub issues to relabel.")
     public void setMatchLabels(String labels) {
         this.matchLabels = Set.of(labels.split(","));
     }
@@ -101,7 +119,7 @@ public class RelabelGitHubIssuesTask extends DefaultTask {
         return String.join(",", this.removeLabels);
     }
 
-    @Option(option = "simulate", description = "Don't actually change anything, but print what action would have been taken")
+    @Option(option = "simulate", description = "Don't actually change anything, but print what actions would have been taken")
     public void setSimulate(boolean simulate) {
         this.simulate = simulate;
     }
@@ -131,9 +149,9 @@ public class RelabelGitHubIssuesTask extends DefaultTask {
     }
 
     private void relabel() {
-        LOGGER.quiet("Fetching issues...");
         final Spool<GitHubIssue> issueIds = fetchIssues();
 
+        LOGGER.quiet("Processing issues...");
         for (GitHubIssue issue : issueIds) {
             // We print out the URL for the issue in the GitHub UI here, as opposed to the API URL
             LOGGER.quiet(ISSUE_URL + "/" + issue.getNumber());
@@ -188,6 +206,8 @@ public class RelabelGitHubIssuesTask extends DefaultTask {
         params.put("labels", String.join(",", this.matchLabels));
         params.put("per_page", 100);
         // We also add "page" below before we fetch the URL
+
+        LOGGER.quiet(String.format(Locale.ROOT, "Fetching %s issues labelled %s...", this.labelState, this.matchLabels));
 
         String issuesUrl = BASE_URL + "/" + USER_REPO + "/issues?" + asQueryString(params);
 

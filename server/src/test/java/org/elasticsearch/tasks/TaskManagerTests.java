@@ -48,6 +48,8 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
 
 public class TaskManagerTests extends ESTestCase {
@@ -76,7 +78,6 @@ public class TaskManagerTests extends ESTestCase {
         assertEquals(600000L, total);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56746")
     public void testTrackingChannelTask() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
@@ -111,13 +112,14 @@ public class TaskManagerTests extends ESTestCase {
                 pendingTasks.computeIfAbsent(channel, k -> new HashSet<>()).add(task);
                 stopTrackingTasks.add(() -> {
                     stopTracking.close();
-                    pendingTasks.get(channel).remove(task);
+                    assertTrue(pendingTasks.get(channel).remove(task));
+                    expectedCancelledTasks.remove(task);
                 });
             } else {
                 expectedCancelledTasks.add(task);
             }
         }
-        assertBusy(() -> assertThat(cancelledTasks, equalTo(expectedCancelledTasks)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(expectedCancelledTasks, everyItem(in(cancelledTasks))), 30, TimeUnit.SECONDS);
         for (FakeTcpChannel channel : channels) {
             channel.close();
         }

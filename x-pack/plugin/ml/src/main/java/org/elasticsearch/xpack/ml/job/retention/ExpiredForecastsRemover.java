@@ -78,6 +78,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
                 .filter(QueryBuilders.existsQuery(ForecastRequestStats.EXPIRY_TIME.getPreferredName())));
         source.size(MAX_FORECASTS);
+        source.trackTotalHits(true);
         source.fetchSource(false);
         source.docValueField(Job.ID.getPreferredName(), null);
         source.docValueField(ForecastRequestStats.FORECAST_ID.getPreferredName(), null);

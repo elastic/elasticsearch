@@ -188,7 +188,9 @@ public class GitHubApi {
      * <code>$HOME/.elastic/github_auth</code>
      */
     private String loadGitHubKey() throws IOException {
-        final Path keyPath = Path.of(System.getenv("HOME"), ".elastic", "github_auth");
+        final String defaultKeyPath = System.getenv("HOME") + ".elastic/github_auth";
+        final Path keyPath = Path.of(System.getProperty("github.key_path", defaultKeyPath));
+
         LOGGER.debug("Attempting to load API key from {}", keyPath);
 
         if (Files.notExists(keyPath)) {

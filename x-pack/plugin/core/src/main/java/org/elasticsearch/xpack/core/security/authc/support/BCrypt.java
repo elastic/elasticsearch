@@ -1,5 +1,3 @@
-package org.elasticsearch.xpack.core.security.authc.support;
-
 /* @notice
  Copyright (c) 2006 Damien Miller <djm@mindrot.org>
 
@@ -15,6 +13,7 @@ package org.elasticsearch.xpack.core.security.authc.support;
  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
+package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.settings.SecureString;

@@ -40,6 +40,7 @@ import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.ExclusiveContentRepository;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
+import org.gradle.api.artifacts.repositories.UrlArtifactRepository;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
@@ -154,15 +155,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public static void configureRepositories(Project project) {
         // ensure all repositories use secure urls
         project.getRepositories().all(repository -> {
-            if (repository instanceof MavenArtifactRepository) {
-                final MavenArtifactRepository maven = (MavenArtifactRepository) repository;
-                assertRepositoryURIIsSecure(maven.getName(), project.getPath(), maven.getUrl());
-                for (URI uri : maven.getArtifactUrls()) {
-                    assertRepositoryURIIsSecure(maven.getName(), project.getPath(), uri);
-                }
-            } else if (repository instanceof IvyArtifactRepository) {
-                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository;
-                assertRepositoryURIIsSecure(ivy.getName(), project.getPath(), ivy.getUrl());
+            if (repository instanceof UrlArtifactRepository) {
+                ((UrlArtifactRepository) repository).setAllowInsecureProtocol(false);
             }
         });
         RepositoryHandler repos = project.getRepositories();
@@ -192,26 +186,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 });
                 exclusiveRepo.forRepositories(luceneRepo);
             });
-        }
-    }
-
-    private static final List<String> SECURE_URL_SCHEMES = Arrays.asList("file", "https", "s3");
-
-    private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false) {
-            String url;
-            try {
-                url = uri.toURL().toString();
-            } catch (MalformedURLException e) {
-                throw new IllegalStateException(e);
-            }
-            final String message = String.format(
-                Locale.ROOT,
-                "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
-                repositoryName,
-                projectPath,
-                url);
-            throw new GradleException(message);
         }
     }
 

@@ -318,17 +318,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) mergeWith;
-        List<String> conflicts = new ArrayList<>();
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) other;
+        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
         for (ParentIdFieldMapper mapper : parentIdFields) {
             if (joinMergeWith.getParentIdFieldMapper(mapper.getParentName(), true) == null) {
                 conflicts.add("cannot remove parent [" + mapper.getParentName() + "] in join field [" + name() + "]");
             }
         }
-
-        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
         for (ParentIdFieldMapper mergeWithMapper : joinMergeWith.parentIdFields) {
             ParentIdFieldMapper self = getParentIdFieldMapper(mergeWithMapper.getParentName(), true);
             if (self == null) {
@@ -352,9 +349,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper);
                 newParentIdFields.add(merged);
             }
-        }
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalStateException("invalid update for join field [" + name() + "]:\n" + conflicts.toString());
         }
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);

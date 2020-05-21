@@ -1094,14 +1094,18 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        NumberFieldMapper other = (NumberFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
-        }
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        NumberFieldMapper m = (NumberFieldMapper) other;
+        if (fieldType().type != m.fieldType().type) {
+            conflicts.add("mapper [" + name() + "] cannot be changed from type [" + fieldType().type.name +
+                "] to [" + m.fieldType().type.name + "]");
+        } else {
+            if (m.ignoreMalformed.explicit()) {
+                this.ignoreMalformed = m.ignoreMalformed;
+            }
+            if (m.coerce.explicit()) {
+                this.coerce = m.coerce;
+            }
         }
     }
 

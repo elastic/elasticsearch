@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,25 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper.GeoShapeFieldType;
-import org.junit.Before;
+package org.elasticsearch.gradle.precommit;
 
-public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
+import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.tasks.TaskProvider;
+
+public class FilePermissionsPrecommitPlugin extends PrecommitPlugin {
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new FieldTypeTestCase.Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
-            }
-        });
+    public TaskProvider<? extends Task> createTask(Project project) {
+        return project.getTasks().register("filepermissions", FilePermissionsTask.class);
     }
 }

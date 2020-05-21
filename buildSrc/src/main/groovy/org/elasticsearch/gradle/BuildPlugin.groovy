@@ -89,8 +89,7 @@ class BuildPlugin implements Plugin<Project> {
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
-
-        configureRepositories(project)
+        
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         PrecommitTasks.create(project, true)
         configureFips140(project)
@@ -187,73 +186,6 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
         project.configurations.getByName(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-    }
-
-    /** Adds repositories used by ES dependencies */
-    static void configureRepositories(Project project) {
-        project.getRepositories().all { repository ->
-            if (repository instanceof MavenArtifactRepository) {
-                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
-                assertRepositoryURIIsSecure(maven.name, project.path, maven.getUrl())
-                repository.getArtifactUrls().each { uri -> assertRepositoryURIIsSecure(maven.name, project.path, uri) }
-            } else if (repository instanceof IvyArtifactRepository) {
-                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
-                assertRepositoryURIIsSecure(ivy.name, project.path, ivy.getUrl())
-            }
-        }
-        RepositoryHandler repos = project.repositories
-        if (System.getProperty('repos.mavenLocal') != null) {
-            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
-            // useful for development ie. bwc tests where we install stuff in the local repository
-            // such that we don't have to pass hardcoded files to gradle
-            repos.mavenLocal()
-        }
-        repos.jcenter()
-        repos.ivy { IvyArtifactRepository repo ->
-            repo.name = 'elasticsearch'
-            repo.url = 'https://artifacts.elastic.co/downloads'
-            repo.patternLayout { IvyPatternRepositoryLayout layout ->
-                layout.artifact 'elasticsearch/[module]-[revision](-[classifier]).[ext]'
-            }
-            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            repo.credentials(HttpHeaderCredentials, { HttpHeaderCredentials creds ->
-                creds.name = 'X-Elastic-No-KPI'
-                creds.value = '1'
-            } as Action<HttpHeaderCredentials>)
-            repo.authentication.create('header', HttpHeaderAuthentication)
-        }
-        repos.maven { MavenArtifactRepository repo ->
-            repo.name = 'elastic'
-            repo.url = 'https://artifacts.elastic.co/maven'
-        }
-        String luceneVersion = VersionProperties.lucene
-        if (luceneVersion.contains('-snapshot')) {
-            // extract the revision number from the version with a regex matcher
-            List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
-            String revision = matches.get(1)
-            MavenArtifactRepository luceneRepo = repos.maven { MavenArtifactRepository repo ->
-                repo.name = 'lucene-snapshots'
-                repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
-            }
-            repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
-                exclusiveRepo.filter {
-                    it.includeVersionByRegex(/org\.apache\.lucene/, '.*', ".*-snapshot-${revision}")
-                }
-                exclusiveRepo.forRepositories(luceneRepo)
-            }
-        }
-    }
-
-    static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && ["file", "https", "s3"].contains(uri.getScheme()) == false) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
-                    repositoryName,
-                    projectPath,
-                    uri.toURL())
-            throw new GradleException(message)
-        }
     }
 
     private static class TestFailureReportingPlugin implements Plugin<Project> {

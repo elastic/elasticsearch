@@ -108,10 +108,19 @@ It is now an error to configure any SSL settings for
 `xpack.security.transport.ssl.enabled`.
 
 *Impact* +
-If using `xpack.security.transport.ssl` settings, ensure
-`xpack.security.transport.ssl.enabled` is set as `true`. Not specifying
-`xpack.security.transport.ssl.enabled` as `true` in `elasticsearch.yml` will
-result in an error on startup.
+If using other `xpack.security.transport.ssl` settings, you must explicitly
+specify the `xpack.security.transport.ssl.enabled` setting.
+
+If you do not want to enable SSL and are currently using other
+`xpack.security.transport.ssl` settings, do one of the following:
+
+* Explicitly specify `xpack.security.transport.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.transport.ssl` settings
+
+If you want to enable SSL, follow the instructions in
+{ref}/configuring-tls.html[Encrypting communications in Elasticsearch]. As part
+of this configuration, explicitly specify `xpack.security.transport.ssl.enabled`
+as `true`.
 
 For example, the following configuration is invalid:
 [source,yaml]
@@ -139,10 +148,19 @@ It is now an error to configure any SSL settings for
 `xpack.security.http.ssl.enabled`.
 
 *Impact* +
-If using `xpack.security.http.ssl` settings, ensure
-`xpack.security.http.ssl.enabled` is set as `true`. Not specifying
-`xpack.security.transport.ssl.enabled` as `true` in `elasticsearch.yml` will
-result in an error on startup.
+If using other `xpack.security.http.ssl` settings, you must explicitly
+specify the `xpack.security.http.ssl.enabled` setting.
+
+If you do not want to enable SSL and are currently using other
+`xpack.security.http.ssl` settings, do one of the following:
+
+* Explicitly specify `xpack.security.http.ssl.enabled` as `false`
+* Discontinue use of other `xpack.security.http.ssl` settings
+
+If you want to enable SSL, follow the instructions in
+{ref}/tls-http.html[Encrypting HTTP client communications]. As part
+of this configuration, explicitly specify `xpack.security.http.ssl.enabled`
+as `true`.
 
 For example, the following configuration is invalid:
 [source,yaml]
@@ -211,8 +229,8 @@ This has been renamed to `kibana_system` in order to reduce confusion, and to be
 align with other built-in system accounts.
 
 *Impact* +
-Discontinue use of the `kibana` user. Specifying the `kibana` user in
-`kibana.yml` will result in an error on startup.
+Replace any use of the `kibana` user with the `kibana_system` user. Specifying
+the `kibana` user in `kibana.yml` will result in an error on startup.
 
 If your `kibana.yml` used to contain:
 [source,yaml]

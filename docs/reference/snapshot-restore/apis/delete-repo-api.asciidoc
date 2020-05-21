@@ -4,7 +4,11 @@
 <titleabbrev>Delete snapshot repository</titleabbrev>
 ++++
 
-Deletes one or more <<snapshots-register-repository,snapshot repositories>>.
+Unregisters one or more <<snapshots-register-repository,snapshot repositories>>.
+
+When a repository is unregistered, {es} only removes the reference to the
+location where the repository is storing the snapshots. The snapshots themselves
+are left untouched and in place.
 
 ////
 [source,console]
@@ -35,7 +39,7 @@ DELETE /_snapshot/my_repository
 
 `<repository>`::
 (Required, string)
-Name of the snapshot repository to delete. Wildcard (`*`) patterns are
+Name of the snapshot repository to unregister. Wildcard (`*`) patterns are
 supported.
 
 [[delete-snapshot-repo-api-query-params]]

@@ -41,7 +41,16 @@ services:
 
   oidc-provider:
     image: "c2id/c2id-server:7.8"
+    depends_on:
+      - http-proxy
     ports:
       - "8080"
     volumes:
       - ./oidc/override.properties:/etc/c2id/override.properties
+
+  http-proxy:
+    image: "nginx:latest"
+    volumes:
+      - ./oidc/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "8888"

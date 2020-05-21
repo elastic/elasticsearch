@@ -64,6 +64,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
 
     private static final String REALM_NAME = "c2id";
     private static final String REALM_NAME_IMPLICIT = "c2id-implicit";
+    private static final String REALM_NAME_PROXY = "c2id-proxy";
     private static final String FACILITATOR_PASSWORD = "f@cilit@t0r";
     private static final String REGISTRATION_URL = "http://127.0.0.1:" + getEphemeralPortFromProperty("8080") + "/c2id/clients";
     private static final String LOGIN_API = "http://127.0.0.1:" + getEphemeralPortFromProperty("8080") + "/c2id-login/api/";
@@ -244,20 +245,27 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     public void testAuthenticateWithCodeFlow() throws Exception {
         final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME);
         final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
-        final String realm = randomBoolean() ? null : prepareAuthResponse.getRealm();
         Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
-            prepareAuthResponse.getNonce(), realm);
+            prepareAuthResponse.getNonce(), REALM_NAME);
         verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
     }
 
     public void testAuthenticateWithImplicitFlow() throws Exception {
         final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME_IMPLICIT);
         final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
-        final String realm = randomBoolean() ? null : prepareAuthResponse.getRealm();
 
         Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
-            prepareAuthResponse.getNonce(), realm);
+            prepareAuthResponse.getNonce(), REALM_NAME_IMPLICIT);
         verifyElasticsearchAccessTokenForImplicitFlow(tokens.v1());
+    }
+
+    public void testAuthenticateWithCodeFlowUsingHttpProxy() throws Exception {
+        final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME_PROXY);
+        final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());
+
+        Tuple<String, String> tokens = completeAuthentication(redirectUri, prepareAuthResponse.getState(),
+            prepareAuthResponse.getNonce(), REALM_NAME_PROXY);
+        verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
     }
 
     public void testAuthenticateWithCodeFlowFailsForWrongRealm() throws Exception {
@@ -377,7 +385,10 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"kibana_admin\"]," +
             "\"enabled\": true," +
             "\"rules\": {" +
-            "\"field\": { \"realm.name\": \"" + REALM_NAME + "\"}" +
+            "  \"any\" : [" +
+            "    {\"field\": { \"realm.name\": \"" + REALM_NAME + "\"} }," +
+            "    {\"field\": { \"realm.name\": \"" + REALM_NAME_PROXY + "\"} }" +
+            "  ]" +
             "}" +
             "}");
         adminClient().performRequest(createRoleMappingRequest);
@@ -409,13 +420,11 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         private URI authUri;
         private String state;
         private String nonce;
-        private String realm;
 
         PrepareAuthResponse(URI authUri, String state, String nonce, @Nullable String realm) {
             this.authUri = authUri;
             this.state = state;
             this.nonce = nonce;
-            this.realm = realm;
         }
 
         URI getAuthUri() {
@@ -430,6 +439,5 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             return nonce;
         }
 
-        String getRealm() { return realm;}
     }
 }

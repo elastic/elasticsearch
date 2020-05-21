@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.Collections;
@@ -43,7 +42,6 @@ public class DocumentMapperParser {
 
     final MapperService mapperService;
     private final NamedXContentRegistry xContentRegistry;
-    private final SimilarityService similarityService;
     private final Supplier<QueryShardContext> queryShardContextSupplier;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
@@ -54,10 +52,9 @@ public class DocumentMapperParser {
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, NamedXContentRegistry xContentRegistry,
-            SimilarityService similarityService, MapperRegistry mapperRegistry, Supplier<QueryShardContext> queryShardContextSupplier) {
+            MapperRegistry mapperRegistry, Supplier<QueryShardContext> queryShardContextSupplier) {
         this.mapperService = mapperService;
         this.xContentRegistry = xContentRegistry;
-        this.similarityService = similarityService;
         this.queryShardContextSupplier = queryShardContextSupplier;
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -65,8 +62,7 @@ public class DocumentMapperParser {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier);
+        return new Mapper.TypeParser.ParserContext(mapperService, typeParsers::get, indexVersionCreated, queryShardContextSupplier);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

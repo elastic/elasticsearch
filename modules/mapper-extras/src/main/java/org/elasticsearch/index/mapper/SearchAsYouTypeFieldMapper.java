@@ -53,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -199,7 +200,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
             fieldType().setPrefixField(prefixFieldType);
             fieldType().setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, fieldType(), context.indexSettings(), copyTo,
+            return new SearchAsYouTypeFieldMapper(name, fieldType(), context.indexSettings(), similarity, copyTo,
                 maxShingleSize, prefixFieldMapper, shingleFieldMappers);
         }
     }
@@ -633,10 +634,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     private final int maxShingleSize;
     private PrefixFieldMapper prefixField;
     private final ShingleFieldMapper[] shingleFields;
+    private String similarity;
 
     public SearchAsYouTypeFieldMapper(String simpleName,
                                       SearchAsYouTypeFieldType fieldType,
                                       Settings indexSettings,
+                                      String similarity,
                                       CopyTo copyTo,
                                       int maxShingleSize,
                                       PrefixFieldMapper prefixField,
@@ -645,6 +648,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = maxShingleSize;
+        this.similarity = similarity;
     }
 
     @Override
@@ -683,6 +687,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         final SearchAsYouTypeFieldMapper m = (SearchAsYouTypeFieldMapper) other;
+        if (Objects.equals(m.similarity, this.similarity) == false) {
+            conflicts.add("mapper [" + name() + "] has a different [similarity]");
+        }
         if (this.shingleFields.length != m.shingleFields.length) {
             conflicts.add("mapper [" + name() + "] has a different [max_shingle_size]");
         } else {
@@ -695,6 +702,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     public static String getShingleFieldName(String parentField, int shingleSize) {
         return parentField + "._" + shingleSize + "gram";
+    }
+
+    @Override
+    public void collectPerFieldResources(PerFieldResourceCollector collector) {
+        collector.registerSimilarity(name(), similarity);
     }
 
     @Override
@@ -719,6 +731,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         super.doXContentBody(builder, includeDefaults, params);
         doXContentAnalyzers(builder, includeDefaults);
         builder.field("max_shingle_size", maxShingleSize);
+        if (includeDefaults || similarity != null) {
+            builder.field("similarity", similarity == null ? SimilarityService.DEFAULT_SIMILARITY : similarity);
+        }
     }
 
     @Override

@@ -54,7 +54,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -134,7 +133,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder similarity(SimilarityProvider similarity) {
+        public Builder similarity(String similarity) {
             throw new MapperParsingException("The field [" + name + "] cannot have custom similarities");
         }
 

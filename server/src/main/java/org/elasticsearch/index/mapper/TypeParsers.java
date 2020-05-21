@@ -28,7 +28,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -248,8 +247,7 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("similarity")) {
-                SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
-                builder.similarity(similarityProvider);
+                builder.similarity(propNode.toString());
                 iterator.remove();
             } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                 iterator.remove();
@@ -393,11 +391,4 @@ public class TypeParsers {
         builder.copyTo(copyToBuilder.build());
     }
 
-    private static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, String value) {
-        SimilarityProvider similarityProvider = parserContext.getSimilarity(value);
-        if (similarityProvider == null) {
-            throw new MapperParsingException("Unknown Similarity type [" + value + "] for field [" + name + "]");
-        }
-        return similarityProvider;
-    }
 }

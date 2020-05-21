@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.annotatedtext;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -43,9 +44,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -57,7 +61,6 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugin.mapper.AnnotatedTextPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -75,7 +78,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
+public class AnnotatedTextFieldMapperTests extends FieldMapperTestCase<AnnotatedTextFieldMapper.Builder> {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -88,9 +91,16 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
             .build();
         indexService = createIndex("test", settings);
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity("a");
+            b.similarity("b");
+        });
     }
 
-
+    @Override
+    protected boolean supportsDocValues() {
+        return false;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -672,4 +682,11 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
+    @Override
+    protected AnnotatedTextFieldMapper.Builder newBuilder() {
+        return new AnnotatedTextFieldMapper.Builder("text")
+            .indexAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchQuoteAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()));
+    }
 }

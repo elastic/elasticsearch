@@ -68,6 +68,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -231,7 +232,7 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             return new TextFieldMapper(
-                    name, fieldType(), defaultFieldType, positionIncrementGap, prefixMapper,
+                    name, fieldType(), defaultFieldType, positionIncrementGap, prefixMapper, similarity,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -774,11 +775,12 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     private int positionIncrementGap;
+    private String similarity;
     private PrefixFieldMapper prefixFieldMapper;
     private PhraseFieldMapper phraseFieldMapper;
 
     protected TextFieldMapper(String simpleName, TextFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap, PrefixFieldMapper prefixFieldMapper,
+                                int positionIncrementGap, PrefixFieldMapper prefixFieldMapper, String similarity,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
@@ -789,6 +791,7 @@ public class TextFieldMapper extends FieldMapper {
         this.positionIncrementGap = positionIncrementGap;
         this.prefixFieldMapper = prefixFieldMapper;
         this.phraseFieldMapper = fieldType.indexPhrases ? new PhraseFieldMapper(new PhraseFieldType(fieldType), indexSettings) : null;
+        this.similarity = similarity;
     }
 
     @Override
@@ -861,6 +864,11 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    public void collectPerFieldResources(PerFieldResourceCollector collector) {
+        collector.registerSimilarity(name(), similarity);
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         TextFieldMapper mw = (TextFieldMapper) other;
         if (mw.fieldType().indexPhrases != this.fieldType().indexPhrases) {
@@ -876,6 +884,10 @@ public class TextFieldMapper extends FieldMapper {
         if (this.phraseFieldMapper != null && mw.phraseFieldMapper != null) {
             this.phraseFieldMapper = (PhraseFieldMapper) this.phraseFieldMapper.merge(mw.phraseFieldMapper);
         }
+
+        if (Objects.equals(similarity, mw.similarity) == false) {
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
+        }
     }
 
     @Override
@@ -890,6 +902,10 @@ public class TextFieldMapper extends FieldMapper {
 
         if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);
+        }
+
+        if (includeDefaults || similarity != null) {
+            builder.field("similarity", similarity == null ? SimilarityService.DEFAULT_SIMILARITY : similarity);
         }
 
         if (includeDefaults || fieldType().fielddata() != ((TextFieldType) defaultFieldType).fielddata()) {

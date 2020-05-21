@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.util.Map;
 import java.util.Objects;
@@ -78,8 +77,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         class ParserContext {
 
-            private final Function<String, SimilarityProvider> similarityLookupService;
-
             private final MapperService mapperService;
 
             private final Function<String, TypeParser> typeParsers;
@@ -88,10 +85,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Supplier<QueryShardContext> queryShardContextSupplier;
 
-            public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 MapperService mapperService, Function<String, TypeParser> typeParsers,
+            public ParserContext(MapperService mapperService, Function<String, TypeParser> typeParsers,
                                  Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
-                this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
@@ -100,10 +95,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             public IndexAnalyzers getIndexAnalyzers() {
                 return mapperService.getIndexAnalyzers();
-            }
-
-            public SimilarityProvider getSimilarity(String name) {
-                return similarityLookupService.apply(name);
             }
 
             public MapperService mapperService() {
@@ -126,15 +117,13 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             protected Function<String, TypeParser> typeParsers() { return typeParsers; }
 
-            protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
-
             public ParserContext createMultiFieldContext(ParserContext in) {
                 return new MultiFieldParserContext(in);
             }
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
+                    super(in.mapperService(), in.typeParsers(),
                             in.indexVersionCreated(), in.queryShardContextSupplier());
                 }
 
@@ -171,6 +160,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     /** Return the merge of {@code mergeWith} into this.
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
     public abstract Mapper merge(Mapper mergeWith);
+
+    public void collectPerFieldResources(PerFieldResourceCollector collector) {
+
+    }
 
     /**
      * Update the field type of this mapper. This is necessary because some mapping updates

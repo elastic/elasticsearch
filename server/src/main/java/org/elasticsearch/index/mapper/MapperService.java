@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectHashSet;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -115,13 +116,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
 
+    private static class Mappers {
+        DocumentMapper mapper;
+        FieldTypeLookup fieldTypes;
+        Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
+        boolean hasNested;
+        Similarity similarity;
+    }
+
     private final IndexAnalyzers indexAnalyzers;
 
-    private volatile DocumentMapper mapper;
-
-    private volatile FieldTypeLookup fieldTypes;
-    private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
-    private boolean hasNested = false; // updated dynamically to true when a nested object is added
+    private volatile Mappers mappers = new Mappers();
 
     private final DocumentMapperParser documentParser;
 
@@ -132,6 +137,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
     final MapperRegistry mapperRegistry;
+    final SimilarityService similarityService;
 
     private final BooleanSupplier idFieldDataEnabled;
 
@@ -140,8 +146,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                          Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled) {
         super(indexSettings);
         this.indexAnalyzers = indexAnalyzers;
-        this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
+        this.similarityService = similarityService;
+        this.mappers.fieldTypes = new FieldTypeLookup();
+        this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, mapperRegistry,
                 queryShardContextSupplier);
         this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
@@ -151,7 +158,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return this.hasNested;
+        return this.mappers.hasNested;
+    }
+
+    public Similarity getSimilarity() {
+        if (mappers.similarity == null) {
+            return similarityService.getDefaultSimilarity();
+        }
+        return mappers.similarity;
+    }
+
+    public SimilarityService getSimilarityService() {
+        return similarityService;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -203,7 +221,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MappingMetadata mappingMetadata = newIndexMetadata.mapping();
         CompressedXContent incomingMappingSource = mappingMetadata.source();
 
-        String op = mapper != null ? "updated" : "added";
+        String op = this.mappers.mapper != null ? "updated" : "added";
         if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
             logger.debug("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
         } else if (logger.isTraceEnabled()) {
@@ -234,7 +252,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (Assertions.ENABLED && currentIndexMetadata != null) {
             if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
-                assert updatedMapper == mapper;
+                assert updatedMapper == this.mappers.mapper;
 
                 MappingMetadata mapping = newIndexMetadata.mapping();
                 if (mapping != null) {
@@ -331,16 +349,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private synchronized DocumentMapper internalMerge(DocumentMapper mapper, MergeReason reason) {
-        boolean hasNested = this.hasNested;
-        Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
-        FieldTypeLookup fieldTypes = this.fieldTypes;
+        boolean hasNested = this.mappers.hasNested;
+        Map<String, ObjectMapper> fullPathObjectMappers = this.mappers.fullPathObjectMappers;
+        FieldTypeLookup fieldTypes = this.mappers.fieldTypes;
 
         assert mapper != null;
         // check naming
         validateTypeName(mapper.type());
 
         // compute the merged DocumentMapper
-        DocumentMapper oldMapper = this.mapper;
+        DocumentMapper oldMapper = this.mappers.mapper;
         DocumentMapper newMapper;
         if (oldMapper != null) {
             newMapper = oldMapper.merge(mapper.mapping());
@@ -363,9 +381,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         fieldTypes = fieldTypes.copyAndAddAll(fieldMappers, fieldAliasMappers);
 
         for (ObjectMapper objectMapper : objectMappers) {
-            if (fullPathObjectMappers == this.fullPathObjectMappers) {
+            if (fullPathObjectMappers == this.mappers.fullPathObjectMappers) {
                 // first time through the loops
-                fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
+                fullPathObjectMappers = new HashMap<>(this.mappers.fullPathObjectMappers);
             }
             fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
 
@@ -415,17 +433,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         // only need to immutably rewrap these if the previous reference was changed.
         // if not then they are already implicitly immutable.
-        if (fullPathObjectMappers != this.fullPathObjectMappers) {
+        if (fullPathObjectMappers != this.mappers.fullPathObjectMappers) {
             fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
         }
 
+        Mappers mappers = new Mappers();
+        mappers.mapper = newMapper == null ? this.mappers.mapper : newMapper;
+        mappers.fieldTypes = fieldTypes;
+        mappers.hasNested = hasNested;
+        mappers.fullPathObjectMappers = fullPathObjectMappers;
+        mappers.similarity = mappers.mapper.buildSimilarity(similarityService);
+
         // commit the change
-        if (newMapper != null) {
-            this.mapper = newMapper;
-        }
-        this.fieldTypes = fieldTypes;
-        this.hasNested = hasNested;
-        this.fullPathObjectMappers = fullPathObjectMappers;
+        this.mappers = mappers;
 
         assert assertMappersShareSameFieldType();
         assert newMapper == null || assertSerialization(newMapper);
@@ -434,12 +454,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean assertMappersShareSameFieldType() {
-        if (mapper != null) {
+        if (this.mappers.mapper != null) {
             List<FieldMapper> fieldMappers = new ArrayList<>();
-            Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
-            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers, new ArrayList<>());
+            Collections.addAll(fieldMappers, this.mappers.mapper.mapping().metadataMappers);
+            MapperUtils.collect(this.mappers.mapper.root(), new ArrayList<>(), fieldMappers, new ArrayList<>());
             for (FieldMapper fieldMapper : fieldMappers) {
-                assert fieldMapper.fieldType() == fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
+                assert fieldMapper.fieldType() == this.mappers.fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
             }
         }
         return true;
@@ -542,7 +562,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Return the document mapper, or {@code null} if no mapping has been put yet.
      */
     public DocumentMapper documentMapper() {
-        return mapper;
+        return this.mappers.mapper;
     }
 
     /**
@@ -563,8 +583,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public String resolveDocumentType(String type) {
         if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
-            if (mapper != null) {
-                return mapper.type();
+            if (this.mappers.mapper != null) {
+                return this.mappers.mapper.type();
             }
         }
         return type;
@@ -587,7 +607,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        return fieldTypes.get(fullName);
+        return this.mappers.fieldTypes.get(fullName);
     }
 
     /**
@@ -599,18 +619,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // no wildcards
             return Collections.singleton(pattern);
         }
-        return fieldTypes.simpleMatchToFullName(pattern);
+        return this.mappers.fieldTypes.simpleMatchToFullName(pattern);
     }
 
     /**
      * Returns all mapped field types.
      */
     public Iterable<MappedFieldType> fieldTypes() {
-        return fieldTypes;
+        return this.mappers.fieldTypes;
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return fullPathObjectMappers.get(name);
+        return this.mappers.fullPathObjectMappers.get(name);
     }
 
     /**

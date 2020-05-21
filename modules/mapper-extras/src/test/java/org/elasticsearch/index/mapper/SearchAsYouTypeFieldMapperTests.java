@@ -88,6 +88,10 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
             a.maxShingleSize(3);
             b.maxShingleSize(2);
         });
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity("a");
+            b.similarity("b");
+        });
     }
 
     @Override

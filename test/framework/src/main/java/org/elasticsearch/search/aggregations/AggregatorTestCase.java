@@ -495,7 +495,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.preCollection();
             subSearcher.search(weight, a);
             a.postCollection();
-            InternalAggregation agg = a.buildTopLevel(); 
+            InternalAggregation agg = a.buildTopLevel();
             aggs.add(agg);
             InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
@@ -857,7 +857,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, null, null);
+            super(null, null, null, null);
         }
 
         @Override

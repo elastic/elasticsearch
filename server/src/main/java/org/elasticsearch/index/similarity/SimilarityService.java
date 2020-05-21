@@ -26,7 +26,6 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
@@ -38,8 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
@@ -129,13 +126,6 @@ public final class SimilarityService extends AbstractIndexComponent {
         }
     }
 
-    public Similarity similarity(MapperService mapperService) {
-        // TODO we can maybe factor out MapperService here entirely by introducing an interface for the lookup?
-        return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, mapperService) :
-                defaultSimilarity;
-    }
-
-
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
         if (sim == null) {
@@ -144,27 +134,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         return new SimilarityProvider(name, sim.get());
     }
 
-    // for testing
-    Similarity getDefaultSimilarity() {
+    public Similarity getDefaultSimilarity() {
         return defaultSimilarity;
-    }
-
-    static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
-
-        private final Similarity defaultSimilarity;
-        private final MapperService mapperService;
-
-        PerFieldSimilarity(Similarity defaultSimilarity, MapperService mapperService) {
-            super();
-            this.defaultSimilarity = defaultSimilarity;
-            this.mapperService = mapperService;
-        }
-
-        @Override
-        public Similarity get(String name) {
-            MappedFieldType fieldType = mapperService.fieldType(name);
-            return (fieldType != null && fieldType.similarity() != null) ? fieldType.similarity().get() : defaultSimilarity;
-        }
     }
 
     static void validateSimilarity(Version indexCreatedVersion, Similarity similarity) {

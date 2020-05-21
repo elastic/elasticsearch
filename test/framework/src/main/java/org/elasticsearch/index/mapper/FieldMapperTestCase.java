@@ -20,12 +20,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
@@ -106,10 +104,6 @@ public abstract class FieldMapperTestCase<T extends FieldMapper.Builder<?>> exte
         new Modifier("search_quote_analyzer", true, (a, b) -> {
             a.searchQuoteAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()));
             a.searchQuoteAnalyzer(new NamedAnalyzer("b", AnalyzerScope.INDEX, new StandardAnalyzer()));
-        }),
-        new Modifier("similarity", false, (a, b) -> {
-            a.similarity(new SimilarityProvider("a", new BM25Similarity()));
-            b.similarity(new SimilarityProvider("b", new BM25Similarity()));
         }),
         new Modifier("store", supportsStore() == false, (a, b) -> {
             if (supportsStore()) {

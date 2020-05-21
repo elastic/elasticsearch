@@ -25,6 +25,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
@@ -39,6 +41,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -323,5 +327,34 @@ public class DocumentMapper implements ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return mapping.toXContent(builder, params);
+    }
+
+    public Similarity buildSimilarity(SimilarityService similarityService) {
+        Map<String, SimilarityProvider> perFieldSimilarities = new HashMap<>();
+        PerFieldResourceCollector similarityCollector = new PerFieldResourceCollector() {
+            @Override
+            public void registerSimilarity(String field, String similarity) {
+                if (similarity != null) {
+                    SimilarityProvider sim = similarityService.getSimilarity(similarity);
+                    if (sim == null) {
+                        throw new MapperParsingException("Unknown Similarity type [" + similarity + "] for field [" + field + "]");
+                    }
+                    perFieldSimilarities.put(field, sim);
+                }
+            }
+        };
+        for (Mapper mapper : mappers()) {
+            mapper.collectPerFieldResources(similarityCollector);
+        }
+        return new PerFieldSimilarityWrapper() {
+            @Override
+            public Similarity get(String field) {
+                SimilarityProvider provider = perFieldSimilarities.get(field);
+                if (provider == null) {
+                    return similarityService.getDefaultSimilarity();
+                }
+                return provider.get();
+            }
+        };
     }
 }

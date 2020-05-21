@@ -48,7 +48,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -71,7 +70,6 @@ public abstract class MappedFieldType extends FieldType {
     private NamedAnalyzer indexAnalyzer;
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
-    private SimilarityProvider similarity;
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
     private boolean eagerGlobalOrdinals;
@@ -85,7 +83,6 @@ public abstract class MappedFieldType extends FieldType {
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
         this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
-        this.similarity = ref.similarity();
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
@@ -142,14 +139,13 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
-            Objects.equals(similarity, fieldType.similarity) &&
             Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
         int hash = Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString, meta);
+            eagerGlobalOrdinals, nullValue, nullValueAsString, meta);
         return hash;
     }
 
@@ -210,15 +206,6 @@ public abstract class MappedFieldType extends FieldType {
     public void setSearchQuoteAnalyzer(NamedAnalyzer analyzer) {
         checkIfFrozen();
         this.searchQuoteAnalyzer = analyzer;
-    }
-
-    public SimilarityProvider similarity() {
-        return similarity;
-    }
-
-    public void setSimilarity(SimilarityProvider similarity) {
-        checkIfFrozen();
-        this.similarity = similarity;
     }
 
     /** Returns the value that should be added when JSON null is found, or null if no value should be added */

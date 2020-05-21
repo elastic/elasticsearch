@@ -41,8 +41,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.PerFieldResourceCollector;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
@@ -140,7 +142,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             return new AnnotatedTextFieldMapper(
-                    name, fieldType(), defaultFieldType, positionIncrementGap,
+                    name, fieldType(), defaultFieldType, positionIncrementGap, similarity,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -554,13 +556,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     private int positionIncrementGap;
+    private String similarity;
+
     protected AnnotatedTextFieldMapper(String simpleName, AnnotatedTextFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap,
+                                int positionIncrementGap, String similarity,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
         assert fieldType.hasDocValues() == false;
         this.positionIncrementGap = positionIncrementGap;
+        this.similarity = similarity;
     }
 
     @Override
@@ -570,7 +575,10 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+        AnnotatedTextFieldMapper m = (AnnotatedTextFieldMapper) other;
+        if (Objects.equals(m.similarity, this.similarity) == false) {
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
+        }
     }
 
     public int getPositionIncrementGap() {
@@ -610,12 +618,20 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
+    public void collectPerFieldResources(PerFieldResourceCollector collector) {
+        collector.registerSimilarity(name(), similarity);
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         doXContentAnalyzers(builder, includeDefaults);
 
         if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);
+        }
+        if (includeDefaults || similarity != null) {
+            builder.field("similarity", similarity == null ? SimilarityService.DEFAULT_SIMILARITY : similarity);
         }
     }
 }

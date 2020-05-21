@@ -113,6 +113,10 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         addModifier("index_prefixes", false, (a, b) -> {
             a.indexPrefixes(2, 4);
         });
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity("a");
+            b.similarity("b");
+        });
     }
 
     @Override

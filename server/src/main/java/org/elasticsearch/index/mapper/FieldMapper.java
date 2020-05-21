@@ -35,8 +35,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,6 +63,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean indexOptionsSet = false;
         protected boolean docValuesSet = false;
         protected final MultiFields.Builder multiFieldsBuilder;
+        protected String similarity = null;
         protected CopyTo copyTo = CopyTo.empty();
 
         protected Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
@@ -182,8 +181,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        public T similarity(SimilarityProvider similarity) {
-            this.fieldType.setSimilarity(similarity);
+        public T similarity(String similarity) {
+            this.similarity = similarity;
             return builder;
         }
 
@@ -402,10 +401,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         } else if (fieldType.indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
             conflicts.add("mapper [" + name() + "] has different [analyzer]");
         }
-
-        if (Objects.equals(fieldType.similarity(), other.similarity()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
     }
 
     /**
@@ -470,12 +465,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
         if (includeDefaults || fieldType().eagerGlobalOrdinals() != defaultFieldType.eagerGlobalOrdinals()) {
             builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
-        }
-
-        if (fieldType().similarity() != null) {
-            builder.field("similarity", fieldType().similarity().name());
-        } else if (includeDefaults) {
-            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
         }
 
         multiFields.toXContent(builder, params);

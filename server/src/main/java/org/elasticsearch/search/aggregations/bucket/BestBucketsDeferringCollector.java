@@ -154,11 +154,10 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             throw new IllegalStateException("Already been replayed");
         }
 
-        final LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
-        for (long bucket : selectedBuckets) {
-            hash.add(bucket);
+        this.selectedBuckets = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
+        for (long ord : selectedBuckets) {
+            this.selectedBuckets.add(ord);
         }
-        this.selectedBuckets = hash;
 
         boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
@@ -185,7 +184,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
                     doc += docDeltaIterator.next();
                     final long bucket = buckets.next();
-                    final long rebasedBucket = hash.find(bucket);
+                    final long rebasedBucket = this.selectedBuckets.find(bucket);
                     if (rebasedBucket != -1) {
                         if (needsScores) {
                             if (scoreIt.docID() < doc) {
@@ -213,19 +212,20 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     public Aggregator wrap(final Aggregator in) {
 
         return new WrappedAggregator(in) {
-
             @Override
-            public InternalAggregation buildAggregation(long bucket) throws IOException {
+            public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
                 if (selectedBuckets == null) {
                     throw new IllegalStateException("Collection has not been replayed yet.");
                 }
-                final long rebasedBucket = selectedBuckets.find(bucket);
-                if (rebasedBucket == -1) {
-                    throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                long[] rebasedOrds = new long[owningBucketOrds.length];
+                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                    rebasedOrds[ordIdx] = selectedBuckets.find(owningBucketOrds[ordIdx]);
+                    if (rebasedOrds[ordIdx] == -1) {
+                        throw new IllegalStateException("Cannot build for a bucket which has not been collected");
+                    }
                 }
-                return in.buildAggregation(rebasedBucket);
+                return in.buildAggregations(rebasedOrds);
             }
-
         };
     }
 

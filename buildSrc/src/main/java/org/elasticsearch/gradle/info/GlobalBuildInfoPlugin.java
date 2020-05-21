@@ -1,5 +1,7 @@
 package org.elasticsearch.gradle.info;
 
+import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.GradleException;
@@ -20,6 +22,7 @@ import javax.inject.Inject;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,6 +47,7 @@ import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
+    private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
     private static Integer _defaultParallel = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
@@ -69,10 +73,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
 
-        GitInfo gitInfo = gitInfo(project.getRootProject().getRootDir());
+        File rootDir = project.getRootDir();
+        GitInfo gitInfo = gitInfo(rootDir);
 
-        // Initialize global build parameters
         BuildParams.init(params -> {
+            // Initialize global build parameters
+            boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
+
             params.reset();
             params.setCompilerJavaHome(compilerJavaHome);
             params.setRuntimeJavaHome(runtimeJavaHome);
@@ -88,14 +95,30 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null);
-            params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
+            params.setIsInternal(isInternal);
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
+            if (isInternal) {
+                params.setBwcVersions(resolveBwcVersions(rootDir));
+            }
         });
 
         // Print global build info header just before task execution
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+    }
+
+    /* Introspect all versions of ES that may be tested against for backwards
+     * compatibility. It is *super* important that this logic is the same as the
+     * logic in VersionUtils.java. */
+    private static BwcVersions resolveBwcVersions(File root) {
+        File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
+        try {
+            List<String> versionLines = IOUtils.readLines(new FileInputStream(versionsFile), "UTF-8");
+            return new BwcVersions(versionLines);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
+        }
     }
 
     private void logGlobalBuildInfo() {

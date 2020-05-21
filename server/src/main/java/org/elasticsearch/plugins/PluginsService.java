@@ -345,15 +345,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
-            final Bundle bundle = readPluginBundle(bundles, plugin, type);
-            bundles.add(bundle);
+            readPluginBundle(bundles, plugin, type);
         }
 
         return bundles;
     }
 
-    // get a bundle for a single plugin dir
-    private static Bundle readPluginBundle(final Set<Bundle> bundles, final Path plugin, String type) throws IOException {
+    // get a bundle for a single plugin dir and add into bundles
+    private static void readPluginBundle(final Set<Bundle> bundles, final Path plugin, String type) throws IOException {
         LogManager.getLogger(PluginsService.class).trace("--- adding [{}] [{}]", type, plugin.toAbsolutePath());
         final PluginInfo info;
         try {
@@ -366,7 +365,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (bundles.add(bundle) == false) {
             throw new IllegalStateException("duplicate " + type + ": " + info);
         }
-        return bundle;
     }
 
     /**

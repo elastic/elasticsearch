@@ -132,7 +132,6 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPlugins().withId("elasticsearch.java", p -> {
             TaskProvider<Jar> javadocJarTask = project.getTasks().register("javadocJar", Jar.class);
             javadocJarTask.configure(jar -> {
-                jar.setEnabled(project.getTasks().getByName("jar").getEnabled());
                 jar.getArchiveClassifier().set("javadoc");
                 jar.setGroup("build");
                 jar.setDescription("Assembles a jar containing javadocs.");
@@ -146,7 +145,6 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPlugins().withId("elasticsearch.java", p -> {
             TaskProvider<Jar> sourcesJarTask = project.getTasks().register("sourcesJar", Jar.class);
             sourcesJarTask.configure(jar -> {
-                jar.setEnabled(project.getTasks().getByName("jar").getEnabled());
                 jar.getArchiveClassifier().set("sources");
                 jar.setGroup("build");
                 jar.setDescription("Assembles a jar containing source files.");

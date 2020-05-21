@@ -220,7 +220,6 @@ public class GitHubApi {
     /**
      * Used when {@link #simulate} is <code>true</code>.
      * @see #sendRequest(HttpRequest, String, BodyHandler)
-     * @param <T>
      */
     private static class StubHttpResponse<T> implements HttpResponse<T> {
         @Override

@@ -59,7 +59,7 @@ class GitHubIssue {
     private final Set<Integer> relatedIssues;
     private final State state;
 
-    public GitHubIssue(int number, String title, String body, Set<String> labels, boolean isPullRequest, String state) {
+    GitHubIssue(int number, String title, String body, Set<String> labels, boolean isPullRequest, String state) {
         this.number = number;
         this.title = title;
         this.body = body;

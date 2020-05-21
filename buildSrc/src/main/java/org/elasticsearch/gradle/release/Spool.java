@@ -38,7 +38,7 @@ class Spool<T> implements Iterable<T> {
      * @param supplier Whenever this <code>Spool</code> is empty, this supplier will be called to refill
      *                 the spool.
      */
-    public Spool(Supplier<Iterable<T>> supplier) {
+    Spool(Supplier<Iterable<T>> supplier) {
         this.supplier = supplier;
         queue = new ArrayDeque<>();
     }

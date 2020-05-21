@@ -107,7 +107,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(left(), right(), parser);
+        return Objects.hash(left(), right(), zoneId(), parser);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
         DateTimeParseProcessor other = (DateTimeParseProcessor) obj;
         return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right())
-                && Objects.equals(parser, other.parser);
+                && Objects.equals(zoneId(), other.zoneId()) && Objects.equals(parser, other.parser);
     }
     
     public Parser parser() {

@@ -63,7 +63,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -419,24 +418,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
 
-        assert assertMappersShareSameFieldType();
         assert assertSerialization(newMapper);
 
         return newMapper;
-    }
-
-    private boolean assertMappersShareSameFieldType() {
-        if (mapper != null) {
-            List<FieldMapper> fieldMappers = new ArrayList<>();
-            Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
-            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers, new ArrayList<>());
-            for (FieldMapper fieldMapper : fieldMappers) {
-                assert Objects.equals(fieldMapper.fieldType(), fieldTypes.get(fieldMapper.name())) :
-                    "Fieldtype mismatch: " + fieldMapper.name() + " " + fieldMapper.fieldType()
-                        + " != " + fieldTypes.get(fieldMapper.name());
-            }
-        }
-        return true;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -582,10 +566,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappedFieldType fieldType(String fullName) {
         return fieldTypes.get(fullName);
-    }
-
-    public Mapper fieldMapper(String fieldName) {
-        return documentMapper().mappers().getMapper(fieldName);
     }
 
     /**

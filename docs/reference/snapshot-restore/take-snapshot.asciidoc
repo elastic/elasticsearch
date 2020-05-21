@@ -192,16 +192,3 @@ snapshot and not used by any other snapshots. If the deleted snapshot operation 
 created the snapshotting process will be aborted and all files created as part of the snapshotting process will be
 cleaned. Therefore, the delete snapshot operation can be used to cancel long running snapshot operations that were
 started by mistake.
-
-A repository can be unregistered using the following command:
-
-[source,console]
------------------------------------
-DELETE /_snapshot/my_backup
------------------------------------
-// TEST[continued]
-
-When a repository is unregistered, Elasticsearch only removes the reference to the location where the repository is storing
-the snapshots. The snapshots themselves are left untouched and in place.
-
-

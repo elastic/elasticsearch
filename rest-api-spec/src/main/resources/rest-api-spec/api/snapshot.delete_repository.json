@@ -15,7 +15,7 @@
           "parts":{
             "repository":{
               "type":"list",
-              "description":"Name of the snapshot repository to delete. Wildcard (`*`) patterns are supported."
+              "description":"Name of the snapshot repository to unregister. Wildcard (`*`) patterns are supported."
             }
           }
         }

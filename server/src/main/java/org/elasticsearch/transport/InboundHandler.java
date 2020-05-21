@@ -143,7 +143,14 @@ public class InboundHandler {
             try {
                 handshaker.handleHandshake(transportChannel, requestId, stream);
             } catch (Exception e) {
-                sendErrorResponse(action, transportChannel, e);
+                if (Version.CURRENT.isCompatible(header.getVersion())) {
+                    sendErrorResponse(action, transportChannel, e);
+                } else {
+                    logger.warn(new ParameterizedMessage(
+                        "could not send error response to handshake received on [{}] using wire format version [{}], closing channel",
+                        channel, header.getVersion()), e);
+                    channel.close();
+                }
             }
         } else {
             final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,

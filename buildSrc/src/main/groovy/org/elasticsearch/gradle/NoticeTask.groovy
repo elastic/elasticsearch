@@ -84,7 +84,7 @@ class NoticeTask extends DefaultTask {
         // party component names, unaffected by the full path to the various files
         Map<String, File> seen = new TreeMap<>()
         noticeFiles.each { File file ->
-            String name = file.name.substring(0, file.name.length() - '-NOTICE.txt'.length())
+            String name = file.name.replaceFirst("-NOTICE\.txt$", "")
             if (seen.containsKey(name)) {
                 File prevFile = seen.get(name)
                 if (prevFile.text != file.text) {

@@ -211,7 +211,7 @@ This has been renamed to `kibana_system` in order to reduce confusion, and to be
 align with other built-in system accounts.
 
 *Impact* +
-Discontinue use of the `kibana_system` user. Specifying the `kibana` user in
+Discontinue use of the `kibana` user. Specifying the `kibana` user in
 `kibana.yml` will result in an error on startup.
 
 If your `kibana.yml` used to contain:

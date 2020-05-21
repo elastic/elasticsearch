@@ -82,6 +82,7 @@ class BuildPlugin implements Plugin<Project> {
             )
         }
         project.pluginManager.apply('elasticsearch.java')
+        ElasticsearchJavaPlugin.configureJars(project)
         project.pluginManager.apply('elasticsearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
 

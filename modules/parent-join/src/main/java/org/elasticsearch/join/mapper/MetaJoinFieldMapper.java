@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Simple field mapper hack to ensure that there is a one and only {@link ParentJoinFieldMapper} per mapping.
@@ -135,6 +136,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
     @Override
     protected MetaJoinFieldMapper clone() {
         return (MetaJoinFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

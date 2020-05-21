@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-public class PointFieldTypeTests extends FieldTypeTestCase {
+public class PointFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new PointFieldMapper.PointFieldType();

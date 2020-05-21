@@ -109,9 +109,15 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
 
-        assertBusy(() -> assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots().get(0).getState()), 1L,
-            TimeUnit.MINUTES);
+        assertBusy(() -> {
+            try {
+                assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().snapshotsStatus(
+                        new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots().get(0)
+                        .getState());
+            } catch (SnapshotMissingException sme) {
+                throw new AssertionError(sme);
+            }
+        }, 1L, TimeUnit.MINUTES);
 
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");

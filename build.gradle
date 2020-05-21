@@ -37,7 +37,7 @@ plugins {
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
   id 'elasticsearch.release-tools'
-  id "com.diffplug.gradle.spotless" version "3.28.0" apply false
+  id "com.diffplug.gradle.spotless" version "4.0.0" apply false
 }
 
 apply from: 'gradle/build-scan.gradle'
@@ -109,7 +109,7 @@ subprojects {
   }
 }
 
-task updateCIBwcVersions() {
+tasks.register("updateCIBwcVersions") {
   doLast {
     File yml = file(".ci/bwcVersions")
     yml.text = ""
@@ -143,7 +143,7 @@ allprojects {
   }
 }
 
-task verifyVersions {
+tasks.register("verifyVersions") {
   doLast {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
@@ -175,8 +175,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
-final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/56762" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -195,7 +195,7 @@ subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
 }
 
-task verifyBwcTestsEnabled {
+tasks.register("verifyBwcTestsEnabled") {
   doLast {
     if (bwc_tests_enabled == false) {
       throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
@@ -203,10 +203,10 @@ task verifyBwcTestsEnabled {
   }
 }
 
-task branchConsistency {
+tasks.register("branchConsistency") {
   description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
-  dependsOn verifyVersions, verifyBwcTestsEnabled
+  dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 allprojects {
@@ -407,7 +407,7 @@ class Run extends DefaultTask {
   }
 }
 
-task run(type: Run) {
+tasks.register("run", Run) {
   dependsOn ':distribution:run'
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
@@ -486,7 +486,7 @@ allprojects {
     if (realTask == null) {
       return
     }
-    project.tasks.create(taskName) {
+    project.tasks.register(taskName) {
       doLast {
         println("${realTask.path} dependencies:")
         for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {

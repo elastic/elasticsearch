@@ -6,7 +6,7 @@
 
 Add shingles, or word https://en.wikipedia.org/wiki/N-gram[n-grams], to a token
 stream by concatenating adjacent tokens. By default, the `shingle` token filter
-creates two-word shingles.
+outputs two-word shingles and unigrams.
 
 For example, many tokenizers convert `the lazy dog` to `[ the, lazy, dog ]`. You
 can use the `shingle` filter to add two-word shingles to this stream:

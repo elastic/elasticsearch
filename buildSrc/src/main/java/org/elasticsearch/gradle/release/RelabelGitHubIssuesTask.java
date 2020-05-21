@@ -51,7 +51,7 @@ import static java.util.Collections.emptySet;
  *
  * <pre>./gradlew relabelGithubIssues --labels v7.8.0 --remove v7.8.0  --add v7.8.1</pre>
  *
- * <p>While the default repository it <code>elastic/elasticsearch</code>, you can override
+ * <p>While the default repository is <code>elastic/elasticsearch</code>, you can override
  * this using the <code>relabel.repository</code> system property:
  *
  * <pre>./gradlew -Drelabel.repository="foo/bar" relabelGithubIssues # etc</pre>

@@ -183,13 +183,13 @@ public class FieldAttributeTests extends ESTestCase {
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(
                 "Found 1 problem\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [\"test\".\"bar\", \"test\".\"test.bar\"]",
+                        + "matches any of [line 1:22 [\"test\".\"bar\"], line 1:22 [\"test\".\"test.bar\"]]",
                 ex.getMessage());
 
         ex = expectThrows(VerificationException.class, () -> plan("SELECT test.test FROM test"));
         assertEquals(
                 "Found 1 problem\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [\"test\".\"test\", \"test\".\"test.test\"]",
+                        + "matches any of [line 1:23 [\"test\".\"test\"], line 1:23 [\"test\".\"test.test\"]]",
                 ex.getMessage());
 
         LogicalPlan plan = plan("SELECT test.test FROM test AS x");
@@ -250,21 +250,21 @@ public class FieldAttributeTests extends ESTestCase {
             () -> plan("SELECT gender AS g, sum(salary) AS g FROM test GROUP BY g"));
         assertEquals(
             "Found 1 problem\nline 1:57: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
-                "matches any of [\"g\", \"g\"]",
+                "matches any of [line 1:8 [\"g\"], line 1:21 [\"g\"]]",
             ex.getMessage());
 
         ex = expectThrows(VerificationException.class,
             () -> plan("SELECT gender AS g, max(salary) AS g, min(salary) AS g FROM test GROUP BY g"));
         assertEquals(
             "Found 1 problem\nline 1:75: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
-                "matches any of [\"g\", \"g\", \"g\"]",
+                "matches any of [line 1:8 [\"g\"], line 1:21 [\"g\"], line 1:39 [\"g\"]]",
             ex.getMessage());
 
         ex = expectThrows(VerificationException.class,
             () -> plan("SELECT gender AS g, last_name AS g, sum(salary) AS s FROM test GROUP BY g"));
         assertEquals(
             "Found 1 problem\nline 1:73: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
-                "matches any of [\"g\", \"g\"]",
+                "matches any of [line 1:8 [\"g\"], line 1:21 [\"g\"]]",
             ex.getMessage());
     }
 }

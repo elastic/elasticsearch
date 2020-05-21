@@ -25,7 +25,7 @@ import static java.util.Collections.emptyList;
  * is a named expression (an {@code Alias} will be created automatically for it).
  * The rest are not as they are not part of the projection and thus are not part of the derived table.
  */
-public abstract class Attribute extends NamedExpression {
+public abstract class Attribute extends NamedExpression implements Comparable<Attribute>{
 
     // empty - such as a top level attribute in SELECT cause
     // present - table name or a table name alias
@@ -142,4 +142,16 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
+
+    @Override
+    public int compareTo(Attribute o) {
+        int result = this.sourceLocation().compareTo(o.sourceLocation());
+        if (result == 0) {
+            result = this.name().compareTo(o.name());
+        }
+        if (result == 0) {
+            result = this.qualifier.compareTo(o.qualifier);
+        }
+        return result;
+    }
 }

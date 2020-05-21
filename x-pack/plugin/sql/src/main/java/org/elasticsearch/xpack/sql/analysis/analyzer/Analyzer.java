@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -181,7 +182,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                              // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
                              || Objects.equals(u.name(), attribute.qualifiedName()));
                 if (match) {
-                    matches.add(attribute.withLocation(u.source()));
+                    matches.add(attribute);
                 }
             }
         }
@@ -192,16 +193,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            return handleSpecialFields(u, matches.get(0), allowCompound);
+            Attribute match = matches.get(0).withLocation(u.source());
+            return handleSpecialFields(u, match, allowCompound);
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
                 + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
                  matches.stream()
-                 .map(a -> (a.qualifier() != null ? "\"" + a.qualifier() + "\"." : "") + "\"" + a.name() + "\"")
                  .sorted()
+                 .map(Analyzer::buildUnresolvedMessagesMatchesList)
                  .collect(toList())
                 );
+
+    }
+
+    private static String buildUnresolvedMessagesMatchesList(Attribute a) {
+        Location location = a.sourceLocation();
+        String locationString = "line " + location.getLineNumber() + ":" + location.getColumnNumber();
+        return locationString + " [" + (a.qualifier() != null ? "\"" + a.qualifier() + "\"." : "") + "\"" + a.name() + "\"]";
     }
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {

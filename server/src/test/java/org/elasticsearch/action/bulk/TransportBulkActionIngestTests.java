@@ -158,9 +158,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, Boolean preferV2Templates,
-                         TimeValue timeout, Version minNodeVersion,
-                         ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }
@@ -583,7 +581,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         IndexTemplateV2 t1 = new IndexTemplateV2(Collections.singletonList("missing_*"),
             new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null, null, null, null);
+            null, null, null, null, null);
 
         ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder()
@@ -593,7 +591,6 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(state.getMetadata()).thenReturn(metadata);
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
-        indexRequest.preferV2Templates(true);
         indexRequest.source(Collections.emptyMap());
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);

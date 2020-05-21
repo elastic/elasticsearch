@@ -52,51 +52,50 @@ Calendar intervals can only be specified in "singular" quantities of the unit
 
 The accepted units for calendar intervals are:
 
-minute (`m`, `1m`) ::
-All minutes begin at 00 seconds.
+minute (`1m`) ::
 
+All minutes begin at 00 seconds.
 One minute is the interval between 00 seconds of the first minute and 00
 seconds of the following minute in the specified timezone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the
 hour is the same at the start and end.
 
-hour (`h`, `1h`) ::
-All hours begin at 00 minutes and 00 seconds.
+hour (`1h`) ::
 
+All hours begin at 00 minutes and 00 seconds.
 One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
 minutes of the following hour in the specified timezone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the hour
 is the same at the start and end.
 
+day (`1d`) ::
 
-day (`d`, `1d`) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
-
 One day (1d) is the interval between the start of the day and the start of
 of the following day in the specified timezone, compensating for any intervening
 time changes.
 
-week (`w`, `1w`) ::
+week (`1w`) ::
 
 One week is the interval between the start day_of_week:hour:minute:second
 and the same day of the week and time of the following week in the specified
 timezone.
 
-month (`M`, `1M`) ::
+month (`1M`) ::
 
 One month is the interval between the start day of the month and time of
 day and the same day of the month and time of the following month in the specified
 timezone, so that the day of the month and time of day are the same at the start
 and end.
 
-quarter (`q`, `1q`) ::
+quarter (`1q`) ::
 
 One quarter (1q) is the interval between the start day of the month and
 time of day and the same day of the month and time of day three months later,
 so that the day of the month and time of day are the same at the start and end. +
 
-year (`y`, `1y`) ::
+year (`1y`) ::
 
 One year (1y) is the interval between the start day of the month and time of
 day and the same day of the month and time of day the following year in the
@@ -183,7 +182,6 @@ Defined as 1000 milliseconds each
 
 minutes (m) ::
 All minutes begin at 00 seconds.
-
 Defined as 60 seconds each (60,000 milliseconds)
 
 hours (h) ::
@@ -193,7 +191,6 @@ Defined as 60 minutes each (3,600,000 milliseconds)
 days (d) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
-
 Defined as 24 hours (86,400,000 milliseconds)
 
 [[fixed_interval_examples]]

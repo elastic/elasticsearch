@@ -57,7 +57,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, RankFeatureFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -85,7 +85,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RankFeatureFieldMapper.Builder builder = new RankFeatureFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -132,14 +132,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
             int h = super.hashCode();
             h = 31 * h + Objects.hashCode(positiveScoreImpact);
             return h;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (positiveScoreImpact != ((RankFeatureFieldType) other).positiveScoreImpact()) {
-                conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
-            }
         }
 
         @Override
@@ -228,6 +220,14 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         if (includeDefaults || fieldType().positiveScoreImpact() == false) {
             builder.field("positive_score_impact", fieldType().positiveScoreImpact());
+        }
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        RankFeatureFieldType ft = (RankFeatureFieldType) other.fieldType();
+        if (fieldType().positiveScoreImpact != ft.positiveScoreImpact()) {
+            conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
         }
     }
 }

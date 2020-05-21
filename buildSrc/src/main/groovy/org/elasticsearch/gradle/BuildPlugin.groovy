@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.gradle
 
-
+import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
@@ -30,6 +32,7 @@ import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.JavaVersion
 import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -45,8 +48,11 @@ import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
+import org.gradle.api.file.CopySpec
+import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.testing.Test
 import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.util.GradleVersion
@@ -82,7 +88,7 @@ class BuildPlugin implements Plugin<Project> {
             )
         }
         project.pluginManager.apply('elasticsearch.java')
-        ElasticsearchJavaPlugin.configureJars(project)
+        configureJars(project)
         project.pluginManager.apply('elasticsearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
 
@@ -257,6 +263,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
+
     private static class TestFailureReportingPlugin implements Plugin<Project> {
         @Override
         void apply(Project project) {
@@ -288,5 +295,69 @@ class BuildPlugin implements Plugin<Project> {
 
     private static inFipsJvm(){
         return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
+    }
+
+    /** Adds additional manifest info to jars */
+    static void configureJars(Project project) {
+        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+        ext.set('licenseFile',  null)
+        ext.set('noticeFile', null)
+        project.tasks.withType(Jar).configureEach { Jar jarTask ->
+            // we put all our distributable files under distributions
+            jarTask.destinationDirectory.set(new File(project.buildDir, 'distributions'))
+            // fixup the jar manifest
+            jarTask.doFirst {
+                // this doFirst is added before the info plugin, therefore it will run
+                // after the doFirst added by the info plugin, and we can override attributes
+                JavaVersion compilerJavaVersion = BuildParams.compilerJavaVersion
+                jarTask.manifest.attributes(
+                    'Build-Date': BuildParams.buildDate,
+                    'Build-Java-Version': BuildParams.compilerJavaVersion)
+            }
+        }
+        // add license/notice files
+        project.afterEvaluate {
+            project.tasks.withType(Jar).configureEach { Jar jarTask ->
+                if (ext.has('licenseFile') == false || ext.get('licenseFile') == null || ext.has('noticeFile') == false || ext.get('noticeFile') == null) {
+                    throw new GradleException("Must specify license and notice file for project ${project.path}")
+                }
+
+                File licenseFile = ext.get('licenseFile') as File
+                File noticeFile = ext.get('noticeFile') as File
+
+                jarTask.metaInf { CopySpec spec ->
+                    spec.from(licenseFile.parent) { CopySpec from ->
+                        from.include licenseFile.name
+                        from.rename { 'LICENSE.txt' }
+                    }
+                    spec.from(noticeFile.parent) { CopySpec from ->
+                        from.include noticeFile.name
+                        from.rename { 'NOTICE.txt' }
+                    }
+                }
+            }
+        }
+        project.pluginManager.withPlugin('com.github.johnrengelman.shadow') {
+            project.tasks.getByName(ShadowJavaPlugin.SHADOW_JAR_TASK_NAME).configure { ShadowJar shadowJar ->
+                /*
+                 * Replace the default "-all" classifier with null
+                 * which will leave the classifier off of the file name.
+                 */
+                shadowJar.archiveClassifier.set((String) null)
+                /*
+                 * Not all cases need service files merged but it is
+                 * better to be safe
+                 */
+                shadowJar.mergeServiceFiles()
+            }
+            // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
+            project.tasks.getByName(JavaPlugin.JAR_TASK_NAME).configure { Jar jar ->
+                jar.archiveClassifier.set('original')
+            }
+            // Make sure we assemble the shadow jar
+            project.tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure { Task task ->
+                task.dependsOn 'shadowJar'
+            }
+        }
     }
 }

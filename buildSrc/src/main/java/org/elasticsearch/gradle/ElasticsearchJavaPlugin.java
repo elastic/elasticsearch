@@ -20,7 +20,6 @@
 package org.elasticsearch.gradle;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import nebula.plugin.info.InfoBrokerPlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
@@ -37,13 +36,10 @@ import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
@@ -389,78 +385,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
                 test.setClasspath(test.getClasspath().minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
             });
-        });
-    }
-
-    /** Adds additional manifest info to jars */
-    static void configureJars(Project project) {
-        ExtraPropertiesExtension ext = project.getExtensions().getExtraProperties();
-        ext.set("licenseFile", null);
-        ext.set("noticeFile", null);
-        project.getTasks()
-            .withType(Jar.class)
-            .configureEach(
-                jarTask -> {
-                    // we put all our distributable files under distributions
-                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
-                    // fixup the jar manifest
-                    jarTask.doFirst(
-                        t -> {
-                            // this doFirst is added before the info plugin, therefore it will run
-                            // after the doFirst added by the info plugin, and we can override attributes
-                            jarTask.getManifest()
-                                .attributes(
-                                    Map.of(
-                                        "Build-Date",
-                                        BuildParams.getBuildDate(),
-                                        "Build-Java-Version",
-                                        BuildParams.getCompilerJavaVersion()
-                                    )
-                                );
-                        }
-                    );
-                }
-            );
-        // add license/notice files
-        project.afterEvaluate(p -> project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-            File licenseFile = (File) ext.get("licenseFile");
-            File noticeFile = (File) ext.get("noticeFile");
-            if (licenseFile == null || noticeFile == null) {
-                throw new GradleException("Must specify license and notice file for project");
-            }
-
-            jarTask.metaInf(spec -> {
-                spec.from(licenseFile.getParent(), from -> {
-                    from.include(licenseFile.getName());
-                    from.rename(s -> "LICENSE.txt");
-                });
-                spec.from(noticeFile.getParent(), from -> {
-                    from.include(noticeFile.getName());
-                    from.rename(s -> "NOTICE.txt");
-                });
-            });
-        }));
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
-            project.getTasks()
-                .withType(ShadowJar.class)
-                .configureEach(
-                    shadowJar -> {
-                        /*
-                         * Replace the default "-all" classifier with null
-                         * which will leave the classifier off of the file name.
-                         */
-                        shadowJar.getArchiveClassifier().set((String) null);
-                        /*
-                         * Not all cases need service files merged but it is
-                         * better to be safe
-                         */
-                        shadowJar.mergeServiceFiles();
-                    }
-                );
-            // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
-            project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
-            // Make sure we assemble the shadow jar
-            project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn("shadowJar"));
         });
     }
 

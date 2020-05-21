@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -77,8 +78,13 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
     
         DateTimeParsePipe b3 = randomInstance();
         Parser newPr = randomValueOtherThan(b3.parser(), () -> randomFrom(Parser.values()));
-        newB = new DateTimeParsePipe(newLoc, b3.expression(), b3.left(), b3.right(), b3.zoneId(), newPr);
+        newB = new DateTimeParsePipe(b3.source(), b3.expression(), b3.left(), b3.right(), b3.zoneId(), newPr);
         assertEquals(newB, b3.transformPropertiesOnly(v -> Objects.equals(v, b3.parser()) ? newPr : v, Parser.class));
+    
+        DateTimeParsePipe b4 = randomInstance();
+        ZoneId newZI = ESTestCase.randomZone();
+        newB = new DateTimeParsePipe(b3.source(), b4.expression(), b4.left(), b4.right(), newZI, b4.parser());
+        assertEquals(newB, b3.transformPropertiesOnly(v -> Objects.equals(v, b3.zoneId()) ? newZI : v, ZoneId.class));
     }
 
     @Override

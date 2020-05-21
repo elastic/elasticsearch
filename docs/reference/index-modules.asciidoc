@@ -128,6 +128,7 @@ specific index module:
     out of this behavior an explicit value of `1s` should set as the refresh
     interval.
 
+[[index-max-result-window]]
 `index.max_result_window`::
 
     The maximum value of `from + size` for searches to this index. Defaults to

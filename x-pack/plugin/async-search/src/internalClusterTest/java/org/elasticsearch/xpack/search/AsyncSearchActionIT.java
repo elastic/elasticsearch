@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56765")
 public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     private static String indexName;
     private static int numShards;

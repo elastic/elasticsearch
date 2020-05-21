@@ -1,13 +1,13 @@
 ---
 "Put index template":
   - skip:
-      version: " - 7.9.99"
-      reason: "not yet backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
       allowed_warnings:
-        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
       indices.put_index_template:
         name: generic_logs_template
         body:
@@ -38,7 +38,7 @@
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: logs-foobar
   - match: { 0.name: logs-foobar }
   - match: { 0.timestamp_field: 'timestamp' }

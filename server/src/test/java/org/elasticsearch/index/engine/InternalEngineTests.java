@@ -61,11 +61,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -105,7 +102,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -126,9 +122,7 @@ import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.TestTranslog;
@@ -5568,79 +5562,6 @@ public class InternalEngineTests extends EngineTestCase {
             refresher.join();
         }
         assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
-    }
-
-    public void testGetReaderAttributes() throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
-        Settings settings = settingsBuilder.build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
-
-        try(BaseDirectoryWrapper dir = newFSDirectory(createTempDir())) {
-            Directory unwrap = FilterDirectory.unwrap(dir);
-            boolean isMMap = unwrap instanceof MMapDirectory;
-            Map<String, String> readerAttributes = InternalEngine.getReaderAttributes(dir, indexSettings);
-            assertEquals(Collections.singletonMap("blocktree.terms.fst", isMMap ? "OFF_HEAP" : "ON_HEAP"), readerAttributes);
-        }
-
-        try(MMapDirectory dir = new MMapDirectory(createTempDir())) {
-            Map<String, String> readerAttributes =
-                InternalEngine.getReaderAttributes(randomBoolean() ? dir :
-                    new MockDirectoryWrapper(random(), dir), indexSettings);
-            assertEquals(Collections.singletonMap("blocktree.terms.fst", "OFF_HEAP"), readerAttributes);
-        }
-
-        FsDirectoryFactory service = new FsDirectoryFactory();
-        Path tempDir = createTempDir().resolve(indexSettings.getUUID()).resolve("0");
-        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(indexSettings.getIndex(), 0));
-        try (Directory directory = service.newDirectory(indexSettings, path)) {
-
-            Map<String, String> readerAttributes =
-                InternalEngine.getReaderAttributes(randomBoolean() ? directory :
-                    new MockDirectoryWrapper(random(), directory), indexSettings);
-            assertEquals(1, readerAttributes.size());
-
-            switch (IndexModule.defaultStoreType(true)) {
-                case HYBRIDFS:
-                case MMAPFS:
-                    assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    break;
-                case NIOFS:
-                case SIMPLEFS:
-                case FS:
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    break;
-                default:
-                    fail("unknownw type");
-            }
-        }
-
-        settingsBuilder.put(IndexSettings.ON_HEAP_ID_TERMS_INDEX.getKey(), true);
-        settings = settingsBuilder.build();
-        indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
-        try (Directory directory = service.newDirectory(indexSettings, path)) {
-
-            Map<String, String> readerAttributes =
-                InternalEngine.getReaderAttributes(randomBoolean() ? directory :
-                    new MockDirectoryWrapper(random(), directory), indexSettings);
-            assertEquals(2, readerAttributes.size());
-
-            switch (IndexModule.defaultStoreType(true)) {
-                case HYBRIDFS:
-                case MMAPFS:
-                    assertEquals("OFF_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
-                    break;
-                case NIOFS:
-                case SIMPLEFS:
-                case FS:
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst"));
-                    assertEquals("ON_HEAP", readerAttributes.get("blocktree.terms.fst._id"));
-                    break;
-                default:
-                    fail("unknownw type");
-            }
-        }
     }
 
     public void testPruneAwayDeletedButRetainedIds() throws Exception {

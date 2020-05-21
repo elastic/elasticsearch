@@ -22,13 +22,11 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 
-
 /**
  * Interface for Circuit Breaker services, which provide breakers to classes
  * that load field data.
  */
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
-
 
     protected CircuitBreakerService() {
     }

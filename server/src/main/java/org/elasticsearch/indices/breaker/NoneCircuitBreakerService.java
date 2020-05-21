@@ -22,7 +22,6 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 
-
 /**
  * Class that returns a breaker that never breaks
  */

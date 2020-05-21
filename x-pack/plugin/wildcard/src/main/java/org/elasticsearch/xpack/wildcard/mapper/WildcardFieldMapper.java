@@ -32,8 +32,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.RegExp.Kind;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -71,6 +71,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -329,14 +330,9 @@ public class WildcardFieldMapper extends FieldMapper {
                 );
             }
             
-            ApproximateRegExp ngramRegex = new ApproximateRegExp(addLineEndChars(toLowerCase(value)), flags);
+            RegExp ngramRegex = new RegExp(addLineEndChars(toLowerCase(value)), flags);
 
-            Query approxBooleanQuery = ngramRegex.toApproximationQuery(new ApproximateRegExp.StringNormalizer() {
-                @Override
-                public String normalize(String token) {
-                    return toLowerCase(token);
-                }
-            });
+            Query approxBooleanQuery = toApproximationQuery(ngramRegex);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
             
             // MatchAll is a special case meaning the regex is known to match everything .* and 
@@ -363,6 +359,144 @@ public class WildcardFieldMapper extends FieldMapper {
             verifyingBuilder.add(new BooleanClause(verifyingQuery, Occur.MUST));
             return verifyingBuilder.build();
         }
+        
+        // Convert a regular expression to a simplified query consisting of BooleanQuery and TermQuery objects
+        // which captures as much of the logic as possible. Query can produce some false positives but shouldn't
+        // produce any false negatives.
+        // In addition to Term and BooleanQuery clauses there are MatchAllDocsQuery objects (e.g for .*) and
+        // a RegExpQuery if we can't resolve to any of the above. 
+        // *  If an expression resolves to a single MatchAllDocsQuery eg .* then a match all shortcut is possible with 
+        //    no verification needed.     
+        // * If an expression resolves to a RegExpQuery eg ?? then only the verification 
+        //   query is run.
+        // * Anything else is a concrete query that should be run on the ngram index.
+        public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
+            Query result = null;
+            switch (r.kind) {
+                case REGEXP_UNION:
+                    result = createUnionQuery(r);
+                    break;
+                case REGEXP_CONCATENATION:
+                    result = createConcatenationQuery(r);
+                    break;
+                case REGEXP_STRING:
+                    String normalizedString = toLowerCase(r.s);
+                    result = new TermQuery(new Term("", normalizedString));
+                    break;
+                case REGEXP_CHAR:
+                    String cs = Character.toString(r.c);
+                    String normalizedChar = toLowerCase(cs);
+                    result = new TermQuery(new Term("", normalizedChar));
+                    break;
+                case REGEXP_REPEAT:
+                    // Repeat is zero or more times so zero matches = match all
+                    result = new MatchAllDocsQuery();
+                    break;
+                    
+                case REGEXP_REPEAT_MIN:
+                case REGEXP_REPEAT_MINMAX:
+                    if (r.min > 0) {
+                        result = toApproximationQuery(r.exp1);
+                        if(result instanceof TermQuery) {
+                            // Wrap the repeating expression so that it is not concatenated by a parent which concatenates
+                            // plain TermQuery objects together. Boolean queries are interpreted as a black box and not
+                            // concatenated.
+                            BooleanQuery.Builder wrapper = new BooleanQuery.Builder();
+                            wrapper.add(result, Occur.MUST);
+                            result = wrapper.build();
+                        }
+                    } else {
+                        // Expressions like (a){0,3} match empty string or up to 3 a's.
+                        result = new MatchAllButRequireVerificationQuery();
+                    }
+                    break;
+                case REGEXP_ANYSTRING:
+                    // optimisation for .* queries - match all and no verification stage required.
+                    result = new MatchAllDocsQuery();
+                    break;
+                // All other kinds of expression cannot be represented as a boolean or term query so return an object 
+                // that indicates verification is required
+                case REGEXP_OPTIONAL:
+                case REGEXP_INTERSECTION:
+                case REGEXP_COMPLEMENT:
+                case REGEXP_CHAR_RANGE:
+                case REGEXP_ANYCHAR:
+                case REGEXP_INTERVAL:
+                case REGEXP_EMPTY: 
+                case REGEXP_AUTOMATON:
+                    result = new MatchAllButRequireVerificationQuery();
+                    break;
+            }
+            assert result != null; // All regex types are understood and translated to a query.
+            return result;
+        }
+        
+        private static Query createConcatenationQuery(RegExp r) {
+            // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
+            ArrayList<Query> queries = new ArrayList<>();
+            findLeaves(r.exp1, Kind.REGEXP_CONCATENATION, queries);
+            findLeaves(r.exp2, Kind.REGEXP_CONCATENATION, queries);
+            BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
+            StringBuilder sequence = new StringBuilder();
+            for (Query query : queries) {
+                if (query instanceof TermQuery) {
+                    TermQuery tq = (TermQuery) query;
+                    sequence.append(tq.getTerm().text());
+                } else {
+                    if (sequence.length() > 0) {
+                        bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
+                        sequence = new StringBuilder();
+                    }
+                    bAnd.add(query, Occur.MUST);                    
+                }
+            }
+            if (sequence.length() > 0) {
+                bAnd.add(new TermQuery(new Term("", sequence.toString())), Occur.MUST);
+            }
+            BooleanQuery combined = bAnd.build();
+            if (combined.clauses().size() > 0) {
+                return combined;
+            }
+            // There's something in the regex we couldn't represent as a query - resort to a match all with verification 
+            return new MatchAllButRequireVerificationQuery();
+            
+        }
+
+        private static Query createUnionQuery(RegExp r) {
+            // Create an OR of clauses
+            ArrayList<Query> queries = new ArrayList<>();
+            findLeaves(r.exp1, Kind.REGEXP_UNION, queries);
+            findLeaves(r.exp2, Kind.REGEXP_UNION, queries);
+            BooleanQuery.Builder bOr = new BooleanQuery.Builder();
+            HashSet<Query> uniqueClauses = new HashSet<>();
+            for (Query query : queries) {
+                if (uniqueClauses.add(query)) {
+                    bOr.add(query, Occur.SHOULD);
+                }
+            }
+            if (uniqueClauses.size() > 0) {
+                if (uniqueClauses.size() == 1) {
+                    // Fully-understood ORs that collapse to a single term should be returned minus
+                    // the BooleanQuery wrapper so that they might be concatenated.
+                    // Helps turn [Pp][Oo][Ww][Ee][Rr][Ss][Hh][Ee][Ll][Ll] into "powershell"
+                    // Each char pair eg (P OR p) can be normalized to (p) which can be a single term
+                    return uniqueClauses.iterator().next();
+                } else {
+                    return bOr.build();
+                }
+            }
+            // There's something in the regex we couldn't represent as a query - resort to a match all with verification 
+            return new MatchAllButRequireVerificationQuery();
+        }
+
+        private static void findLeaves(RegExp exp, Kind kind, List<Query> queries) {
+            if (exp.kind == kind) {
+                findLeaves(exp.exp1, kind, queries);
+                findLeaves( exp.exp2, kind, queries);
+            } else {
+                queries.add(toApproximationQuery(exp));
+            }
+        }        
         
         private static String toLowerCase(String string) {
             return lowercaseNormalizer.normalize(null, string).utf8ToString();
@@ -630,16 +764,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         maxExpansions,
                         transpositions
                     );
-                    CompiledAutomaton[] automata = fq.getAutomata();
-                    // Multiple automata are produced - one for each edit distance (e.g. 0, 1 or 2), presumably so scoring
-                    // can be related to whichever automaton matches most closely.
-                    // For now we run only the automata with the biggest edit distance - closer matches should get higher boosts
-                    // anyway from the number of ngrams matched in the acceleration query.
-                    // TODO we can revisit this approach at a later point if we want to introduce more like-for-like scoring with
-                    // keyword field which will require tweaks to the verification query logic.
-                    Automaton biggestEditDistanceAutomaton = automata[automata.length - 1].automaton;
-                    return biggestEditDistanceAutomaton;
-                    
+                    return fq.getAutomata().automaton;
                 };
                 bqBuilder.add(new AutomatonQueryOnBinaryDv(name(), searchTerm, deferredAutomatonSupplier), Occur.MUST);
 

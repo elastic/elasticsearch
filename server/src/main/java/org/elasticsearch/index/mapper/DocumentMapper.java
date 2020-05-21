@@ -71,7 +71,6 @@ public class DocumentMapper implements ToXContentFragment {
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
-            final String type = rootObjectMapper.name();
             final DocumentMapper existingMapper = mapperService.documentMapper();
             final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
             final Map<String, TypeParser> metadataMapperParsers =
@@ -97,7 +96,7 @@ public class DocumentMapper implements ToXContentFragment {
             return this;
         }
 
-        public Builder put(MetadataFieldMapper.Builder<?, ?> mapper) {
+        public Builder put(MetadataFieldMapper.Builder<?> mapper) {
             MetadataFieldMapper metadataMapper = mapper.build(builderContext);
             metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             return this;

@@ -85,7 +85,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, AnnotatedTextFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
 
@@ -147,7 +147,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<AnnotatedTextFieldMapper.Builder, AnnotatedTextFieldMapper> parse(
+        public Mapper.Builder<AnnotatedTextFieldMapper.Builder> parse(
                 String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AnnotatedTextFieldMapper.Builder builder = new AnnotatedTextFieldMapper.Builder(fieldName);
 
@@ -566,6 +566,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     @Override
     protected AnnotatedTextFieldMapper clone() {
         return (AnnotatedTextFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     public int getPositionIncrementGap() {

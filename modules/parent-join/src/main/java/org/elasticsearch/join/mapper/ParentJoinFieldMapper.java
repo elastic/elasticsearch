@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -121,7 +121,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ParentJoinFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         final List<ParentIdFieldMapper.Builder> parentIdFieldBuilders = new ArrayList<>();
         boolean eagerGlobalOrdinals = true;
 
@@ -168,7 +168,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             final IndexSettings indexSettings = parserContext.mapperService().getIndexSettings();
             checkIndexCompatibility(indexSettings, name);
 
@@ -225,7 +225,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
         }
 
         @Override
@@ -318,17 +318,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) mergeWith;
-        List<String> conflicts = new ArrayList<>();
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) other;
+        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
         for (ParentIdFieldMapper mapper : parentIdFields) {
             if (joinMergeWith.getParentIdFieldMapper(mapper.getParentName(), true) == null) {
                 conflicts.add("cannot remove parent [" + mapper.getParentName() + "] in join field [" + name() + "]");
             }
         }
-
-        final List<ParentIdFieldMapper> newParentIdFields = new ArrayList<>();
         for (ParentIdFieldMapper mergeWithMapper : joinMergeWith.parentIdFields) {
             ParentIdFieldMapper self = getParentIdFieldMapper(mergeWithMapper.getParentName(), true);
             if (self == null) {
@@ -352,9 +349,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper);
                 newParentIdFields.add(merged);
             }
-        }
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalStateException("invalid update for join field [" + name() + "]:\n" + conflicts.toString());
         }
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);

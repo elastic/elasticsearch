@@ -1,10 +1,9 @@
 [[modules-http]]
-== HTTP
+=== HTTP
 
-The http module allows to expose *Elasticsearch* APIs
-over HTTP.
+The HTTP layer exposes {es}'s REST APIs over HTTP.
 
-The http mechanism is completely asynchronous in nature, meaning that
+The HTTP mechanism is completely asynchronous in nature, meaning that
 there is no blocking thread waiting for a response. The benefit of using
 asynchronous communication for HTTP is solving the
 http://en.wikipedia.org/wiki/C10k_problem[C10k problem].
@@ -15,8 +14,8 @@ when connecting for better performance and try to get your favorite
 client not to do
 http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 
-[float]
-=== Settings
+[http-settings]
+==== HTTP settings
 
 The settings in the table below can be configured for HTTP. Note that none of
 them are dynamically updatable so for them to take effect they should be set in
@@ -48,26 +47,31 @@ to `4kb`
 
 
 |`http.compression` |Support for compression when possible (with
-Accept-Encoding). Defaults to `true`.
+Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults
+to `true`.
+
+Disabling compression for HTTPS mitigates potential security risks, such as a
+https://en.wikipedia.org/wiki/BREACH[BREACH attack]. To compress HTTPS traffic,
+you must explicitly set `http.compression` to `true`.
 
 |`http.compression_level` |Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression)
 and 9 (maximum compression). Defaults to `3`.
 
 |`http.cors.enabled` |Enable or disable cross-origin resource sharing,
 i.e. whether a browser on another origin can execute requests against
-Elasticsearch. Set to `true` to enable Elasticsearch to process pre-flight 
-https://en.wikipedia.org/wiki/Cross-origin_resource_sharing[CORS] requests. 
-Elasticsearch will respond to those requests with the `Access-Control-Allow-Origin` header 
-if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` 
-list. Set to `false` (the default) to make Elasticsearch ignore the `Origin` 
-request header, effectively disabling CORS requests because Elasticsearch will 
-never respond with the `Access-Control-Allow-Origin` response header. Note that 
-if the client does not send a pre-flight request with an `Origin` header or it 
-does not check the response headers from the server to validate the 
-`Access-Control-Allow-Origin` response header, then cross-origin security is 
-compromised. If CORS is not enabled on Elasticsearch, the only way for the client 
-to know is to send a pre-flight request and realize the required response headers 
-are missing. 
+Elasticsearch. Set to `true` to enable Elasticsearch to process pre-flight
+https://en.wikipedia.org/wiki/Cross-origin_resource_sharing[CORS] requests.
+Elasticsearch will respond to those requests with the `Access-Control-Allow-Origin` header
+if the `Origin` sent in the request is permitted by the `http.cors.allow-origin`
+list. Set to `false` (the default) to make Elasticsearch ignore the `Origin`
+request header, effectively disabling CORS requests because Elasticsearch will
+never respond with the `Access-Control-Allow-Origin` response header. Note that
+if the client does not send a pre-flight request with an `Origin` header or it
+does not check the response headers from the server to validate the
+`Access-Control-Allow-Origin` response header, then cross-origin security is
+compromised. If CORS is not enabled on Elasticsearch, the only way for the client
+to know is to send a pre-flight request and realize the required response headers
+are missing.
 
 |`http.cors.allow-origin` |Which origins to allow. Defaults to no origins
 allowed. If you prepend and append a `/` to the value, this will
@@ -109,10 +113,10 @@ client HTTP responses, defaults to unbounded.
 It also uses the common
 <<modules-network,network settings>>.
 
-[float]
-=== Rest Request Tracer
+[http-rest-request-tracer]
+==== REST request tracer
 
-The http module has a dedicated tracer logger which, when activated, logs incoming requests. The log can be dynamically activated
+The HTTP layer has a dedicated tracer logger which, when activated, logs incoming requests. The log can be dynamically activated
 by setting the level of the `org.elasticsearch.http.HttpTracer` logger to `TRACE`:
 
 [source,console]

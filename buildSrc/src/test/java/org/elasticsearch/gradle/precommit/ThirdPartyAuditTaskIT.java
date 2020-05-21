@@ -27,13 +27,13 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     @Before
     public void setUp() throws Exception {
         // Build the sample jars
-        getGradleRunner("thirdPartyAudit").withArguments("build", "-s").build();
+        getGradleRunner("thirdPartyAudit").withArguments(":sample_jars:build", "-s").build();
     }
 
     public void testElasticsearchIgnored() {
         BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
-            "clean",
-            "empty",
+            ":clean",
+            ":empty",
             "-s",
             "-PcompileOnlyGroup=elasticsearch.gradle:broken-log4j",
             "-PcompileOnlyVersion=0.0.1",
@@ -44,9 +44,9 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testWithEmptyRules() {
-        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
-            "clean",
-            "empty",
+        getGradleRunner("thirdPartyAudit").withArguments(
+            ":clean",
+            ":empty",
             "-s",
             "-PcompileOnlyGroup=other.gradle:broken-log4j",
             "-PcompileOnlyVersion=0.0.1",
@@ -57,8 +57,8 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     public void testViolationFoundAndCompileOnlyIgnored() {
         BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
-            "clean",
-            "absurd",
+            ":clean",
+            ":absurd",
             "-s",
             "-PcompileOnlyGroup=other.gradle:broken-log4j",
             "-PcompileOnlyVersion=0.0.1",
@@ -73,8 +73,8 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     public void testClassNotFoundAndCompileOnlyIgnored() {
         BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
-            "clean",
-            "absurd",
+            ":clean",
+            ":absurd",
             "-s",
             "-PcompileGroup=other.gradle:broken-log4j",
             "-PcompileVersion=0.0.1",
@@ -94,8 +94,8 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     public void testJarHellWithJDK() {
         BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
-            "clean",
-            "absurd",
+            ":clean",
+            ":absurd",
             "-s",
             "-PcompileGroup=other.gradle:jarhellJdk",
             "-PcompileVersion=0.0.1",
@@ -115,8 +115,8 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     public void testElasticsearchIgnoredWithViolations() {
         BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
-            "clean",
-            "absurd",
+            ":clean",
+            ":absurd",
             "-s",
             "-PcompileOnlyGroup=elasticsearch.gradle:broken-log4j",
             "-PcompileOnlyVersion=0.0.1",

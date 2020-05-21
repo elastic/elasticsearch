@@ -113,8 +113,8 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
         script.execute();
 
-        assert(state.containsKey("_source"));
-        assert(state.get("_source") instanceof Map && ((Map)state.get("_source")).containsKey("test"));
+        assertTrue(state.containsKey("_source"));
+        assertTrue(state.get("_source") instanceof Map && ((Map)state.get("_source")).containsKey("test"));
         assertEquals(1, ((Map)state.get("_source")).get("test"));
     }
 
@@ -140,7 +140,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
         script.execute();
 
-        assert(state.containsKey("testField"));
+        assertTrue(state.containsKey("testField"));
         assertEquals(3, state.get("testField"));
     }
 

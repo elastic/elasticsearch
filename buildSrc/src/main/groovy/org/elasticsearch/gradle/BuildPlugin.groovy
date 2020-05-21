@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle
 
-
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
@@ -27,28 +26,10 @@ import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.util.GradleUtils
-import org.gradle.api.Action
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.NamedDomainObjectContainer
-import org.gradle.api.Plugin
-import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.artifacts.Configuration
-import org.gradle.api.artifacts.Dependency
-import org.gradle.api.artifacts.ModuleDependency
-import org.gradle.api.artifacts.ProjectDependency
-import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.repositories.ExclusiveContentRepository
-import org.gradle.api.artifacts.repositories.IvyArtifactRepository
-import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
-import org.gradle.api.artifacts.repositories.MavenArtifactRepository
-import org.gradle.api.credentials.HttpHeaderCredentials
+import org.gradle.api.*
 import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.plugins.ExtraPropertiesExtension
-import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.tasks.testing.Test
-import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
@@ -89,7 +70,7 @@ class BuildPlugin implements Plugin<Project> {
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
-        
+
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         PrecommitTasks.create(project, true)
         configureFips140(project)
@@ -137,55 +118,6 @@ class BuildPlugin implements Plugin<Project> {
             }
 
         }
-    }
-
-    /**
-     * Makes dependencies non-transitive.
-     *
-     * Gradle allows setting all dependencies as non-transitive very easily.
-     * Sadly this mechanism does not translate into maven pom generation. In order
-     * to effectively make the pom act as if it has no transitive dependencies,
-     * we must exclude each transitive dependency of each direct dependency.
-     *
-     * Determining the transitive deps of a dependency which has been resolved as
-     * non-transitive is difficult because the process of resolving removes the
-     * transitive deps. To sidestep this issue, we create a configuration per
-     * direct dependency version. This specially named and unique configuration
-     * will contain all of the transitive dependencies of this particular
-     * dependency. We can then use this configuration during pom generation
-     * to iterate the transitive dependencies and add excludes.
-     */
-    static void configureConfigurations(Project project) {
-        // we want to test compileOnly deps!
-        project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME))
-
-        // we are not shipping these jars, we act like dumb consumers of these things
-        if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
-            return
-        }
-        // fail on any conflicting dependency versions
-        project.configurations.all({ Configuration configuration ->
-            if (configuration.name.endsWith('Fixture')) {
-                // just a self contained test-fixture configuration, likely transitive and hellacious
-                return
-            }
-            configuration.resolutionStrategy {
-                failOnVersionConflict()
-            }
-        })
-
-        // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        Closure disableTransitiveDeps = { Dependency dep ->
-            if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency)
-                    && dep.group.startsWith('org.elasticsearch') == false) {
-                dep.transitive = false
-            }
-        }
-
-        project.configurations.getByName(JavaPlugin.COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-        project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-        project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-        project.configurations.getByName(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
     }
 
     private static class TestFailureReportingPlugin implements Plugin<Project> {

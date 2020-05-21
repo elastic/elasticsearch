@@ -151,7 +151,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
 
     /** Adds repositories used by ES dependencies */
-    private static void configureRepositories(Project project) {
+    public static void configureRepositories(Project project) {
         // ensure all repositories use secure urls
         project.getRepositories().all(repository -> {
             if (repository instanceof MavenArtifactRepository) {

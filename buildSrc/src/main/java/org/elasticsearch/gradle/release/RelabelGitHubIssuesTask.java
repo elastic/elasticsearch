@@ -45,7 +45,7 @@ public class RelabelGitHubIssuesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(RelabelGitHubIssuesTask.class);
 
     private static final String BASE_URL = "https://api.github.com/repos";
-    private static final String USER_REPO = "pugnascotia/elasticsearch";
+    private static final String USER_REPO = "elastic/elasticsearch";
     private static final String ISSUE_URL = "https://github.com/" + USER_REPO + "/issues";
 
     private State labelState = State.open;

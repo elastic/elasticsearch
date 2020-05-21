@@ -5,7 +5,7 @@
 
 :sql-tests: {xes-repo-dir}/../../plugin/sql/qa/
 :sql-specs: {sql-tests}server/src/main/resources/
-:jdbc-tests: {sql-tests}jdbc/src/main/java/org/elasticsearch/xpack/sql/jdbc/qa
+:jdbc-tests: {sql-tests}jdbc/src/main/java/org/elasticsearch/xpack/sql/qa/jdbc
 :security-tests: {sql-tests}server/security/src/test/java/org/elasticsearch/xpack/sql/qa/security
 :es-sql: Elasticsearch SQL
 

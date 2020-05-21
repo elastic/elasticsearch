@@ -49,10 +49,10 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalDateRangeTests
 import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistanceTests;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSamplerTests;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTermsTests;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalAvgTests;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinalityTests;

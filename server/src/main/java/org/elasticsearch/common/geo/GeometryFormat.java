@@ -22,7 +22,6 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -30,16 +29,16 @@ import java.text.ParseException;
 /**
  * Geometry serializer/deserializer
  */
-public interface GeometryFormat {
+public interface GeometryFormat<ParsedFormat> {
 
     /**
      * Parser JSON representation of a geometry
      */
-    Geometry fromXContent(XContentParser parser) throws IOException, ParseException;
+    ParsedFormat fromXContent(XContentParser parser) throws IOException, ParseException;
 
     /**
      * Serializes the geometry into its JSON representation
      */
-    XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
+    XContentBuilder toXContent(ParsedFormat geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
 
 }

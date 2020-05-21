@@ -33,7 +33,6 @@ public class AssignmentNode extends BinaryNode {
 
     /* ---- begin node data ---- */
 
-    private boolean pre;
     private boolean post;
     private Operation operation;
     private boolean read;
@@ -41,14 +40,6 @@ public class AssignmentNode extends BinaryNode {
     private Class<?> compoundType;
     private PainlessCast there;
     private PainlessCast back;
-
-    public void setPre(boolean pre) {
-        this.pre = pre;
-    }
-
-    public boolean getPre() {
-        return pre;
-    }
 
     public void setPost(boolean post) {
         this.post = post;

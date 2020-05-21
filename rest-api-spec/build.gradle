@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
 

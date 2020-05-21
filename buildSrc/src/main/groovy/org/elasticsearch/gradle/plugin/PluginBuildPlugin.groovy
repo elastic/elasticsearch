@@ -226,24 +226,6 @@ class PluginBuildPlugin implements Plugin<Project> {
         project.artifacts.add('zip', bundle)
     }
 
-    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
-
-    /** Find the reponame. */
-    static String urlFromOrigin(String origin) {
-        if (origin == null) {
-            return null // best effort, the url doesnt really matter, it is just required by maven central
-        }
-        if (origin.startsWith('https')) {
-            return origin
-        }
-        Matcher matcher = GIT_PATTERN.matcher(origin)
-        if (matcher.matches()) {
-            return "https://${matcher.group(1)}/${matcher.group(2)}"
-        } else {
-            return origin // best effort, the url doesnt really matter, it is just required by maven central
-        }
-    }
-
     /** Configure the pom for the main jar of this plugin */
 
     protected static void addNoticeGeneration(Project project, PluginPropertiesExtension extension) {

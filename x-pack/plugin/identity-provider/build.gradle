@@ -1,7 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'elasticsearch.publish'
 esplugin {
   name 'x-pack-identity-provider'
   description 'Elasticsearch Expanded Pack Plugin - Identity Provider'

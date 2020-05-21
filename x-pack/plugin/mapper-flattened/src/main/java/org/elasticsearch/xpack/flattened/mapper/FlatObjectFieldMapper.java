@@ -37,8 +37,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -59,6 +58,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -110,7 +110,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, FlatObjectFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private int depthLimit = Defaults.DEPTH_LIMIT;
         private int ignoreAbove = Defaults.IGNORE_ABOVE;
 
@@ -161,7 +161,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public Builder addMultiField(Mapper.Builder<?, ?> mapperBuilder) {
+        public Builder addMultiField(Mapper.Builder<?> mapperBuilder) {
             throw new UnsupportedOperationException("[fields] is not supported for [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -189,7 +189,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -460,7 +460,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                            CircuitBreakerService breakerService,
                                            MapperService mapperService) {
                 String fieldName = fieldType.name();
-                IndexOrdinalsFieldData delegate = new SortedSetDVOrdinalsIndexFieldData(indexSettings,
+                IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(indexSettings,
                     cache, fieldName, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
             }
@@ -537,7 +537,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
         }
 
         @Override
@@ -571,9 +571,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-
+    protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
         FlatObjectFieldMapper other = ((FlatObjectFieldMapper) mergeWith);
         this.depthLimit = other.depthLimit;
         this.ignoreAbove = other.ignoreAbove;

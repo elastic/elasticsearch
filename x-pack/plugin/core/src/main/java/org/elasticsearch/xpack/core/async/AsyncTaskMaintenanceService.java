@@ -69,6 +69,7 @@ public abstract class AsyncTaskMaintenanceService extends AbstractLifecycleCompo
 
     @Override
     protected void doStop() {
+        clusterService.removeListener(this);
         stopCleanup();
     }
 
@@ -107,7 +108,7 @@ public abstract class AsyncTaskMaintenanceService extends AbstractLifecycleCompo
     }
 
     synchronized void executeNextCleanup() {
-        if (lifecycle.stoppedOrClosed() == false && isCleanupRunning) {
+        if (isCleanupRunning) {
             long nowInMillis = System.currentTimeMillis();
             DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index)
                 .setQuery(QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis));
@@ -117,7 +118,7 @@ public abstract class AsyncTaskMaintenanceService extends AbstractLifecycleCompo
     }
 
     synchronized void scheduleNextCleanup() {
-        if (lifecycle.stoppedOrClosed() == false && isCleanupRunning) {
+        if (isCleanupRunning) {
             try {
                 cancellable = threadPool.schedule(this::executeNextCleanup, delay, ThreadPool.Names.GENERIC);
             } catch (EsRejectedExecutionException e) {

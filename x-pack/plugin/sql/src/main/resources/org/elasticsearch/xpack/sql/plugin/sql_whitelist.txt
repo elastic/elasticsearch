@@ -30,6 +30,11 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
   String nullSafeSortString(Object)
 
 #
+# ASCII Functions
+#
+  Boolean startsWith(String, String, Boolean)
+
+#
 # Comparison
 #
   Boolean eq(Object, Object)

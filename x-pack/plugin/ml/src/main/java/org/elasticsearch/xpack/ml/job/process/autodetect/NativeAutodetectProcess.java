@@ -20,11 +20,11 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AutodetectControlMsgWriter;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 import org.elasticsearch.xpack.ml.process.NativeController;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -43,12 +43,10 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
 
     private final ProcessResultsParser<AutodetectResult> resultsParser;
 
-    NativeAutodetectProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
-                            InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                            ProcessResultsParser<AutodetectResult> resultsParser, Consumer<String> onProcessCrash,
-                            Duration processConnectTimeout) {
-        super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash, processConnectTimeout);
+    NativeAutodetectProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
+                            int numberOfFields, List<Path> filesToDelete, ProcessResultsParser<AutodetectResult> resultsParser,
+                            Consumer<String> onProcessCrash, Duration processConnectTimeout) {
+        super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash, processConnectTimeout);
         this.resultsParser = resultsParser;
     }
 

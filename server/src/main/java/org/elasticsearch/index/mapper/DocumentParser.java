@@ -801,16 +801,8 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
-        final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final MappedFieldType existingFieldType = context.mapperService().fieldType(path);
-        final Mapper.Builder builder;
-        if (existingFieldType != null) {
-            // create a builder of the same type
-            builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
-        } else {
-            builder = createBuilderFromDynamicValue(context, token, currentFieldName);
-        }
+        final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         Mapper mapper = builder.build(builderContext);
         context.addDynamicMapper(mapper);
 

@@ -22,7 +22,6 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 
-import java.util.List;
 
 /**
  * Class that returns a breaker that never breaks
@@ -30,15 +29,6 @@ import java.util.List;
 public class NoneCircuitBreakerService extends CircuitBreakerService {
 
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA);
-
-    @Override
-    public CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
-        return breaker;
-    }
-
-    @Override
-    public void registerNewCircuitBreakers(List<CircuitBreaker> circuitBreakers) {
-    }
 
     public NoneCircuitBreakerService() {
         super();

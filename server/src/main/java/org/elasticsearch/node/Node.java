@@ -389,15 +389,18 @@ public class Node implements Closeable {
             modules.add(indicesModule);
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
-            final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
-                settingsModule.getClusterSettings());
-            List<CircuitBreaker> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
+            List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
                 .stream()
-                .flatMap(plugin -> plugin.getCircuitBreakers((breakerSettings) ->
-                    circuitBreakerService.validateAndCreateBreaker(BreakerSettings.updateFromSettings(breakerSettings, settings)))
-                    .stream())
+                .map(plugin -> plugin.getCircuitBreaker(settings))
                 .collect(Collectors.toList());
-            circuitBreakerService.registerNewCircuitBreakers(pluginCircuitBreakers);
+            final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
+                pluginCircuitBreakers,
+                settingsModule.getClusterSettings());
+            pluginsService.filterPlugins(CircuitBreakerPlugin.class)
+                .forEach(plugin -> {
+                    CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
+                    plugin.setCircuitBreaker(breaker);
+                });
             resourcesToClose.add(circuitBreakerService);
             modules.add(new GatewayModule());
 
@@ -1019,10 +1022,12 @@ public class Node implements Closeable {
      * Creates a new {@link CircuitBreakerService} based on the settings provided.
      * @see #BREAKER_TYPE_KEY
      */
-    public static CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
+    private static CircuitBreakerService createCircuitBreakerService(Settings settings,
+                                                                     List<BreakerSettings> breakerSettings,
+                                                                     ClusterSettings clusterSettings) {
         String type = BREAKER_TYPE_KEY.get(settings);
         if (type.equals("hierarchy")) {
-            return new HierarchyCircuitBreakerService(settings, clusterSettings);
+            return new HierarchyCircuitBreakerService(settings, breakerSettings, clusterSettings);
         } else if (type.equals("none")) {
             return new NoneCircuitBreakerService();
         } else {

@@ -50,7 +50,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -323,15 +322,20 @@ public class NodeTests extends ESTestCase {
         public MockCircuitBreakerPlugin() {}
 
         @Override
-        public List<CircuitBreaker> getCircuitBreakers(Function<BreakerSettings, CircuitBreaker> circuitBreakerFactory) {
-            BreakerSettings breakerSettings = new BreakerSettings("test_breaker",
-                100L,
-                1.0d,
-                CircuitBreaker.Type.MEMORY,
-                CircuitBreaker.Durability.TRANSIENT);
-            CircuitBreaker breaker = circuitBreakerFactory.apply(breakerSettings);
-            myCircuitBreaker.set(breaker);
-            return List.of(breaker);
+        public BreakerSettings getCircuitBreaker(Settings settings) {
+            return BreakerSettings.updateFromSettings(
+                new BreakerSettings("test_breaker",
+                    100L,
+                    1.0d,
+                    CircuitBreaker.Type.MEMORY,
+                    CircuitBreaker.Durability.TRANSIENT),
+                settings);
+        }
+
+        @Override
+        public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+            assertThat(circuitBreaker.getName(), equalTo("test_breaker"));
+            myCircuitBreaker.set(circuitBreaker);
         }
     }
 }

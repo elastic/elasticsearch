@@ -30,7 +30,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.List;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -324,22 +325,35 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
-    public void testRegisterNewCircuitBreakers_WithDuplicates() {
-        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
-            CircuitBreaker breaker = service.validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.FIELDDATA, 10, 0.2));
-            expectThrows(IllegalArgumentException.class, () -> service.registerNewCircuitBreakers(List.of(breaker)));
-        }
+    public void testRegisterCustomCircuitBreakers_WithDuplicates() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Collections.singletonList(new BreakerSettings(CircuitBreaker.FIELDDATA, 100, 1.2)),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        assertThat(iae.getMessage(),
+            containsString("More than one circuit breaker with the name [fielddata] exists. Circuit breaker names must be unique"));
+
+        iae = expectThrows(IllegalArgumentException.class,
+            () -> new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("foo", 200, 0.1)),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        assertThat(iae.getMessage(),
+            containsString("More than one circuit breaker with the name [foo] exists. Circuit breaker names must be unique"));
     }
 
-    public void testRegisterNewCircuitBreakers() {
-        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+    public void testCustomCircuitBreakers() {
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            Settings.EMPTY,
+            Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("bar", 200, 0.1)),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
-            CircuitBreaker breaker = service.validateAndCreateBreaker(new BreakerSettings("foo", 10, 0.2));
-            service.registerNewCircuitBreakers(List.of(breaker));
             assertThat(service.getBreaker("foo"), is(not(nullValue())));
-            assertThat(service.getBreaker("foo").getOverhead(), equalTo(0.2));
-            assertThat(service.getBreaker("foo").getLimit(), equalTo(10L));
+            assertThat(service.getBreaker("foo").getOverhead(), equalTo(1.2));
+            assertThat(service.getBreaker("foo").getLimit(), equalTo(100L));
+            assertThat(service.getBreaker("bar"), is(not(nullValue())));
+            assertThat(service.getBreaker("bar").getOverhead(), equalTo(0.1));
+            assertThat(service.getBreaker("bar").getLimit(), equalTo(200L));
         }
     }
 

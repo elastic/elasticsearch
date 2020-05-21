@@ -20,11 +20,10 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
-import java.util.List;
-import java.util.function.Function;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom circuit breakers
@@ -32,7 +31,9 @@ import java.util.function.Function;
 public interface CircuitBreakerPlugin {
 
     /**
-     * Each of the {@link CircuitBreaker} objects are passed to the configured {@link CircuitBreakerService}.
+     * Each of the factory functions are passed to the configured {@link CircuitBreakerService}.
+     *
+     * The service then constructs a {@link CircuitBreaker} given the resulting {@link BreakerSettings}.
      *
      * Custom circuit breakers settings can be found in {@link BreakerSettings}.
      * See:
@@ -42,10 +43,17 @@ public interface CircuitBreakerPlugin {
      *
      * The `limit` and `overhead` settings will be dynamically updated in the circuit breaker service iff a {@link BreakerSettings}
      * object with the same name is provided at node startup.
-     *
-     * @param circuitBreakerFactory A factory function that will take the provided BreakerSettings and construct a new circuit breaker
-     *                              The constructed circuitBreaker applies any overridden settings.
      */
-    List<CircuitBreaker> getCircuitBreakers(Function<BreakerSettings, CircuitBreaker> circuitBreakerFactory);
+    BreakerSettings getCircuitBreaker(Settings settings);
 
+    /**
+     * The passed {@link CircuitBreaker} object is the same one that was constructed by the {@link BreakerSettings}
+     * provided by {@link CircuitBreakerPlugin#getCircuitBreaker(Settings)}.
+     *
+     * This reference should never change throughout the lifetime of the node.
+     *
+     * @param circuitBreaker The constructed {@link CircuitBreaker} object from the {@link BreakerSettings}
+     *                       provided by {@link CircuitBreakerPlugin#getCircuitBreaker(Settings)}
+     */
+    void setCircuitBreaker(CircuitBreaker circuitBreaker);
 }

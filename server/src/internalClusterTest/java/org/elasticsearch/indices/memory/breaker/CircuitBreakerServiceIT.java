@@ -41,8 +41,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -121,35 +119,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             }
         }
         return false;
-    }
-
-    public void testCustomCircuitBreakerRegistration() {
-        Iterable<CircuitBreakerService> serviceIter = internalCluster().getInstances(CircuitBreakerService.class);
-
-        final String breakerName = "customBreaker";
-        BreakerSettings breakerSettings = new BreakerSettings(breakerName, 8, 1.03);
-        CircuitBreaker breaker = null;
-
-        for (CircuitBreakerService s : serviceIter) {
-            s.registerNewCircuitBreakers(List.of(s.validateAndCreateBreaker(breakerSettings)));
-            breaker = s.getBreaker(breakerSettings.getName());
-        }
-
-        if (breaker != null) {
-            try {
-                breaker.addEstimateBytesAndMaybeBreak(16, "test");
-            } catch (CircuitBreakingException e) {
-                // ignore, we forced a circuit break
-            }
-        }
-
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().clear().setBreaker(true).get();
-        int breaks = 0;
-        for (NodeStats stat : stats.getNodes()) {
-            CircuitBreakerStats breakerStats = stat.getBreaker().getStats(breakerName);
-            breaks += breakerStats.getTrippedCount();
-        }
-        assertThat(breaks, greaterThanOrEqualTo(1));
     }
 
     public void testMemoryBreaker() throws Exception {

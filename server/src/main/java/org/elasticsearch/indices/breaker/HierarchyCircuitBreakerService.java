@@ -26,7 +26,6 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +56,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
-    private final Map<String, CircuitBreaker> breakers = new HashMap<>();
+    private final Map<String, CircuitBreaker> breakers;
 
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
         Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
@@ -105,35 +105,48 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
     public HierarchyCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
+        this(settings, Collections.emptyList(), clusterSettings);
+    }
+
+    public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         super();
-        breakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
+        HashMap<String, CircuitBreaker> childCircuitBreakers = new HashMap<>();
+        childCircuitBreakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.FIELDDATA,
                 FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.PERMANENT
         )));
-        breakers.put(CircuitBreaker.IN_FLIGHT_REQUESTS, validateAndCreateBreaker(
+        childCircuitBreakers.put(CircuitBreaker.IN_FLIGHT_REQUESTS, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS,
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.TRANSIENT
         )));
-        breakers.put(CircuitBreaker.REQUEST, validateAndCreateBreaker(
+        childCircuitBreakers.put(CircuitBreaker.REQUEST, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.REQUEST,
                 REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.TRANSIENT
         )));
-        breakers.put(CircuitBreaker.ACCOUNTING, validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.ACCOUNTING,
+        childCircuitBreakers.put(CircuitBreaker.ACCOUNTING, validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.ACCOUNTING,
                 ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.PERMANENT
         )));
-
+        for(BreakerSettings breakerSettings : customBreakers) {
+            if (childCircuitBreakers.containsKey(breakerSettings.getName())) {
+                throw new IllegalArgumentException("More than one circuit breaker with the name ["
+                    + breakerSettings.getName()
+                    +"] exists. Circuit breaker names must be unique");
+            }
+            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
+        }
+        this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
                 TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
                 CircuitBreaker.Type.PARENT, null);
@@ -143,49 +156,22 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit,
             this::validateTotalCircuitBreakerLimit);
-        clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            this::setFieldDataBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
+            FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.FIELDDATA, limit, overhead));
         clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
-            IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setInFlightRequestsBreakerLimit);
-        clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            this::setRequestBreakerLimit);
-        clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            this::setAccountingBreakerLimit);
-        clusterSettings.addAffixUpdateConsumer(CIRCUIT_BREAKER_LIMIT_SETTING, CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            this::setCircuitBreakerLimit,
+            IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS, limit, overhead));
+        clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
+            REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.REQUEST, limit, overhead));
+        clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
+            ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.ACCOUNTING, limit, overhead));
+        clusterSettings.addAffixUpdateConsumer(CIRCUIT_BREAKER_LIMIT_SETTING,
+            CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {});
-    }
-
-    @Override
-    public void registerNewCircuitBreakers(List<CircuitBreaker> circuitBreakers) {
-        for (CircuitBreaker circuitBreaker : circuitBreakers) {
-            if (breakers.containsKey(circuitBreaker.getName())) {
-                throw new IllegalArgumentException("More than one circuit breaker with the name ["
-                    + circuitBreaker.getName()
-                    +"] exists. Circuit breaker names must be unique");
-            }
-            breakers.put(circuitBreaker.getName(), circuitBreaker);
-        }
-    }
-
-    private void setCircuitBreakerLimit(String name, Tuple<ByteSizeValue, Double> updatedValues) {
-        updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2());
-    }
-
-    private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
-        updateCircuitBreakerSettings(CircuitBreaker.REQUEST, newRequestMax, newRequestOverhead);
-    }
-
-    private void setInFlightRequestsBreakerLimit(ByteSizeValue newInFlightRequestsMax, Double newInFlightRequestsOverhead) {
-        updateCircuitBreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS, newInFlightRequestsMax, newInFlightRequestsOverhead);
-    }
-
-    private void setFieldDataBreakerLimit(ByteSizeValue newFielddataMax, Double newFielddataOverhead) {
-        updateCircuitBreakerSettings(CircuitBreaker.FIELDDATA, newFielddataMax, newFielddataOverhead);
-    }
-
-    private void setAccountingBreakerLimit(ByteSizeValue newAccountingMax, Double newAccountingOverhead) {
-        updateCircuitBreakerSettings(CircuitBreaker.ACCOUNTING, newAccountingMax, newAccountingOverhead);
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -342,7 +328,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    public CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
+    private CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] {breakerSettings});
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP ?

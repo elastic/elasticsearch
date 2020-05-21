@@ -134,8 +134,8 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
     public void testLookupValues() throws Exception {
         IndexService indexService = createIndex("test");
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("field").field("type", "constant_keyword")
-            .endObject().endObject().endObject().endObject());
+                .startObject("properties").startObject("field").field("type", "constant_keyword")
+                .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
@@ -144,8 +144,8 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
         assertTrue(values.isEmpty());
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("field").field("type", "constant_keyword")
-            .field("value", "foo").endObject().endObject().endObject().endObject());
+                .startObject("properties").startObject("field").field("type", "constant_keyword")
+                .field("value", "foo").endObject().endObject().endObject().endObject());
         mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
 
         fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");

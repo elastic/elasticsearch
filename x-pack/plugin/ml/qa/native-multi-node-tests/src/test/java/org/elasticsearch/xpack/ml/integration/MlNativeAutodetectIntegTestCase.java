@@ -145,7 +145,12 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected CloseJobAction.Response closeJob(String jobId) {
+        return closeJob(jobId, false);
+    }
+
+    protected CloseJobAction.Response closeJob(String jobId, boolean force) {
         CloseJobAction.Request request = new CloseJobAction.Request(jobId);
+        request.setForce(force);
         return client().execute(CloseJobAction.INSTANCE, request).actionGet();
     }
 

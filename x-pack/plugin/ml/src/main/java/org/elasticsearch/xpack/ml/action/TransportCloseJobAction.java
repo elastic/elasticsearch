@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
@@ -59,12 +61,13 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final JobResultsProvider jobResultsProvider;
 
     @Inject
     public TransportCloseJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    ClusterService clusterService, AnomalyDetectionAuditor auditor,
                                    PersistentTasksService persistentTasksService, JobConfigProvider jobConfigProvider,
-                                   DatafeedConfigProvider datafeedConfigProvider) {
+                                   DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
         super(CloseJobAction.NAME, clusterService, transportService, actionFilters,
             CloseJobAction.Request::new, CloseJobAction.Response::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
@@ -74,6 +77,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         this.persistentTasksService = persistentTasksService;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.jobResultsProvider = jobResultsProvider;
     }
 
     @Override
@@ -371,7 +375,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                                                                AtomicArray<Exception> failures) {
                                 List<Exception> caughtExceptions = failures.asList();
                                 if (caughtExceptions.size() == 0) {
-                                    listener.onResponse(new CloseJobAction.Response(true));
+                                    closeRunningForecasts(jobId, listener);
                                     return;
                                 }
 
@@ -388,6 +392,18 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                         });
             }
         }
+    }
+
+    //Should only be called if force=true
+    private void closeRunningForecasts(String jobId,
+                                       ActionListener<CloseJobAction.Response> listener) {
+        jobResultsProvider.setRunningForecastsToFailed(jobId, ActionListener.wrap(
+            r -> listener.onResponse(new CloseJobAction.Response(true)),
+            e -> {
+                logger.warn(new ParameterizedMessage("[{}] unable to update forecasts to failed.", jobId), e);
+                listener.onResponse(new CloseJobAction.Response(true));
+            }
+        ));
     }
 
     private void normalCloseJob(ClusterState currentState, Task task, CloseJobAction.Request request,

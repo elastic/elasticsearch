@@ -8,15 +8,19 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
@@ -376,6 +380,49 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
                 () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
             assertThat(e.getMessage(),
                 equalTo("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-not-allow-no-forecasts]"));
+        }
+    }
+
+    public void testForceStopSetsForecastToFailed() throws Exception {
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
+        analysisConfig.setBucketSpan(bucketSpan);
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat("epoch");
+
+        Job.Builder job = new Job.Builder("forecast-it-test-failed-on-force-stop");
+        job.setAnalysisConfig(analysisConfig);
+        job.setDataDescription(dataDescription);
+        String jobId = job.getId();
+
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        String forecastId = "failed-forecast";
+
+        ForecastRequestStats runningForecastStats = new ForecastRequestStats(jobId, forecastId);
+        runningForecastStats.setStatus(ForecastRequestStats.ForecastRequestStatus.STARTED);
+
+        IndexRequest runningForecast = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
+            .source(XContentHelper.toXContent(runningForecastStats, XContentType.JSON, false), XContentType.JSON)
+            .id(ForecastRequestStats.documentId(jobId, forecastId));
+        client().index(runningForecast).get();
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
+
+        {
+            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
+            assertNotNull(forecastStats);
+            assertThat(forecastStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.STARTED));
+        }
+
+        {
+            closeJob(jobId, true);
+            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
+            assertNotNull(forecastStats);
+            assertThat(forecastStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FAILED));
         }
     }
 

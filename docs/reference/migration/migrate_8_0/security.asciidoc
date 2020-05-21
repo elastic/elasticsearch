@@ -118,9 +118,9 @@ If you do not want to enable SSL and are currently using other
 * Discontinue use of other `xpack.security.transport.ssl` settings
 
 If you want to enable SSL, follow the instructions in
-{ref}/configuring-tls.html[Encrypting communications in Elasticsearch]. As part
-of this configuration, explicitly specify `xpack.security.transport.ssl.enabled`
-as `true`.
+{ref}/configuring-tls.html#tls-transport[Encrypting communications between nodes
+in a cluster]. As part of this configuration, explicitly specify
+`xpack.security.transport.ssl.enabled` as `true`.
 
 For example, the following configuration is invalid:
 [source,yaml]
@@ -158,7 +158,7 @@ If you do not want to enable SSL and are currently using other
 * Discontinue use of other `xpack.security.http.ssl` settings
 
 If you want to enable SSL, follow the instructions in
-{ref}/tls-http.html[Encrypting HTTP client communications]. As part
+{ref}/configuring-tls.html#tls-http[Encrypting HTTP client communications]. As part
 of this configuration, explicitly specify `xpack.security.http.ssl.enabled`
 as `true`.
 

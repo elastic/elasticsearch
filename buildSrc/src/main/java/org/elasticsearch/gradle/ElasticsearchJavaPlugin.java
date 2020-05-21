@@ -79,6 +79,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         configureCompile(project);
         configureInputNormalization(project);
         configureTestTasks(project);
+        configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
     }

@@ -43,7 +43,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<NumberFieldMapper.Builder> {
 
     @Override
     protected void setTypeList() {
@@ -482,5 +482,10 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         } else {
             return BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject());
         }
+    }
+
+    @Override
+    protected NumberFieldMapper.Builder newBuilder() {
+        return new NumberFieldMapper.Builder("number", NumberType.LONG);
     }
 }

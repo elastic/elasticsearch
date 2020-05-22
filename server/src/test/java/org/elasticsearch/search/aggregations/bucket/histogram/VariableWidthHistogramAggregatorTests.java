@@ -353,6 +353,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     // NOCOMMIT - This is a WIP!
+    /*
     public void testDepthFirstModeFail() throws IOException{
         // VariableWidthHistogram should throw an `IllegalStateException` when it is forced to execute in depth_first mode
         // WIP
@@ -385,4 +386,5 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             } catch (IllegalStateException e){ }
         }
     }
+    */
 }

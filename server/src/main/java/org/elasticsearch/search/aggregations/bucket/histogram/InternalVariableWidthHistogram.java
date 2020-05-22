@@ -159,25 +159,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             return aggregations;
         }
 
-        InternalVariableWidthHistogram.Bucket reduce(List<InternalVariableWidthHistogram.Bucket> buckets, ReduceContext context) {
-            List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
-            long docCount = 0;
-            double min = this.bounds.min;
-            double max = this.bounds.max;
-            double sum = 0;
-            for (InternalVariableWidthHistogram.Bucket bucket : buckets) {
-                docCount += bucket.docCount;
-                min = Math.min(min, bucket.bounds.min);
-                max = Math.max(max, bucket.bounds.max);
-                sum += bucket.docCount * (double) bucket.getKey();
-                aggregations.add((InternalAggregations) bucket.getAggregations());
-            }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-            double centroid = sum / docCount;
-            BucketBounds bounds = new BucketBounds(min, max);
-            return new Bucket(centroid, bounds, docCount, format, aggs);
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String keyAsString = format.format((double) getKey()).toString();
@@ -235,17 +216,16 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     private List<Bucket> buckets;
     private final DocValueFormat format;
-    private final int numClusters;
+    private final int targetNumBuckets;
     final EmptyBucketInfo emptyBucketInfo;
 
-    InternalVariableWidthHistogram(String name, List<Bucket> buckets, EmptyBucketInfo emptyBucketInfo, int numClusters,
-                                   DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                                   Map<String, Object> metaData){
-        super(name, pipelineAggregators, metaData);
+    InternalVariableWidthHistogram(String name, List<Bucket> buckets, EmptyBucketInfo emptyBucketInfo, int targetNumBuckets,
+                                   DocValueFormat formatter, Map<String, Object> metaData){
+        super(name, metaData);
         this.buckets = buckets;
         this.emptyBucketInfo = emptyBucketInfo;
         this.format = formatter;
-        this.numClusters = numClusters;
+        this.targetNumBuckets = targetNumBuckets;
     }
 
     /**
@@ -256,7 +236,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         emptyBucketInfo = new EmptyBucketInfo(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readList(stream -> new Bucket(stream, format));
-        numClusters = in.readVInt();
+        targetNumBuckets = in.readVInt();
     }
 
     @Override
@@ -264,13 +244,35 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         emptyBucketInfo.writeTo(out);
         out.writeNamedWriteable(format);
         out.writeList(buckets);
-        out.writeVInt(numClusters);
+        out.writeVInt(targetNumBuckets);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return VariableWidthHistogramAggregationBuilder.NAME;
+    }
+
+    @Override
+    public List<Bucket> getBuckets() {
+        return Collections.unmodifiableList(buckets);
+    }
+
+    DocValueFormat getFormatter() {
+        return format;
+    }
+
+    public int getTargetBuckets() {
+        return targetNumBuckets;
+    }
+
+    public EmptyBucketInfo getEmptyBucketInfo() {
+        return emptyBucketInfo;
     }
 
     @Override
     public InternalVariableWidthHistogram create(List<Bucket> buckets) {
-        return new InternalVariableWidthHistogram(name, buckets, emptyBucketInfo, numClusters,
-            format, pipelineAggregators(), metaData);
+        return new InternalVariableWidthHistogram(name, buckets, emptyBucketInfo, targetNumBuckets,
+            format,  metadata);
     }
 
     @Override
@@ -282,11 +284,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     public Bucket createBucket(Number key, long docCount, InternalAggregations aggregations) {
         return new Bucket(key.doubleValue(), new Bucket.BucketBounds(key.doubleValue(), key.doubleValue()),
             docCount, format, aggregations);
-    }
-
-    @Override
-    public List<Bucket> getBuckets() {
-        return Collections.unmodifiableList(buckets);
     }
 
     @Override
@@ -317,7 +314,27 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     }
 
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    @Override
+    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        long docCount = 0;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+        double sum = 0;
+        for (InternalVariableWidthHistogram.Bucket bucket : buckets) {
+            docCount += bucket.docCount;
+            min = Math.min(min, bucket.bounds.min);
+            max = Math.max(max, bucket.bounds.max);
+            sum += bucket.docCount * (double) bucket.getKey();
+            aggregations.add((InternalAggregations) bucket.getAggregations());
+        }
+        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        double centroid = sum / docCount;
+        Bucket.BucketBounds bounds = new Bucket.BucketBounds(min, max);
+        return new Bucket(centroid, bounds, docCount, format, aggs);
+    }
+
+    public List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         PriorityQueue<IteratorAndCurrent> pq = new PriorityQueue<IteratorAndCurrent>(aggregations.size()) {
             @Override
             protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
@@ -346,7 +363,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             }
         }
 
-        mergeBucketsIfNeeded(reducedBuckets, numClusters, reduceContext);
+        mergeBucketsIfNeeded(reducedBuckets, targetNumBuckets, reduceContext);
 
         return reducedBuckets;
     }
@@ -399,7 +416,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             toMerge.add(buckets.get(startIdx)); // Don't remove the startIdx bucket because it will be replaced by the merged bucket
 
             reduceContext.consumeBucketsAndMaybeBreak(-(toMerge.size()-1)); // NOCOMMIT: Is this correct?
-            Bucket merged_bucket = toMerge.get(0).reduce(toMerge, reduceContext);
+            Bucket merged_bucket = reduceBucket(toMerge, reduceContext);
 
             buckets.set(startIdx, merged_bucket);
         }
@@ -502,7 +519,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
 
         if(reduceContext.isFinalReduce()) {
@@ -511,8 +528,8 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             adjustBoundsForOverlappingBuckets(reducedBuckets, reduceContext);
         }
         
-        return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, numClusters,
-            format, pipelineAggregators(), metaData);
+        return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets,
+            format, metadata);
     }
 
     @Override
@@ -526,31 +543,31 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets, format);
-    }
-
-    @Override
-    protected boolean doEquals(Object obj) {
-        InternalVariableWidthHistogram that = (InternalVariableWidthHistogram) obj;
-        return Objects.equals(buckets, that.buckets)
-                && Objects.equals(format, that.format)
-                && Objects.equals(numClusters, that.numClusters);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return VariableWidthHistogramAggregationBuilder.NAME;
-    }
-
-    @Override
     public InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets) {
+        // convert buckets to the right type
         List<Bucket> buckets2 = new ArrayList<>(buckets.size());
         for (Object b : buckets) {
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalVariableWidthHistogram(name, buckets2, emptyBucketInfo, numClusters,
-            format, pipelineAggregators(), metaData);
+        return new InternalVariableWidthHistogram(name, buckets2, emptyBucketInfo, targetNumBuckets,
+            format, getMetadata());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
+        InternalVariableWidthHistogram that = (InternalVariableWidthHistogram) obj;
+        return Objects.equals(buckets, that.buckets)
+                && Objects.equals(format, that.format)
+                && Objects.equals(emptyBucketInfo, that.emptyBucketInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets, format, emptyBucketInfo);
     }
 }

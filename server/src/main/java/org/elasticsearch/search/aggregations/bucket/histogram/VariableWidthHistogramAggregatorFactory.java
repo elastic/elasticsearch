@@ -19,57 +19,76 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class VariableWidthHistogramAggregatorFactory extends
-    ValuesSourceAggregatorFactory<ValuesSource.Numeric, VariableWidthHistogramAggregatorFactory> {
+public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(VariableWidthHistogramAggregationBuilder.NAME, CoreValuesSourceType.NUMERIC,
+            (VariableWidthHistogramAggregatorSupplier) VariableWidthHistogramAggregator::new);
+    }
 
     private final int numBuckets;
     private final int shardSize;
     private final int cacheLimit;
 
-    VariableWidthHistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.Numeric> config,
-                                            SearchContext context, int numBuckets, int shardSize, int cacheLimit,
-                                            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                            Map<String, Object> metaData) throws IOException{
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    VariableWidthHistogramAggregatorFactory(String name,
+                                            ValuesSourceConfig config,
+                                            int numBuckets,
+                                            int shardSize,
+                                            int cacheLimit,
+                                            QueryShardContext queryShardContext,
+                                            AggregatorFactory parent,
+                                            AggregatorFactories.Builder subFactoriesBuilder,
+                                            Map<String, Object> metadata) throws IOException{
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.numBuckets = numBuckets;
         this.shardSize = shardSize;
         this.cacheLimit = cacheLimit;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-        return createAggregator(null, parent, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                        Aggregator parent,
+                                        Map<String, Object> metadata) throws IOException {
+        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, cacheLimit, null,
+            config.format(), searchContext, parent, metadata);
     }
 
-    private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-
-        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, cacheLimit, valuesSource,
-            config.format(), context, parent, pipelineAggregators, metaData);
-    }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent,
-                                          boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-                                          Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                          SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
-        return createAggregator(valuesSource, parent, pipelineAggregators, metaData);
+
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            VariableWidthHistogramAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof VariableWidthHistogramAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((VariableWidthHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, shardSize, cacheLimit,
+            valuesSource, config.format(), searchContext, parent, metadata);
     }
 }

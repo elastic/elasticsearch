@@ -20,31 +20,31 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 public class VariableWidthHistogramAggregationBuilder
-    extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, VariableWidthHistogramAggregationBuilder> {
+    extends ValuesSourceAggregationBuilder<VariableWidthHistogramAggregationBuilder> {
 
     public static final String NAME = "variable_width_histogram";
 
@@ -54,12 +54,10 @@ public class VariableWidthHistogramAggregationBuilder
 
     private static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
 
-    private static final ObjectParser<VariableWidthHistogramAggregationBuilder, Void> PARSER;
-
+    public static final ObjectParser<VariableWidthHistogramAggregationBuilder, String> PARSER =
+        ObjectParser.fromBuilder(NAME, VariableWidthHistogramAggregationBuilder::new);
     static{
-        PARSER = new ObjectParser<>(VariableWidthHistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
-
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareInt(VariableWidthHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
         PARSER.declareInt(VariableWidthHistogramAggregationBuilder::setShardSize, SHARD_SIZE_FIELD);
         PARSER.declareInt(VariableWidthHistogramAggregationBuilder::setCacheLimit, CACHE_LIMIT_FIELD);
@@ -69,14 +67,17 @@ public class VariableWidthHistogramAggregationBuilder
     private int shardSize = numBuckets * 50;
     private int cacheLimit = Math.min(10 * this.shardSize, 50000);
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        VariableWidthHistogramAggregatorFactory.registerAggregators(builder);
+    }
     /** Create a new builder with the given name. */
     public VariableWidthHistogramAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(name);
     }
 
     /** Read in object data from a stream, for internal use only. */
     public VariableWidthHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(in);
         numBuckets = in.readVInt();
     }
 
@@ -85,6 +86,11 @@ public class VariableWidthHistogramAggregationBuilder
                                                        Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.numBuckets = clone.numBuckets;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     public VariableWidthHistogramAggregationBuilder setNumBuckets(int numBuckets){
@@ -125,6 +131,11 @@ public class VariableWidthHistogramAggregationBuilder
 
     public int getCacheLimit(){ return cacheLimit; }
 
+    @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
     public static VariableWidthHistogramAggregationBuilder parse(String aggregationName,
                                                                  XContentParser parser) throws IOException {
         return PARSER.parse(parser, new VariableWidthHistogramAggregationBuilder(aggregationName), null);
@@ -141,19 +152,19 @@ public class VariableWidthHistogramAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.Numeric, ?> innerBuild(
-        SearchContext context,
-        ValuesSourceConfig<ValuesSource.Numeric> config, AggregatorFactory<?> parent,
-        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
 
-        Settings settings = context.getQueryShardContext().getIndexSettings().getNodeSettings();
+        Settings settings = queryShardContext.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         if (numBuckets > maxBuckets) {
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
                 " must be less than " + maxBuckets);
         }
-        return new VariableWidthHistogramAggregatorFactory(name, config, context, numBuckets, shardSize, cacheLimit,
-            parent, subFactoriesBuilder, metaData);
+        return new VariableWidthHistogramAggregatorFactory(name, config, numBuckets, shardSize, cacheLimit,
+            queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -163,15 +174,19 @@ public class VariableWidthHistogramAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(numBuckets, shardSize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), numBuckets, shardSize, cacheLimit);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         VariableWidthHistogramAggregationBuilder other = (VariableWidthHistogramAggregationBuilder) obj;
         return Objects.equals(numBuckets, other.numBuckets)
-            && Objects.equals(shardSize, other.shardSize);
+            && Objects.equals(shardSize, other.shardSize)
+            && Objects.equals(cacheLimit, other.cacheLimit);
     }
 
     @Override

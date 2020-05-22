@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
@@ -51,6 +52,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class VariableWidthHistogramAggregator extends DeferableBucketAggregator {
 
@@ -75,11 +77,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         abstract int numBuckets();
 
         /**
-         * If this CollectionPhase is the final phase then this method will return the buckets
-         * Otherwise, it will create an instance of the next phase and ask it for the buckets (naturally, if that phase
+         * If this CollectionPhase is the final phase then this method will build and return the i'th bucket
+         * Otherwise, it will create an instance of the next phase and ask it for the i'th bucket (naturally, if that phase
          * is also not the last phase, it will do the same and so on...)
          */
-        abstract List<InternalVariableWidthHistogram.Bucket> getBuckets() throws IOException;
+        abstract InternalVariableWidthHistogram.Bucket buildBucket(int bucketOrd, InternalAggregations subAggregations) throws IOException;
 
     }
 
@@ -124,11 +126,12 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             return numCachedDocs;
         }
 
-        List<InternalVariableWidthHistogram.Bucket> getBuckets() throws IOException{
+        @Override
+        InternalVariableWidthHistogram.Bucket buildBucket(int bucketOrd, InternalAggregations subAggregations) throws IOException{
             CollectionPhase mergeBuckets = new MergeBucketsPhase(cachedValues, numCachedDocs);
-            List<InternalVariableWidthHistogram.Bucket> buckets = mergeBuckets.getBuckets();
+            InternalVariableWidthHistogram.Bucket bucket = mergeBuckets.buildBucket(bucketOrd, subAggregations);
             Releasables.close(mergeBuckets);
-            return buckets;
+            return bucket;
         }
 
         @Override
@@ -439,17 +442,14 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             return numClusters;
         }
 
-        List<InternalVariableWidthHistogram.Bucket> getBuckets() throws IOException{
-            List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
-            for (long i = 0; i < numClusters; i++) {
-                buckets.add(new InternalVariableWidthHistogram.Bucket(
-                    clusterCentroids.get(i),
-                    new InternalVariableWidthHistogram.Bucket.BucketBounds(clusterMins.get(i), clusterMaxes.get(i)),
-                    bucketDocCount(i),
+        @Override
+        InternalVariableWidthHistogram.Bucket buildBucket(int bucketOrd, InternalAggregations subAggregations) throws IOException{
+             return new InternalVariableWidthHistogram.Bucket(
+                    clusterCentroids.get(bucketOrd),
+                    new InternalVariableWidthHistogram.Bucket.BucketBounds(clusterMins.get(bucketOrd), clusterMaxes.get(bucketOrd)),
+                    bucketDocCount(bucketOrd),
                     formatter,
-                    bucketAggregations(i)));
-            }
-            return buckets;
+                    subAggregations);
         }
 
         @Override
@@ -472,14 +472,13 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     private MergingBucketsDeferringCollector deferringCollector;
 
     VariableWidthHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, int shardSize,
-                                     int cacheLimit, @Nullable ValuesSource.Numeric valuesSource,
+                                     int cacheLimit, @Nullable ValuesSource valuesSource,
                                      DocValueFormat formatter, SearchContext context, Aggregator parent,
-                                     List<PipelineAggregator> pipelineAggregators,
-                                     Map<String, Object> metaData) throws IOException{
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+                                     Map<String, Object> metadata) throws IOException{
+        super(name, factories, context, parent, metadata);
 
         this.numBuckets = numBuckets;
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.formatter = formatter;
         this.shardSize = shardSize;
         this.cacheLimit = cacheLimit;
@@ -538,7 +537,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     @Override
     public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context);
+        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
         return deferringCollector;
     }
 
@@ -571,32 +570,36 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
 
     @Override
-    public InternalAggregation buildAggregation(long bucket) throws IOException {
-        assert bucket == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        int numClusters = collector.numBuckets();
 
-        int numBuckets = collector.numBuckets();
+        consumeBucketsAndMaybeBreak(numClusters);
 
-        consumeBucketsAndMaybeBreak(numBuckets);
-
-        long[] bucketOrdArray = new long[numBuckets];
-        for (int i = 0; i < numBuckets; i++) {
-            bucketOrdArray[i] = i;
+        long[] bucketOrdsToCollect = new long[numClusters];
+        for (int i = 0; i < numClusters; i++) {
+            bucketOrdsToCollect[i] = i;
         }
 
-        runDeferredCollections(bucketOrdArray);
+        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
 
-        List<InternalVariableWidthHistogram.Bucket> buckets = collector.getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
+        for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
+            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
+        }
 
-        // The contract of the histogram aggregation is that shards must return
-        // buckets ordered by centroid in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator(this));
+        Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder =  bucketsToFormat -> {
+            // The contract of the histogram aggregation is that shards must return
+            // buckets ordered by centroid in ascending order
+            CollectionUtil.introSort(bucketsToFormat, BucketOrder.key(true).comparator());
 
-        InternalVariableWidthHistogram.EmptyBucketInfo emptyBucketInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(
-            buildEmptySubAggregations()
-        );
+            InternalVariableWidthHistogram.EmptyBucketInfo emptyBucketInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(
+                buildEmptySubAggregations());
 
-        return new InternalVariableWidthHistogram(name, buckets, emptyBucketInfo, numBuckets, formatter,
-            pipelineAggregators(), metaData());
+            return new InternalVariableWidthHistogram(name, bucketsToFormat, emptyBucketInfo, numBuckets, formatter, metadata());
+        };
+
+        return new InternalAggregation[] { resultBuilder.apply(buckets) };
+
     }
 
     @Override
@@ -604,8 +607,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         InternalVariableWidthHistogram.EmptyBucketInfo emptyBucketInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(
             buildEmptySubAggregations()
         );
-        return new InternalVariableWidthHistogram(name(), Collections.emptyList(), emptyBucketInfo, numBuckets, formatter,
-            pipelineAggregators(), metaData());
+        return new InternalVariableWidthHistogram(name(), Collections.emptyList(), emptyBucketInfo, numBuckets, formatter, metadata());
     }
 
     @Override

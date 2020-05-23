@@ -419,7 +419,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     private final int cacheLimit;
 
     final BigArrays bigArrays;
-    CollectionPhase collector;
+    private CollectionPhase collector;
 
     private MergingBucketsDeferringCollector deferringCollector;
 

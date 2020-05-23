@@ -355,7 +355,9 @@ tag::bulk-id[]
 `_id`::
 (Optional, string)
 The document ID.
-If no ID is specified, a document ID is automatically generated.
+If no ID is specified, a document ID is automatically generated. By default,
+maximum document ID length is limited to 512 bytes. You can change this limit
+using the <<index-max-doc-id-length, `index.max_doc_id_length`>> setting.
 end::bulk-id[]
 
 tag::if_primary_term[]
@@ -927,7 +929,7 @@ end::transform-settings[]
 
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting
-throttles the {transform} by adding a wait time between search requests. The 
+throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
@@ -1003,7 +1005,7 @@ information for all {transforms}.
 end::transform-id-wildcard[]
 
 tag::trigger-count[]
-The number of times the {transform} has been triggered by the scheduler. For 
+The number of times the {transform} has been triggered by the scheduler. For
 example, the scheduler triggers the {transform} indexer to check for updates
 or ingest new data at an interval specified in the
 <<put-transform-request-body,`frequency` property>>.

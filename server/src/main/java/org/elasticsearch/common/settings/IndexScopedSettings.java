@@ -126,6 +126,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.DEFAULT_FIELD_SETTING,
             IndexSettings.QUERY_STRING_LENIENT_SETTING,
             IndexSettings.ALLOW_UNMAPPED,
+            IndexSettings.INDEX_MAX_DOC_ID_LENGTH_SETTING,
             IndexSettings.INDEX_CHECK_ON_STARTUP,
             IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
             IndexSettings.MAX_SLICES_PER_SCROLL,

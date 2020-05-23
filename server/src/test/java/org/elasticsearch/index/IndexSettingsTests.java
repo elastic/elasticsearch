@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -341,6 +342,33 @@ public class IndexSettingsTests extends ESTestCase {
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
         assertEquals(IndexSettings.MAX_SCRIPT_FIELDS_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxScriptFields());
+    }
+
+    public void testMaxDocIdLengthSetting() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.INDEX_MAX_DOC_ID_LENGTH_SETTING.getKey(), 1024)
+            .build());
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(1024, settings.getMaxDocIdLength());
+        settings.updateIndexMetadata(newIndexMeta("index",
+            Settings.builder().put(IndexSettings.INDEX_MAX_DOC_ID_LENGTH_SETTING.getKey(), 2048).build()));
+        assertEquals(2048, settings.getMaxDocIdLength());
+
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () ->
+            settings.updateIndexMetadata(newIndexMeta("index",
+                Settings.builder().put(IndexSettings.INDEX_MAX_DOC_ID_LENGTH_SETTING.getKey(), IndexWriter.MAX_TERM_LENGTH + 1).build())));
+        assertThat(error.getMessage(), equalTo("max doc id length can not be set longer than "+
+            IndexWriter.MAX_TERM_LENGTH + " bytes, but got " + (IndexWriter.MAX_TERM_LENGTH + 1)));
+
+        settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.INDEX_MAX_DOC_ID_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxDocIdLength());
+
+        metadata = newIndexMeta("index", Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        IndexSettings settings1 = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(IndexSettings.INDEX_MAX_DOC_ID_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings1.getMaxDocIdLength());
     }
 
     public void testMaxRegexLengthSetting() {

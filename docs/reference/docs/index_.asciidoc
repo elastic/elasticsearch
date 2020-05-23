@@ -99,7 +99,9 @@ The name of the index the document was added to.
 The document type. {es} indices now support a single document type, `_doc`.
 
 `_id`::
-The unique identifier for the added document.
+The unique identifier for the added document. By default, maximum length
+of `_id` is limited to 512 bytes. You can change this limit using
+the <<index-max-doc-id-length, `index.max_doc_id_length`>> setting.
 
 `_version`::
 The document version. Incremented each time the document is updated.

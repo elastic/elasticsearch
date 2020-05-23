@@ -203,7 +203,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,
             IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING,
             IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING,
-            IndicesService.INDICES_MAX_DOC_ID_LENGTH,
             IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
             MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING,
             MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,

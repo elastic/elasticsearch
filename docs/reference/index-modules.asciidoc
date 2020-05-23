@@ -261,6 +261,11 @@ specific index module:
     the default pipeline (if it exists). The special pipeline name `_none`
     indicates no ingest pipeline will run.
 
+[[index-max-doc-id-length]]
+ `index.max_doc_id_length`::
+    The maximum byte length of `_id` field of this index. Defaults to 512. This max
+    `_id` field length setting is limited by Lucene's maximum term length which is 32766.
+
 [float]
 === Settings in other index modules
 

@@ -101,6 +101,47 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .primaryTerm(0, 1).build();
     }
 
+    private BulkItemResponse indexWithSpecificLongId(IndexShard shard, int idLength) throws Exception {
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id(randomAlphaOfLength(idLength))
+            .source(Requests.INDEX_CONTENT_TYPE)
+            .opType(DocWriteRequest.OpType.INDEX);
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+        items[0] = primaryRequest;
+        BulkShardRequest bulkShardRequest =
+            new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+        TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(), listener -> {}, ASSERTING_DONE_LISTENER);
+
+        closeShards(shard);
+        return bulkShardRequest.items()[0].getPrimaryResponse();
+    }
+
+    public void testIndexingRejectsLongIds() throws Exception {
+        IndexShard shard = newStartedShard(true);
+
+        BulkItemResponse bulkItemResponse = indexWithSpecificLongId(shard, 512);
+        assertFalse(bulkItemResponse.isFailed());
+        bulkItemResponse = indexWithSpecificLongId(shard, 513);
+        assertTrue(bulkItemResponse.isFailed());
+        assertThat(bulkItemResponse.getFailureMessage(),
+            containsString("id is too long, must be no longer than 512 bytes but was: 513"));
+
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAX_DOC_ID_LENGTH_SETTING.getKey(), 513).build();
+        shard = newStartedShard(true, settings);
+
+        bulkItemResponse = indexWithSpecificLongId(shard, 513);
+        assertFalse(bulkItemResponse.isFailed());
+
+        bulkItemResponse = indexWithSpecificLongId(shard, 514);
+        assertTrue(bulkItemResponse.isFailed());
+        assertThat(bulkItemResponse.getFailureMessage(),
+            containsString("id is too long, must be no longer than 513 bytes but was: 514"));
+    }
+
     public void testExecuteBulkIndexRequest() throws Exception {
         IndexShard shard = newStartedShard(true);
 

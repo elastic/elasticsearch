@@ -20,6 +20,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -72,6 +73,8 @@ public final class IndexSettings {
             (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), Property.Dynamic, Property.IndexScope);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING =
         Setting.boolSetting("index.warmer.enabled", true, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Integer> INDEX_MAX_DOC_ID_LENGTH_SETTING =
+        Setting.intSetting("index.max_doc_id_length", 512, 1, Property.Dynamic, Property.IndexScope);
     public static final Setting<String> INDEX_CHECK_ON_STARTUP =
         new Setting<>("index.shard.check_on_startup", "false", (s) -> {
             switch (s) {
@@ -396,6 +399,11 @@ public final class IndexSettings {
     private volatile int maxRegexLength;
 
     /**
+     * The maximum length of document _id field.
+     */
+    private volatile int maxDocIdLength;
+
+    /**
      * Returns the default search fields for this index.
      */
     public List<String> getDefaultFields() {
@@ -495,6 +503,7 @@ public final class IndexSettings {
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
+        maxDocIdLength = scopedSettings.get(INDEX_MAX_DOC_ID_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
@@ -544,6 +553,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_MAX_DOC_ID_LENGTH_SETTING, this::setMaxDocIdLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
@@ -899,6 +909,21 @@ public final class IndexSettings {
 
     private void setMaxRegexLength(int maxRegexLength) {
         this.maxRegexLength = maxRegexLength;
+    }
+
+    /**
+     * The maximum length of document _id field.
+     */
+    public int getMaxDocIdLength() {
+        return maxDocIdLength;
+    }
+
+    private void setMaxDocIdLength(int maxDocIdLength) {
+        if (maxDocIdLength > IndexWriter.MAX_TERM_LENGTH) {
+            throw new IllegalArgumentException("max doc id length can not be set longer than "
+                + IndexWriter.MAX_TERM_LENGTH + " bytes, but got " + maxDocIdLength);
+        }
+        this.maxDocIdLength = maxDocIdLength;
     }
 
     /**

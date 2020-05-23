@@ -167,7 +167,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
@@ -190,10 +189,6 @@ public class IndicesService extends AbstractLifecycleComponent
         true,
         Setting.Property.NodeScope
     );
-
-    public static int MAX_DOC_ID_LENGTH = 512;
-    public static final Setting<Integer> INDICES_MAX_DOC_ID_LENGTH =
-        intSetting("indices.max.doc_id.length", MAX_DOC_ID_LENGTH, Property.NodeScope, Setting.Property.Dynamic);
 
     /**
      * The node's settings.
@@ -332,10 +327,6 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
-
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDICES_MAX_DOC_ID_LENGTH, value -> {
-            MAX_DOC_ID_LENGTH = value;
-        });
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";

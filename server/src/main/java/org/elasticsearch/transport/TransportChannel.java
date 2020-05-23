@@ -21,8 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 
-import java.io.IOException;
-
 /**
  * A transport channel allows to send a response to a request on the channel.
  */
@@ -32,9 +30,9 @@ public interface TransportChannel {
 
     String getChannelType();
 
-    void sendResponse(TransportResponse response) throws IOException;
+    void sendResponse(TransportResponse response);
 
-    void sendResponse(Exception exception) throws IOException;
+    void sendResponse(Exception exception);
 
     /**
      * Returns the version of the other party that this channel will send a response to.

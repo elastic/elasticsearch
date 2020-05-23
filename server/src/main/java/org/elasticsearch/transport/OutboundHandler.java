@@ -70,7 +70,7 @@ public final class OutboundHandler {
      */
     void sendRequest(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                      final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
-                     final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
+                     final boolean compressRequest, final boolean isHandshake) throws TransportException {
         Version version = Version.min(this.version, channelVersion);
         OutboundMessage.Request message =
             new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressRequest);
@@ -86,7 +86,7 @@ public final class OutboundHandler {
      * @see #sendErrorResponse(Version, TcpChannel, long, String, Exception) for sending error responses
      */
     void sendResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
-                      final TransportResponse response, final boolean compress, final boolean isHandshake) throws IOException {
+                      final TransportResponse response, final boolean compress, final boolean isHandshake) {
         Version version = Version.min(this.version, nodeVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
             requestId, isHandshake, compress);
@@ -98,7 +98,7 @@ public final class OutboundHandler {
      * Sends back an error response to the caller via the given channel
      */
     void sendErrorResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
-                           final Exception error) throws IOException {
+                           final Exception error) {
         Version version = Version.min(this.version, nodeVersion);
         TransportAddress address = new TransportAddress(channel.getLocalAddress());
         RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
@@ -108,7 +108,7 @@ public final class OutboundHandler {
         sendMessage(channel, message, listener);
     }
 
-    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
+    private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) {
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
         internalSend(channel, sendContext);

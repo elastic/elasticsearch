@@ -105,21 +105,12 @@ public class PublicationTransportHandler {
 
             @Override
             public void onResponse(Void aVoid) {
-                try {
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                } catch (IOException e) {
-                    logger.debug("failed to send response on commit", e);
-                }
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
 
             @Override
             public void onFailure(Exception e) {
-                try {
-                    channel.sendResponse(e);
-                } catch (IOException ie) {
-                    e.addSuppressed(ie);
-                    logger.debug("failed to send response on commit", e);
-                }
+                channel.sendResponse(e);
             }
         };
     }

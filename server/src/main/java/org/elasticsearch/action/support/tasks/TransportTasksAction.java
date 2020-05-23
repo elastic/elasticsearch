@@ -327,16 +327,7 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, ActionListener.wrap(channel::sendResponse,
-                e -> {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException e1) {
-                        e1.addSuppressed(e);
-                        logger.warn("Failed to send failure", e1);
-                    }
-                }
-            ));
+            nodeOperation(request, ActionListener.wrap(channel::sendResponse, channel::sendResponse));
         }
     }
 

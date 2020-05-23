@@ -22,8 +22,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lease.Releasable;
 
-import java.io.IOException;
-
 public class TaskTransportChannel implements TransportChannel {
 
     private final TransportChannel channel;
@@ -45,7 +43,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) {
         try {
             onTaskFinished.close();
         } finally {
@@ -54,7 +52,7 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Exception exception) throws IOException {
+    public void sendResponse(Exception exception) {
         try {
             onTaskFinished.close();
         } finally {

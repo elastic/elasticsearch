@@ -342,7 +342,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (IOException | EsRejectedExecutionException e) {
+                            } catch (EsRejectedExecutionException e) {
                                 logger.error(() -> new ParameterizedMessage("failed send response for shard active while trying to " +
                                     "delete shard {} - shard will probably not be removed", request.shardId), e);
                             }

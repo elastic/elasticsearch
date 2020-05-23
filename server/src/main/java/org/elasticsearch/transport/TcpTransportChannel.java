@@ -22,7 +22,6 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lease.Releasable;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel implements TransportChannel {
@@ -55,7 +54,7 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(TransportResponse response) throws IOException {
+    public void sendResponse(TransportResponse response) {
         try {
             outboundHandler.sendResponse(version, channel, requestId, action, response, compressResponse, isHandshake);
         } finally {
@@ -64,7 +63,7 @@ public final class TcpTransportChannel implements TransportChannel {
     }
 
     @Override
-    public void sendResponse(Exception exception) throws IOException {
+    public void sendResponse(Exception exception) {
         try {
             outboundHandler.sendErrorResponse(version, channel, requestId, action, exception);
         } finally {

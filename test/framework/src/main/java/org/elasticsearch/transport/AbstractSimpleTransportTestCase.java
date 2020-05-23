@@ -253,12 +253,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
             (request, channel, task) -> {
                 assertThat("moshe", equalTo(request.message));
-                try {
-                    channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                } catch (IOException e) {
-                    logger.error("Unexpected failure", e);
-                    fail(e.getMessage());
-                }
+                channel.sendResponse(new StringMessageResponse("hello " + request.message));
             });
 
         TransportFuture<StringMessageResponse> res = submitRequest(serviceB, nodeA, "internal:sayHello",
@@ -329,15 +324,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             (request, channel, task) -> {
             assertEquals("ping_user", threadPool.getThreadContext().getHeader("test.ping.user"));
             assertNull(threadPool.getThreadContext().getTransient("my_private_context"));
-            try {
                 StringMessageResponse response = new StringMessageResponse("pong");
                 threadPool.getThreadContext().putHeader("test.pong.user", "pong_user");
                 channel.sendResponse(response);
-            } catch (IOException e) {
-                logger.error("Unexpected failure", e);
-                fail(e.getMessage());
-            }
-        });
+            });
         final Object context = new Object();
         final String executor = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet().toArray(new String[0]));
         TransportResponseHandler<StringMessageResponse> responseHandler = new TransportResponseHandler<StringMessageResponse>() {
@@ -385,13 +375,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.disconnectFromNode(nodeA);
         final AtomicReference<Exception> exception = new AtomicReference<>();
         serviceA.registerRequestHandler("internal:localNode", ThreadPool.Names.GENERIC, StringMessageRequest::new,
-            (request, channel, task) -> {
-                try {
-                    channel.sendResponse(new StringMessageResponse(request.message));
-                } catch (IOException e) {
-                    exception.set(e);
-                }
-            });
+            (request, channel, task) -> channel.sendResponse(new StringMessageResponse(request.message)));
         final AtomicReference<String> responseString = new AtomicReference<>();
         final CountDownLatch responseLatch = new CountDownLatch(1);
         serviceA.sendRequest(nodeA, "internal:localNode", new StringMessageRequest("test"),
@@ -425,15 +409,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testMessageListeners() throws Exception {
         final TransportRequestHandler<TransportRequest.Empty> requestHandler = (request, channel, task) -> {
-            try {
-                if (randomBoolean()) {
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                } else {
-                    channel.sendResponse(new ElasticsearchException("simulated"));
-                }
-            } catch (IOException e) {
-                logger.error("Unexpected failure", e);
-                fail(e.getMessage());
+            if (randomBoolean()) {
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } else {
+                channel.sendResponse(new ElasticsearchException("simulated"));
             }
         };
         final String ACTION = "internal:action";
@@ -555,14 +534,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceC.acceptIncomingRequests();
 
             serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, TransportRequest.Empty::new,
-                (request, channel, task) -> {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (IOException e) {
-                        logger.error("Unexpected failure", e);
-                        fail(e.getMessage());
-                    }
-                });
+                (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE));
 
             Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
@@ -600,7 +572,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void testHelloWorldCompressed() throws IOException {
+    public void testHelloWorldCompressed() {
         try (MockTransportService serviceC = buildService("TS_C", CURRENT_VERSION,  Settings.EMPTY)) {
             serviceC.start();
             serviceC.acceptIncomingRequests();
@@ -608,12 +580,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.registerRequestHandler("internal:sayHello", ThreadPool.Names.GENERIC, StringMessageRequest::new,
                 (request, channel, task) -> {
                     assertThat("moshe", equalTo(request.message));
-                    try {
-                        channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                    } catch (IOException e) {
-                        logger.error("Unexpected failure", e);
-                        fail(e.getMessage());
-                    }
+                    channel.sendResponse(new StringMessageResponse("hello " + request.message));
                 });
 
             Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
@@ -924,12 +891,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             TimeValue sleep = TimeValue.parseTimeValue(message, null, "sleep");
                             Thread.sleep(sleep.millis());
                         }
-                        try {
-                            channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                        } catch (IOException e) {
-                            logger.error("Unexpected failure", e);
-                            fail(e.getMessage());
-                        }
+                        channel.sendResponse(new StringMessageResponse("hello " + request.message));
                     } finally {
                         inFlight.release();
                         if ("forever".equals(message)) {
@@ -2213,7 +2175,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         latch.await();
     }
 
-    public void testConcurrentDisconnectOnNonPublishedConnection() throws IOException, InterruptedException {
+    public void testConcurrentDisconnectOnNonPublishedConnection() throws InterruptedException {
         MockTransportService serviceC = buildService("TS_C", version0,  Settings.EMPTY);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
@@ -2223,11 +2185,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2291,11 +2249,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2404,11 +2358,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override

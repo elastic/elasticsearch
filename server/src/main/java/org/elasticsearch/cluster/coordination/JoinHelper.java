@@ -53,7 +53,6 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -154,11 +153,7 @@ public class JoinHelper {
 
             @Override
             public void onSuccess() {
-                try {
-                    channel.sendResponse(Empty.INSTANCE);
-                } catch (IOException e) {
-                    onFailure(e);
-                }
+                channel.sendResponse(Empty.INSTANCE);
             }
 
             @Override

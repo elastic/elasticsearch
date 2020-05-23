@@ -184,11 +184,7 @@ public class LocalAllocateDangledIndices {
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    try {
-                        channel.sendResponse(new AllocateDangledResponse());
-                    } catch (IOException e) {
-                        logger.warn("failed send response for allocating dangled", e);
-                    }
+                    channel.sendResponse(new AllocateDangledResponse());
                 }
             });
         }

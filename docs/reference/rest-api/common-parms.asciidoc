@@ -929,7 +929,7 @@ end::transform-settings[]
 
 tag::transform-settings-docs-per-second[]
 Specifies a limit on the number of input documents per second. This setting
-throttles the {transform} by adding a wait time between search requests. The
+throttles the {transform} by adding a wait time between search requests. The 
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 

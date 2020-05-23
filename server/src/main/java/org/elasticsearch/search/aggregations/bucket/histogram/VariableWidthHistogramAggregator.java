@@ -41,15 +41,12 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -57,36 +54,37 @@ import java.util.function.Function;
 public class VariableWidthHistogramAggregator extends DeferableBucketAggregator {
 
     /**
-     * This aggregator goes through multiple phases of collection
+     * This aggregator goes through multiple phases of collection. Each phase has a different CollectionPhase::collectValue
+     * implementation
      *
-     * We have to bucket docs as we collect them, in a streaming fashion. Storing all docs and then running a clustering
-     * algorithm like K-Means is unfeasible because large indices don't fit into memory.
+     * Running a clustering algorithm like K-Means is unfeasible because large indices don't fit into memory.
+     * But having multiple collection phases lets us accurately bucket the docs in one pass.
      */
     private abstract class CollectionPhase implements Releasable {
 
         /**
          * This method will collect the doc and then either return itself or a new CollectionPhase
-         * It is responsible for determining when a phase is over, and what the next phase will be
+         * It is responsible for determining when a phase is over and what phase will run next
          */
         abstract CollectionPhase collectValue(LeafBucketCollector sub, int doc, double val) throws IOException;
 
 
         /**
-         * Produce the amount of buckets that have been used so far
+         * @return the total number of buckets that have been used so far
          */
         abstract int numBuckets();
 
         /**
          * If this CollectionPhase is the final phase then this method will build and return the i'th bucket
          * Otherwise, it will create an instance of the next phase and ask it for the i'th bucket (naturally, if that phase
-         * is also not the last phase, it will do the same and so on...)
+         * not the last phase then it will do the same and so on...)
          */
         abstract InternalVariableWidthHistogram.Bucket buildBucket(int bucketOrd, InternalAggregations subAggregations) throws IOException;
 
     }
 
     /**
-     * Phase 1: Build up a cache of docs (i.e. give each new doc its own bucket). No clustering decisions are made here
+     * Phase 1: Build up a cache of docs (i.e. give each new doc its own bucket). No clustering decisions are made here.
      * Building this cache lets us analyze the distribution of the data before we begin clustering.
      */
     private class CacheValuesPhase extends CollectionPhase{
@@ -141,26 +139,26 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
     /**
-     * Phase 2: This phase is initialized with the cache created in Phase 1
-     * It is responsible for merging the docs in this cache into a smaller number of buckets and then determining which
-     * bucket all subsequent docs belong to. New bucket will be created for docs that are distant from all previous ones
+     * Phase 2: This phase is initialized with the cache created in Phase 1.
+     * It is responsible for merging the cached docs into a smaller number of buckets and then determining which existing
+     * bucket all subsequent docs belong to. New buckets will be created for docs that are distant from all existing ones
      */
     private class MergeBucketsPhase extends CollectionPhase{
         /**
          * "Cluster" refers to intermediate buckets during collection
-         * They are kept sorted by centroid. the i'th index in all these arrays always refers to the i'th cluster
+         * They are kept sorted by centroid. The i'th index in all these arrays always refers to the i'th cluster
          */
         public DoubleArray clusterMaxes;
         public DoubleArray clusterMins;
         public DoubleArray clusterCentroids;
-        public DoubleArray clusterSizes; // clusterSizes.get(i) will not be equal to bucketDocCount(i) when clusters are being merged
+        public DoubleArray clusterSizes; // clusterSizes.get(i) is usually equal to bucketDocCount(i), but it's different when clusters are being merged
         public int numClusters;
 
         private int avgBucketDistance;
 
         MergeBucketsPhase(DoubleArray cachedValues, int numCachedDocs) {
             // Cluster the documents to reduce the number of buckets
-            // Target is shardSizes * (3/4) so that there's room for more distant buckets to be added during rest of collection
+            // Target shardSizes * (3/4) buckets so that there's room for more distant buckets to be added during rest of collection
             bucketCachedDocs(cachedValues, numCachedDocs, shardSize * 3 / 4);
 
             // Calculate the average distance between buckets
@@ -178,13 +176,13 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * Sorts the <b>indices</b> of <code>values</code> by their underlying value
          * This will produce a merge map whose application will sort <code>values</code>
          */
-        private class ClusterIndexSorter extends InPlaceMergeSorter {
+        private class ClusterSorter extends InPlaceMergeSorter {
 
             final DoubleArray values;
             final long[] indexes;
             int length;
 
-            ClusterIndexSorter(DoubleArray values, int length){
+            ClusterSorter(DoubleArray values, int length){
                 this.values = values;
                 this.length = length;
 
@@ -213,7 +211,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
              * would be moved to <b>if</b> <code>values</code> were sorted
              * In other words, this method produces a merge map that will sort <code>values</code>
              *
-             * See <code>BucketsAggregator::mergeBuckets</code> to learn more about the merge map
+             * See BucketsAggregator::mergeBuckets to learn more about the merge map
              */
             public long[] generateMergeMap(){
                 sort(numClusters - 1, 0);
@@ -222,13 +220,13 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         }
 
         /**
-         * Sorting the documents by key lets us do bucketing with a single linear scan
+         * Sorting the documents by key lets us bucket the documents into groups with a single linear scan
          *
-         * But we can't just sort <code>cachedValues</code> because we also need to generate a merge map for every change
-         * we make to the list, so that we can apply them to the underlying buckets as well
+         * But we can't do this by just sorting <code>cachedValues</code>, because we also need to generate a merge map
+         * for every change we make to the list, so that we can apply the changes to the underlying buckets as well.
          *
-         * If we create a merge map then we don't ever need to actually sort <code>cachedValues</code> because
-         * we can use the merge map to find any doc's sorted index
+         * By just creating a merge map, we eliminate the need to actually sort <code>cachedValues</code>. We can just
+         * use the merge map to find any doc's sorted index.
          */
         private void bucketCachedDocs(final DoubleArray cachedValues, final int numCachedDocs, final int numBuckets){
             // Allocate space for the clusters about to be created
@@ -238,7 +236,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             clusterSizes = bigArrays.newDoubleArray(1);
             numClusters = 0;
 
-            ClusterIndexSorter sorter = new ClusterIndexSorter(cachedValues, numCachedDocs);
+            ClusterSorter sorter = new ClusterSorter(cachedValues, numCachedDocs);
             long[] mergeMap = sorter.generateMergeMap();
 
             // Naively use basic linear separation to group the first cacheLimit docs into initialNumBuckets buckets
@@ -249,7 +247,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 // mergeMap[i] is the index of the i'th smallest doc
                 double val = cachedValues.get(mergeMap[i]);
 
-                // Put the i'th smallest doc into bucket bucketOrd
+                // Put the i'th smallest doc into the bucket at bucketOrd
                 mergeMap[i] = bucketOrd;
                 if(bucketOrd == numClusters){
                     createAndAppendNewCluster(val);
@@ -275,10 +273,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             double distance = Math.abs(clusterCentroids.get(bucketOrd)- val);
             if(bucketOrd == -1 || distance > (2 * avgBucketDistance) && numClusters < shardSize) {
                 // Make a new bucket since the document is distant from all existing buckets
-                // TODO: (maybe) Create a new bucket for all distant docs and merge down to `shardSize` buckets at end
+                // TODO: (maybe) Create a new bucket for <b>all</b> distant docs and merge down to shardSize buckets at end
 
                 createAndAppendNewCluster(val);
                 collectBucket(sub, doc, numClusters - 1);
+
                 if(val > clusterCentroids.get(bucketOrd)){
                     // Insert just ahead of bucketOrd so that the array remains sorted
                     bucketOrd += 1;
@@ -291,10 +290,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             return this;
         }
 
-        /***
-         * Creates a new cluster with  <code>var</code> at the end of the cluster arrays
+        /**
+         * Creates a new cluster with  <code>value</code> and appends it to the cluster arrays
          */
-        private void createAndAppendNewCluster(double val){
+        private void createAndAppendNewCluster(double value){
             // Ensure there is space for the cluster
             clusterMaxes = bigArrays.grow(clusterMaxes, numClusters + 1); //  + 1 because indexing starts at 0
             clusterMins = bigArrays.grow(clusterMins, numClusters + 1);
@@ -302,55 +301,55 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             clusterSizes = bigArrays.grow(clusterSizes, numClusters + 1);
 
             // Initialize the cluster at the end of the array
-            clusterMaxes.set(numClusters, val);
-            clusterMins.set(numClusters, val);
-            clusterCentroids.set(numClusters, val);
+            clusterMaxes.set(numClusters, value);
+            clusterMins.set(numClusters, value);
+            clusterCentroids.set(numClusters, value);
             clusterSizes.set(numClusters, 1);
 
             numClusters += 1;
         }
-        
+
         /**
          * Move the last cluster to position <code>idx</code>
-         * This is expensive because a merge map of size <code>numClusters</code> is created, so don't do this often
+         * This is expensive because a merge map of size <code>numClusters</code> is created, so don't call this method too often
          *
          * TODO: Make this more efficient
          */
-        private void moveLastCluster(int idx){
-            if(idx != numClusters - 1) {
+        private void moveLastCluster(int index){
+            if(index != numClusters - 1) {
 
                 // Move the cluster metadata
                 double holdMax = clusterMaxes.get(numClusters-1);
                 double holdMin = clusterMins.get(numClusters-1);
                 double holdCentroid = clusterCentroids.get(numClusters-1);
                 double holdSize = clusterSizes.get(numClusters-1);
-                for (int i = numClusters - 1; i > idx; i--) {
+                for (int i = numClusters - 1; i > index; i--) {
                     // The clusters in range {index ... numClusters - 1} move up 1 index to make room for the new cluster
                     clusterMaxes.set(i, clusterMaxes.get(i-1));
                     clusterMins.set(i, clusterMins.get(i-1));
                     clusterCentroids.set(i, clusterCentroids.get(i-1));
                     clusterSizes.set(i, clusterSizes.get(i-1));
                 }
-                clusterMaxes.set(idx, holdMax);
-                clusterMins.set(idx, holdMin);
-                clusterCentroids.set(idx, holdCentroid);
-                clusterSizes.set(idx, holdSize);
+                clusterMaxes.set(index, holdMax);
+                clusterMins.set(index, holdMin);
+                clusterCentroids.set(index, holdCentroid);
+                clusterSizes.set(index, holdSize);
 
                 // Move the underlying buckets
                 long[] mergeMap = new long[numClusters];
-                for (int i = 0; i < idx; i++) {
+                for (int i = 0; i < index; i++) {
                     // The clusters in range {0 ... idx - 1} don't move
                     mergeMap[i] = i;
                 }
-                for (int i = idx; i < numClusters - 1; i++) {
+                for (int i = index; i < numClusters - 1; i++) {
                     // The clusters in range {index ... numClusters - 1} shift up
                     mergeMap[i] = i + 1;
                 }
                 // Finally, the new cluster moves to index
-                mergeMap[numClusters - 1] = idx;
+                mergeMap[numClusters - 1] = index;
 
                 // TODO: Create a moveLastCluster() method that is like mergeBuckets but doesn't require a merge map
-                //       This would be more efficient - there would be no need to create a merge map every time
+                //       This would be more efficient as there would be no need to create a merge map on every call
                 mergeBuckets(mergeMap, numClusters);
                 if (deferringCollector != null) {
                     deferringCollector.mergeBuckets(mergeMap);
@@ -359,7 +358,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         }
 
         /**
-         * Add <code>val</code> to the cluster at index <code>bucketOrd</code>.
+         * Adds <code>val</code> to the cluster at index <code>bucketOrd</code>.
          * The cluster's centroid, min, max, and size are recalculated.
          */
         private void addToCluster(int bucketOrd, double val){
@@ -381,75 +380,28 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         /**
          * Returns the ordinal of the bucket whose centroid is closest to <code>val</code>, or -1 if there are no buckets.
-         *
-         * This is done using a binary search, since <code>clusterCentroids</code> is always kept sorted.
-         * But, we don't care if <code>val</code> matches a bucket's key exactly. We just want the nearest bucket,
-         * and this requires some extra logic.
-         */
-        private int getNearestBucket(double val) {
-            if(numClusters == 0) return -1;
-
-            int left = 0;
-            int right = numClusters - 1;
-            while(left < right){
-                int mid = (left + right) / 2;
-                double midVal = clusterCentroids.get(mid);
-
-                if(midVal == val){
-                    return mid;
-                } else if(midVal < val){
-                    if(mid < numClusters - 1) {
-                        double valAfterMid = clusterCentroids.get(mid + 1);
-                        if (val < valAfterMid) {
-                            // val is between indices mid, (mid + 1)
-                            if (valAfterMid - val < val - midVal) {
-                                return mid + 1;
-                            } else {
-                                return mid;
-                            }
-                        }
-                    } else if(mid == numClusters - 1){
-                        // There are are no more clusters above mid so mid is the closest
-                        return mid;
-                    }
-
-                    left = mid + 1;
-                } else{ // midVal > val
-                    // Check if mid is the closest element. This is still possible because val is a double
-                    if(mid > 0) {
-                        double valBeforeMid = clusterCentroids.get(mid - 1);
-                        if (val > valBeforeMid) {
-                            // val is between indices (mid - 1), mid
-                            if (midVal - val < val - valBeforeMid) {
-                                return mid;
-                            } else {
-                                return mid - 1;
-                            }
-                        }
-                    } else if(mid == 0){
-                        // There are no more clusters below mid, so mid is the closest
-                        return mid;
-                    }
-
-                    right = mid - 1;
-                }
+         **/
+        private int getNearestBucket(double value){
+            if (numClusters == 0){
+                return -1;
             }
-
-            return left;
+            BigArrays.DoubleBinarySearcher searcher = new BigArrays.DoubleBinarySearcher(clusterCentroids);
+            return searcher.search(0, numClusters - 1, value);
         }
+
 
         int numBuckets(){
             return numClusters;
         }
 
         @Override
-        InternalVariableWidthHistogram.Bucket buildBucket(int bucketOrd, InternalAggregations subAggregations) throws IOException{
-             return new InternalVariableWidthHistogram.Bucket(
-                    clusterCentroids.get(bucketOrd),
-                    new InternalVariableWidthHistogram.Bucket.BucketBounds(clusterMins.get(bucketOrd), clusterMaxes.get(bucketOrd)),
-                    bucketDocCount(bucketOrd),
-                    formatter,
-                    subAggregations);
+        InternalVariableWidthHistogram.Bucket buildBucket(int bucketOrd, InternalAggregations subAggregations){
+            return new InternalVariableWidthHistogram.Bucket(
+                clusterCentroids.get(bucketOrd),
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(clusterMins.get(bucketOrd), clusterMaxes.get(bucketOrd)),
+                bucketDocCount(bucketOrd),
+                formatter,
+                subAggregations);
         }
 
         @Override
@@ -496,7 +448,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
              *
              * But the VariableWidthHistogram agg _must_ execute in breadth first since it relies on
              * deferring execution, so we just have to throw up our hands and refuse
-            */
+             */
             throw new IllegalStateException("VariableWidthHistogram agg [" + name() + "] is the child of the nested agg [" + nestedAgg
                 + "], and also has a scoring child agg [" + scoringAgg + "].  This combination is not supported because " +
                 "it requires executing in [depth_first] mode, which the VariableWidthHistogram agg cannot do.");
@@ -616,3 +568,4 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
 }
+

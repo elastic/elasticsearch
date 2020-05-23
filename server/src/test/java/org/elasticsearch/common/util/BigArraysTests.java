@@ -22,6 +22,8 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -287,15 +289,15 @@ public class BigArraysTests extends ESTestCase {
         a2.close();
 
         // not equal: contents differ
-        final ByteArray a3 = byteArrayWithBytes(new byte[]{1,2,3});
+        final ByteArray a3 = byteArrayWithBytes(new byte[]{1, 2, 3});
         final ByteArray a4 = byteArrayWithBytes(new byte[]{1, 1, 3});
         assertFalse(bigArrays.equals(a3, a4));
         a3.close();
         a4.close();
 
         // not equal: contents differ
-        final ByteArray a5 = byteArrayWithBytes(new byte[]{1,2,3});
-        final ByteArray a6 = byteArrayWithBytes(new byte[]{1,2,4});
+        final ByteArray a5 = byteArrayWithBytes(new byte[]{1, 2, 3});
+        final ByteArray a6 = byteArrayWithBytes(new byte[]{1, 2, 4});
         assertFalse(bigArrays.equals(a5, a6));
         a5.close();
         a6.close();
@@ -353,11 +355,11 @@ public class BigArraysTests extends ESTestCase {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
             final int maxSize = randomIntBetween(1 << 8, 1 << 14);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
-                    Settings.builder()
-                            .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
-                            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-                            .build(),
-                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+                Settings.builder()
+                    .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
+                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                    .build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(10, maxSize / 16);
@@ -385,6 +387,47 @@ public class BigArraysTests extends ESTestCase {
             final BigArray bigArray = bigArraysHelper.arrayAllocator.apply(size);
             assertEquals(bigArraysHelper.ramEstimator.apply(size).longValue(), bigArray.ramBytesUsed());
         }
+    }
+
+    public void testDoubleBinarySearch() throws Exception {
+        final int size = randomIntBetween(50, 10000);
+        DoubleArray array = new BigDoubleArray(size, bigArrays, false);
+
+        // Fill array with sorted values
+        double currentValue = randomDoubleBetween(-100, 100, true);
+        for (int i = 0; i < size; ++i) {
+            array.set(i, currentValue);
+            currentValue += randomDoubleBetween(0, 30, false);
+        }
+
+        // Pick a number to search for
+        int index = randomIntBetween(0, size-1);
+        double searchFor = array.get(index);
+        if (randomBoolean()){
+            // Pick a number where there is no exact match, but that is closest to array.get(index)
+            if(randomBoolean()){
+                // Pick a number above array.get(index)
+                if(index < size - 1){
+                    searchFor += (array.get(index + 1) - array.get(index)) / 3; // Divide by 3 so that it's closer to array.get(index) than to array.get(index + 1)
+                } else {
+                    // There is nothing about index
+                    searchFor += 0.1;
+                }
+            } else {
+                // Pick one below array.get(index)
+                if (index > 0) {
+                    searchFor -= (array.get(index) - array.get(index - 1)) / 3;
+                } else {
+                    // There is nothing below index
+                    searchFor -= 0.1;
+                }
+            }
+        }
+
+        BigArrays.DoubleBinarySearcher searcher = new BigArrays.DoubleBinarySearcher(array);
+        assertEquals(index, searcher.search(0, size - 1, searchFor));
+
+        Releasables.close(array);
     }
 
     private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {

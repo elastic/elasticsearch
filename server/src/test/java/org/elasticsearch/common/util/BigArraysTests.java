@@ -289,15 +289,15 @@ public class BigArraysTests extends ESTestCase {
         a2.close();
 
         // not equal: contents differ
-        final ByteArray a3 = byteArrayWithBytes(new byte[]{1, 2, 3});
+        final ByteArray a3 = byteArrayWithBytes(new byte[]{1,2,3});
         final ByteArray a4 = byteArrayWithBytes(new byte[]{1, 1, 3});
         assertFalse(bigArrays.equals(a3, a4));
         a3.close();
         a4.close();
 
         // not equal: contents differ
-        final ByteArray a5 = byteArrayWithBytes(new byte[]{1, 2, 3});
-        final ByteArray a6 = byteArrayWithBytes(new byte[]{1, 2, 4});
+        final ByteArray a5 = byteArrayWithBytes(new byte[]{1,2,3});
+        final ByteArray a6 = byteArrayWithBytes(new byte[]{1,2,4});
         assertFalse(bigArrays.equals(a5, a6));
         a5.close();
         a6.close();
@@ -460,11 +460,11 @@ public class BigArraysTests extends ESTestCase {
 
     private BigArrays newBigArraysInstance(final long maxSize, final boolean withBreaking) {
         HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
-            Settings.builder()
-                .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
-                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-                .build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+                Settings.builder()
+                        .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
+                        .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                        .build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST);
         return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);
     }

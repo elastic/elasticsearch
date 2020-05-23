@@ -1005,7 +1005,7 @@ information for all {transforms}.
 end::transform-id-wildcard[]
 
 tag::trigger-count[]
-The number of times the {transform} has been triggered by the scheduler. For
+The number of times the {transform} has been triggered by the scheduler. For 
 example, the scheduler triggers the {transform} indexer to check for updates
 or ingest new data at an interval specified in the
 <<put-transform-request-body,`frequency` property>>.

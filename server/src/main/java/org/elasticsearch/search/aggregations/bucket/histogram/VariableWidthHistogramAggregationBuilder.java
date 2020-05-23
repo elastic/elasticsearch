@@ -136,11 +136,6 @@ public class VariableWidthHistogramAggregationBuilder
         return BucketCardinality.MANY;
     }
 
-    public static VariableWidthHistogramAggregationBuilder parse(String aggregationName,
-                                                                 XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new VariableWidthHistogramAggregationBuilder(aggregationName), null);
-    }
-
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         return new VariableWidthHistogramAggregationBuilder(this, factoriesBuilder, metaData);

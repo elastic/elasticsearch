@@ -415,7 +415,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             }
             toMerge.add(buckets.get(startIdx)); // Don't remove the startIdx bucket because it will be replaced by the merged bucket
 
-            reduceContext.consumeBucketsAndMaybeBreak(-(toMerge.size()-1)); // NOCOMMIT: Is this correct?
+            reduceContext.consumeBucketsAndMaybeBreak(-(toMerge.size() - 1));
             Bucket merged_bucket = reduceBucket(toMerge, reduceContext);
 
             buckets.set(startIdx, merged_bucket);

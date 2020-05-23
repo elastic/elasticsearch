@@ -33,9 +33,11 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -88,9 +90,10 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        assert msg instanceof ByteBuf;
-        final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws IOException {
+        assert msg instanceof OutboundHandler.SendContext;
+        final boolean queued = queuedWrites.offer(
+            new WriteOperation(Netty4Utils.toByteBuf(((OutboundHandler.SendContext) msg).get()), promise));
         assert queued;
     }
 

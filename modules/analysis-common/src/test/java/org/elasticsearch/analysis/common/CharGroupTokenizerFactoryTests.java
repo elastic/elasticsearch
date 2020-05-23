@@ -19,7 +19,9 @@
 
 package org.elasticsearch.analysis.common;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.util.CharTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -27,11 +29,12 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.io.StringReader;
 import java.util.Arrays;
 
-
 public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
+
     public void testParseTokenChars() {
         final Index index = new Index("test", "_na_");
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
@@ -59,6 +62,53 @@ public class CharGroupTokenizerFactoryTests extends ESTokenStreamTestCase {
             new CharGroupTokenizerFactory(indexProperties, null, name, settings).create();
             // no exception
         }
+    }
+
+    public void testMaxTokenLength() throws IOException {
+        final Index index = new Index("test", "_na_");
+        final Settings indexSettings = newAnalysisSettingsBuilder().build();
+        IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
+        final String name = "cg";
+
+        String[] conf = new String[] {"-"};
+
+        final Settings defaultLengthSettings = newAnalysisSettingsBuilder()
+            .putList("tokenize_on_chars", conf)
+            .build();
+        CharTokenizer tokenizer = (CharTokenizer) new CharGroupTokenizerFactory(indexProperties, null, name, defaultLengthSettings)
+            .create();
+        String textWithVeryLongToken = RandomStrings.randomAsciiAlphanumOfLength(random(), 256).concat("-trailing");
+        try (Reader reader = new StringReader(textWithVeryLongToken)) {
+            tokenizer.setReader(reader);
+            assertTokenStreamContents(tokenizer, new String[] { textWithVeryLongToken.substring(0, 255),
+                textWithVeryLongToken.substring(255, 256), "trailing"});
+        }
+
+        final Settings analysisSettings = newAnalysisSettingsBuilder()
+            .putList("tokenize_on_chars", conf)
+            .put("max_token_length", 2)
+            .build();
+        tokenizer = (CharTokenizer) new CharGroupTokenizerFactory(indexProperties, null, name, analysisSettings).create();
+        try (Reader reader = new StringReader("one-two-three")) {
+            tokenizer.setReader(reader);
+            assertTokenStreamContents(tokenizer, new String[] { "on", "e", "tw", "o", "th", "re", "e" });
+        }
+
+        final Settings tooLongLengthSettings = newAnalysisSettingsBuilder()
+            .putList("tokenize_on_chars", conf)
+            .put("max_token_length", 1024 * 1024 + 1)
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new CharGroupTokenizerFactory(indexProperties, null, name, tooLongLengthSettings).create());
+        assertEquals("maxTokenLen must be greater than 0 and less than 1048576 passed: 1048577", e.getMessage());
+
+        final Settings negativeLengthSettings = newAnalysisSettingsBuilder()
+            .putList("tokenize_on_chars", conf)
+            .put("max_token_length", -1)
+            .build();
+        e = expectThrows(IllegalArgumentException.class,
+            () -> new CharGroupTokenizerFactory(indexProperties, null, name, negativeLengthSettings).create());
+        assertEquals("maxTokenLen must be greater than 0 and less than 1048576 passed: -1", e.getMessage());
     }
 
     public void testTokenization() throws IOException {

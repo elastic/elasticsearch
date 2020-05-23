@@ -16,14 +16,13 @@ The only similarities which can be used out of the box, without any further
 configuration are:
 
 `BM25`::
-        The Okapi BM25 algorithm. The algorithm used by default in Elasticsearch and Lucene.
-        See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
-        for more information.
+The https://en.wikipedia.org/wiki/Okapi_BM25[Okapi BM25 algorithm]. The
+algorithm used by default in {es} and Lucene.
 
 `boolean`::
-        A simple boolean similarity, which is used when full-text ranking is not needed
-        and the score should only be based on whether the query terms match or not.
-        Boolean similarity gives terms a score equal to their query boost.
+A simple boolean similarity, which is used when full-text ranking is not needed
+and the score should only be based on whether the query terms match or not.
+Boolean similarity gives terms a score equal to their query boost.
 
 
 The `similarity` can be set on the field level when a field is first created,

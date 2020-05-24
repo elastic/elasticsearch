@@ -51,7 +51,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
         if (failedFeature == null) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(new BytesRestResponse(channel, failedFeature));
+            return channel -> channel.sendResponse(() -> new BytesRestResponse(channel, failedFeature));
         }
     }
 

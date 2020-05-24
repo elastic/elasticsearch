@@ -114,7 +114,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
                 builder.startObject().field(setting, SETTINGS_MAP.get(setting).get(this.settings)).endObject();
             }
             builder.endArray().endObject();
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            channel.sendResponse(() -> new BytesRestResponse(RestStatus.OK, builder));
         };
     }
 }

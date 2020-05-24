@@ -30,7 +30,7 @@ public abstract class IdpBaseRestHandler extends BaseRestHandler {
         if (isIdpFeatureAllowed()) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(new BytesRestResponse(channel,
+            return channel -> channel.sendResponse(() -> new BytesRestResponse(channel,
                 LicenseUtils.newComplianceException("Identity Provider")));
         }
     }

@@ -33,8 +33,8 @@ public abstract class RestResponseListener<Response> extends RestActionListener<
     }
 
     @Override
-    protected final void processResponse(Response response) throws Exception {
-        channel.sendResponse(buildResponse(response));
+    protected final void processResponse(Response response) {
+        channel.sendResponse(() -> buildResponse(response));
     }
 
     /**

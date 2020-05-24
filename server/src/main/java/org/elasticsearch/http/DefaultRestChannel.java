@@ -20,6 +20,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -82,70 +84,74 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     }
 
     @Override
-    public void sendResponse(RestResponse restResponse) {
+    public void sendResponse(CheckedSupplier<RestResponse, Exception> sendContext) {
         final ArrayList<Releasable> toClose = new ArrayList<>(4);
-        toClose.add(httpRequest::release);
-        if (isCloseConnection()) {
-            toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
+        BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
+        if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
+            toClose.add((Releasable) bytesStreamOutput);
         }
-
-        boolean success = false;
-        String opaque = null;
-        String contentLength = null;
-        try {
-            final BytesReference content = restResponse.content();
-            if (content instanceof Releasable) {
-                toClose.add((Releasable) content);
-            }
-
-            BytesReference finalContent = content;
-            try {
-                if (request.method() == RestRequest.Method.HEAD) {
-                    finalContent = BytesArray.EMPTY;
+        httpChannel.sendResponse(
+            new HttpSendContext(ActionListener.wrap(() -> Releasables.close(toClose)), () -> {
+                RestResponse restResponse;
+                try {
+                    restResponse = sendContext.get();
+                } catch (Exception e) {
+                    restResponse = new BytesRestResponse(this, e);
                 }
-            } catch (IllegalArgumentException ignored) {
-                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED :
-                    "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
-            }
+                boolean success = false;
+                String opaque = null;
+                String contentLength = null;
+                try {
+                    toClose.add(httpRequest::release);
+                    if (isCloseConnection()) {
+                        toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
+                    }
+                    final BytesReference content = restResponse.content();
+                    if (content instanceof Releasable) {
+                        toClose.add((Releasable) content);
+                    }
 
-            final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
+                    BytesReference finalContent = content;
+                    try {
+                        if (request.method() == RestRequest.Method.HEAD) {
+                            finalContent = BytesArray.EMPTY;
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                        assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED :
+                            "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                    }
 
-            // TODO: Ideally we should move the setting of Cors headers into :server
-            // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
+                    final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
 
-            opaque = request.header(X_OPAQUE_ID);
-            if (opaque != null) {
-                setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
-            }
+                    // TODO: Ideally we should move the setting of Cors headers into :server
+                    // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
 
-            // Add all custom headers
-            addCustomHeaders(httpResponse, restResponse.getHeaders());
-            addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
+                    opaque = request.header(X_OPAQUE_ID);
+                    if (opaque != null) {
+                        setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+                    }
 
-            // If our response doesn't specify a content-type header, set one
-            setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
-            // If our response has no content-length, calculate and set one
-            contentLength = String.valueOf(restResponse.content().length());
-            setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
+                    // Add all custom headers
+                    addCustomHeaders(httpResponse, restResponse.getHeaders());
+                    addCustomHeaders(httpResponse, threadContext.getResponseHeaders());
 
-            addCookies(httpResponse);
+                    // If our response doesn't specify a content-type header, set one
+                    setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
+                    // If our response has no content-length, calculate and set one
+                    contentLength = String.valueOf(restResponse.content().length());
+                    setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
 
-            BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
-            if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
-                toClose.add((Releasable) bytesStreamOutput);
-            }
+                    addCookies(httpResponse);
 
-            ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
-            httpChannel.sendResponse(httpResponse, listener);
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.close(toClose);
-            }
-            if (tracerLog != null) {
-                tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
-            }
-        }
+                    success = true;
+                    return httpResponse;
+                } finally {
+                    if (tracerLog != null) {
+                        tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque,
+                            request.getRequestId(), success);
+                    }
+                }
+            }));
     }
 
     private void setHeaderField(HttpResponse response, String headerField, String value) {

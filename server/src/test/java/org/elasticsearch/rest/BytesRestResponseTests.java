@@ -27,6 +27,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -347,7 +348,7 @@ public class BytesRestResponseTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(RestResponse response) {
+        public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
         }
     }
 
@@ -358,7 +359,7 @@ public class BytesRestResponseTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(RestResponse response) {
+        public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
         }
     }
 }

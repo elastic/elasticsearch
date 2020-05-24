@@ -42,8 +42,6 @@ import org.elasticsearch.transport.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -78,12 +76,8 @@ public class Netty4BadRequestTests extends ESTestCase {
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                try {
-                    final Exception e = cause instanceof Exception ? (Exception) cause : new ElasticsearchException(cause);
-                    channel.sendResponse(new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
-                } catch (final IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                final Exception e = cause instanceof Exception ? (Exception) cause : new ElasticsearchException(cause);
+                channel.sendResponse(() -> new BytesRestResponse(channel, RestStatus.BAD_REQUEST, e));
             }
         };
 

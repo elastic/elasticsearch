@@ -21,7 +21,7 @@ package org.elasticsearch.http.nio;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.http.HttpSendContext;
 import org.elasticsearch.nio.NioSocketChannel;
 
 import java.nio.channels.SocketChannel;
@@ -32,8 +32,12 @@ public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
         super(socketChannel);
     }
 
-    public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        getContext().sendMessage(response, ActionListener.toBiConsumer(listener));
+    public void sendResponse(HttpSendContext sendContext) {
+        try {
+            getContext().sendMessage(sendContext.get(), ActionListener.toBiConsumer(sendContext));
+        } catch (Exception e) {
+            sendContext.onFailure(e);
+        }
     }
 
     @Override

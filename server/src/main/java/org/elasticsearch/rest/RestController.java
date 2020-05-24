@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -174,7 +175,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
-                channel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(() -> new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error(() ->
@@ -185,23 +186,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-        try {
-            final Exception e;
-            if (cause == null) {
-                e = new ElasticsearchException("unknown cause");
-            } else if (cause instanceof Exception) {
-                e = (Exception) cause;
-            } else {
-                e = new ElasticsearchException(cause);
-            }
-            channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
-        } catch (final IOException e) {
-            if (cause != null) {
-                e.addSuppressed(cause);
-            }
-            logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        final Exception e;
+        if (cause == null) {
+            e = new ElasticsearchException("unknown cause");
+        } else if (cause instanceof Exception) {
+            e = (Exception) cause;
+        } else {
+            e = new ElasticsearchException(cause);
         }
+        channel.sendResponse(() -> new BytesRestResponse(channel, BAD_REQUEST, e));
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
@@ -213,8 +206,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return;
             }
             if (handler.supportsContentStream() && xContentType != XContentType.JSON && xContentType != XContentType.SMILE) {
-                channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_ACCEPTABLE,
-                    "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"));
+                channel.sendResponse(() ->
+                    BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_ACCEPTABLE,
+                        "Content-Type [" + xContentType + "] does not support stream parsing. Use JSON or SMILE instead"));
                 return;
             }
         }
@@ -233,7 +227,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
-            responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
+            final RestChannel finalChannel = responseChannel;
+            responseChannel.sendResponse(() -> new BytesRestResponse(finalChannel, e));
         }
     }
 
@@ -264,8 +259,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             errorMessage = "Content-Type header [" +
                 Strings.collectionToCommaDelimitedString(contentTypeHeader) + "] is not supported";
         }
-
-        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));
+        final RestResponse errorResponse =
+            BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage);
+        channel.sendResponse(() -> errorResponse);
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
@@ -275,9 +271,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (headerValues != null && headerValues.isEmpty() == false) {
                 final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
-                    channel.sendResponse(
-                        BytesRestResponse.
-                            createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
+                    final RestResponse errorResponse = BytesRestResponse.createSimpleErrorResponse(
+                        channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "].");
+                    channel.sendResponse(() -> errorResponse);
                     return;
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
@@ -287,8 +283,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
-            channel.sendResponse(
-                    BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+            final RestResponse errorResponse =
+                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled.");
+            channel.sendResponse(() -> errorResponse);
             return;
         }
 
@@ -373,10 +370,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (validMethodSet.isEmpty() == false) {
                 bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
             }
-            channel.sendResponse(bytesRestResponse);
+            channel.sendResponse(() -> bytesRestResponse);
         } catch (final IOException e) {
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            channel.sendResponse(() ->
+                new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 
@@ -394,7 +392,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (validMethodSet.isEmpty() == false) {
             bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
         }
-        channel.sendResponse(bytesRestResponse);
+        channel.sendResponse(() -> bytesRestResponse);
     }
 
     /**
@@ -408,7 +406,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 builder.field("error", "no handler found for uri [" + uri + "] and method [" + method + "]");
             }
             builder.endObject();
-            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
+            channel.sendResponse(() -> new BytesRestResponse(BAD_REQUEST, builder));
         }
     }
 
@@ -437,10 +435,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         ByteArrayOutputStream out = new ByteArrayOutputStream();
                         Streams.copy(stream, out);
                         BytesRestResponse restResponse = new BytesRestResponse(RestStatus.OK, "image/x-icon", out.toByteArray());
-                        channel.sendResponse(restResponse);
+                        channel.sendResponse(() -> restResponse);
                     }
                 } catch (IOException e) {
-                    channel.sendResponse(
+                    channel.sendResponse(() ->
                         new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                 }
             }
@@ -498,7 +496,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public void sendResponse(RestResponse response) {
+        public void sendResponse(CheckedSupplier<RestResponse, Exception> response) {
             close();
             delegate.sendResponse(response);
         }

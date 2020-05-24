@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
@@ -757,12 +758,15 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final AtomicReference<AssertionError> getRepoError = new AtomicReference<>();
         getRepoAction.handleRequest(getRepoRequest, new AbstractRestChannel(getRepoRequest, true) {
             @Override
-            public void sendResponse(RestResponse response) {
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
                 try {
+                    final RestResponse response = restSendContext.get();
                     assertThat(response.content().utf8ToString(), containsString("notsecretusername"));
                     assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     getRepoError.set(ex);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
                 }
                 getRepoLatch.countDown();
             }
@@ -778,12 +782,15 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final AtomicReference<AssertionError> clusterStateError = new AtomicReference<>();
         clusterStateAction.handleRequest(clusterStateRequest, new AbstractRestChannel(clusterStateRequest, true) {
             @Override
-            public void sendResponse(RestResponse response) {
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
                 try {
+                    final RestResponse response = restSendContext.get();
                     assertThat(response.content().utf8ToString(), containsString("notsecretusername"));
                     assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     clusterStateError.set(ex);
+                } catch (Exception e) {
+                    throw new AssertionError(e);
                 }
                 clusterStateLatch.countDown();
             }

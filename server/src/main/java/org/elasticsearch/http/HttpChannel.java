@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;
@@ -27,13 +26,11 @@ import java.net.InetSocketAddress;
 public interface HttpChannel extends CloseableChannel {
 
     /**
-     * Sends an http response to the channel. The listener will be executed once the send process has been
-     * completed.
+     * Sends an http response to the channel.
      *
-     * @param response to send to channel
-     * @param listener to execute upon send completion
+     * @param sendContext send context
      */
-    void sendResponse(HttpResponse response, ActionListener<Void> listener);
+    void sendResponse(HttpSendContext sendContext);
 
     /**
      * Returns the local address for this channel.

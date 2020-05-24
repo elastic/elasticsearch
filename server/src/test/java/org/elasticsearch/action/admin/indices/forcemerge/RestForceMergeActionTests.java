@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -58,8 +59,12 @@ public class RestForceMergeActionTests extends RestActionTestCase {
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         dispatchRequest(request, new AbstractRestChannel(request, true) {
             @Override
-            public void sendResponse(RestResponse response) {
-                responseSetOnce.set(response);
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
+                try {
+                    responseSetOnce.set(restSendContext.get());
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             }
         });
 

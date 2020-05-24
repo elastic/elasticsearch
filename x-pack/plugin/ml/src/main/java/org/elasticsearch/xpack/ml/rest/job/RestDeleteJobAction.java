@@ -65,7 +65,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
                     builder.startObject();
                     builder.field("task", client.getLocalNodeId() + ":" + task.getId());
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                    channel.sendResponse(() -> new BytesRestResponse(RestStatus.OK, builder));
                 }
             };
         }

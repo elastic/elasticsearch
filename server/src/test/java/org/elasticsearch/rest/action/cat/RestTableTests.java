@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -266,7 +267,7 @@ public class RestTableTests extends ESTestCase {
         table.endRow();
         RestResponse response = buildResponse(table, new AbstractRestChannel(requestWithAcceptHeader, true) {
             @Override
-            public void sendResponse(RestResponse response) {
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
             }
         });
 

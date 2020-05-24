@@ -69,7 +69,6 @@ import org.elasticsearch.transport.NettyAllocator;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -156,7 +155,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+                channel.sendResponse(() ->
+                    new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
 
             @Override
@@ -228,12 +228,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
                 causeReference.set(cause);
-                try {
-                    final ElasticsearchException e = new ElasticsearchException("you sent a bad request and you should feel bad");
-                    channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
-                } catch (final IOException e) {
-                    throw new AssertionError(e);
-                }
+                final ElasticsearchException e = new ElasticsearchException("you sent a bad request and you should feel bad");
+                channel.sendResponse(() -> new BytesRestResponse(channel, BAD_REQUEST, e));
             }
 
         };

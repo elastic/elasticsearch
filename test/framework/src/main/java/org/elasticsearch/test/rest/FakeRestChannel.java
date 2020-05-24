@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -38,16 +39,20 @@ public final class FakeRestChannel extends AbstractRestChannel {
     }
 
     @Override
-    public void sendResponse(RestResponse response) {
-        this.capturedRestResponse = response;
-        if (response.status() == RestStatus.OK) {
+    public void sendResponse(CheckedSupplier<RestResponse, Exception> response) {
+        try {
+            this.capturedRestResponse = response.get();
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        if (capturedRestResponse.status() == RestStatus.OK) {
             responses.incrementAndGet();
         } else {
             errors.incrementAndGet();
         }
         latch.countDown();
     }
-    
+
     public RestResponse capturedResponse() {
         return capturedRestResponse;
     }

@@ -32,7 +32,7 @@ import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.http.HttpSendContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -219,7 +219,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         private final CountDownLatch closeLatch = new CountDownLatch(1);
 
         @Override
-        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
+        public void sendResponse(HttpSendContext sendContext) {
         }
 
         @Override

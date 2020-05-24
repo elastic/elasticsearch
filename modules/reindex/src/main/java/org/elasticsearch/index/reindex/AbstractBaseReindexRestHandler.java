@@ -117,7 +117,7 @@ public abstract class AbstractBaseReindexRestHandler<
                 builder.startObject();
                 builder.field("task", localNodeId + ":" + task.getId());
                 builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                channel.sendResponse(() -> new BytesRestResponse(RestStatus.OK, builder));
             }
         };
     }

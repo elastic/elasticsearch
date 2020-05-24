@@ -96,7 +96,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
 
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new TestResponse());
+                channel.sendResponse(TestResponse::new);
             }
 
         };

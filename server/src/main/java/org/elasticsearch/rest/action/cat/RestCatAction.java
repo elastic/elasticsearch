@@ -57,7 +57,7 @@ public class RestCatAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, HELP));
+        return channel -> channel.sendResponse(() -> new BytesRestResponse(RestStatus.OK, HELP));
     }
 
 }

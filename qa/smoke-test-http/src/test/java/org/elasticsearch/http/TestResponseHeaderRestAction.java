@@ -46,11 +46,11 @@ public class TestResponseHeaderRestAction extends BaseRestHandler {
         if ("password".equals(request.header("Secret"))) {
             RestResponse response = new BytesRestResponse(RestStatus.OK, "Access granted");
             response.addHeader("Secret", "granted");
-            return channel -> channel.sendResponse(response);
+            return channel -> channel.sendResponse(() -> response);
         } else {
             RestResponse response = new BytesRestResponse(RestStatus.UNAUTHORIZED, "Access denied");
             response.addHeader("Secret", "required");
-            return channel -> channel.sendResponse(response);
+            return channel -> channel.sendResponse(() -> response);
         }
     }
 }

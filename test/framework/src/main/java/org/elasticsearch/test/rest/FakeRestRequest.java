@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.http.HttpSendContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
@@ -145,8 +146,12 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-
+        public void sendResponse(HttpSendContext sendContext) {
+            try {
+                sendContext.get();
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
         }
 
         @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -78,8 +79,12 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
-            public void sendResponse(RestResponse restResponse) {
-                responseSetOnce.set(restResponse);
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
+                try {
+                    responseSetOnce.set(restSendContext.get());
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             }
         };
 
@@ -138,8 +143,12 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
-            public void sendResponse(RestResponse restResponse) {
-                responseSetOnce.set(restResponse);
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
+                try {
+                    responseSetOnce.set(restSendContext.get());
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             }
         };
 

@@ -113,7 +113,8 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
         @Override
         public void onResponse(CreateTokenResponse createTokenResponse) {
             try (XContentBuilder builder = channel.newBuilder()) {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, createTokenResponse.toXContent(builder, request)));
+                channel.sendResponse(() ->
+                    new BytesRestResponse(RestStatus.OK, createTokenResponse.toXContent(builder, request)));
             } catch (IOException e) {
                 onFailure(e);
             }
@@ -165,7 +166,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
                         .field("error", error.toString().toLowerCase(Locale.ROOT))
                         .field("error_description", description)
                         .endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
+                channel.sendResponse(() -> new BytesRestResponse(RestStatus.BAD_REQUEST, builder));
             } catch (IOException ioe) {
                 ioe.addSuppressed(e);
                 sendFailure(e);
@@ -174,7 +175,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler {
 
         void sendFailure(Exception e) {
             try {
-                channel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(() -> new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error("failed to send failure response", inner);

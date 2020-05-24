@@ -83,7 +83,7 @@ public class SecurityRestFilter implements RestHandler {
     private void handleException(String actionType, RestRequest request, RestChannel channel, Exception e) {
         logger.debug(new ParameterizedMessage("{} failed for REST request [{}]", actionType, request.uri()), e);
         try {
-            channel.sendResponse(new BytesRestResponse(channel, e));
+            channel.sendResponse(() -> new BytesRestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.error((Supplier<?>) () ->

@@ -57,9 +57,9 @@ public class ExampleCatAction extends AbstractCatAction {
         table.endRow();
         return channel -> {
             try {
-                channel.sendResponse(RestTable.buildResponse(table, channel));
+                channel.sendResponse(() -> RestTable.buildResponse(table, channel));
             } catch (final Exception e) {
-                channel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(() -> new BytesRestResponse(channel, e));
             }
         };
     }

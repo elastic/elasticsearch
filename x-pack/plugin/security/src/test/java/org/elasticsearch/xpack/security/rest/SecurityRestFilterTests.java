@@ -154,7 +154,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
         ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
-        verify(channel).sendResponse(response.capture());
+        verify(channel).sendResponse(response::capture);
         assertEquals(RestStatus.UNAUTHORIZED, response.getValue().status());
         verifyZeroInteractions(restHandler);
     }

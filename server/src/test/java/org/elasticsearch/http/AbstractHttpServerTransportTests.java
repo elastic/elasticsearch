@@ -192,12 +192,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                      new HttpServerTransport.Dispatcher() {
                          @Override
                          public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                             channel.sendResponse(emptyResponse(RestStatus.OK));
+                             channel.sendResponse(() -> emptyResponse(RestStatus.OK));
                          }
 
                          @Override
                          public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                             channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                             channel.sendResponse(() -> emptyResponse(RestStatus.BAD_REQUEST));
                          }
                      }, clusterSettings) {
                      @Override

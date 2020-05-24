@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,7 +37,7 @@ public interface RestChannel {
     XContentBuilder newErrorBuilder() throws IOException;
 
     XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException;
-    
+
     XContentBuilder newBuilder(@Nullable XContentType xContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException;
 
@@ -49,5 +50,5 @@ public interface RestChannel {
      */
     boolean detailedErrorsEnabled();
 
-    void sendResponse(RestResponse response);
+    void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext);
 }

@@ -23,7 +23,7 @@ import io.netty.channel.Channel;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.http.HttpSendContext;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 
 import java.net.InetSocketAddress;
@@ -39,8 +39,14 @@ public class Netty4HttpChannel implements HttpChannel {
     }
 
     @Override
-    public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-        channel.writeAndFlush(response, Netty4TcpChannel.addPromise(listener, channel));
+    public void sendResponse(HttpSendContext sendContext) {
+        channel.eventLoop().execute(() -> {
+            try {
+                channel.writeAndFlush(sendContext.get(), Netty4TcpChannel.addPromise(sendContext, channel));
+            } catch (Exception e) {
+                sendContext.onFailure(e);
+            }
+        });
     }
 
     @Override

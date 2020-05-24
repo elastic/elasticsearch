@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -40,8 +41,12 @@ public class RestGetTokenActionTests extends ESTestCase {
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
-            public void sendResponse(RestResponse restResponse) {
-                responseSetOnce.set(restResponse);
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
+                try {
+                    responseSetOnce.set(restSendContext.get());
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             }
         };
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
@@ -64,8 +69,12 @@ public class RestGetTokenActionTests extends ESTestCase {
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
-            public void sendResponse(RestResponse restResponse) {
-                responseSetOnce.set(restResponse);
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
+                try {
+                    responseSetOnce.set(restSendContext.get());
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             }
         };
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);
@@ -93,8 +102,12 @@ public class RestGetTokenActionTests extends ESTestCase {
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
-            public void sendResponse(RestResponse restResponse) {
-                responseSetOnce.set(restResponse);
+            public void sendResponse(CheckedSupplier<RestResponse, Exception> restSendContext) {
+                try {
+                    responseSetOnce.set(restSendContext.get());
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
             }
         };
         CreateTokenResponseActionListener listener = new CreateTokenResponseActionListener(restChannel, restRequest, NoOpLogger.INSTANCE);

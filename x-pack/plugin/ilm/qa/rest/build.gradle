@@ -10,6 +10,7 @@ dependencies {
 
 restResources {
   restApi {
+    includeCore '_common', 'cluster', 'indices', 'index', 'snapshot'
     includeXpack 'ilm', 'slm'
   }
 }
@@ -27,9 +28,7 @@ task restTest(type: RestIntegTestTask) {
 
 testClusters.restTest {
   testDistribution = 'DEFAULT'
-  setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   user clusterCredentials

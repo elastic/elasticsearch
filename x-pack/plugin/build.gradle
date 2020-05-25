@@ -3,17 +3,17 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
+  testCompile project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 configurations {
   testArtifacts.extendsFrom testRuntime
-  restXpackSpecs
-  restXpackTests
 }
 
 artifacts {
@@ -105,6 +105,13 @@ testClusters.integTest {
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
 }
+
+

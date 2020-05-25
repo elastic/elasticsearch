@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -91,7 +91,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 3. Revert the state
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             exists -> {
-                PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);
 
                 if (jobState.equals(JobState.CLOSED) == false) {
@@ -143,10 +143,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // acknowledged responses
         return ActionListener.wrap(response -> {
             Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
-            logger.debug("Removing intervening records: last record: " + deleteAfter + ", last result: "
-                    + modelSnapshot.getLatestResultTimeStamp());
-
-            logger.info("Deleting results after '" + deleteAfter + "'");
+            logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
             dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {

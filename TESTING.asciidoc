@@ -20,9 +20,9 @@ To create a platform-specific build including the x-pack modules, use the
 following depending on your operating system:
 
 -----------------------------
-./gradlew :distribution:archives:linux-tar:assemble --parallel
-./gradlew :distribution:archives:darwin-tar:assemble --parallel
-./gradlew :distribution:archives:windows-zip:assemble --parallel
+./gradlew :distribution:archives:linux-tar:assemble
+./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:windows-zip:assemble
 -----------------------------
 
 === Running Elasticsearch from a checkout
@@ -50,6 +50,10 @@ Since we might run multiple JVMs as part of configuring and starting the cluster
 recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
 is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting
 needs to be configured with a greater value (ie 10 or more).
+
+NOTE: If you have imported the project into IntelliJ according to the instructions in
+link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
+named "Debug Elasticsearch" will be created for you and configured appropriately.
 
 ==== Distribution
 
@@ -249,10 +253,10 @@ To run all verification tasks, including static checks, unit tests, and integrat
 ---------------------------------------------------------------------------
 
 Note that this will also run the unit tests and precommit tasks first. If you want to just
-run the integration tests (because you are debugging them):
+run the in memory cluster integration tests (because you are debugging them):
 
 ---------------------------------------------------------------------------
-./gradlew integTest
+./gradlew internalClusterTest
 ---------------------------------------------------------------------------
 
 If you want to just run the precommit checks:

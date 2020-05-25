@@ -71,6 +71,22 @@ include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
 include::search/count.asciidoc[]
 
+[role="xpack"]
+== Async Search APIs
+
+:upid: {mainid}-asyncsearch
+:doc-tests-file: {doc-tests}/AsyncSearchDocumentationIT.java
+
+The Java High Level REST Client supports the following Async Search APIs:
+
+* <<{upid}-asyncsearch-submit>>
+* <<{upid}-asyncsearch-get>>
+* <<{upid}-asyncsearch-delete>>
+
+include::asyncsearch/submit.asciidoc[]
+include::asyncsearch/get.asciidoc[]
+include::asyncsearch/delete.asciidoc[]
+
 == Miscellaneous APIs
 
 The Java High Level REST Client supports the following Miscellaneous APIs:
@@ -160,6 +176,10 @@ include::indices/freeze_index.asciidoc[]
 include::indices/unfreeze_index.asciidoc[]
 include::indices/delete_template.asciidoc[]
 include::indices/reload_analyzers.asciidoc[]
+include::indices/get_index_template.asciidoc[]
+include::indices/put_index_template.asciidoc[]
+include::indices/delete_index_template.asciidoc[]
+include::indices/simulate_index_template.asciidoc[]
 
 == Cluster APIs
 
@@ -176,6 +196,9 @@ include::cluster/put_settings.asciidoc[]
 include::cluster/get_settings.asciidoc[]
 include::cluster/health.asciidoc[]
 include::cluster/remote_info.asciidoc[]
+include::cluster/get_component_template.asciidoc[]
+include::cluster/put_component_template.asciidoc[]
+include::cluster/delete_component_template.asciidoc[]
 
 == Ingest APIs
 The Java High Level REST Client supports the following Ingest APIs:
@@ -295,6 +318,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-put-calendar-job>>
 * <<{upid}-delete-calendar-job>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-estimate-model-memory>>
 * <<{upid}-get-data-frame-analytics>>
 * <<{upid}-get-data-frame-analytics-stats>>
 * <<{upid}-put-data-frame-analytics>>
@@ -351,6 +375,7 @@ include::ml/delete-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/estimate-model-memory.asciidoc[]
 include::ml/get-data-frame-analytics.asciidoc[]
 include::ml/get-data-frame-analytics-stats.asciidoc[]
 include::ml/put-data-frame-analytics.asciidoc[]

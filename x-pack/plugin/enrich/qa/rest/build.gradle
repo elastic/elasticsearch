@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 restResources {
   restApi {
+    includeCore '_common', 'indices', 'index'
     includeXpack 'enrich'
   }
 }

@@ -104,7 +104,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?, ?> parse(String name,
+        public Mapper.Builder<?> parse(String name,
                                           Map<String, Object> node,
                                           ParserContext parserContext) throws MapperParsingException {
 
@@ -129,7 +129,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, SearchAsYouTypeFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private int maxShingleSize = Defaults.MAX_SHINGLE_SIZE;
 
         public Builder(String name) {
@@ -344,21 +344,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            final SearchAsYouTypeFieldType otherFieldType = (SearchAsYouTypeFieldType) other;
-            if (this.shingleFields.length != otherFieldType.shingleFields.length) {
-                conflicts.add("mapper [" + name() + "] has a different [max_shingle_size]");
-            } else if (Arrays.equals(this.shingleFields, otherFieldType.shingleFields) == false) {
-                conflicts.add("mapper [" + name() + "] has shingle subfields that are configured differently");
-            }
-
-            if (Objects.equals(this.prefixField, otherFieldType.prefixField) == false) {
-                conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
-            }
-        }
-
-        @Override
         public boolean equals(Object otherObject) {
             if (this == otherObject) {
                 return true;
@@ -484,8 +469,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+        protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override
@@ -511,8 +501,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+        protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override
@@ -614,18 +609,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            ShingleFieldType ft = (ShingleFieldType) other;
-            if (ft.shingleSize != this.shingleSize) {
-                conflicts.add("mapper [" + name() + "] has different [shingle_size] values");
-            }
-            if (Objects.equals(this.prefixFieldType, ft.prefixFieldType) == false) {
-                conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
-            }
-        }
-
-        @Override
         public boolean equals(Object otherObject) {
             if (this == otherObject) {
                 return true;
@@ -675,22 +658,21 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
         if (value == null) {
             return;
         }
 
         List<IndexableField> newFields = new ArrayList<>();
-        newFields.add(new Field(fieldType().name(), value, fieldType()));
+        context.doc().add(new Field(fieldType().name(), value, fieldType()));
         for (ShingleFieldMapper subFieldMapper : shingleFields) {
-            fields.add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.fieldType()));
+            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.fieldType()));
         }
-        newFields.add(new Field(prefixField.fieldType().name(), value, prefixField.fieldType()));
+        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.fieldType()));
         if (fieldType().omitNorms()) {
-            createFieldNamesField(context, newFields);
+            createFieldNamesField(context);
         }
-        fields.addAll(newFields);
     }
 
     @Override
@@ -699,18 +681,15 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        SearchAsYouTypeFieldMapper mw = (SearchAsYouTypeFieldMapper) mergeWith;
-        if (mw.maxShingleSize != maxShingleSize) {
-            throw new IllegalArgumentException("mapper [" + name() + "] has different [max_shingle_size] setting, current ["
-                + this.maxShingleSize + "], merged [" + mw.maxShingleSize + "]");
-        }
-        this.prefixField = (PrefixFieldMapper) this.prefixField.merge(mw.prefixField);
-
-        ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[mw.shingleFields.length];
-        for (int i = 0; i < shingleFieldMappers.length; i++) {
-            this.shingleFields[i] = (ShingleFieldMapper) this.shingleFields[i].merge(mw.shingleFields[i]);
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        final SearchAsYouTypeFieldMapper m = (SearchAsYouTypeFieldMapper) other;
+        if (this.shingleFields.length != m.shingleFields.length) {
+            conflicts.add("mapper [" + name() + "] has a different [max_shingle_size]");
+        } else {
+            this.prefixField = (PrefixFieldMapper) this.prefixField.merge(m.prefixField);
+            for (int i = 0; i < m.shingleFields.length; i++) {
+                this.shingleFields[i] = (ShingleFieldMapper) this.shingleFields[i].merge(m.shingleFields[i]);
+            }
         }
     }
 

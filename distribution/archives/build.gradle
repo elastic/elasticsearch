@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
 
@@ -35,22 +36,22 @@ apply plugin: 'base'
 // create the directory that we want, and then point CopySpec to its
 // parent to copy to the root of the distribution
 ext.logsDir = new File(buildDir, 'logs-hack/logs')
-task createLogsDir(type: EmptyDirTask) {
+tasks.register('createLogsDir', EmptyDirTask) {
   dir = "${logsDir}"
   dirMode = 0755
 }
 ext.pluginsDir = new File(buildDir, 'plugins-hack/plugins')
-task createPluginsDir(type: EmptyDirTask) {
+tasks.register('createPluginsDir', EmptyDirTask) {
   dir = "${pluginsDir}"
   dirMode = 0755
 }
 ext.jvmOptionsDir = new File(buildDir, 'jvm-options-hack/jvm.options.d')
-task createJvmOptionsDir(type: EmptyDirTask) {
+tasks.register('createJvmOptionsDir', EmptyDirTask) {
   dir = "${jvmOptionsDir}"
   dirMode = 0750
 }
 
-CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, boolean oss, boolean jdk) {
+CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean oss, boolean jdk) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
@@ -70,7 +71,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       }
       if (jdk) {
         into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
-          with jdkFiles(project, platform)
+          with jdkFiles(project, platform, architecture)
         }
       }
       into('') {
@@ -102,7 +103,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 }
 
 // common config across all zip/tar
-tasks.withType(AbstractArchiveTask) {
+tasks.withType(AbstractArchiveTask).configureEach {
   dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
   String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
   destinationDir = file("${subdir}/build/distributions")
@@ -114,33 +115,33 @@ Closure commonZipConfig = {
   fileMode 0644
 }
 
-task buildIntegTestZip(type: Zip) {
+tasks.register('buildIntegTestZip', Zip) {
   configure(commonZipConfig)
-  with archiveFiles(transportModulesFiles, 'zip', null, true, false)
+  with archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
 }
 
-task buildWindowsZip(type: Zip) {
+tasks.register('buildWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows'), 'zip', 'windows', false, true)
+  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
 }
 
-task buildOssWindowsZip(type: Zip) {
+tasks.register('buildOssWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows'), 'zip', 'windows', true, true)
+  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
 }
 
-task buildNoJdkWindowsZip(type: Zip) {
+tasks.register('buildNoJdkWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(false, 'windows'), 'zip', 'windows', false, false)
+  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
 }
 
-task buildOssNoJdkWindowsZip(type: Zip) {
+tasks.register('buildOssNoJdkWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(true, 'windows'), 'zip', 'windows', true, false)
+  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
 }
 
 Closure commonTarConfig = {
@@ -150,52 +151,64 @@ Closure commonTarConfig = {
   fileMode 0644
 }
 
-task buildDarwinTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', false, true)
+  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
 }
 
-task buildOssDarwinTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildOssDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', true, true)
+  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
 }
 
-task buildNoJdkDarwinTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildNoJdkDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', false, false)
+  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
 }
 
-task buildOssNoJdkDarwinTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildOssNoJdkDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', true, false)
+  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
 }
 
-task buildLinuxTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildLinuxAarch64Tar', SymbolicLinkPreservingTar) {
+  configure(commonTarConfig)
+  archiveClassifier = 'linux-aarch64'
+  with archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
+}
+
+tasks.register('buildLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', false, true)
+  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
 }
 
-task buildOssLinuxTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildOssLinuxAarch64Tar', SymbolicLinkPreservingTar) {
+  configure(commonTarConfig)
+  archiveClassifier = 'linux-aarch64'
+  with archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
+}
+
+tasks.register('buildOssLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', true, true)
+  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
 }
 
-task buildNoJdkLinuxTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildNoJdkLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', false, false)
+  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
 }
 
-task buildOssNoJdkLinuxTar(type: SymbolicLinkPreservingTar) {
+tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', true, false)
+  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
 }
 
 Closure tarExists = { it -> new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }
@@ -211,7 +224,7 @@ subprojects {
   apply plugin: 'distribution'
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.getByName(buildTask)
+  ext.buildDist = parent.tasks.named(buildTask)
   artifacts {
     'default' buildDist
   }
@@ -224,24 +237,24 @@ subprojects {
     assert project.name.contains('zip')
     archiveExtractionDir = new File(buildDir, 'zip-extracted')
   }
-  task checkExtraction(type: LoggedExec) {
+  def checkExtraction = tasks.register('checkExtraction', LoggedExec) {
     dependsOn buildDist
     doFirst {
       project.delete(archiveExtractionDir)
       archiveExtractionDir.mkdirs()
     }
   }
-  check.dependsOn checkExtraction
+  tasks.named('check').configure { dependsOn checkExtraction }
   if (project.name.contains('tar')) {
-    checkExtraction {
+    checkExtraction.configure {
       onlyIf tarExists
-      commandLine 'tar', '-xvzf', "${-> buildDist.outputs.files.singleFile}", '-C', archiveExtractionDir
+      commandLine 'tar', '-xvzf', "${-> buildDist.get().outputs.files.singleFile}", '-C', archiveExtractionDir
     }
   } else {
     assert project.name.contains('zip')
-    checkExtraction {
+    checkExtraction.configure {
       onlyIf unzipExists
-      commandLine 'unzip', "${-> buildDist.outputs.files.singleFile}", '-d', archiveExtractionDir
+      commandLine 'unzip', "${-> buildDist.get().outputs.files.singleFile}", '-d', archiveExtractionDir
     }
   }
 
@@ -254,7 +267,7 @@ subprojects {
   }
 
 
-  task checkLicense {
+  tasks.register('checkLicense') {
     dependsOn buildDist, checkExtraction
     onlyIf toolExists
     doLast {
@@ -269,9 +282,9 @@ subprojects {
       assertLinesInFile(licensePath, licenseLines)
     }
   }
-  check.dependsOn checkLicense
+  tasks.named('check').configure { dependsOn checkLicense }
 
-  task checkNotice {
+  tasks.register('checkNotice') {
     dependsOn buildDist, checkExtraction
     onlyIf toolExists
     doLast {
@@ -280,12 +293,12 @@ subprojects {
       assertLinesInFile(noticePath, noticeLines)
     }
   }
-  check.dependsOn checkNotice
+  tasks.named('check').configure { dependsOn checkNotice }
 
   if (project.name == 'zip' || project.name == 'tar') {
     project.ext.licenseName = 'Elastic License'
     project.ext.licenseUrl = ext.elasticLicenseUrl
-    task checkMlCppNotice {
+    def checkMlCppNotice = tasks.register('checkMlCppNotice') {
       dependsOn buildDist, checkExtraction
       onlyIf toolExists
       doLast {
@@ -300,7 +313,7 @@ subprojects {
         }
       }
     }
-    check.dependsOn checkMlCppNotice
+    tasks.named('check').configure { dependsOn checkMlCppNotice }
   }
 }
 
@@ -332,12 +345,8 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
     MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
   }
 
-
   // The integ-test-distribution is published to maven
-  BuildPlugin.configurePomGeneration(project)
-  apply plugin: 'nebula.info-scm'
-  apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
+  apply plugin: 'elasticsearch.publish'
 
   // make the pom file name use elasticsearch instead of the project name
   archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
@@ -345,36 +354,8 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   publishing {
     publications {
       nebula {
-        artifactId archivesBaseName
-        artifact buildDist
-      }
-      /*
-       * HUGE HACK: the underlying maven publication library refuses to
-       * deploy any attached artifacts when the packaging type is set to
-       * 'pom'. But Sonatype's OSS repositories require source files for
-       * artifacts that are of type 'zip'. We already publish the source
-       * and javadoc for Elasticsearch under the various other subprojects.
-       * So here we create another publication using the same name that
-       * has the "real" pom, and rely on the fact that gradle will execute
-       * the publish tasks in alphabetical order. This lets us publish the
-       * zip file and even though the pom says the type is 'pom' instead of
-       * 'zip'. We cannot setup a dependency between the tasks because the
-       * publishing tasks are created *extremely* late in the configuration
-       * phase, so that we cannot get ahold of the actual task. Furthermore,
-       * this entire hack only exists so we can make publishing to maven
-       * local work, since we publish to maven central externally.
-       */
-      nebulaRealPom(MavenPublication) {
-        artifactId archivesBaseName
-        pom.packaging = 'pom'
-        pom.withXml { XmlProvider xml ->
-          Node root = xml.asNode()
-          root.appendNode('name', 'Elasticsearch')
-          root.appendNode('description', 'A Distributed RESTful Search Engine')
-          root.appendNode('url', PluginBuildPlugin.urlFromOrigin(project.scminfo.origin))
-          Node scmNode = root.appendNode('scm')
-          scmNode.appendNode('url', project.scminfo.origin)
-        }
+        pom.packaging = 'zip'
+        artifact(buildDist.flatMap { it.archiveFile })
       }
     }
   }

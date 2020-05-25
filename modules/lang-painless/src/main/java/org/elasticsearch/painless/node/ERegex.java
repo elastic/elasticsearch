@@ -36,42 +36,49 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
 /**
  * Represents a regex constant. All regexes are constants.
  */
-public final class ERegex extends AExpression {
+public class ERegex extends AExpression {
 
-    private final String pattern;
-    private final int flags;
-    private String name;
+    protected final String pattern;
+    protected final String flags;
 
-    public ERegex(Location location, String pattern, String flagsString) {
+    public ERegex(Location location, String pattern, String flags) {
         super(location);
 
-        this.pattern = pattern;
-
-        int flags = 0;
-
-        for (int c = 0; c < flagsString.length(); c++) {
-            flags |= flagForChar(flagsString.charAt(c));
-        }
-
+        this.pattern = Objects.requireNonNull(pattern);
         this.flags = flags;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
+        }
+
+        Output output = new Output();
+
         if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
                     + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
                     + "recursion and long loops."));
         }
 
-        if (!read) {
-            throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
+        int flags = 0;
+
+        for (int c = 0; c < this.flags.length(); c++) {
+            flags |= flagForChar(this.flags.charAt(c));
         }
 
         try {
@@ -81,12 +88,9 @@ public final class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        name = scriptRoot.getNextSyntheticName("regex");
-        actual = Pattern.class;
-    }
+        String name = scriptRoot.getNextSyntheticName("regex");
+        output.actual = Pattern.class;
 
-    @Override
-    MemberFieldLoadNode write(ClassNode classNode) {
         FieldNode fieldNode = new FieldNode();
         fieldNode.setLocation(location);
         fieldNode.setModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE);
@@ -163,7 +167,9 @@ public final class ERegex extends AExpression {
         memberFieldLoadNode.setName(name);
         memberFieldLoadNode.setStatic(true);
 
-        return memberFieldLoadNode;
+        output.expressionNode = memberFieldLoadNode;
+
+        return output;
     }
 
     private int flagForChar(char c) {
@@ -179,24 +185,5 @@ public final class ERegex extends AExpression {
             default:
                 throw new IllegalArgumentException("Unknown flag [" + c + "]");
         }
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder f = new StringBuilder();
-        if ((flags & Pattern.CANON_EQ) != 0)                f.append('c');
-        if ((flags & Pattern.CASE_INSENSITIVE) != 0)        f.append('i');
-        if ((flags & Pattern.LITERAL) != 0)                 f.append('l');
-        if ((flags & Pattern.MULTILINE) != 0)               f.append('m');
-        if ((flags & Pattern.DOTALL) != 0)                  f.append('s');
-        if ((flags & Pattern.UNICODE_CHARACTER_CLASS) != 0) f.append('U');
-        if ((flags & Pattern.UNICODE_CASE) != 0)            f.append('u');
-        if ((flags & Pattern.COMMENTS) != 0)                f.append('x');
-
-        String p = "/" + pattern + "/";
-        if (f.length() == 0) {
-            return singleLineToString(p);
-        }
-        return singleLineToString(p, f);
     }
 }

@@ -19,10 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -30,12 +31,12 @@ import java.util.Objects;
 /**
  * Represents an explicit cast.
  */
-public final class EExplicit extends AExpression {
+public class EExplicit extends AExpression {
 
-    private final String type;
-    private AExpression child;
+    protected final DType type;
+    protected final AExpression child;
 
-    public EExplicit(Location location, String type, AExpression child) {
+    public EExplicit(Location location, DType type, AExpression child) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
@@ -43,26 +44,31 @@ public final class EExplicit extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(type);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        String canonicalTypeName = type.getCanonicalTypeName();
 
-        if (actual == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to an explicit cast with target type [" + canonicalTypeName + "]"));
         }
 
-        child.expected = actual;
-        child.explicit = true;
-        child.analyze(scriptRoot, scope);
-        child.cast();
-    }
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from explicit cast with target type [" + canonicalTypeName + "]"));
+        }
 
-    @Override
-    ExpressionNode write(ClassNode classNode) {
-        return child.cast(child.write(classNode));
-    }
+        Output output = new Output();
+        output.actual = type.resolveType(scriptRoot.getPainlessLookup()).getType();
 
-    @Override
-    public String toString() {
-        return singleLineToString(type, child);
+        Input childInput = new Input();
+        childInput.expected = output.actual;
+        childInput.explicit = true;
+        Output childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
+        PainlessCast childCast = AnalyzerCaster.getLegalCast(child.location,
+                childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+
+        output.expressionNode = cast(childOutput.expressionNode, childCast);
+
+        return output;
     }
 }

@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
 
 public class Jdk implements Buildable, Iterable<File> {
 
+    private static final List<String> ALLOWED_ARCHITECTURES = List.of("aarch64", "x64");
     private static final List<String> ALLOWED_VENDORS = List.of("adoptopenjdk", "openjdk");
     private static final List<String> ALLOWED_PLATFORMS = List.of("darwin", "linux", "windows", "mac");
     private static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
@@ -44,6 +45,7 @@ public class Jdk implements Buildable, Iterable<File> {
     private final Property<String> vendor;
     private final Property<String> version;
     private final Property<String> platform;
+    private final Property<String> architecture;
     private String baseVersion;
     private String major;
     private String build;
@@ -55,6 +57,7 @@ public class Jdk implements Buildable, Iterable<File> {
         this.vendor = objectFactory.property(String.class);
         this.version = objectFactory.property(String.class);
         this.platform = objectFactory.property(String.class);
+        this.architecture = objectFactory.property(String.class);
     }
 
     public String getName() {
@@ -97,6 +100,19 @@ public class Jdk implements Buildable, Iterable<File> {
         this.platform.set(platform);
     }
 
+    public String getArchitecture() {
+        return architecture.get();
+    }
+
+    public void setArchitecture(final String architecture) {
+        if (ALLOWED_ARCHITECTURES.contains(architecture) == false) {
+            throw new IllegalArgumentException(
+                "unknown architecture [" + architecture + "] for jdk [" + name + "], must be one of " + ALLOWED_ARCHITECTURES
+            );
+        }
+        this.architecture.set(architecture);
+    }
+
     public String getBaseVersion() {
         return baseVersion;
     }
@@ -135,11 +151,23 @@ public class Jdk implements Buildable, Iterable<File> {
         return new Object() {
             @Override
             public String toString() {
-                final String platform = getPlatform();
-                final boolean isOSX = "mac".equals(platform) || "darwin".equals(platform);
-                return getPath() + (isOSX ? "/Contents/Home" : "") + "/bin/java";
+                return getHomeRoot() + "/bin/java";
             }
         };
+    }
+
+    public Object getJavaHomePath() {
+        return new Object() {
+            @Override
+            public String toString() {
+                return getHomeRoot();
+            }
+        };
+    }
+
+    private String getHomeRoot() {
+        boolean isOSX = "mac".equals(getPlatform()) || "darwin".equals(getPlatform());
+        return getPath() + (isOSX ? "/Contents/Home" : "");
     }
 
     // internal, make this jdks configuration unmodifiable
@@ -153,9 +181,13 @@ public class Jdk implements Buildable, Iterable<File> {
         if (vendor.isPresent() == false) {
             throw new IllegalArgumentException("vendor not specified for jdk [" + name + "]");
         }
+        if (architecture.isPresent() == false) {
+            throw new IllegalArgumentException("architecture not specified for jdk [" + name + "]");
+        }
         version.finalizeValue();
         platform.finalizeValue();
         vendor.finalizeValue();
+        architecture.finalizeValue();
     }
 
     @Override

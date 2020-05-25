@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTes
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
@@ -61,7 +62,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
         return false;
     }
 
-    public static TrainedModelDefinition.Builder createRandomBuilder() {
+    public static TrainedModelDefinition.Builder createRandomBuilder(TargetType targetType) {
         int numberOfProcessors = randomIntBetween(1, 10);
         return new TrainedModelDefinition.Builder()
             .setPreProcessors(
@@ -71,7 +72,11 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.createRandom(), EnsembleTests.createRandom()));
+            .setTrainedModel(randomFrom(TreeTests.createRandom(targetType), EnsembleTests.createRandom(targetType)));
+    }
+
+    public static TrainedModelDefinition.Builder createRandomBuilder() {
+        return createRandomBuilder(randomFrom(TargetType.values()));
     }
 
     private static final String ENSEMBLE_MODEL = "" +

@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.info.BuildParams
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-eql'
   description 'The Elasticsearch plugin that powers EQL for Elasticsearch'
@@ -20,14 +21,11 @@ archivesBaseName = 'x-pack-eql'
 // All integration tests live in qa modules
 integTest.enabled = false
 
-// Instead we create a separate task to run the tests based on ESIntegTestCase
-task internalClusterTest(type: Test) {
-  mustRunAfter test
-  include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+tasks.named('internalClusterTest').configure {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.eql_feature_flag_registered', 'true'
+  }
 }
-
-check.dependsOn internalClusterTest
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
@@ -43,15 +41,6 @@ dependencies {
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
-
-  // TOML parser for EqlActionIT tests
-  testCompile 'io.ous:jtoml:2.0.0'
-
-  // JSON parser for tests input data
-  testCompile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-
 }
 
 

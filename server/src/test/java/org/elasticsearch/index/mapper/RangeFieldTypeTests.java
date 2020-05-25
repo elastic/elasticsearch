@@ -33,7 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -48,12 +48,11 @@ import org.joda.time.DateTime;
 import org.junit.Before;
 
 import java.net.InetAddress;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RangeFieldTypeTests extends FieldTypeTestCase {
+public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
     RangeType type;
     protected static String FIELDNAME = "field";
     protected static int DISTANCE = 10;
@@ -64,17 +63,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         type = randomFrom(RangeType.values());
         nowInMillis = randomNonNegativeLong();
         if (type == RangeType.DATE) {
-            addModifier(new Modifier("format", true) {
-                @Override
-                public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
+            addModifier(t -> {
+                RangeFieldType other = t.clone();
+                if (other.dateTimeFormatter == DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) {
+                    other.setDateTimeFormatter(DateFormatter.forPattern("epoch_millis"));
+                } else {
+                    other.setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
                 }
-            });
-            addModifier(new Modifier("locale", true) {
-                @Override
-                public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
-                }
+                return other;
             });
         }
     }
@@ -227,10 +223,10 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     private QueryShardContext createContext() {
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true);
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
     }
 
     public void testDateRangeQueryUsingMappingFormat() {

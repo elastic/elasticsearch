@@ -959,13 +959,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Create a shallow copy of this builder with a new slice configuration.
      */
-    public SearchSourceBuilder copyWithNewSlice(SliceBuilder slice) {
-        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, slice, sorts, rescoreBuilders, highlightBuilder);
+    public SearchSourceBuilder shallowCopy() {
+        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
     }
 
     /**
      * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@link #sliceBuilder}. Used by
-     * {@link #rewrite(QueryRewriteContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
+     * {@link #rewrite(QueryRewriteContext)}}.
      */
     @SuppressWarnings("rawtypes")
     private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder,
@@ -1075,19 +1075,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         scriptFields.add(new ScriptField(parser));
-                    }
-                } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecated(
-                        "Object format in indices_boost is deprecated, please use array format instead");
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            indexBoosts.add(new IndexBoost(currentFieldName, parser.floatValue()));
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token +
-                                " in [" + currentFieldName + "].", parser.getTokenLocation());
-                        }
                     }
                 } else if (AGGREGATIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())
                         || AGGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

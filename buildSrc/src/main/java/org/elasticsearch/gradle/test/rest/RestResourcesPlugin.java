@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.provider.Provider;
 
@@ -86,17 +87,23 @@ public class RestResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
+        // tests
+        Configuration testConfig = project.getConfigurations().create("restTestConfig");
+        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
+        project.getConfigurations().create("restTests");
+        project.getConfigurations().create("restXpackTests");
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
             .register("copyYamlTestsTask", CopyRestTestsTask.class, task -> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
-                task.coreConfig = project.getConfigurations().create("restTest");
+                task.coreConfig = testConfig;
                 if (BuildParams.isInternal()) {
+                    // core
                     Dependency restTestdependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restTests"));
                     project.getDependencies().add(task.coreConfig.getName(), restTestdependency);
-
-                    task.xpackConfig = project.getConfigurations().create("restXpackTest");
+                    // x-pack
+                    task.xpackConfig = xpackTestConfig;
                     Dependency restXPackTestdependency = project.getDependencies()
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
                     project.getDependencies().add(task.xpackConfig.getName(), restXPackTestdependency);
@@ -109,18 +116,22 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.dependsOn(task.coreConfig);
             });
 
+        // api
+        Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
+        Configuration xpackSpecConfig = project.getConfigurations().create("restXpackSpec");
+        project.getConfigurations().create("restSpecs");
+        project.getConfigurations().create("restXpackSpecs");
         Provider<CopyRestApiTask> copyRestYamlSpecTask = project.getTasks()
             .register("copyRestApiSpecsTask", CopyRestApiTask.class, task -> {
                 task.includeCore.set(extension.restApi.getIncludeCore());
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
-                task.coreConfig = project.getConfigurations().create("restSpec");
+                task.coreConfig = specConfig;
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
                     project.getDependencies().add(task.coreConfig.getName(), restSpecDependency);
-
-                    task.xpackConfig = project.getConfigurations().create("restXpackSpec");
+                    task.xpackConfig = xpackSpecConfig;
                     Dependency restXpackSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackSpecs"));
                     project.getDependencies().add(task.xpackConfig.getName(), restXpackSpecDependency);

@@ -127,10 +127,10 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -265,6 +265,7 @@ public class RestHighLevelClient implements Closeable {
     private final TransformClient transformClient = new TransformClient(this);
     private final EnrichClient enrichClient = new EnrichClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
+    private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -428,11 +429,21 @@ public class RestHighLevelClient implements Closeable {
      * A wrapper for the {@link RestHighLevelClient} that provides methods for
      * accessing the Elastic Index Lifecycle APIs.
      * <p>
-     * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com"> X-Pack APIs
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management-api.html"> X-Pack APIs
      * on elastic.co</a> for more information.
      */
     public IndexLifecycleClient indexLifecycle() {
         return ilmClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Index Async Search APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> X-Pack APIs on elastic.co</a>
+     * for more information.
+     */
+    public AsyncSearchClient asyncSearch() {
+        return asyncSearchClient;
     }
 
     /**
@@ -1888,12 +1899,7 @@ public class RestHighLevelClient implements Closeable {
      * emitted there just mean that you are talking to an old version of
      * Elasticsearch. There isn't anything you can do about the deprecation.
      */
-    private static final DeprecationHandler DEPRECATION_HANDLER = new DeprecationHandler() {
-        @Override
-        public void usedDeprecatedName(String usedName, String modernName) {}
-        @Override
-        public void usedDeprecatedField(String usedName, String replacedWith) {}
-    };
+    private static final DeprecationHandler DEPRECATION_HANDLER = DeprecationHandler.IGNORE_DEPRECATIONS;
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();

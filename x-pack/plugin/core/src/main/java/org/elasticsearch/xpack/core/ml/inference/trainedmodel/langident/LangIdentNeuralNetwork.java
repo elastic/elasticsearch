@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -136,13 +137,14 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
             probabilities,
             LANGUAGE_NAMES,
             null,
-            classificationConfig.getNumTopClasses());
+            classificationConfig.getNumTopClasses(),
+            PredictionFieldType.STRING);
         assert topClasses.v1() >= 0 && topClasses.v1() < LANGUAGE_NAMES.size() :
             "Invalid language predicted. Predicted language index " + topClasses.v1();
         return new ClassificationInferenceResults(topClasses.v1(),
             LANGUAGE_NAMES.get(topClasses.v1()),
             topClasses.v2(),
-            Collections.emptyMap(),
+            Collections.emptyList(),
             classificationConfig);
     }
 
@@ -170,7 +172,7 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
-    public Map<String, Double> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
+    public Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
         throw new UnsupportedOperationException("[lang_ident] does not support feature importance");
     }
 

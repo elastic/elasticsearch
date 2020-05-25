@@ -23,7 +23,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -31,11 +30,9 @@ import java.util.Objects;
 /**
  * Represents a decimal constant.
  */
-public final class EDecimal extends AExpression {
+public class EDecimal extends AExpression {
 
-    private final String value;
-
-    protected Object constant;
+    protected final String value;
 
     public EDecimal(Location location, String value) {
         super(location);
@@ -44,15 +41,29 @@ public final class EDecimal extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        return analyze(classNode, scriptRoot, scope, input, false);
+    }
+
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input, boolean negate) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to decimal constant [" + value + "]"));
         }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + value + "] not used"));
+        }
+
+        Output output = new Output();
+        Object constant;
+
+        String value = negate ? "-" + this.value : this.value;
 
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = float.class;
+                output.actual = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
@@ -63,25 +74,19 @@ public final class EDecimal extends AExpression {
             }
             try {
                 constant = Double.parseDouble(toParse);
-                actual = double.class;
+                output.actual = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }
         }
-    }
 
-    @Override
-    ExpressionNode write(ClassNode classNode) {
         ConstantNode constantNode = new ConstantNode();
         constantNode.setLocation(location);
-        constantNode.setExpressionType(actual);
+        constantNode.setExpressionType(output.actual);
         constantNode.setConstant(constant);
 
-        return constantNode;
-    }
+        output.expressionNode = constantNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(value);
+        return output;
     }
 }

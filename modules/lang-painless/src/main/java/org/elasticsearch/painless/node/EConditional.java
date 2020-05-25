@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ConditionalNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -32,11 +33,11 @@ import java.util.Objects;
 /**
  * Represents a conditional expression.
  */
-public final class EConditional extends AExpression {
+public class EConditional extends AExpression {
 
-    private AExpression condition;
-    private AExpression left;
-    private AExpression right;
+    protected final AExpression condition;
+    protected final AExpression left;
+    protected final AExpression right;
 
     public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
         super(location);
@@ -47,56 +48,67 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, scope);
-        condition.cast();
-
-        left.expected = expected;
-        left.explicit = explicit;
-        left.internal = internal;
-        right.expected = expected;
-        right.explicit = explicit;
-        right.internal = internal;
-        actual = expected;
-
-        left.analyze(scriptRoot, scope);
-        right.analyze(scriptRoot, scope);
-
-        if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(left.actual, right.actual);
-
-            if (promote == null) {
-                throw createError(new ClassCastException("cannot apply a conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]"));
-            }
-
-            left.expected = promote;
-            right.expected = promote;
-            actual = promote;
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]"));
         }
 
-        left.cast();
-        right.cast();
-    }
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from conditional operation [?:]"));
+        }
 
-    @Override
-    ConditionalNode write(ClassNode classNode) {
+        Output output = new Output();
+
+        Input conditionInput = new Input();
+        conditionInput.expected = boolean.class;
+        Output conditionOutput = analyze(condition, classNode, scriptRoot, scope, conditionInput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+                conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
+
+        Input leftInput = new Input();
+        leftInput.expected = input.expected;
+        leftInput.explicit = input.explicit;
+        leftInput.internal = input.internal;
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
+
+        Input rightInput = new Input();
+        rightInput.expected = input.expected;
+        rightInput.explicit = input.explicit;
+        rightInput.internal = input.internal;
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
+
+        output.actual = input.expected;
+
+        if (input.expected == null) {
+            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
+
+            if (promote == null) {
+                throw createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
+            }
+
+            leftInput.expected = promote;
+            rightInput.expected = promote;
+            output.actual = promote;
+        }
+
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+
         ConditionalNode conditionalNode = new ConditionalNode();
 
-        conditionalNode.setLeftNode(left.cast(left.write(classNode)));
-        conditionalNode.setRightNode(right.cast(right.write(classNode)));
-        conditionalNode.setConditionNode(condition.cast(condition.write(classNode)));
+        conditionalNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        conditionalNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
+        conditionalNode.setConditionNode(cast(conditionOutput.expressionNode, conditionCast));
 
         conditionalNode.setLocation(location);
-        conditionalNode.setExpressionType(actual);
+        conditionalNode.setExpressionType(output.actual);
 
-        return conditionalNode;
-    }
+        output.expressionNode = conditionalNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(condition, left, right);
+        return output;
     }
 }

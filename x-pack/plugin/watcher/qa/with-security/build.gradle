@@ -5,27 +5,20 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
   testCompile project(':x-pack:qa')
   testCompile project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'testArtifacts')
-}
-
-
-// bring in watcher rest test suite from the rest project
-task copyWatcherRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin:watcher:qa:rest').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/watcher/**'
+  restXpackTestConfig project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'restXpackTests')
 }
 
 restResources {
   restApi {
     includeXpack 'watcher', 'security', 'xpack'
   }
+  restTests {
+    includeXpack 'watcher'
+  }
 }
 
-integTest.runner.dependsOn copyWatcherRestTests
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  setting 'xpack.ilm.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   // settings to test settings filtering on

@@ -27,7 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -54,6 +53,8 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
     private static final Logger LOGGER = LogManager.getLogger(ExpiredModelSnapshotsRemover.class);
 
+    private static final long MS_IN_ONE_DAY = TimeValue.timeValueDays(1).getMillis();
+
     /**
      *  The max number of snapshots to fetch per job. It is set to 10K, the default for an index as
      *  we don't change that in our ML indices. It should be more than enough for most cases. If not,
@@ -72,12 +73,19 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
     @Override
     Long getRetentionDays(Job job) {
-        return job.getModelSnapshotRetentionDays();
+        // If a daily retention cutoff is set then we need to tell the base class that this is the cutoff
+        // point so that we get to consider deleting model snapshots older than this. Later on we will
+        // not actually delete all of the ones in between the hard cutoff and the daily retention cutoff.
+        Long retentionDaysForConsideration = job.getDailyModelSnapshotRetentionAfterDays();
+        if (retentionDaysForConsideration == null) {
+            retentionDaysForConsideration = job.getModelSnapshotRetentionDays();
+        }
+        return retentionDaysForConsideration;
     }
 
     @Override
-    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<Long> listener) {
-        ThreadedActionListener<Long> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
+    void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
+        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
 
         latestSnapshotTimeStamp(jobId, ActionListener.wrap(
@@ -86,7 +94,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                         threadedActionListener.onResponse(null);
                     } else {
                         long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                        threadedActionListener.onResponse(cutoff);
+                        threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
                     }
                 },
                 listener::onFailure
@@ -125,39 +133,59 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
     }
 
     @Override
-    protected void removeDataBefore(Job job, long cutoffEpochMs, ActionListener<Boolean> listener) {
+    protected void removeDataBefore(
+        Job job,
+        float requestsPerSec,
+        long latestTimeMs,
+        long cutoffEpochMs,
+        ActionListener<Boolean> listener
+    ) {
+        // TODO: delete this test if we ever allow users to revert a job to no model snapshot, e.g. to recover from data loss
         if (job.getModelSnapshotId() == null) {
             // No snapshot to remove
             listener.onResponse(true);
             return;
         }
-        LOGGER.debug("Removing model snapshots of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
+        LOGGER.debug("Considering model snapshots of job [{}] that have a timestamp before [{}] for removal", job.getId(), cutoffEpochMs);
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
 
         QueryBuilder activeSnapshotFilter = QueryBuilders.termQuery(
-                ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
+            ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), job.getModelSnapshotId());
         QueryBuilder retainFilter = QueryBuilders.termQuery(ModelSnapshot.RETAIN.getPreferredName(), true);
         QueryBuilder query = createQuery(job.getId(), cutoffEpochMs)
-                .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))
-                .mustNot(activeSnapshotFilter)
-                .mustNot(retainFilter);
+            .filter(QueryBuilders.existsQuery(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName()))
+            .mustNot(activeSnapshotFilter)
+            .mustNot(retainFilter);
 
-        searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE).sort(ElasticsearchMappings.ES_DOC));
+        searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE)
+            .sort(ModelSnapshot.TIMESTAMP.getPreferredName()));
 
+        long deleteAllBeforeMs = (job.getModelSnapshotRetentionDays() == null)
+            ? 0 : latestTimeMs - TimeValue.timeValueDays(job.getModelSnapshotRetentionDays()).getMillis();
         client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
-                MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), listener), false));
+            MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), deleteAllBeforeMs, listener), false));
     }
 
-    private ActionListener<SearchResponse> expiredSnapshotsListener(String jobId, ActionListener<Boolean> listener) {
+    private ActionListener<SearchResponse> expiredSnapshotsListener(String jobId, long deleteAllBeforeMs,
+                                                                    ActionListener<Boolean> listener) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
+                long nextToKeepMs = deleteAllBeforeMs;
                 try {
                     List<ModelSnapshot> modelSnapshots = new ArrayList<>();
                     for (SearchHit hit : searchResponse.getHits()) {
-                        modelSnapshots.add(ModelSnapshot.fromJson(hit.getSourceRef()));
+                        ModelSnapshot modelSnapshot = ModelSnapshot.fromJson(hit.getSourceRef());
+                        long timestampMs = modelSnapshot.getTimestamp().getTime();
+                        if (timestampMs >= nextToKeepMs) {
+                            do {
+                                nextToKeepMs += MS_IN_ONE_DAY;
+                            } while (timestampMs >= nextToKeepMs);
+                            continue;
+                        }
+                        modelSnapshots.add(modelSnapshot);
                     }
                     deleteModelSnapshots(new VolatileCursorIterator<>(modelSnapshots), listener);
                 } catch (Exception e) {

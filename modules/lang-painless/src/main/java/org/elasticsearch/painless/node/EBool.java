@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -31,11 +33,11 @@ import java.util.Objects;
 /**
  * Represents a boolean expression.
  */
-public final class EBool extends AExpression {
+public class EBool extends AExpression {
 
-    private final Operation operation;
-    private AExpression left;
-    private AExpression right;
+    protected final Operation operation;
+    protected final AExpression left;
+    protected final AExpression right;
 
     public EBool(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -46,34 +48,44 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        left.expected = boolean.class;
-        left.analyze(scriptRoot, scope);
-        left.cast();
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
 
-        right.expected = boolean.class;
-        right.analyze(scriptRoot, scope);
-        right.cast();
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
 
-        actual = boolean.class;
-    }
+        Output output = new Output();
 
-    @Override
-    BooleanNode write(ClassNode classNode) {
+        Input leftInput = new Input();
+        leftInput.expected = boolean.class;
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+
+        Input rightInput = new Input();
+        rightInput.expected = boolean.class;
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+
+        output.actual = boolean.class;
+
         BooleanNode booleanNode = new BooleanNode();
 
-        booleanNode.setLeftNode(left.cast(left.write(classNode)));
-        booleanNode.setRightNode(right.cast(right.write(classNode)));
+        booleanNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        booleanNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         booleanNode.setLocation(location);
-        booleanNode.setExpressionType(actual);
+        booleanNode.setExpressionType(output.actual);
         booleanNode.setOperation(operation);
 
-        return booleanNode;
-    }
+        output.expressionNode = booleanNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(left, operation.symbol, right);
+        return output;
     }
 }

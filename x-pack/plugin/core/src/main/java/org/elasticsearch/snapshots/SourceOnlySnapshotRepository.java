@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -16,11 +15,13 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
 
 import java.io.Closeable;
@@ -43,7 +45,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -80,29 +81,26 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                 boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
+                                 boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
+                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
-        try {
-            super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metaData), userMetadata, repositoryMetaVersion,
-                listener);
-        } catch (IOException ex) {
-            listener.onFailure(ex);
-        }
+        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+            includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metadata), userMetadata, repositoryMetaVersion,
+                stateTransformer, listener);
     }
 
-    private static MetaData metadataToSnapshot(Collection<IndexId> indices, MetaData metaData) throws IOException {
-        MetaData.Builder builder = MetaData.builder(metaData);
+    private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
+        Metadata.Builder builder = Metadata.builder(metadata);
         for (IndexId indexId : indices) {
-            IndexMetaData index = metaData.index(indexId.getName());
-            IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(index);
+            IndexMetadata index = metadata.index(indexId.getName());
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
             // seqID etc. and an indexed ID field such that we can potentially perform updates on them or delete documents.
-            MappingMetaData mmd = index.mapping();
+            MappingMetadata mmd = index.mapping();
             if (mmd != null) {
                 // we don't need to obey any routing here stuff is read-only anyway and get is disabled
                 final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
@@ -120,8 +118,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                              Map<String, Object> userMetadata, ActionListener<String> listener) {
+                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
+                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             listener.onFailure(
@@ -138,9 +136,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         final List<Closeable> toClose = new ArrayList<>(3);
         try {
-            FSDirectory directory = new SimpleFSDirectory(snapPath);
-            toClose.add(directory);
-            Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
+            SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(
+                new SimpleFSDirectory(snapPath));
+            toClose.add(overlayDir);
+            Store tempStore = new Store(store.shardId(), store.indexSettings(), overlayDir, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
                     // do nothing;
@@ -148,7 +147,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             }, Store.OnClose.EMPTY);
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
+            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
             snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
@@ -156,12 +155,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
             toClose.add(store::decRef);
-            DirectoryReader reader = DirectoryReader.open(tempStore.directory(),
-                Collections.singletonMap(BlockTreeTermsReader.FST_MODE_KEY, BlockTreeTermsReader.FSTLoadMode.OFF_HEAP.name()));
+            DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus, repositoryMetaVersion,
-                userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, shardStateIdentifier, snapshotStatus,
+                repositoryMetaVersion, userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);
@@ -183,7 +181,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            });
+            }, true);
     }
 
     /**
@@ -193,19 +191,19 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         return new Repository.Factory() {
 
             @Override
-            public Repository create(RepositoryMetaData metadata) {
+            public Repository create(RepositoryMetadata metadata) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
-                String delegateType = DELEGATE_TYPE.get(metaData.settings());
+            public Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
+                String delegateType = DELEGATE_TYPE.get(metadata.settings());
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
-                return new SourceOnlySnapshotRepository(factory.create(new RepositoryMetaData(metaData.name(),
-                    delegateType, metaData.settings()), typeLookup));
+                return new SourceOnlySnapshotRepository(factory.create(new RepositoryMetadata(metadata.name(),
+                    delegateType, metadata.settings()), typeLookup));
             }
         };
     }

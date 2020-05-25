@@ -40,8 +40,11 @@
               "lambda" : {
                 "type" : "double"
               },
-              "maximum_number_trees" : {
+              "max_trees" : {
                 "type" : "integer"
+              },
+              "class_assignment_objective" : {
+                "type" : "keyword"
               },
               "num_top_classes" : {
                 "type" : "integer"
@@ -87,7 +90,13 @@
               "lambda" : {
                 "type" : "double"
               },
-              "maximum_number_trees" : {
+              "loss_function" : {
+                "type" : "keyword"
+              },
+              "loss_function_parameter" : {
+                "type" : "double"
+              },
+              "max_trees" : {
                 "type" : "integer"
               },
               "num_top_feature_importance_values" : {
@@ -225,6 +234,9 @@
       "custom_settings" : {
         "type" : "object",
         "enabled" : false
+      },
+      "daily_model_snapshot_retention_after_days" : {
+        "type" : "long"
       },
       "data_description" : {
         "properties" : {

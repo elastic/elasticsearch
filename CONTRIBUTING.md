@@ -92,28 +92,24 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 13 is required to build Elasticsearch. You must have a JDK 13 installation
+JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 13 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 13 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 14 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
 and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
-> Warning: do not use `sdkman` for Java installations which do not have proper
-`jrunscript` for jdk distributions.
-
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in the Eclipse and IntelliJ IDEs.
-For Eclipse, the minimum version that we support is [4.13][eclipse].
-For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in IntelliJ versions IntelliJ 2019.2 and
+onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -123,61 +119,90 @@ You can access Elasticsearch with:
 
     curl -u elastic:password localhost:9200
 
-### Configuring IDEs And Running Tests
+### Importing the project into IntelliJ IDEA
 
-Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Gradle : Existing Gradle Project`.
-Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying
-`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
+Elasticsearch builds using Java 14. When importing into IntelliJ you will need
+to define an appropriate SDK. The convention is that **this SDK should be named
+"14"** so that the project import will detect it automatically. For more details
+on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
+SDK definitions are global, so you can add the JDK from any project, or after
+project import. Importing with a missing JDK will still work, IntelliJ will
+simply report a problem and will refuse to build until resolved.
 
-IntelliJ users can automatically configure their IDE: `./gradlew idea`
-then `File->New Project From Existing Sources`. Point to the root of
-the source directory, select
-`Import project from external model->Gradle`, enable
-`Use auto-import`. In order to run tests directly from
-IDEA 2017.2 and above, it is required to disable the IDEA run launcher in order to avoid
-`idea_rt.jar` causing "jar hell". This can be achieved by adding the
-`-Didea.no.launcher=true` [JVM
-option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties).
-Alternatively, `idea.no.launcher=true` can be set in the
-[`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
-file which can be accessed under Help > Edit Custom Properties (this will require a
-restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
-`Run->Edit Configurations->...->Defaults->JUnit` and verify that the `Shorten command line` setting is set to
-`user-local default: none`. You may also need to [remove `ant-javafx.jar` from your
-classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
-reported as a source of jar hell.
+You can import the Elasticsearch project into IntelliJ IDEA via:
 
-To run an instance of elasticsearch from the source code run `./gradlew run`
+ - Select **File > Open**
+ - In the subsequent dialog navigate to the root `build.gradle` file
+ - In the subsequent dialog select **Open as Project**
 
-The Elasticsearch codebase makes heavy use of Java `assert`s and the
-test runner requires that assertions be enabled within the JVM. This
-can be accomplished by passing the flag `-ea` to the JVM on startup.
+### Importing the project into Eclipse
 
-For IntelliJ, go to
-`Run->Edit Configurations...->Defaults->JUnit->VM options` and input
-`-ea`.
+Elasticsearch builds using Gradle and Java 13. When importing into Eclipse you
+will either need to use an appropriate JDK to run Eclipse itself (e.g. by
+specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
+defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+**Advanced Options** > **Java home** to an appropriate version.
 
-For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
-`VM Arguments`.
+IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
+           then you must build an entirely new workspace and `git clean -xdf` to
+           blow away *everything* that the gradle eclipse plugin made.
 
-Some tests related to locale testing also require the flag
-`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
-IntelliJ or Eclipse like describe above to use
-`-Djava.locale.providers=SPI,COMPAT`.
+ - Select **File > Import...**
+ - Select **Existing Gradle Project**
+ - Select **Next** then **Next** again
+ - Set the **Project root directory** to the root of your elasticsearch clone
+ - Click **Finish**
+
+This will spin for a long, long time but you'll see many errors about circular
+dependencies. Fix them:
+
+ - Select **Window > Preferences**
+ - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
+ - Set **Circular dependencies** to **Warning**
+ - Apply that and let the build spin away for a while
+
+Next you'll want to import our auto-formatter:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Formater**
+ - Click **Import**
+ - Import the file at **buildSrc/formatterConfig.xml**
+ - Make sure it is the **Active profile**
+
+Finally, set up import order:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Organize Imports**
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Apply that
+
+IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
+           As convenient as it'd be for the projects to always be perfect this
+           tends to add many many seconds to every branch change. Instead, you
+           should manually right click on a project and
+           **Gradle > Refresh Gradle Project** if the configuration is out of
+           date.
+
+As we add more subprojects you might have to re-import the gradle project (the
+first step) again. There is no need to blow away the existing projects before
+doing that.
 
 ### REST Endpoint Conventions
 
 Elasticsearch typically uses singular nouns rather than plurals in URLs.
 For example:
 
-    /_ingest/pipline
-    /_ingest/pipline/{id}
+    /_ingest/pipeline
+    /_ingest/pipeline/{id}
 
 but not:
 
-    /_ingest/piplines
-    /_ingest/piplines/{id}
+    /_ingest/pipelines
+    /_ingest/pipelines/{id}
 
 You may find counterexamples, but new endpoints should use the singular
 form.
@@ -212,14 +237,7 @@ Please follow these formatting guidelines:
   part of a file. Please format such sections sympathetically with the rest
   of the code, while keeping lines to maximum length of 76 characters.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
-  the build to fail. This can be done automatically by your IDE:
-   * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
-     two boxes labeled "`Number of (static )? imports needed for .*`". Set
-     their values to 99999 or some other absurdly high value.
-   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
-     There are two configuration options: `Class count to use import with
-     '*'` and `Names count to use static import with '*'`. Set their values
-     to 99999 or some other absurdly high value.
+  the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code
   with the `// tag::NAME` and `// end::NAME` directives, but note that
   these are intended for use in documentation, so please make it clear what
@@ -233,9 +251,6 @@ Please follow these formatting guidelines:
   reviews as something to change.
 
 #### Editor / IDE Support
-
-Eclipse IDEs can import the file [.eclipseformat.xml]
-directly.
 
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
@@ -393,26 +408,9 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-You may find it helpful to configure your IDE to automatically insert the
-appropriate license header depending on the part of the project to which you are
-contributing.
-
-#### IntelliJ: Copyright & Scope Profiles
-
-To have IntelliJ insert the correct license, it is necessary to create to copyright profiles.
-These may potentially be called `apache2` and `commercial`. These can be created in
-`Preferences/Settings->Editor->Copyright->Copyright Profiles`. To associate these profiles to
-their respective directories, two "Scopes" will need to be created. These can be created in
-`Preferences/Settings->Appearances & Behavior->Scopes`. When creating scopes, be sure to choose
-the `shared` scope type. Create a scope, `apache2`, with
-the associated pattern of `!file[group:x-pack]:*/`. This pattern will exclude all the files contained in
-the `x-pack` directory. The other scope, `commercial`, will have the inverse pattern of `file[group:x-pack]:*/`.
-The two scopes, together, should account for all the files in the project. To associate the scopes
-with their copyright-profiles, go into `Preferences/Settings->Editor>Copyright` and use the `+` to add
-the associations `apache2/apache2` and `commercial/commercial`.
-
-Configuring these options in IntelliJ can be quite buggy, so do not be alarmed if you have to open/close
-the settings window and/or restart IntelliJ to see your changes take effect.
+> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> be automatically configured to add the correct license header to new source
+> files based on the source location.
 
 ### Creating A Distribution
 
@@ -425,7 +423,7 @@ cd elasticsearch/
 To build a darwin-tar distribution, run this command:
 
 ```sh
-./gradlew -p distribution/archives/darwin-tar assemble --parallel
+./gradlew -p distribution/archives/darwin-tar assemble
 ```
 
 You will find the distribution under:
@@ -435,8 +433,11 @@ To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
 
 ```sh
-./gradlew assemble --parallel
+./gradlew assemble
 ```
+
+> **NOTE:** Running the task above will fail if you don't have a available
+> Docker installation.
 
 The package distributions (Debian and RPM) can be found under:
 `./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
@@ -570,10 +571,6 @@ known as "transitive" dependencies".</dd>
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`bundle`</dt><dd>Only available in projects with the shadow plugin,
-dependencies with this configuration are bundled into the jar produced by the
-build. Since IDEs do not understand this configuration we rig them to treat
-dependencies in this configuration as `compile` dependencies.</dd>
 <dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
@@ -608,6 +605,4 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
-[shadow-plugin]: https://github.com/johnrengelman/shadow

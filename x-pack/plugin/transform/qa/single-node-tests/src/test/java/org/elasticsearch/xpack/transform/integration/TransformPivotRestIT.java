@@ -18,6 +18,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +30,11 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformPivotRestIT extends TransformRestTestCase {
 
@@ -56,6 +62,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         }
 
         createReviewsIndex();
+        createReviewsIndexNano();
         indicesCreated = true;
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
 
@@ -102,6 +109,58 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
         assertEquals(1, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+    }
+
+    public void testSimplePivotWithScript() throws Exception {
+        String transformId = "simple-pivot-script";
+        String transformIndex = "pivot_reviews_script";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        // same pivot as testSimplePivot, but we retrieve the grouping key using a script and add prefix
+        String config = "{"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"script\": {"
+            + "           \"source\": \"'reviewer_' + doc['user_id'].value\""
+            + " } } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } },"
+            + "\"frequency\":\"1s\""
+            + "}";
+        createTransformRequest.setJsonEntity(config);
+
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_5", 3.72);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:reviewer_user_26", 3.918918918);
     }
 
     public void testPivotWithPipeline() throws Exception {
@@ -444,8 +503,17 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     }
 
     public void testDateHistogramPivot() throws Exception {
-        String transformId = "simple_date_histogram_pivot";
-        String transformIndex = "pivot_reviews_via_date_histogram";
+        assertDateHistogramPivot(REVIEWS_INDEX_NAME);
+    }
+
+    public void testDateHistogramPivotNanos() throws Exception {
+        assertDateHistogramPivot(REVIEWS_DATE_NANO_INDEX_NAME);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPivotWithTermsAgg() throws Exception {
+        String transformId = "simple_terms_agg_pivot";
+        String transformIndex = "pivot_reviews_via_histogram_with_terms_agg";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
         final Request createTransformRequest = createRequestWithAuth(
@@ -461,6 +529,90 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + " \"dest\": {\"index\":\""
             + transformIndex
             + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"every_2\": {"
+            + "       \"histogram\": {"
+            + "         \"interval\": 2,\"field\":\"stars\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"common_users\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\","
+            + "         \"size\": 2"
+            + "        },"
+            + "        \"aggs\" : {"
+            + "          \"common_businesses\": {"
+            + "            \"terms\": {"
+            + "              \"field\": \"business_id\","
+            + "              \"size\": 2"
+            + "         }}"
+            + "        } "
+            +"      },"
+            + "     \"rare_users\": {"
+            + "       \"rare_terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+
+        // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some term results
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=every_2:2.0");
+
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Map<String, Integer> commonUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.common_users",
+            searchResult
+        )).get(0);
+        Map<String, Integer> rareUsers = (Map<String, Integer>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.rare_users",
+            searchResult
+        )).get(0);
+        assertThat(commonUsers, is(not(nullValue())));
+        assertThat(commonUsers, equalTo(new HashMap<>(){{
+            put("user_10",
+                Collections.singletonMap(
+                    "common_businesses",
+                    new HashMap<>(){{
+                        put("business_12", 6);
+                        put("business_9", 4);
+            }}));
+            put("user_0", Collections.singletonMap(
+                "common_businesses",
+                new HashMap<>(){{
+                    put("business_0", 35);
+            }}));
+        }}));
+        assertThat(rareUsers, is(not(nullValue())));
+        assertThat(rareUsers, equalTo(new HashMap<>(){{
+            put("user_5", 1);
+            put("user_12", 1);
+        }}));
+    }
+
+    private void assertDateHistogramPivot(String indexName) throws Exception {
+        String transformId = "simple_date_histogram_pivot_" + indexName;
+        String transformIndex = "pivot_reviews_via_date_histogram_" + indexName;
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{" + " \"source\": {\"index\":\"" + indexName + "\"}," + " \"dest\": {\"index\":\"" + transformIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -875,6 +1027,73 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPivotWithGeotileGroupBy() throws Exception {
+        String transformId = "geotile_grid_group_by";
+        String transformIndex = "geotile_grid_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"tile\": {"
+            + "       \"geotile_grid\": {"
+            + "         \"field\": \"location\","
+            + "         \"precision\": 12"
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"boundary\": {"
+            + "       \"geo_bounds\": {\"field\": \"location\"}"
+            + " } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        // we expect 27 documents as there are that many tiles at this zoom
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // Verify that the format is sane for the geo grid
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?size=1");
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertThat(actual, is(not(nullValue())));
+        Map<String, Object> actualObj = (Map<String, Object>) ((List<?>) XContentMapValues.extractValue(
+            "hits.hits._source.tile",
+            searchResult
+        )).get(0);
+        assertThat(actualObj.get("type"), equalTo("polygon"));
+        List<List<Double>> coordinates = ((List<List<List<Double>>>) actualObj.get("coordinates")).get(0);
+        assertThat(coordinates, is(not(nullValue())));
+        assertThat(coordinates, hasSize(5));
+        assertThat(coordinates.get(0), hasSize(2));
+        assertThat(coordinates.get(1), hasSize(2));
+        assertThat(coordinates.get(2), hasSize(2));
+        assertThat(coordinates.get(3), hasSize(2));
+        assertThat(coordinates.get(4), hasSize(2));
+    }
+
     public void testPivotWithWeightedAvgAgg() throws Exception {
         String transformId = "weighted_avg_agg_transform";
         String transformIndex = "weighted_avg_pivot_reviews";
@@ -939,7 +1158,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + transformIndex
             + "\"},"
             + " \"pivot\": {"
-            + "   \"max_page_search_size\": 10,"
             + "   \"group_by\": {"
             + "     \"user.id\": {\"terms\": { \"field\": \"user_id\" }},"
             + "     \"business.id\": {\"terms\": { \"field\": \"business_id\" }},"
@@ -952,7 +1170,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "     \"user.avg_rating\": {"
             + "       \"avg\": {"
             + "         \"field\": \"stars\""
-            + " } } } }"
+            + " } } } },"
+            + " \"settings\": {"
+            + "   \"max_page_search_size\": 10"
+            + " }"
             + "}";
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.test;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
@@ -32,7 +33,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.vagrant.BatsProgressLogger;
 import org.elasticsearch.gradle.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.vagrant.VagrantExtension;
@@ -71,7 +72,7 @@ import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath
 public class DistroTestPlugin implements Plugin<Project> {
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
     private static final String SYSTEM_JDK_VENDOR = "openjdk";
-    private static final String GRADLE_JDK_VERSION = "13.0.1+9@cec27d702aa74d5a8630c65ae61e4305";
+    private static final String GRADLE_JDK_VERSION = "14+36@076bab302c7b4508975440c56f6cc26a";
     private static final String GRADLE_JDK_VENDOR = "openjdk";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
@@ -90,7 +91,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         project.getPluginManager().apply("elasticsearch.build");
 
-        Provider<DockerSupportService> dockerSupport = Boilerplate.getBuildService(
+        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
@@ -108,18 +109,31 @@ public class DistroTestPlugin implements Plugin<Project> {
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
         TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
 
+        Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = lifecyleTasks(project, "destructiveDistroTest");
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
+
         for (ElasticsearchDistribution distribution : distributions) {
             TaskProvider<?> destructiveTask = configureDistroTest(project, distribution, dockerSupport);
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
+            lifecyleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
         }
-        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
-        configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask).configure(
-            t -> t.setPluginsDir(pluginsDir)
+
+        TaskProvider<BatsTestTask> batsPluginsTest = configureBatsTest(
+            project,
+            "plugins",
+            distributionsDir,
+            copyDistributionsTask,
+            copyPluginsTask
         );
-        configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask).configure(
-            t -> t.setUpgradeDir(upgradeDir)
+        batsPluginsTest.configure(t -> t.setPluginsDir(pluginsDir));
+        TaskProvider<BatsTestTask> batsUpgradeTest = configureBatsTest(
+            project,
+            "upgrade",
+            distributionsDir,
+            copyDistributionsTask,
+            copyUpgradeTask
         );
+        batsUpgradeTest.configure(t -> t.setUpgradeDir(upgradeDir));
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);
@@ -127,6 +141,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             List<Object> vmDependencies = new ArrayList<>(configureVM(vmProject));
             vmDependencies.add(project.getConfigurations().getByName("testRuntimeClasspath"));
 
+            Map<ElasticsearchDistribution.Type, TaskProvider<?>> vmLifecyleTasks = lifecyleTasks(vmProject, "distroTest");
             TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
             for (ElasticsearchDistribution distribution : distributions) {
                 String destructiveTaskName = destructiveDistroTestTaskName(distribution);
@@ -141,6 +156,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                     );
                     vmTask.configure(t -> t.dependsOn(distribution));
 
+                    vmLifecyleTasks.get(distribution.getType()).configure(t -> t.dependsOn(vmTask));
                     distroTest.configure(t -> {
                         // Only VM sub-projects that are specifically opted-in to testing Docker should
                         // have the Docker task added as a dependency. Although we control whether Docker
@@ -151,6 +167,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
                         boolean shouldExecute = distribution.getType() != Type.DOCKER
+
                             || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {
@@ -160,14 +177,28 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             }
 
-            batsTests.forEach((desc, task) -> {
-                configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
-                    t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                    t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
-                    t.dependsOn(copyDistributionsTask);
-                });
+            configureVMWrapperTask(vmProject, "bats plugins", batsPluginsTest.getName(), vmDependencies).configure(t -> {
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                t.dependsOn(copyDistributionsTask, copyPluginsTask);
+            });
+            configureVMWrapperTask(vmProject, "bats upgrade", batsUpgradeTest.getName(), vmDependencies).configure(t -> {
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                t.dependsOn(copyDistributionsTask, copyUpgradeTask);
             });
         });
+    }
+
+    private static Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks(Project project, String taskPrefix) {
+        Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = new HashMap<>();
+
+        lifecyleTasks.put(Type.DOCKER, project.getTasks().register(taskPrefix + ".docker"));
+        lifecyleTasks.put(Type.ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
+        lifecyleTasks.put(Type.DEB, project.getTasks().register(taskPrefix + ".packages"));
+        lifecyleTasks.put(Type.RPM, lifecyleTasks.get(Type.DEB));
+
+        return lifecyleTasks;
     }
 
     private static Jdk createJdk(
@@ -175,12 +206,14 @@ public class DistroTestPlugin implements Plugin<Project> {
         String name,
         String vendor,
         String version,
-        String platform
+        String platform,
+        String architecture
     ) {
         Jdk jdk = jdksContainer.create(name);
         jdk.setVendor(vendor);
         jdk.setVersion(version);
         jdk.setPlatform(platform);
+        jdk.setArchitecture(architecture);
         return jdk;
     }
 
@@ -200,7 +233,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         String firstPartOfSeed = BuildParams.getTestSeed().split(":")[0];
         final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16);
-        BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+        BwcVersions bwcVersions = BuildParams.getBwcVersions();
         final List<Version> indexCompatVersions = bwcVersions.getIndexCompatible();
         return indexCompatVersions.get(new Random(seed).nextInt(indexCompatVersions.size()));
     }
@@ -212,8 +245,8 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
-        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, platform);
-        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, platform);
+        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, platform, "x64");
+        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, platform, "x64");
 
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
@@ -270,8 +303,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             Path upgradePath = upgradeDir.get().getAsFile().toPath();
 
             // write bwc version, and append -SNAPSHOT if it is an unreleased version
-            ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-            BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+            BwcVersions bwcVersions = BuildParams.getBwcVersions();
             final String upgradeFromVersion;
             if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
                 upgradeFromVersion = upgradeVersion.toString() + "-SNAPSHOT";
@@ -330,6 +362,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         return project.getTasks().register(destructiveDistroTestTaskName(distribution), Test.class, t -> {
             // Disable Docker distribution tests unless a Docker installation is available
             t.onlyIf(t2 -> distribution.getType() != Type.DOCKER || dockerSupport.get().getDockerAvailability().isAvailable);
+            // Only run tests for the current architecture
+            t.onlyIf(t3 -> distribution.getArchitecture() == Architecture.current());
             t.getOutputs().doNotCacheIf("Build cache is disabled for packaging tests", Specs.satisfyAll());
             t.setMaxParallelForks(1);
             t.setWorkingDir(project.getProjectDir());
@@ -363,47 +397,68 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
-            for (Flavor flavor : Flavor.values()) {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    // All our Docker images include a bundled JDK so it doesn't make sense to test without one
-                    boolean skip = type == Type.DOCKER && bundledJdk == false;
+        for (Architecture architecture : Architecture.values()) {
+            for (Type type : List.of(Type.DEB, Type.RPM, Type.DOCKER)) {
+                for (Flavor flavor : Flavor.values()) {
+                    for (boolean bundledJdk : Arrays.asList(true, false)) {
+                        // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
+                        // Also we'll never publish an ARM (aarch64) build without a bundled JDK.
+                        boolean skip = bundledJdk == false && (type == Type.DOCKER || architecture == Architecture.AARCH64);
 
-                    if (skip == false) {
-                        addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
+                        if (skip == false) {
+                            addDistro(
+                                distributions,
+                                architecture,
+                                type,
+                                null,
+                                flavor,
+                                bundledJdk,
+                                VersionProperties.getElasticsearch(),
+                                currentDistros
+                            );
+                        }
                     }
                 }
-            }
 
-            // We don't configure distributions for prior versions for Docker. This is because doing
-            // so prompts Gradle to try and resolve the Docker dependencies, which doesn't work as
-            // they can't be downloaded via Ivy (configured in DistributionDownloadPlugin). Since we
-            // need these for the BATS upgrade tests, and those tests only cover .rpm and .deb, it's
-            // OK to omit creating such distributions in the first place. We may need to revisit
-            // this in the future, so allow upgrade testing using Docker containers.
-            if (type != Type.DOCKER) {
-                // upgrade version is always bundled jdk
-                // NOTE: this is mimicking the old VagrantTestPlugin upgrade behavior. It will eventually be replaced
-                // witha dedicated upgrade test from every bwc version like other bwc tests
-                addDistro(distributions, type, null, Flavor.DEFAULT, true, upgradeVersion.toString(), upgradeDistros);
-                if (upgradeVersion.onOrAfter("6.3.0")) {
-                    addDistro(distributions, type, null, Flavor.OSS, true, upgradeVersion.toString(), upgradeDistros);
+                // We don't configure distributions for prior versions for Docker. This is because doing
+                // so prompts Gradle to try and resolve the Docker dependencies, which doesn't work as
+                // they can't be downloaded via Ivy (configured in DistributionDownloadPlugin). Since we
+                // need these for the BATS upgrade tests, and those tests only cover .rpm and .deb, it's
+                // OK to omit creating such distributions in the first place. We may need to revisit
+                // this in the future, so allow upgrade testing using Docker containers.
+                if (type != Type.DOCKER) {
+                    // upgrade version is always bundled jdk
+                    // NOTE: this is mimicking the old VagrantTestPlugin upgrade behavior. It will eventually be replaced
+                    // witha dedicated upgrade test from every bwc version like other bwc tests
+                    addDistro(distributions, architecture, type, null, Flavor.DEFAULT, true, upgradeVersion.toString(), upgradeDistros);
+                    if (upgradeVersion.onOrAfter("6.3.0")) {
+                        addDistro(distributions, architecture, type, null, Flavor.OSS, true, upgradeVersion.toString(), upgradeDistros);
+                    }
                 }
             }
         }
 
-        for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
-            for (Flavor flavor : Flavor.values()) {
-                for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    addDistro(
-                        distributions,
-                        Type.ARCHIVE,
-                        platform,
-                        flavor,
-                        bundledJdk,
-                        VersionProperties.getElasticsearch(),
-                        currentDistros
-                    );
+        for (Architecture architecture : Architecture.values()) {
+            for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
+                for (Flavor flavor : Flavor.values()) {
+                    for (boolean bundledJdk : Arrays.asList(true, false)) {
+                        if (bundledJdk == false && architecture != Architecture.X64) {
+                            // We will never publish distributions for non-x86 (amd64) platforms
+                            // without a bundled JDK
+                            continue;
+                        }
+
+                        addDistro(
+                            distributions,
+                            architecture,
+                            Type.ARCHIVE,
+                            platform,
+                            flavor,
+                            bundledJdk,
+                            VersionProperties.getElasticsearch(),
+                            currentDistros
+                        );
+                    }
                 }
             }
         }
@@ -427,6 +482,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static void addDistro(
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions,
+        Architecture architecture,
         Type type,
         Platform platform,
         Flavor flavor,
@@ -434,11 +490,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         String version,
         List<ElasticsearchDistribution> container
     ) {
-        String name = distroId(type, platform, flavor, bundledJdk) + "-" + version;
+        String name = distroId(type, platform, flavor, bundledJdk, architecture) + "-" + version;
         if (distributions.findByName(name) != null) {
             return;
         }
         ElasticsearchDistribution distro = distributions.create(name, d -> {
+            d.setArchitecture(architecture);
             d.setFlavor(flavor);
             d.setType(type);
             if (type == Type.ARCHIVE) {
@@ -464,12 +521,18 @@ public class DistroTestPlugin implements Plugin<Project> {
         return project.getName().contains("windows");
     }
 
-    private static String distroId(Type type, Platform platform, Flavor flavor, boolean bundledJdk) {
-        return flavor + "-" + (type == Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk");
+    private static String distroId(Type type, Platform platform, Flavor flavor, boolean bundledJdk, Architecture architecture) {
+        return flavor
+            + "-"
+            + (type == Type.ARCHIVE ? platform + "-" : "")
+            + type
+            + (bundledJdk ? "" : "-no-jdk")
+            + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
         Type type = distro.getType();
-        return "destructiveDistroTest." + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk());
+        return "destructiveDistroTest."
+            + distroId(type, distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk(), distro.getArchitecture());
     }
 }

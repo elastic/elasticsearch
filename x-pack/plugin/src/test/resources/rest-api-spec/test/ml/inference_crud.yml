@@ -11,6 +11,7 @@ setup:
             "description": "empty model for tests",
             "tags": ["regression", "tag1"],
             "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"regression": {}},
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -35,6 +36,7 @@ setup:
             "description": "empty model for tests",
             "input": {"field_names": ["field1", "field2"]},
             "tags": ["regression", "tag2"],
+            "inference_config": {"regression": {}},
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -58,6 +60,7 @@ setup:
             "description": "empty model for tests",
             "input": {"field_names": ["field1", "field2"]},
             "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -83,6 +86,7 @@ setup:
             "description": "empty model for tests",
             "input": {"field_names": ["field1", "field2"]},
             "tags": ["classification", "tag3"],
+            "inference_config": {"classification": {}},
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -108,6 +112,7 @@ setup:
             "description": "empty model for tests",
             "input": {"field_names": ["field1", "field2"]},
             "tags": ["classification", "tag3"],
+            "inference_config": {"classification": {}},
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -313,7 +318,7 @@ setup:
                   "model_id" : "a-regression-model-0",
                   "inference_config": {"regression": {}},
                   "target_field": "regression_field",
-                  "field_mappings": {}
+                  "field_map": {}
                 }
               }
             ]
@@ -343,6 +348,7 @@ setup:
             "input": {
               "field_names": "fieldy_mc_fieldname"
             },
+            "inference_config": {"regression": {}},
             "definition": {
               "trained_model": {
                 "ensemble": {
@@ -377,6 +383,7 @@ setup:
             "input": {
               "field_names": "fieldy_mc_fieldname"
             },
+            "inference_config": {"regression": {}},
             "definition": {
               "trained_model": {
                 "ensemble": {
@@ -397,6 +404,7 @@ setup:
             "input": {
               "field_names": "fieldy_mc_fieldname"
             },
+            "inference_config": {"regression": {}},
             "definition": {
               "trained_model": {
                 "ensemble": {
@@ -434,6 +442,7 @@ setup:
             "input": {
               "field_names": []
             },
+            "inference_config": {"regression": {}},
             "definition": {
               "trained_model": {
                 "ensemble": {
@@ -469,6 +478,7 @@ setup:
           {
             "description": "model for tests",
             "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"regression": {}},
             "definition": {
                "preprocessors": [],
                "trained_model": {
@@ -510,3 +520,47 @@ setup:
   - is_true: create_time
   - is_true: version
   - is_true: estimated_heap_memory_usage_bytes
+---
+"Test PUT model where target type and inference config mismatch":
+  - do:
+      catch: /Model \[my-regression-model\] inference config type \[classification\] does not support definition target type \[regression\]/
+      ml.put_trained_model:
+        model_id: my-regression-model
+        body: >
+          {
+            "description": "model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "ensemble": {
+                    "target_type": "regression",
+                    "trained_models": [
+                      {
+                        "tree": {
+                          "feature_names": ["field1", "field2"],
+                          "tree_structure": [
+                             {"node_index": 0, "threshold": 2, "left_child": 1, "right_child": 2},
+                             {"node_index": 1, "leaf_value": 0},
+                             {"node_index": 2, "leaf_value": 1}
+                          ],
+                          "target_type": "regression"
+                        }
+                      },
+                      {
+                        "tree": {
+                          "feature_names": ["field1", "field2"],
+                          "tree_structure": [
+                             {"node_index": 0, "threshold": 2, "left_child": 1, "right_child": 2},
+                             {"node_index": 1, "leaf_value": 0},
+                             {"node_index": 2, "leaf_value": 1}
+                          ],
+                          "target_type": "regression"
+                        }
+                      }
+                    ]
+                  }
+               }
+            }
+          }

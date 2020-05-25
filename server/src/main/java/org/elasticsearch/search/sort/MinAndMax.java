@@ -55,14 +55,14 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
     /**
      * Return the minimum value.
      */
-    T getMin() {
+    public T getMin() {
         return minValue;
     }
 
     /**
      * Return the maximum value.
      */
-    T getMax() {
+    public T getMax() {
         return maxValue;
     }
 

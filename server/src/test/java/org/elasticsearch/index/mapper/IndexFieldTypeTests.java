@@ -22,7 +22,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -33,7 +33,7 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexFieldTypeTests extends FieldTypeTestCase {
+public class IndexFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
@@ -69,15 +69,15 @@ public class IndexFieldTypeTests extends FieldTypeTestCase {
     }
 
     private QueryShardContext createContext() {
-        IndexMetaData indexMetaData = IndexMetaData.builder("index")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
         return new QueryShardContext(0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true);
+            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null);
     }
 }

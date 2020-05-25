@@ -24,54 +24,34 @@ If the {es} {security-features} are enabled, you must have the following
 built-in roles and privileges:
 
 * `machine_learning_admin`
-* `kibana_user` (UI only)
+* `kibana_admin` (UI only)
 
 
-* source index: `read`, `view_index_metadata`
+* source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
 * cluster: `monitor` (UI only)
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
+NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
+the time of creation. When you start the job, it performs the analysis using
+those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, 
+those credentials are used instead.
 
 [[ml-put-dfanalytics-desc]]
 ==== {api-description-title}
 
 This API creates a {dfanalytics-job} that performs an analysis on the source 
-index and stores the outcome in a destination index.
+indices and stores the outcome in a destination index.
 
-The destination index will be automatically created if it does not exist. The 
-`index.number_of_shards` and `index.number_of_replicas` settings of the source 
-index will be copied over the destination index. When the source index matches 
-multiple indices, these settings will be set to the maximum values found in the 
-source indices.
+If the destination index does not exist, it is created automatically when you
+start the job. See <<start-dfanalytics>>.
 
-The mappings of the source indices are also attempted to be copied over
-to the destination index, however, if the mappings of any of the fields don't 
-match among the source indices, the attempt will fail with an error message.
+If you supply only a subset of the {regression} or {classification} parameters,
+{ml-docs}/hyperparameters.html[hyperparameter optimization] occurs. It
+determines a value for each of the undefined parameters. 
 
-If the destination index already exists, then it will be use as is. This makes 
-it possible to set up the destination index in advance with custom settings 
-and mappings.
-
-[discrete]
-[[ml-hyperparam-optimization]]
-===== Hyperparameter optimization
-
-If you don't supply {regression} or {classification} parameters, _hyperparameter 
-optimization_ occurs, which sets a value for the undefined parameters. The
-starting point is calculated for data dependent parameters by examining the loss
-on the training data. Subject to the size constraint, this operation provides an
-upper bound on the improvement in validation loss.
-
-A fixed number of rounds is used for optimization which depends on the number of 
-parameters being optimized. The optimization starts with random search, then 
-Bayesian optimization is performed that is targeting maximum expected 
-improvement. If you override any parameters by explicitely setting it, the 
-optimization calculates the value of the remaining parameters accordingly and 
-uses the value you provided for the overridden parameter. The number of rounds 
-are reduced respectively. The validation error is estimated in each round by 
-using 4-fold cross validation.
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
@@ -80,186 +60,261 @@ using 4-fold cross validation.
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
+[role="child_attributes"]
 [[ml-put-dfanalytics-request-body]]
 ==== {api-request-body-title}
 
 `allow_lazy_start`::
 (Optional, boolean) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-start]
+Specifies whether this job can start when there is insufficient {ml} node 
+capacity for it to be immediately assigned to a node. The default is `false`; if
+a {ml} node with capacity to run the job cannot immediately be found, the API
+returns an error. However, this is also subject to the cluster-wide
+`xpack.ml.max_lazy_ml_nodes` setting. See <<advanced-ml-settings>>. If this
+option is set to `true`, the API does not return an error and the job waits in
+the `starting` state until sufficient {ml} node capacity is available.
 
+//Begin analysis
 `analysis`::
 (Required, object)
 The analysis configuration, which contains the information necessary to perform
 one of the following types of analysis: {classification}, {oldetection}, or
 {regression}.
-//include::{docdir}/ml/ml-shared.asciidoc[tag=analysis]
-
-`analysis`.`classification`:::
++
+.Properties of `analysis`
+[%collapsible%open]
+====
+//Begin classification
+`classification`:::
 (Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-classification.html[{classification}].
 +
---
 TIP: Advanced parameters are for fine-tuning {classanalysis}. They are set 
-automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
-to give minimum validation error. It is highly recommended to use the default 
-values unless you fully understand the function of these parameters.
---
+automatically by hyperparameter optimization to give the minimum validation
+error. It is highly recommended to use the default values unless you fully
+understand the function of these parameters.
++
+.Properties of `classification`
+[%collapsible%open]
+=====
+`class_assignment_objective`::::
+(Optional, string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
-`analysis`.`classification`.`dependent_variable`::::
+`dependent_variable`::::
 (Required, string)
 +
---
 include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
-
++
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
-categorical (`ip`, `keyword`, `text`), or boolean.
---
+categorical (`ip` or `keyword`), or boolean. There must be no more than 30
+different values in this field. 
 
-`analysis`.`classification`.`eta`::::
+`eta`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 
-`analysis`.`classification`.`feature_bag_fraction`::::
+`feature_bag_fraction`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
-`analysis`.`classification`.`maximum_number_trees`::::
-(Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
-
-`analysis`.`classification`.`gamma`::::
+`gamma`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 
-`analysis`.`classification`.`lambda`::::
+`lambda`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
-`analysis`.`classification`.`num_top_classes`::::
-(Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=num-top-classes]
+`max_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
 
-`analysis`.`classification`.`prediction_field_name`::::
+`num_top_classes`::::
+(Optional, integer)
+Defines the number of categories for which the predicted probabilities are
+reported. It must be non-negative. If it is greater than the total number of
+categories, the API reports all category probabilities. Defaults to 2.
+
+`num_top_feature_importance_values`::::
+(Optional, integer)
+Advanced configuration option. Specifies the maximum number of
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
+
+`prediction_field_name`::::
 (Optional, string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
-`analysis`.`classification`.`randomize_seed`::::
+`randomize_seed`::::
 (Optional, long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
-`analysis`.`classification`.`num_top_feature_importance_values`::::
-(Optional, integer)
-Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document to return. By default, it is zero and no feature importance
-calculation occurs.
-
-`analysis`.`classification`.`training_percent`::::
+`training_percent`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
-
-`analysis`.`outlier_detection`:::
+//End classification
+=====
+//Begin outlier_detection
+`outlier_detection`:::
 (Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-outlier-detection.html[{oldetection}]:
-
-`analysis`.`outlier_detection`.`compute_feature_influence`::::
++
+.Properties of `outlier_detection`
+[%collapsible%open]
+=====
+`compute_feature_influence`::::
 (Optional, boolean) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
   
-`analysis`.`outlier_detection`.`feature_influence_threshold`:::: 
+`feature_influence_threshold`:::: 
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
-`analysis`.`outlier_detection`.`method`::::
+`method`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=method]
   
-`analysis`.`outlier_detection`.`n_neighbors`::::
+`n_neighbors`::::
 (Optional, integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
   
-`analysis`.`outlier_detection`.`outlier_fraction`::::
+`outlier_fraction`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
   
-`analysis`.`outlier_detection`.`standardization_enabled`::::
+`standardization_enabled`::::
 (Optional, boolean) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
-
-`analysis`.`regression`:::
+//End outlier_detection
+=====
+//Begin regression
+`regression`:::
 (Required^*^, object)
 The configuration information necessary to perform
 {ml-docs}/dfa-regression.html[{regression}].
 +
---
 TIP: Advanced parameters are for fine-tuning {reganalysis}. They are set 
-automatically by <<ml-hyperparam-optimization,hyperparameter optimization>> 
-to give minimum validation error. It is highly recommended to use the default 
-values unless you fully understand the function of these parameters.
-
---
-
-`analysis`.`regression`.`dependent_variable`::::
+automatically by hyperparameter optimization to give the minimum validation
+error. It is highly recommended to use the default values unless you fully
+understand the function of these parameters.
++
+.Properties of `regression`
+[%collapsible%open]
+=====
+`dependent_variable`::::
 (Required, string)
 +
---
 include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
-
++
 The data type of the field must be numeric.
---
 
-`analysis`.`regression`.`eta`::::
+`eta`::::
 (Optional, double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
 
-`analysis`.`regression`.`feature_bag_fraction`::::
+`feature_bag_fraction`::::
 (Optional, double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
-`analysis`.`regression`.`maximum_number_trees`::::
-(Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=maximum-number-trees]
-
-`analysis`.`regression`.`gamma`::::
+`gamma`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
 
-`analysis`.`regression`.`lambda`::::
+`lambda`::::
 (Optional, double) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
-`analysis`.`regression`.`prediction_field_name`::::
+`loss_function`::::
+(Optional, string)
+The loss function used during regression. Available options are `mse` (mean squared error),
+`msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber loss). Defaults to `mse`.
+
+`loss_function_parameter`::::
+(Optional, double)
+A strictly positive number that is used as a parameter to the `loss_function`.
+
+`max_trees`::::
+(Optional, integer) 
+include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+
+`num_top_feature_importance_values`::::
+(Optional, integer)
+Advanced configuration option. Specifies the maximum number of
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
+
+`prediction_field_name`::::
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
-`analysis`.`regression`.`num_top_feature_importance_values`::::
-(Optional, integer)
-Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
-values per document to return. By default, it is zero and no feature importance calculation
-occurs.
-
-`analysis`.`regression`.`training_percent`::::
-(Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
-
-`analysis`.`regression`.`randomize_seed`::::
+`randomize_seed`::::
 (Optional, long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
-  
+
+`training_percent`::::
+(Optional, integer)
+include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+=====
+//End regression
+====
+//End analysis
+
+//Begin analyzed_fields
 `analyzed_fields`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields]
+Specify `includes` and/or `excludes` patterns to select which fields will be 
+included in the analysis. The patterns specified in `excludes` are applied last, 
+therefore `excludes` takes precedence. In other words, if the same field is 
+specified in both `includes` and `excludes`, then the field will not be included 
+in the analysis.
++
+--
+[[dfa-supported-fields]]
+The supported fields for each type of analysis are as follows:
 
-`analyzed_fields`.`excludes`:::
-(Optional, array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-excludes]
+* {oldetection-cap} requires numeric or boolean data to analyze. The algorithms 
+don't support missing values therefore fields that have data types other than 
+numeric or boolean are ignored. Documents where included fields contain missing 
+values, null values, or an array are also ignored. Therefore the `dest` index 
+may contain documents that don't have an {olscore}.
+* {regression-cap} supports fields that are numeric, `boolean`, `text`, 
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents 
+where included fields contain  an array with two or more values are also 
+ignored. Documents in the `dest` index  that don’t contain a results field are 
+not included in the {reganalysis}.
+* {classification-cap} supports fields that are numeric, `boolean`, `text`,
+`keyword`, and `ip`. It is also tolerant of missing values. Fields that are 
+supported are included in the analysis, other fields are ignored. Documents
+where included fields contain an array with two or more values are also ignored. 
+Documents in the `dest` index that don’t contain a results field are not
+included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
+ordinal variable values to a  single number. For example, in case of age ranges,
+you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 
-`analyzed_fields`.`includes`:::
+If `analyzed_fields` is not set, only the relevant fields will be included. For
+example, all the numeric fields for {oldetection}. For more information about
+field selection, see <<explain-dfanalytics>>.
+--
++
+.Properties of `analyzed_fields`
+[%collapsible%open]
+====
+`excludes`:::
 (Optional, array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=analyzed-fields-includes]
+An array of strings that defines the fields that will be excluded from the
+analysis. You do not need to add fields with unsupported data types to
+`excludes`, these fields are excluded from the analysis automatically.
+
+`includes`:::
+(Optional, array)
+An array of strings that defines the fields that will be included in the 
+analysis.
+//End analyzed_fields
+====
 
 `description`::
 (Optional, string)
@@ -271,11 +326,53 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=dest]
   
 `model_memory_limit`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
+The approximate maximum amount of memory resources that are permitted for 
+analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If 
+your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit` 
+setting, an error occurs when you try to create {dfanalytics-jobs} that have 
+`model_memory_limit` values greater than that setting. For more information, see 
+<<ml-settings>>.
   
 `source`::
 (object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=source-put-dfa]
+The configuration of how to source the analysis data. It requires an `index`.
+Optionally, `query` and `_source` may be specified.
++
+.Properties of `source`
+[%collapsible%open]
+====
+`index`:::
+(Required, string or array) Index or indices on which to perform the analysis.
+It can be a single index or index pattern as well as an array of indices or
+patterns.
++
+WARNING: If your source indices contain documents with the same IDs, only the 
+document that is indexed last appears in the destination index.
+
+`query`:::
+(Optional, object) The {es} query domain-specific language (<<query-dsl,DSL>>).
+This value corresponds to the query object in an {es} search POST body. All the
+options that are supported by {es} can be used, as this object is passed
+verbatim to {es}. By default, this property has the following value:
+`{"match_all": {}}`.
+
+`_source`:::
+(Optional, object) Specify `includes` and/or `excludes` patterns to select which
+fields will be present in the destination. Fields that are excluded cannot be
+included in the analysis.
++
+.Properties of `_source`
+[%collapsible%open]
+=====
+`includes`::::
+(array) An array of strings that defines the fields that will be included in the
+destination.
+        
+`excludes`::::
+(array) An array of strings that defines the fields that will be excluded from
+the destination.
+=====
+====
 
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
@@ -331,13 +428,11 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> The source index to analyze.
+<1> Source index to analyze.
 <2> This query filters out entire documents that will not be present in the 
 destination index.
 <3> The `_source` object defines fields in the dataset that will be included or 
-excluded in the destination index. In this case, `includes` does not specify any 
-fields, so the default behavior takes place: all the fields of the source index 
-will included except the ones that are explicitly specified in `excludes`.
+excluded in the destination index. 
 <4> Defines the destination index that contains the results of the analysis and 
 the fields of the source index specified in the `_source` object. Also defines 
 the name of the `results_field`.
@@ -501,10 +596,8 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 --------------------------------------------------
 // TEST[skip:TBD]
 
-<1> The `training_percent` defines the percentage of the data set that will be 
-used for training the model.
-<2> The `randomize_seed` is the seed used to randomly pick which data is used 
-for training.
+<1> The percentage of the data set that is used for training the model.
+<2> The seed that is used to randomly pick which data is used for training.
 
 
 [[ml-put-dfanalytics-example-c]]

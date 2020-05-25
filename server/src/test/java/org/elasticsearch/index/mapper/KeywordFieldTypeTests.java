@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -50,27 +51,28 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class KeywordFieldTypeTests extends FieldTypeTestCase {
+public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
 
     @Before
-    public void setupProperties() {
-        addModifier(new Modifier("normalizer", false) {
-            @Override
-            public void modify(MappedFieldType type) {
-                ((KeywordFieldType) type).setNormalizer(Lucene.KEYWORD_ANALYZER);
+    public void addModifiers() {
+        addModifier(t -> {
+            KeywordFieldType copy = t.clone();
+            if (copy.normalizer() == null) {
+                copy.setNormalizer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
+            } else {
+                copy.setNormalizer(null);
             }
+            return copy;
         });
-        addModifier(new Modifier("split_queries_on_whitespace", true) {
-            @Override
-            public void modify(MappedFieldType type) {
-                KeywordFieldType keywordType = (KeywordFieldType) type;
-                keywordType.setSplitQueriesOnWhitespace(!keywordType.splitQueriesOnWhitespace());
-            }
+        addModifier(t -> {
+            KeywordFieldType copy = t.clone();
+            copy.setSplitQueriesOnWhitespace(t.splitQueriesOnWhitespace() == false);
+            return copy;
         });
     }
 
     @Override
-    protected MappedFieldType createDefaultFieldType() {
+    protected KeywordFieldType createDefaultFieldType() {
         return new KeywordFieldMapper.KeywordFieldType();
     }
 

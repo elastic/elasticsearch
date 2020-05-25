@@ -1,8 +1,36 @@
+setup:
+  - skip:
+      features: [arbitrary_key]
 ---
-"node_reload_secure_settings test":
+"node_reload_secure_settings test wrong password":
+  - skip:
+      version: " - 7.6.99"
+      reason:  "support for reloading password protected keystores was introduced in 7.7.0"
+
+  - do:
+      nodes.reload_secure_settings:
+        node_id: _local
+        body:
+          secure_settings_password: awrongpasswordhere
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: nodes
+  - is_true: cluster_name
+  - match: { nodes.$node_id.reload_exception.type: "security_exception" }
+  - match: { nodes.$node_id.reload_exception.reason:
+               /^(Provided\skeystore\spassword\swas\sincorrect|
+               Keystore\shas\sbeen\scorrupted\sor\stampered\swith)$/ }
+
+---
+"node_reload_secure_settings test correct(empty) password":
 
   - do:
       nodes.reload_secure_settings: {}
 
+  - set:
+      nodes._arbitrary_key_: node_id
+
   - is_true: nodes
   - is_true: cluster_name
+  - is_false: nodes.$node_id.reload_exception

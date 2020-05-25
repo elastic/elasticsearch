@@ -1,7 +1,8 @@
 {
   "security.delete_privileges":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-privilege.html",
+      "description":"Removes application privileges."
     },
     "stability":"stable",
     "url":{

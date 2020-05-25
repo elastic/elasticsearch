@@ -224,8 +224,8 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                     iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
                 }, range -> fail("Should have thrown exception"), fieldType));
-            // I believe this error is coming from improperly parsing the range, not the field.
-            assertEquals("For input string: \"2015-11-13\"", e.getMessage());
+            assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [date_range]",
+                e.getMessage());
         }
 
         public void testBadMissingField() {

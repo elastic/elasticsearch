@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -49,11 +49,14 @@ import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -77,7 +80,7 @@ public class AuthenticationService {
     private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
-    private final AuditTrail auditTrail;
+    private final AuditTrailService auditTrailService;
     private final AuthenticationFailureHandler failureHandler;
     private final ThreadContext threadContext;
     private final String nodeName;
@@ -90,12 +93,12 @@ public class AuthenticationService {
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
 
-    public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
+    public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
                                  AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
-        this.auditTrail = auditTrail;
+        this.auditTrailService = auditTrailService;
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;
@@ -146,15 +149,14 @@ public class AuthenticationService {
      * a user was indeed associated with the request and the credentials were verified to be valid), the method returns
      * the user and that user is then "attached" to the message's context. If no user was found to be attached to the given
      * message, then the given fallback user will be returned instead.
-     *
      * @param action       The action of the message
-     * @param message      The message to be authenticated
+     * @param transportRequest      The request to be authenticated
      * @param fallbackUser The default user that will be assumed if no other user is attached to the message. May not
-     *                      be {@code null}.
+ *                      be {@code null}.
      */
-    public void authenticate(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
+    public void authenticate(String action, TransportRequest transportRequest, User fallbackUser, ActionListener<Authentication> listener) {
         Objects.requireNonNull(fallbackUser, "fallback user may not be null");
-        createAuthenticator(action, message, fallbackUser, listener).authenticateAsync();
+        createAuthenticator(action, transportRequest, fallbackUser, listener).authenticateAsync();
     }
 
     /**
@@ -164,27 +166,26 @@ public class AuthenticationService {
      * If no user or credentials are found to be attached to the given message, and the caller allows anonymous access
      * ({@code allowAnonymous} parameter), and this service is configured for anonymous access (see {@link #isAnonymousUserEnabled} and
      * {@link #anonymousUser}), then the anonymous user will be returned instead.
-     *
      * @param action       The action of the message
-     * @param message      The message to be authenticated
+     * @param transportRequest      The request to be authenticated
      * @param allowAnonymous Whether to permit anonymous access for this request (this only relevant if the service is
-     *                       {@link #isAnonymousUserEnabled configured for anonymous access}).
+ *                       {@link #isAnonymousUserEnabled configured for anonymous access}).
      */
-    public void authenticate(String action, TransportMessage message, boolean allowAnonymous, ActionListener<Authentication> listener) {
-        createAuthenticator(action, message, allowAnonymous, listener).authenticateAsync();
+    public void authenticate(String action, TransportRequest transportRequest, boolean allowAnonymous,
+                             ActionListener<Authentication> listener) {
+        createAuthenticator(action, transportRequest, allowAnonymous, listener).authenticateAsync();
     }
 
     /**
      * Authenticates the user based on the contents of the token that is provided as parameter. This will not look at the values in the
      * ThreadContext for Authentication.
-     *
-     * @param action  The action of the message
-     * @param message The message that resulted in this authenticate call
+     *  @param action  The action of the message
+     * @param transportRequest The message that resulted in this authenticate call
      * @param token   The token (credentials) to be authenticated
      */
-    public void authenticate(String action, TransportMessage message,
+    public void authenticate(String action, TransportRequest transportRequest,
                              AuthenticationToken token, ActionListener<Authentication> listener) {
-        new Authenticator(action, message, shouldFallbackToAnonymous(true), listener).authenticateToken(token);
+        new Authenticator(action, transportRequest, shouldFallbackToAnonymous(true), listener).authenticateToken(token);
     }
 
     public void expire(String principal) {
@@ -215,15 +216,15 @@ public class AuthenticationService {
     }
 
     // pkg private method for testing
-    Authenticator createAuthenticator(String action, TransportMessage message, boolean fallbackToAnonymous,
+    Authenticator createAuthenticator(String action, TransportRequest transportRequest, boolean fallbackToAnonymous,
                                       ActionListener<Authentication> listener) {
-        return new Authenticator(action, message, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
+        return new Authenticator(action, transportRequest, shouldFallbackToAnonymous(fallbackToAnonymous), listener);
     }
 
     // pkg private method for testing
-    Authenticator createAuthenticator(String action, TransportMessage message, User fallbackUser,
+    Authenticator createAuthenticator(String action, TransportRequest transportRequest, User fallbackUser,
                                       ActionListener<Authentication> listener) {
-        return new Authenticator(action, message, fallbackUser, listener);
+        return new Authenticator(action, transportRequest, fallbackUser, listener);
     }
 
     // pkg private method for testing
@@ -274,16 +275,18 @@ public class AuthenticationService {
         private AuthenticationResult authenticationResult = null;
 
         Authenticator(RestRequest request, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-            this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, fallbackToAnonymous, listener);
+            this(new AuditableRestRequest(auditTrailService.get(), failureHandler, threadContext, request),
+                 null, fallbackToAnonymous, listener);
         }
 
-        Authenticator(String action, TransportMessage message, boolean fallbackToAnonymous, ActionListener<Authentication> listener) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
+        Authenticator(String action, TransportRequest transportRequest, boolean fallbackToAnonymous,
+                      ActionListener<Authentication> listener) {
+            this(new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
                 null, fallbackToAnonymous, listener);
         }
 
-        Authenticator(String action, TransportMessage message, User fallbackUser, ActionListener<Authentication> listener) {
-            this(new AuditableTransportRequest(auditTrail, failureHandler, threadContext, action, message),
+        Authenticator(String action, TransportRequest transportRequest, User fallbackUser, ActionListener<Authentication> listener) {
+            this(new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
                 Objects.requireNonNull(fallbackUser, "Fallback user cannot be null"), false, listener);
         }
 
@@ -462,11 +465,15 @@ public class AuthenticationService {
                                 // the user was not authenticated, call this so we can audit the correct event
                                 request.realmAuthenticationFailed(authenticationToken, realm.name());
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                                    logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
-                                        authenticationToken.principal(), realm.name(), result.getMessage());
-                                    Exception e = (result.getException() != null) ? result.getException()
-                                        : Exceptions.authenticationError(result.getMessage());
-                                    userListener.onFailure(e);
+                                    if (result.getException() != null) {
+                                        logger.info(new ParameterizedMessage(
+                                                "Authentication of [{}] was terminated by realm [{}] - {}",
+                                                authenticationToken.principal(), realm.name(), result.getMessage()), result.getException());
+                                    } else {
+                                        logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
+                                                authenticationToken.principal(), realm.name(), result.getMessage());
+                                    }
+                                    userListener.onFailure(result.getException());
                                 } else {
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
@@ -488,7 +495,13 @@ public class AuthenticationService {
                 final IteratingActionListener<User, Realm> authenticatingListener =
                     new IteratingActionListener<>(ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
                         (user) -> consumeUser(user, messages),
-                        (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))), threadContext),
+                        (e) -> {
+                            if (e != null) {
+                                listener.onFailure(request.exceptionProcessingRequest(e, token));
+                            } else {
+                                listener.onFailure(request.authenticationFailed(token));
+                            }
+                        }), threadContext),
                         realmAuthenticatingConsumer, realmsList, threadContext);
                 try {
                     authenticatingListener.run();
@@ -656,7 +669,8 @@ public class AuthenticationService {
                 logger.debug("user [{}] is disabled. failing authentication", finalUser);
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
-                final Authentication finalAuth = new Authentication(finalUser, authenticatedBy, lookedupBy);
+                final Authentication finalAuth = new Authentication(
+                    maybeConsolidateRolesForUser(finalUser), authenticatedBy, lookedupBy);
                 writeAuthToContext(finalAuth);
             }
         }
@@ -688,6 +702,33 @@ public class AuthenticationService {
 
         private void authenticateToken(AuthenticationToken token) {
             this.consumeToken(token);
+        }
+
+        private User maybeConsolidateRolesForUser(User user) {
+            if (User.isInternal(user)) {
+                return user;
+            } else if (isAnonymousUserEnabled && anonymousUser.equals(user) == false) {
+                if (anonymousUser.roles().length == 0) {
+                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+                }
+                User userWithMergedRoles = user.withRoles(mergeRoles(user.roles(), anonymousUser.roles()));
+                if (user.isRunAs()) {
+                    final User authUserWithMergedRoles = user.authenticatedUser().withRoles(
+                        mergeRoles(user.authenticatedUser().roles(), anonymousUser.roles()));
+                    userWithMergedRoles = new User(userWithMergedRoles, authUserWithMergedRoles);
+                }
+                return userWithMergedRoles;
+            } else {
+                return user;
+            }
+        }
+
+        private String[] mergeRoles(String[] existingRoles, String[] otherRoles) {
+            Set<String> roles = new LinkedHashSet<>(Arrays.asList(existingRoles));
+            if (otherRoles != null) {
+                Collections.addAll(roles, otherRoles);
+            }
+            return roles.toArray(new String[0]);
         }
     }
 
@@ -722,60 +763,60 @@ public class AuthenticationService {
     static class AuditableTransportRequest extends AuditableRequest {
 
         private final String action;
-        private final TransportMessage message;
+        private final TransportRequest transportRequest;
         private final String requestId;
 
         AuditableTransportRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
-                                  String action, TransportMessage message) {
+                                  String action, TransportRequest transportRequest) {
             super(auditTrail, failureHandler, threadContext);
             this.action = action;
-            this.message = message;
+            this.transportRequest = transportRequest;
             // There might be an existing audit-id (e.g. generated by the  rest request) but there might not be (e.g. an internal action)
             this.requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         }
 
         @Override
         void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, action, message);
+            auditTrail.authenticationSuccess(requestId, realm, user, action, transportRequest);
         }
 
         @Override
         void realmAuthenticationFailed(AuthenticationToken token, String realm) {
-            auditTrail.authenticationFailed(requestId, realm, token, action, message);
+            auditTrail.authenticationFailed(requestId, realm, token, action, transportRequest);
         }
 
         @Override
         ElasticsearchSecurityException tamperedRequest() {
-            auditTrail.tamperedRequest(requestId, action, message);
+            auditTrail.tamperedRequest(requestId, action, transportRequest);
             return new ElasticsearchSecurityException("failed to verify signed authentication information");
         }
 
         @Override
         ElasticsearchSecurityException exceptionProcessingRequest(Exception e, @Nullable AuthenticationToken token) {
             if (token != null) {
-                auditTrail.authenticationFailed(requestId, token, action, message);
+                auditTrail.authenticationFailed(requestId, token, action, transportRequest);
             } else {
-                auditTrail.authenticationFailed(requestId, action, message);
+                auditTrail.authenticationFailed(requestId, action, transportRequest);
             }
-            return failureHandler.exceptionProcessingRequest(message, action, e, threadContext);
+            return failureHandler.exceptionProcessingRequest(transportRequest, action, e, threadContext);
         }
 
         @Override
         ElasticsearchSecurityException authenticationFailed(AuthenticationToken token) {
-            auditTrail.authenticationFailed(requestId, token, action, message);
-            return failureHandler.failedAuthentication(message, token, action, threadContext);
+            auditTrail.authenticationFailed(requestId, token, action, transportRequest);
+            return failureHandler.failedAuthentication(transportRequest, token, action, threadContext);
         }
 
         @Override
         ElasticsearchSecurityException anonymousAccessDenied() {
-            auditTrail.anonymousAccessDenied(requestId, action, message);
-            return failureHandler.missingToken(message, action, threadContext);
+            auditTrail.anonymousAccessDenied(requestId, action, transportRequest);
+            return failureHandler.missingToken(transportRequest, action, threadContext);
         }
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
-            auditTrail.runAsDenied(requestId, authentication, action, message, EmptyAuthorizationInfo.INSTANCE);
-            return failureHandler.failedAuthentication(message, token, action, threadContext);
+            auditTrail.runAsDenied(requestId, authentication, action, transportRequest, EmptyAuthorizationInfo.INSTANCE);
+            return failureHandler.failedAuthentication(transportRequest, token, action, threadContext);
         }
 
         @Override

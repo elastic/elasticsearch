@@ -8,6 +8,7 @@ API, unless otherwise specified.
 
 * <<multi-index>>
 * <<date-math-index-names>>
+* <<cron-expressions>>
 * <<common-options>>
 * <<url-access-control>>
 
@@ -87,7 +88,7 @@ GET /%3Clogstash-%7Bnow%2Fd%7D%3E/_search
 }
 ----------------------------------------------------------------------
 // TEST[s/^/PUT logstash-2016.09.20\n/]
-// TEST[s/now/2016.09.20||/]
+// TEST[s/now/2016.09.20%7C%7C/]
 
 [NOTE]
 .Percent encoding of date math characters
@@ -141,7 +142,9 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
 }
 ----------------------------------------------------------------------
 // TEST[s/^/PUT logstash-2016.09.20\nPUT logstash-2016.09.19\nPUT logstash-2016.09.18\n/]
-// TEST[s/now/2016.09.20||/]
+// TEST[s/now/2016.09.20%7C%7C/]
+
+include::rest-api/cron-expressions.asciidoc[]
 
 [[common-options]]
 === Common options
@@ -367,7 +370,7 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 [float]
 ==== Flat Settings
 
-The `flat_settings` flag affects rendering of the lists of settings. When the 
+The `flat_settings` flag affects rendering of the lists of settings. When the
 `flat_settings` flag is `true`, settings are returned in a flat format:
 
 [source,console]

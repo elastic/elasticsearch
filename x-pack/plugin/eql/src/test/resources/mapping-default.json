@@ -1,5 +1,11 @@
 {
     "properties" : {
+        "bytes_written_string" : {
+            "type" : "keyword"
+        },
+        "bytes_written_string_list" : {
+            "type" : "keyword"
+        },
         "command_line" : {
             "type" : "keyword"
         },
@@ -75,6 +81,12 @@
         },
         "exit_code" : {
             "type" : "long"
+        },
+        "plain_text" : {
+            "type" : "text"
+        },
+        "constant_keyword" : {
+            "type" : "constant_keyword"
         }
     }
 }

@@ -70,7 +70,12 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
  * It's highly recommended to use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of
  * {@link #declareField} which can be used to implement exceptional parsing operations not covered by the high level methods.
  */
-public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
+public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context>
+    implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
+
+    private final List<String[]> requiredFieldSets = new ArrayList<>();
+    private final List<String[]> exclusiveFieldSets = new ArrayList<>();
+
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
@@ -395,6 +400,32 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     @Override
+    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
+                                       ParseField field) {
+
+        BiFunction<XContentParser, Context, T> objectParser = (XContentParser p, Context c) -> {
+            try {
+                XContentParser.Token token = p.nextToken();
+                assert token == XContentParser.Token.FIELD_NAME;
+                String name = p.currentName();
+                try {
+                    T namedObject = namedObjectParser.parse(p, c, name);
+                    // consume the end object token
+                    token = p.nextToken();
+                    assert token == XContentParser.Token.END_OBJECT;
+                    return namedObject;
+                } catch (Exception e) {
+                    throw new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
+                }
+            } catch (IOException e) {
+                throw new XContentParseException(p.getTokenLocation(), "[" + field + "] error while parsing named object", e);
+            }
+        };
+
+        declareField((XContentParser p, Value v, Context c) -> consumer.accept(v, objectParser.apply(p, c)), field, ValueType.OBJECT);
+    }
+
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField field) {
         // This creates and parses the named object
@@ -403,7 +434,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 throw new XContentParseException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
                         + "fields or an array where each entry is an object with a single field");
             }
-            // This messy exception nesting has the nice side effect of telling the use which field failed to parse
+            // This messy exception nesting has the nice side effect of telling the user which field failed to parse
             try {
                 String name = p.currentName();
                 try {
@@ -468,6 +499,22 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     @Override
     public String getName() {
         return name;
+    }
+
+    @Override
+    public void declareRequiredFieldSet(String... requiredSet) {
+        if (requiredSet.length == 0) {
+            return;
+        }
+        this.requiredFieldSets.add(requiredSet);
+    }
+
+    @Override
+    public void declareExclusiveFieldSet(String... exclusiveSet) {
+        if (exclusiveSet.length == 0) {
+            return;
+        }
+        this.exclusiveFieldSets.add(exclusiveSet);
     }
 
     private void parseArray(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
@@ -545,7 +592,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
 
         void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
-            if (parseField.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+            if (parseField.match(parserName, parser::getTokenLocation, currentFieldName, parser.getDeprecationHandler()) == false) {
                 throw new XContentParseException(parser.getTokenLocation(),
                         "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }

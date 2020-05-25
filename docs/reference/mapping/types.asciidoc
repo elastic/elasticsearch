@@ -7,13 +7,13 @@ document:
 [float]
 === Core datatypes
 
-string::         <<text,`text`>> and <<keyword,`keyword`>>
+string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard`>>
 <<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
 <<date>>::       `date`
 <<date_nanos>>:: `date_nanos`
 <<boolean>>::    `boolean`
 <<binary>>::     `binary`
-<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
+<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`, `ip_range`
 
 [float]
 === Complex datatypes
@@ -131,3 +131,5 @@ include::types/token-count.asciidoc[]
 include::types/shape.asciidoc[]
 
 include::types/constant-keyword.asciidoc[]
+
+include::types/wildcard.asciidoc[]

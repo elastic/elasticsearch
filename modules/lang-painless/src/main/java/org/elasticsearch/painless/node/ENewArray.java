@@ -19,37 +19,47 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents an array instantiation.
  */
-public final class ENewArray extends AExpression {
+public class ENewArray extends AExpression {
 
-    private final String type;
-    private final List<AExpression> arguments;
-    private final boolean initialize;
+    protected final String type;
+    protected final List<AExpression> arguments;
+    protected final boolean initialize;
 
     public ENewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
-        this.arguments = Objects.requireNonNull(arguments);
+        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
         this.initialize = initialize;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (!read) {
-             throw createError(new IllegalArgumentException("A newly created array must be read from."));
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
         }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
+        }
+
+        Output output = new Output();
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -57,35 +67,33 @@ public final class ENewArray extends AExpression {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            AExpression expression = arguments.get(argument);
+        List<Output> argumentOutputs = new ArrayList<>();
+        List<PainlessCast> argumentCasts = new ArrayList<>();
 
-            expression.expected = initialize ? clazz.getComponentType() : int.class;
-            expression.internal = true;
-            expression.analyze(scriptRoot, scope);
-            expression.cast();
+        for (AExpression expression : arguments) {
+            Input expressionInput = new Input();
+            expressionInput.expected = initialize ? clazz.getComponentType() : int.class;
+            expressionInput.internal = true;
+            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
+            argumentOutputs.add(expressionOutput);
+            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
-        actual = clazz;
-    }
+        output.actual = clazz;
 
-    @Override
-    NewArrayNode write(ClassNode classNode) {
         NewArrayNode newArrayNode = new NewArrayNode();
 
-        for (AExpression argument : arguments) {
-            newArrayNode.addArgumentNode(argument.cast(argument.write(classNode)));
+        for (int i = 0; i < arguments.size(); ++ i) {
+            newArrayNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
         }
 
         newArrayNode.setLocation(location);
-        newArrayNode.setExpressionType(actual);
+        newArrayNode.setExpressionType(output.actual);
         newArrayNode.setInitialize(initialize);
 
-        return newArrayNode;
-    }
+        output.expressionNode = newArrayNode;
 
-    @Override
-    public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, type, initialize ? "init" : "dims");
+        return output;
     }
 }

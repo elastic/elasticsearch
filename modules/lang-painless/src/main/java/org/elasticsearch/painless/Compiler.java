@@ -207,11 +207,11 @@ final class Compiler {
      * @return The ScriptRoot used to compile
      */
     ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
+        String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
-        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
-        root.analyze(scriptRoot);
-        ClassNode classNode = root.writeClass();
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, scriptName, source);
+        ClassNode classNode = root.writeClass(scriptRoot);
         DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptRoot, classNode);
         byte[] bytes = classNode.write();
@@ -237,11 +237,12 @@ final class Compiler {
      * @return The bytes for compilation.
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
+        String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SClass root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, debugStream);
-        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, root);
-        root.analyze(scriptRoot);
-        ClassNode classNode = root.writeClass();
+        SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
+        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, scriptName, source);
+        ClassNode classNode = root.writeClass(scriptRoot);
+        classNode.setDebugStream(debugStream);
         DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptRoot, classNode);
 

@@ -903,6 +903,36 @@ setup:
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
+"Test get stats on newly created congig":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "foo-1" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+
+---
 "Test delete given stopped config":
 
   - do:
@@ -938,7 +968,7 @@ setup:
         id: "missing_config"
 
 ---
-"Test delete given config and state documents":
+"Test delete given config, state and stats documents":
   - skip:
       features: headers
   - do:
@@ -979,8 +1009,30 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_1"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_2"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-state*
+        index: .ml-stat*
 
   - do:
       search:
@@ -994,6 +1046,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
 
   - match: { hits.total.value: 2 }
 
@@ -1014,6 +1081,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
+
   - match: { hits.total.value: 0 }
 
 ---
@@ -1333,12 +1415,12 @@ setup:
           }
 
 ---
-"Test put regression given maximum_number_trees is zero":
+"Test put regression given max_trees is zero":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "regression-maximum-number-trees-is-zero"
+        id: "regression-max-trees-is-zero"
         body: >
           {
             "source": {
@@ -1350,18 +1432,18 @@ setup:
             "analysis": {
               "regression": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 0
+                "max_trees": 0
               }
             }
           }
 
 ---
-"Test put regression given maximum_number_trees is greater than 2k":
+"Test put regression given max_trees is greater than 2k":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "regression-maximum-number-trees-greater-than-2k"
+        id: "regression-max-trees-greater-than-2k"
         body: >
           {
             "source": {
@@ -1373,7 +1455,7 @@ setup:
             "analysis": {
               "regression": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 2001
+                "max_trees": 2001
               }
             }
           }
@@ -1471,6 +1553,52 @@ setup:
           }
 
 ---
+"Test put regression given loss_function_parameter is zero":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": 0.0
+              }
+            }
+          }
+
+---
+"Test put regression given loss_function_parameter is negative":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": -0.01
+              }
+            }
+          }
+
+---
 "Test put regression given valid":
 
   - do:
@@ -1490,10 +1618,12 @@ setup:
                 "lambda": 3.14,
                 "gamma": 0.42,
                 "eta": 0.5,
-                "maximum_number_trees": 400,
+                "max_trees": 400,
                 "feature_bag_fraction": 0.3,
                 "training_percent": 60.3,
-                "randomize_seed": 42
+                "randomize_seed": 42,
+                "loss_function": "msle",
+                "loss_function_parameter": 2.0
               }
             }
           }
@@ -1506,11 +1636,13 @@ setup:
       "lambda": 3.14,
       "gamma": 0.42,
       "eta": 0.5,
-      "maximum_number_trees": 400,
+      "max_trees": 400,
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "msle",
+      "loss_function_parameter": 2.0
     }
   }}
   - is_true: create_time
@@ -1629,12 +1761,12 @@ setup:
           }
 
 ---
-"Test put classification given maximum_number_trees is zero":
+"Test put classification given max_trees is zero":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "classification-maximum-number-trees-is-zero"
+        id: "classification-max-trees-is-zero"
         body: >
           {
             "source": {
@@ -1646,18 +1778,18 @@ setup:
             "analysis": {
               "classification": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 0
+                "max_trees": 0
               }
             }
           }
 
 ---
-"Test put classification given maximum_number_trees is greater than 2k":
+"Test put classification given max_trees is greater than 2k":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "classification-maximum-number-trees-greater-than-2k"
+        id: "classification-max-trees-greater-than-2k"
         body: >
           {
             "source": {
@@ -1669,7 +1801,7 @@ setup:
             "analysis": {
               "classification": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 2001
+                "max_trees": 2001
               }
             }
           }
@@ -1832,8 +1964,9 @@ setup:
                 "lambda": 3.14,
                 "gamma": 0.42,
                 "eta": 0.5,
-                "maximum_number_trees": 400,
+                "max_trees": 400,
                 "feature_bag_fraction": 0.3,
+                "class_assignment_objective": "maximize_accuracy",
                 "training_percent": 60.3,
                 "randomize_seed": 24
               }
@@ -1848,11 +1981,56 @@ setup:
       "lambda": 3.14,
       "gamma": 0.42,
       "eta": 0.5,
-      "maximum_number_trees": 400,
+      "max_trees": 400,
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
       "randomize_seed": 24,
+      "class_assignment_objective": "maximize_accuracy",
+      "num_top_classes": 2
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put classification given deprecated maximum_number_trees":
+
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - 'Deprecated field [maximum_number_trees] used, expected [max_trees] instead'
+      ml.put_data_frame_analytics:
+        id: "classification-with-maximum-number-trees"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 400,
+                "randomize_seed": 24
+              }
+            }
+          }
+  - match: { id: "classification-with-maximum-number-trees" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "classification":{
+      "dependent_variable": "foo",
+      "max_trees": 400,
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 100.0,
+      "randomize_seed": 24,
+      "class_assignment_objective": "maximize_minimum_recall",
       "num_top_classes": 2
     }
   }}
@@ -1890,7 +2068,8 @@ setup:
       "dependent_variable": "foo",
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "mse"
     }
   }}
   - is_true: create_time

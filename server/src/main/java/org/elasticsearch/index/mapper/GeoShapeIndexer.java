@@ -24,6 +24,9 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
+import org.elasticsearch.common.geo.GeoShapeUtils;
+import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -46,7 +49,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.
  */
-public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
+public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
 
     private final boolean orientation;
     private final String name;
@@ -64,7 +67,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         return geometry.visit(new GeometryVisitor<>() {
             @Override
             public Geometry visit(Circle circle) {
-                throw new UnsupportedOperationException("CIRCLE geometry is not supported");
+                throw new UnsupportedOperationException(GeoShapeType.CIRCLE + " geometry is not supported");
             }
 
             @Override
@@ -212,7 +215,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(Line line) {
-            addFields(LatLonShape.createIndexableFields(name, new org.apache.lucene.geo.Line(line.getY(), line.getX())));
+            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLuceneLine(line)));
             return null;
         }
 
@@ -253,16 +256,21 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(LatLonShape.createIndexableFields(name, toLucenePolygon(polygon)));
+            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(polygon)));
             return null;
         }
 
         @Override
         public Void visit(Rectangle r) {
-            org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
-                new double[]{r.getMinY(), r.getMinY(), r.getMaxY(), r.getMaxY(), r.getMinY()},
-                new double[]{r.getMinX(), r.getMaxX(), r.getMaxX(), r.getMinX(), r.getMinX()});
-            addFields(LatLonShape.createIndexableFields(name, p));
+            if (r.getMinLon() > r.getMaxLon()) {
+                Rectangle left = new Rectangle(r.getMinLon(), GeoUtils.MAX_LON, r.getMaxLat(), r.getMinLat());
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(left)));
+                Rectangle right = new Rectangle(GeoUtils.MIN_LON, r.getMaxLon(), r.getMaxLat(), r.getMinLat());
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(right)));
+
+            } else {
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(r)));
+            }
             return null;
         }
 
@@ -271,11 +279,4 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         }
     }
 
-    public static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
-        org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
-        for(int i = 0; i<holes.length; i++) {
-            holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
-        }
-        return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
-    }
 }

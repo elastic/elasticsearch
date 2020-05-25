@@ -21,14 +21,31 @@ package org.elasticsearch.index.fielddata;
 
 
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 
 /**
  * Specialization of {@link IndexFieldData} for histograms.
  */
-public abstract class IndexHistogramFieldData extends DocValuesIndexFieldData implements IndexFieldData<AtomicHistogramFieldData> {
+public abstract class IndexHistogramFieldData implements IndexFieldData<LeafHistogramFieldData> {
+    protected final Index index;
+    protected final String fieldName;
 
     public IndexHistogramFieldData(Index index, String fieldName) {
-        super(index, fieldName);
+        this.index = index;
+        this.fieldName = fieldName;
+    }
+
+    @Override
+    public final String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public final void clear() {
+        // can't do
+    }
+
+    @Override
+    public final Index index() {
+        return index;
     }
 }

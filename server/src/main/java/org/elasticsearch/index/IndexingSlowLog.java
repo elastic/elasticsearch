@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -167,10 +167,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
 
             Map<String, Object> jsonFields = prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
-            //message for json logs is provided by jsonFields
-            String plaintextMessage = message(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
-
-            return new ESLogMessage(plaintextMessage).withFields(jsonFields);
+            return new ESLogMessage().withFields(jsonFields);
         }
 
         private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
@@ -180,7 +177,9 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             map.put("took", TimeValue.timeValueNanos(tookInNanos));
             map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             map.put("id", doc.id());
-            map.put("routing", doc.routing());
+            if (doc.routing() != null) {
+                map.put("routing", doc.routing());
+            }
 
             if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
                 return map;
@@ -203,36 +202,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 throw new UncheckedIOException(message, e);
             }
             return map;
-        }
-
-        private static String message(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(index).append(" ");
-            sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");
-            sb.append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
-            sb.append("id[").append(doc.id()).append("], ");
-            if (doc.routing() == null) {
-                sb.append("routing[]");
-            } else {
-                sb.append("routing[").append(doc.routing()).append("]");
-            }
-
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
-                return sb.toString();
-            }
-            try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
-                sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog).trim()).append("]");
-            } catch (IOException e) {
-                sb.append(", source[_failed_to_convert_[").append(e.getMessage()).append("]]");
-                /*
-                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
-                 * will be logged at the warn level.
-                 */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sb.toString());
-                throw new UncheckedIOException(message, e);
-            }
-            return sb.toString();
         }
     }
 

@@ -95,7 +95,6 @@ public abstract class ScalarFunction extends Function {
             return new ScriptTemplate(processScript("{sql}.stWktToSql({})"), paramsBuilder().variable(fold.toString()).build(), dataType());
         }
 
-
         return new ScriptTemplate(processScript("{}"),
                 paramsBuilder().variable(fold).build(),
                 dataType());
@@ -123,7 +122,7 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.name()).build(),
                 dataType());
     }

@@ -47,7 +47,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         controller = new RestController(Collections.emptySet(), null,
             nodeClient,
             new NoneCircuitBreakerService(),
-            new UsageService(), randomBoolean());
+            new UsageService());
     }
 
     /**

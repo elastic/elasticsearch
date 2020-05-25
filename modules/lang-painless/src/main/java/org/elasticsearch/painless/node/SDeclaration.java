@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -30,12 +32,12 @@ import java.util.Objects;
 /**
  * Represents a single variable declaration.
  */
-public final class SDeclaration extends AStatement {
+public class SDeclaration extends AStatement {
 
-    private DType type;
+    protected final DType type;
     protected final String name;
     protected final boolean requiresDefault;
-    private AExpression expression;
+    protected final AExpression expression;
 
     public SDeclaration(Location location, DType type, String name, boolean requiresDefault, AExpression expression) {
         super(location);
@@ -47,38 +49,37 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (scriptRoot.getPainlessLookup().isValidCanonicalClassName(name)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + name + "] cannot be a name"));
+        }
+
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
-        type = resolvedType;
+
+        AExpression.Output expressionOutput = null;
+        PainlessCast expressionCast = null;
 
         if (expression != null) {
-            expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, scope);
-            expression.cast();
+            AExpression.Input expressionInput = new AExpression.Input();
+            expressionInput.expected = resolvedType.getType();
+            expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
+            expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
         scope.defineVariable(location, resolvedType.getType(), name, false);
-    }
 
-    @Override
-    DeclarationNode write(ClassNode classNode) {
         DeclarationNode declarationNode = new DeclarationNode();
-
-        declarationNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
-
+        declarationNode.setExpressionNode(expression == null ? null :
+                AExpression.cast(expressionOutput.expressionNode, expressionCast));
         declarationNode.setLocation(location);
-        declarationNode.setDeclarationType(((DResolvedType)type).getType());
+        declarationNode.setDeclarationType(resolvedType.getType());
         declarationNode.setName(name);
         declarationNode.setRequiresDefault(requiresDefault);
 
-        return declarationNode;
-    }
+        Output output = new Output();
+        output.statementNode = declarationNode;
 
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
-        }
-        return singleLineToString(type, name, expression);
+        return output;
     }
 }

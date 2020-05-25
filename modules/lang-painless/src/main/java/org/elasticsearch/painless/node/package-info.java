@@ -33,13 +33,11 @@
  * {@link org.elasticsearch.painless.node.AExpression} - The superclass for all E* (expression) and P* (postfix) nodes.
  * {@link org.elasticsearch.painless.node.ANode} - The superclass for all nodes.
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
- * {@link org.elasticsearch.painless.node.AStoreable} - The super class for an expression that can store a value in local memory.
  * {@link org.elasticsearch.painless.node.EAssignment} - Represents an assignment with the lhs and rhs as child nodes.
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
  * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
  * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
  * {@link org.elasticsearch.painless.node.ECallLocal} - Represents a user-defined call.
- * {@link org.elasticsearch.painless.node.ECapturingFunctionRef} - Represents a function reference (capturing).
  * {@link org.elasticsearch.painless.node.EComp} - Represents a comparison expression.
  * {@link org.elasticsearch.painless.node.EConditional} - Represents a conditional expression.
  * {@link org.elasticsearch.painless.node.EConstant} - Represents a constant inserted into the tree replacing others. (Internal only.)
@@ -55,24 +53,12 @@
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.ERegex} - Represents a regular expression constant.
- * {@link org.elasticsearch.painless.node.EStatic} - Represents a static type target.
  * {@link org.elasticsearch.painless.node.EString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
  * {@link org.elasticsearch.painless.node.EVariable} - Represents a variable load/store.
- * {@link org.elasticsearch.painless.node.ILambda} - Represents a marker to signify this node is a lambda function.
- * {@link org.elasticsearch.painless.node.PBrace} - Represents an array load/store and defers to a child subnode.
- * {@link org.elasticsearch.painless.node.PCallInvoke} - Represents a method call and defers to a child subnode.
- * {@link org.elasticsearch.painless.node.PField} - Represents a field load/store and defers to a child subnode.
- * {@link org.elasticsearch.painless.node.PSubArrayLength} - Represents an array length field load.
- * {@link org.elasticsearch.painless.node.PSubBrace} - Represents an array load/store.
- * {@link org.elasticsearch.painless.node.PSubCallInvoke} - Represents a method call.
- * {@link org.elasticsearch.painless.node.PSubDefArray} - Represents an array load/store or shortcut on a def type.  (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubDefCall} - Represents a method call made on a def type. (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubDefField} - Represents a field load/store or shortcut on a def type.  (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubField} - Represents a field load/store.
- * {@link org.elasticsearch.painless.node.PSubListShortcut} - Represents a list load/store shortcut.  (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubMapShortcut} - Represents a map load/store shortcut. (Internal only.)
- * {@link org.elasticsearch.painless.node.PSubShortcut} - Represents a field load/store shortcut.  (Internal only.)
+ * {@link org.elasticsearch.painless.node.EBrace} - Represents an array load/store and defers to a child subnode.
+ * {@link org.elasticsearch.painless.node.ECall} - Represents a method call and defers to a child subnode.
+ * {@link org.elasticsearch.painless.node.EDot} - Represents a field load/store and defers to a child subnode.
  * {@link org.elasticsearch.painless.node.SBlock} - Represents a set of statements as a branch of control-flow.
  * {@link org.elasticsearch.painless.node.SBreak} - Represents a break statement.
  * {@link org.elasticsearch.painless.node.SCatch} - Represents a catch block as part of a try-catch block.
@@ -88,8 +74,6 @@
  * {@link org.elasticsearch.painless.node.SIfElse} - Represents an if/else block.
  * {@link org.elasticsearch.painless.node.SReturn} - Represents a return statement.
  * {@link org.elasticsearch.painless.node.SClass} - The root of all Painless trees.  Contains a series of statements.
- * {@link org.elasticsearch.painless.node.SSubEachArray} - Represents a for-each loop for arrays.
- * {@link org.elasticsearch.painless.node.SSubEachIterable} - Represents a for-each loop for iterables.
  * {@link org.elasticsearch.painless.node.SThrow} - Represents a throw statement.
  * {@link org.elasticsearch.painless.node.STry} - Represents the try block as part of a try-catch block.
  * {@link org.elasticsearch.painless.node.SWhile} - Represents a while loop.

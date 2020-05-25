@@ -41,9 +41,9 @@ import java.util.Collection;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.NULL_VALUE;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_MALFORMED;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -387,7 +387,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("location")
             .field("type", "geo_point")
-            .field(NULL_VALUE, "1,2")
+            .field(NULL_VALUE.getPreferredName(), "1,2")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -407,7 +407,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("location"), notNullValue());
-        BytesRef defaultValue = doc.rootDoc().getField("location").binaryValue();
+        BytesRef defaultValue = doc.rootDoc().getBinaryValue("location");
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -416,7 +416,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, equalTo(doc.rootDoc().getField("location").binaryValue()));
+        assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue("location")));
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -425,7 +425,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, not(equalTo(doc.rootDoc().getField("location").binaryValue())));
+        assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue("location"))));
     }
 
     /**
@@ -439,8 +439,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("location")
                     .field("type", "geo_point")
                     .field(IGNORE_Z_VALUE.getPreferredName(), false)
-                    .field(IGNORE_MALFORMED, true)
-                    .field(NULL_VALUE, "91,181")
+                    .field(IGNORE_MALFORMED.getPreferredName(), true)
+                    .field(NULL_VALUE.getPreferredName(), "91,181")
                 .endObject().endObject()
             .endObject().endObject());
 

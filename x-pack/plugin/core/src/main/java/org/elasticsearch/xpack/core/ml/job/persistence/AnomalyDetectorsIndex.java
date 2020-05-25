@@ -13,10 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
-import java.util.Comparator;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-
 /**
  * Methods for handling index naming related functions
  */
@@ -27,31 +23,7 @@ public final class AnomalyDetectorsIndex {
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
 
-    // Visible for testing
-    static final Comparator<String> STATE_INDEX_NAME_COMPARATOR = new Comparator<>() {
-
-        private final Predicate<String> HAS_SIX_DIGIT_SUFFIX = Pattern.compile("\\d{6}").asMatchPredicate();
-
-        @Override
-        public int compare(String index1, String index2) {
-            String[] index1Parts = index1.split("-");
-            String index1Suffix = index1Parts[index1Parts.length - 1];
-            boolean index1HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index1Suffix);
-            String[] index2Parts = index2.split("-");
-            String index2Suffix = index2Parts[index2Parts.length - 1];
-            boolean index2HasSixDigitsSuffix = HAS_SIX_DIGIT_SUFFIX.test(index2Suffix);
-            if (index1HasSixDigitsSuffix && index2HasSixDigitsSuffix) {
-                return index1Suffix.compareTo(index2Suffix);
-            } else if (index1HasSixDigitsSuffix != index2HasSixDigitsSuffix) {
-                return Boolean.compare(index1HasSixDigitsSuffix, index2HasSixDigitsSuffix);
-            } else {
-                return index1.compareTo(index2);
-            }
-        }
-    };
-
-    private AnomalyDetectorsIndex() {
-    }
+    private AnomalyDetectorsIndex() {}
 
     public static String jobResultsIndexPrefix() {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
@@ -106,10 +78,16 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state, IndexNameExpressionResolver resolver,
+    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
+                                                           IndexNameExpressionResolver resolver,
                                                            final ActionListener<Boolean> finalListener) {
-        MlIndexAndAlias.createIndexAndAliasIfNecessary(client, state, resolver,
-            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobStateIndexWriteAlias(), finalListener);
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(
+            client,
+            state,
+            resolver,
+            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+            AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
+            finalListener);
     }
 
     public static String resultsMapping() {

@@ -55,8 +55,7 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
-            assert stream.getVersion().equals(version) :
-                "Stream version [" + stream.getVersion() + "] does not match version [" + version + "]";
+            stream.setVersion(version);
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
@@ -95,7 +94,7 @@ abstract class OutboundMessage extends NetworkMessage {
         if (zeroCopyBuffer.length() == 0) {
             return message;
         } else {
-            return new CompositeBytesReference(message, zeroCopyBuffer);
+            return CompositeBytesReference.of(message, zeroCopyBuffer);
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
@@ -29,7 +30,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -62,16 +63,14 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
-        } catch (URISyntaxException | StorageException | IOException e) {
+        } catch (URISyntaxException | StorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore, e.getMessage());
         }
         return false;
     }
 
-    @Override
-    public InputStream readBlob(String blobName) throws IOException {
-        logger.trace("readBlob({})", blobName);
-
+    private InputStream openInputStream(String blobName, long position, @Nullable Long length) throws IOException {
+        logger.trace("readBlob({}) from position [{}] with length [{}]", blobName, position, length != null ? length : "unlimited");
         if (blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY && !blobExists(blobName)) {
             // On Azure, if the location path is a secondary location, and the blob does not
             // exist, instead of returning immediately from the getInputStream call below
@@ -81,9 +80,8 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // stream to it.
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
-
         try {
-            return blobStore.getInputStream(buildKey(blobName));
+            return blobStore.getInputStream(buildKey(blobName), position, length);
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new NoSuchFileException(e.getMessage());
@@ -92,6 +90,21 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         } catch (URISyntaxException e) {
             throw new IOException(e);
         }
+    }
+
+    @Override
+    public InputStream readBlob(String blobName) throws IOException {
+        return openInputStream(blobName, 0L, null);
+    }
+
+    @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        return openInputStream(blobName, position, length);
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        return Constants.DEFAULT_MINIMUM_READ_SIZE_IN_BYTES;
     }
 
     @Override
@@ -152,7 +165,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String prefix) throws IOException {
         logger.trace("listBlobsByPrefix({})", prefix);
 
         try {
@@ -164,7 +177,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         logger.trace("listBlobs()");
         return listBlobsByPrefix(null);
     }

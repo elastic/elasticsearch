@@ -13,8 +13,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,16 +36,15 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -87,6 +87,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.transform.rest.action.RestCatTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestDeleteTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformStatsAction;
@@ -112,10 +113,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-
-import static java.util.Collections.emptyList;
 
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
@@ -124,7 +124,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private static final Logger logger = LogManager.getLogger(Transform.class);
 
-    private final boolean enabled;
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
@@ -145,21 +144,27 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
      * These attributes should never be set directly, use the node setting counter parts instead.
      */
     public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
-    public static final String TRANSFORM_REMOTE_ENABLED_NODE_ATTR = "transform.remote_connect";
 
     /**
-     * Setting whether transform (the coordinator task) can run on this node and REST API's are available,
-     * respects xpack.transform.enabled (for the whole plugin) as fallback
+     * Setting whether transform (the coordinator task) can run on this node.
      */
     public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
-        settings -> Boolean.toString(XPackSettings.TRANSFORM_ENABLED.get(settings) && DiscoveryNode.isDataNode(settings)),
+        settings -> Boolean.toString(DiscoveryNode.isDataNode(settings)),
         Property.NodeScope
     );
 
+    public static final DiscoveryNodeRole TRANSFORM_ROLE = new DiscoveryNodeRole("transform", "t") {
+
+        @Override
+        protected Setting<Boolean> roleSetting() {
+            return TRANSFORM_ENABLED_NODE;
+        }
+
+    };
+
     public Transform(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -177,10 +182,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
 
-        if (!enabled) {
-            return emptyList();
-        }
-
         return Arrays.asList(
             new RestPutTransformAction(),
             new RestStartTransformAction(),
@@ -190,6 +191,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestGetTransformStatsAction(),
             new RestPreviewTransformAction(),
             new RestUpdateTransformAction(),
+            new RestCatTransformAction(),
 
             // deprecated endpoints, to be removed for 8.0.0
             new RestPutTransformActionDeprecated(),
@@ -205,11 +207,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class);
-        if (enabled == false) {
-            return Arrays.asList(usageAction, infoAction);
-        }
 
         return Arrays.asList(
             new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
@@ -231,17 +228,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
             new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class),
 
-            usageAction,
-            infoAction
+            // usage and info
+            new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
         );
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
-            return emptyList();
-        }
-
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(
             settings,
             TASK_THREAD_POOL_NAME,
@@ -265,16 +259,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Environment environment,
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        if (enabled == false) {
-            return emptyList();
-        }
-
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
         TransformCheckpointService checkpointService = new TransformCheckpointService(
-            client,
             settings,
             clusterService,
             configManager,
@@ -288,18 +278,18 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
             try {
                 templates.put(
                     TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                    TransformInternalIndex.getIndexTemplateMetaData()
+                    TransformInternalIndex.getIndexTemplateMetadata()
                 );
             } catch (IOException e) {
                 logger.error("Error creating transform index template", e);
             }
             try {
-                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
+                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
             } catch (IOException e) {
                 logger.warn("Error creating transform audit index", e);
             }
@@ -315,10 +305,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        if (enabled == false) {
-            return emptyList();
-        }
-
         // the transform services should have been created
         assert transformServices.get() != null;
 
@@ -342,24 +328,23 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public Settings additionalSettings() {
         String transformEnabledNodeAttribute = "node.attr." + TRANSFORM_ENABLED_NODE_ATTR;
-        String transformRemoteEnabledNodeAttribute = "node.attr." + TRANSFORM_REMOTE_ENABLED_NODE_ATTR;
 
-        if (settings.get(transformEnabledNodeAttribute) != null || settings.get(transformRemoteEnabledNodeAttribute) != null) {
+        if (settings.get(transformEnabledNodeAttribute) != null) {
             throw new IllegalArgumentException(
                 "Directly setting transform node attributes is not permitted, please use the documented node settings instead"
             );
         }
 
-        if (enabled == false) {
-            return Settings.EMPTY;
-        }
-
         Settings.Builder additionalSettings = Settings.builder();
 
         additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
-        additionalSettings.put(transformRemoteEnabledNodeAttribute, RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings));
 
         return additionalSettings.build();
+    }
+
+    @Override
+    public Set<DiscoveryNodeRole> getRoles() {
+        return Collections.singleton(TRANSFORM_ROLE);
     }
 
     @Override

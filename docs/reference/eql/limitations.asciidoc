@@ -9,13 +9,24 @@
 experimental::[]
 
 [discrete]
+[[eql-nested-fields]]
+=== EQL search on nested fields is not supported
+
+You cannot use EQL to search the values of a <<nested,`nested`>> field or the
+sub-fields of a `nested` field. However, indices containing `nested` field
+mappings are otherwise supported.
+
+[discrete]
 [[eql-unsupported-syntax]]
 === Unsupported syntax
 
 {es} supports a subset of {eql-ref}/index.html[EQL syntax]. {es} cannot run EQL
 queries that contain:
 
-* {eql-ref}/functions.html[Functions]
+* Array functions:
+** {eql-ref}/functions.html#arrayContains[`arrayContains`]
+** {eql-ref}/functions.html#arrayCount[`arrayCount`]
+** {eql-ref}/functions.html#arraySearch[`arraySearch`]
 
 * {eql-ref}/joins.html[Joins]
 
@@ -26,4 +37,6 @@ queries that contain:
 
 * {eql-ref}/pipes.html[Pipes]
 
-* {eql-ref}/sequences.html[Sequences]
+* {eql-ref}/sequences.html[State and timespan-related sequence keywords]:
+** `with maxspan`
+** `until`

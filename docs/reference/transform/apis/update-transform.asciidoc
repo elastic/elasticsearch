@@ -18,12 +18,17 @@ Updates certain properties of a {transform}.
 [[update-transform-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_transform` 
-cluster privileges to use this API. The built-in  `transform_admin` role has 
-these privileges. You must also have `read` and  `view_index_metadata` 
-privileges on the source index and `read`, `create_index`, and `index` 
-privileges on the destination index. For more information, see 
-<<security-privileges>> and <<built-in-roles>>.
+If the {es} {security-features} are enabled, you must have the following 
+built-in roles and privileges:
+
+* `transform_admin`
+
+* `manage_transform` (the built-in `transform_admin` role has this privilege)
+* source index: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `index`
+
+For more information, see <<security-privileges>> and <<built-in-roles>>.
+
 
 [[update-transform-desc]]
 ==== {api-description-title}
@@ -67,53 +72,95 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
   behavior may be desired if the source index does not exist until after the
   {transform} is updated.
 
+[role="child_attributes"]
 [[update-transform-request-body]]
 ==== {api-request-body-title}
 
 `description`::
   (Optional, string) Free text description of the {transform}.
 
+//Begin dest
 `dest`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
-  
-`dest`.`index`:::
++
+.Properties of `dest`
+[%collapsible%open]
+====
+
+`index`:::
 (Required, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
-`dest`.`pipeline`:::
+`pipeline`:::
 (Optional, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+====
+//End dest
 
 `frequency`::
 (Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin settings
+`settings`::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`docs_per_second`:::
+(Optional, float)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
+
+//Begin source
 `source`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
-  
-`source`.`index`:::
++
+.Properties of `source`
+[%collapsible%open]
+====  
+
+`index`:::
 (Required, string or array)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
     
-`source`.`query`:::
+`query`:::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
-  
+====
+//End source
+
+//Begin sync
 `sync`::
 (Optional, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
-  
-`sync`.`time`:::
++
+.Properties of `sync`
+[%collapsible%open]
+====
+
+//Begin sync.time
+`time`:::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
 
-`sync`.`time`.`delay`::::
+`delay`::::
 (Optional, <<time-units, time units>>)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
 
-`sync`.`time`.`field`::::
+`field`::::
 (Required, string)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
@@ -124,6 +171,10 @@ you might need to set the `delay` such that it accounts for data transmission
 delays.
 
 --
+=====
+//End sync.time
+====
+//End sync
 
 [[update-transform-example]]
 ==== {api-examples-title}
@@ -202,6 +253,7 @@ When the {transform} is updated, you receive the updated configuration:
       "delay": "120s"
     }
   },
+  "settings": { },
   "version": "7.5.0",
   "create_time": 1518808660505
 }

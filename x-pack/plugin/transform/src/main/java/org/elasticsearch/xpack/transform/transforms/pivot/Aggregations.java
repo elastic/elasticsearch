@@ -31,6 +31,7 @@ public final class Aggregations {
     private static final String SOURCE = "_source";
 
     public static final String FLOAT = "float";
+    public static final String FLATTENED = "flattened";
     public static final String SCALED_FLOAT = "scaled_float";
     public static final String DOUBLE = "double";
     public static final String LONG = "long";
@@ -69,16 +70,15 @@ public final class Aggregations {
         "nested",
         "percentile_ranks",
         "range",
-        "rare_terms",
         "reverse_nested",
         "sampler",
         "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073
         "significant_text",
         "stats", // https://github.com/elastic/elasticsearch/issues/51925
         "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
-        "terms", // https://github.com/elastic/elasticsearch/issues/51073
         "top_hits",
-        "top_metrics" // https://github.com/elastic/elasticsearch/issues/52236
+        "top_metrics", // https://github.com/elastic/elasticsearch/issues/52236
+        "t_test" // https://github.com/elastic/elasticsearch/issues/54503
     );
 
     private Aggregations() {}
@@ -106,7 +106,9 @@ public final class Aggregations {
         BUCKET_SELECTOR("bucket_selector", DYNAMIC),
         BUCKET_SCRIPT("bucket_script", DYNAMIC),
         PERCENTILES("percentiles", DOUBLE),
-        FILTER("filter", LONG);
+        FILTER("filter", LONG),
+        TERMS("terms", FLATTENED),
+        RARE_TERMS("rare_terms", FLATTENED);
 
         private final String aggregationType;
         private final String targetMapping;
@@ -183,7 +185,7 @@ public final class Aggregations {
         }
 
         if (agg instanceof ValuesSourceAggregationBuilder) {
-            ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
+            ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
             return new Tuple<>(
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
                 Collections.singletonMap(agg.getName(), agg.getType())

@@ -52,7 +52,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "8.1.0"
+  id "nebula.ospackage-base" version "8.3.0"
 }
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {
@@ -98,17 +98,32 @@ addProcessFilesTask('rpm', false, false)
 // Common configuration that is package dependent. This can't go in ospackage
 // since we have different templated files that need to be consumed, but the structure
 // is the same
-Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
+Closure commonPackageConfig(String type, boolean oss, boolean jdk, String architecture) {
   return {
     onlyIf {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
-    arch(type == 'deb' ? 'amd64' : 'X86_64')
+    if (type == 'deb') {
+      if (architecture == 'x64') {
+        arch('amd64')
+      } else {
+        assert architecture == 'aarch64' : architecture
+        arch('arm64')
+      }
+    } else {
+      assert type == 'rpm' : type
+      if (architecture == 'x64') {
+        arch('X86_64')
+      } else {
+        assert architecture == 'aarch64' : architecture
+        arch('aarch64')
+      }
+    }
     // Follow elasticsearch's file naming convention
     String jdkString = jdk ? "" : "no-jdk-"
-    String prefix = "${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
+    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDir = file("${prefix}/build/distributions")
 
     // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
@@ -139,11 +154,11 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         with libFiles(oss)
       }
       into('modules') {
-        with modulesFiles(oss, 'linux')
+        with modulesFiles(oss, 'linux-' + ((architecture == 'x64') ? 'x86_64' : architecture))
       }
       if (jdk) {
         into('jdk') {
-          with jdkFiles(project, 'linux')
+          with jdkFiles(project, 'linux', architecture)
         }
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
@@ -306,9 +321,9 @@ ospackage {
   into '/usr/share/elasticsearch'
 }
 
-Closure commonDebConfig(boolean oss, boolean jdk) {
+Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
   return {
-    configure(commonPackageConfig('deb', oss, jdk))
+    configure(commonPackageConfig('deb', oss, jdk, architecture))
 
     // jdeb does not provide a way to set the License control attribute, and ospackage
     // silently ignores setting it. Instead, we set the license as "custom field"
@@ -336,25 +351,33 @@ Closure commonDebConfig(boolean oss, boolean jdk) {
   }
 }
 
-task buildDeb(type: Deb) {
-  configure(commonDebConfig(false, true))
+tasks.register('buildAarch64Deb', Deb) {
+  configure(commonDebConfig(false, true, 'aarch64'))
 }
 
-task buildOssDeb(type: Deb) {
-  configure(commonDebConfig(true, true))
+tasks.register('buildDeb', Deb) {
+  configure(commonDebConfig(false, true, 'x64'))
 }
 
-task buildNoJdkDeb(type: Deb) {
-  configure(commonDebConfig(false, false))
+tasks.register('buildAarch64OssDeb', Deb) {
+  configure(commonDebConfig(true, true, 'aarch64'))
 }
 
-task buildOssNoJdkDeb(type: Deb) {
-  configure(commonDebConfig(true, false))
+tasks.register('buildOssDeb', Deb) {
+  configure(commonDebConfig(true, true, 'x64'))
 }
 
-Closure commonRpmConfig(boolean oss, boolean jdk) {
+tasks.register('buildNoJdkDeb', Deb) {
+  configure(commonDebConfig(false, false, 'x64'))
+}
+
+tasks.register('buildOssNoJdkDeb', Deb) {
+  configure(commonDebConfig(true, false, 'x64'))
+}
+
+Closure commonRpmConfig(boolean oss, boolean jdk, String architecture) {
   return {
-    configure(commonPackageConfig('rpm', oss, jdk))
+    configure(commonPackageConfig('rpm', oss, jdk, architecture))
 
     if (oss) {
       license 'ASL 2.0'
@@ -381,20 +404,28 @@ Closure commonRpmConfig(boolean oss, boolean jdk) {
   }
 }
 
-task buildRpm(type: Rpm) {
-  configure(commonRpmConfig(false, true))
+tasks.register('buildAarch64Rpm', Rpm) {
+  configure(commonRpmConfig(false, true, 'aarch64'))
 }
 
-task buildOssRpm(type: Rpm) {
-  configure(commonRpmConfig(true, true))
+tasks.register('buildRpm', Rpm) {
+  configure(commonRpmConfig(false, true, 'x64'))
 }
 
-task buildNoJdkRpm(type: Rpm) {
-  configure(commonRpmConfig(false, false))
+tasks.register('buildAarch64OssRpm', Rpm) {
+  configure(commonRpmConfig(true, true, 'aarch64'))
 }
 
-task buildOssNoJdkRpm(type: Rpm) {
-  configure(commonRpmConfig(true, false))
+tasks.register('buildOssRpm', Rpm) {
+  configure(commonRpmConfig(true, true, 'x64'))
+}
+
+tasks.register('buildNoJdkRpm', Rpm) {
+  configure(commonRpmConfig(false, false, 'x64'))
+}
+
+tasks.register('buildOssNoJdkRpm', Rpm) {
+  configure(commonRpmConfig(true, false, 'x64'))
 }
 
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
@@ -409,7 +440,7 @@ subprojects {
   apply plugin: 'distribution'
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
-  ext.buildDist = parent.tasks.getByName(buildTask)
+  ext.buildDist = parent.tasks.named(buildTask)
   artifacts {
     'default' buildDist
   }
@@ -425,7 +456,7 @@ subprojects {
       assert project.name.contains('rpm')
       packageExtractionDir = new File(extractionDir, 'rpm-extracted')
     }
-    task checkExtraction(type: LoggedExec) {
+    tasks.register('checkExtraction', LoggedExec) {
       dependsOn buildDist
       doFirst {
         project.delete(extractionDir)
@@ -437,7 +468,7 @@ subprojects {
     if (project.name.contains('deb')) {
       checkExtraction {
         onlyIf dpkgExists
-        commandLine 'dpkg-deb', '-x', "${-> buildDist.outputs.files.filter(debFilter).singleFile}", packageExtractionDir
+        commandLine 'dpkg-deb', '-x', "${-> buildDist.get()outputs.files.filter(debFilter).singleFile}", packageExtractionDir
       }
     } else {
       assert project.name.contains('rpm')
@@ -446,6 +477,8 @@ subprojects {
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
           '--badreloc',
+          '--ignorearch',
+          '--ignoreos',
           '--nodeps',
           '--noscripts',
           '--notriggers',
@@ -454,7 +487,7 @@ subprojects {
           '--relocate',
           "/=${packageExtractionDir}",
           '-i',
-          "${-> buildDist.outputs.files.singleFile}"
+          "${-> buildDist.get().outputs.files.singleFile}"
       }
     }
 
@@ -517,7 +550,7 @@ subprojects {
     }
     check.dependsOn checkNotice
 
-    task checkLicenseMetadata(type: LoggedExec) {
+    tasks.register('checkLicenseMetadata', LoggedExec) {
       dependsOn buildDist, checkExtraction
     }
     check.dependsOn checkLicenseMetadata
@@ -525,7 +558,7 @@ subprojects {
       checkLicenseMetadata { LoggedExec exec ->
         onlyIf dpkgExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.outputs.files.filter(debFilter).singleFile}"
+        exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
         exec.standardOutput = output
         doLast {
           String expectedLicense
@@ -561,7 +594,7 @@ subprojects {
       checkLicenseMetadata { LoggedExec exec ->
         onlyIf rpmExists
         final ByteArrayOutputStream output = new ByteArrayOutputStream()
-        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.outputs.files.singleFile}"
+        exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
         exec.standardOutput = output
         doLast {
           String license = output.toString('UTF-8')
@@ -572,7 +605,7 @@ subprojects {
             expectedLicense = "Elastic License"
           }
           if (license != expectedLicense) {
-            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.outputs.files.singleFile}] but was [${license}]")
+            throw new GradleException("expected license [${expectedLicense}] for [${-> buildDist.get().outputs.files.singleFile}] but was [${license}]")
           }
         }
       }

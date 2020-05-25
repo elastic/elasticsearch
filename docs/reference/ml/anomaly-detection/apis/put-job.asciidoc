@@ -35,6 +35,7 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 (Required, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define]
 
+[role="child_attributes"]
 [[ml-put-job-request-body]]
 ==== {api-request-body-title}
 
@@ -42,148 +43,172 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define]
 (Optional, boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 
+//Begin analysis_config
 [[put-analysisconfig]]`analysis_config`::
 (Required, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-config]
-
-`analysis_config`.`bucket_span`:::
++
+.Properties of `analysis_config`
+[%collapsible%open]
+====
+`bucket_span`:::
 (<<time-units,time units>>)
 include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span]
 
-`analysis_config`.`categorization_field_name`:::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-field-name]
-
-`analysis_config`.`categorization_filters`:::
-(array of strings)
-include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-filters]
-
-`analysis_config`.`categorization_analyzer`:::
+`categorization_analyzer`:::
 (object or string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-analyzer]
 
-`analysis_config`.`detectors`:::
+`categorization_field_name`:::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-field-name]
+
+`categorization_filters`:::
+(array of strings)
+include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-filters]
+
+//Begin analysis_config.detectors
+`detectors`:::
 (array) An array of detector configuration objects. Detector configuration
 objects specify which data fields a job analyzes. They also specify which
 analytical functions are used. You can specify multiple detectors for a job. 
 +
---
 NOTE: If the `detectors` array does not contain at least one detector,
 no analysis can occur and an error is returned.
-
-A detector has the following properties:
---
-
-`analysis_config`.`detectors`.`by_field_name`::::
++
+.Properties of `detectors`
+[%collapsible%open]
+=====
+`by_field_name`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
 
-[[put-customrules]]`analysis_config`.`detectors`.`custom_rules`::::
-+
---
+//Begin analysis_config.detectors.custom_rules
+[[put-customrules]]`custom_rules`::::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules]
++
+.Properties of `custom_rules`
+[%collapsible%open]
+======
 
-`analysis_config`.`detectors`.`custom_rules`.`actions`:::
+`actions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
 
-`analysis_config`.`detectors`.`custom_rules`.`scope`:::
-(object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
-
-`analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_id`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
-
-`analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_type`::::
-(string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
-
-`analysis_config`.`detectors`.`custom_rules`.`conditions`:::
+//Begin analysis_config.detectors.custom_rules.conditions
+`conditions`:::
 (array)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
-
-`analysis_config`.`detectors`.`custom_rules`.`conditions`.`applies_to`::::
++
+.Properties of `conditions`
+[%collapsible%open]
+=======
+`applies_to`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
 
-`analysis_config`.`detectors`.`custom_rules`.`conditions`.`operator`::::
+`operator`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
 
-`analysis_config`.`detectors`.`custom_rules`.`conditions`.`value`::::
+`value`::::
 (double)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
---
+=======
+//End analysis_config.detectors.custom_rules.conditions
 
-`analysis_config`.`detectors`.`detector_description`::::
+//Begin analysis_config.detectors.custom_rules.scope
+`scope`:::
+(object)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
++
+.Properties of `scope`
+[%collapsible%open]
+=======
+`filter_id`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+
+`filter_type`::::
+(string)
+include::{docdir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+=======
+//End analysis_config.detectors.custom_rules.scope
+======
+//End analysis_config.detectors.custom_rules
+
+`detector_description`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-description]
 
-`analysis_config`.`detectors`.`detector_index`::::
-+
---
+`detector_index`::::
 (integer)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
++
 If you specify a value for this property, it is ignored.
---
 
-`analysis_config`.`detectors`.`exclude_frequent`::::
+`exclude_frequent`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
 
-`analysis_config`.`detectors`.`field_name`::::
+`field_name`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=detector-field-name]
 
-`analysis_config`.`detectors`.`function`::::
+`function`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=function]
 
-`analysis_config`.`detectors`.`over_field_name`::::
+`over_field_name`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
 
-`analysis_config`.`detectors`.`partition_field_name`::::
+`partition_field_name`::::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 
-`analysis_config`.`detectors`.`use_null`::::
+`use_null`::::
 (boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=use-null]
+=====
+//End analysis_config.detectors
 
-`analysis_config`.`influencers`:::
+`influencers`:::
 (array of strings)
 include::{docdir}/ml/ml-shared.asciidoc[tag=influencers]
 
-`analysis_config`.`latency`:::
+`latency`:::
 (time units)
 include::{docdir}/ml/ml-shared.asciidoc[tag=latency]
 
-`analysis_config`.`multivariate_by_fields`:::
+`multivariate_by_fields`:::
 (boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
 
-`analysis_config`.`summary_count_field_name`:::
+`summary_count_field_name`:::
 (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=summary-count-field-name]
+====
+//End analysis_config
 
+//Begin analysis_limits
 [[put-analysislimits]]`analysis_limits`::
 (Optional, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 +
---
-The `analysis_limits` object has the following properties:
---
-
-`analysis_limits`.`categorization_examples_limit`:::
+.Properties of `analysis_limits`
+[%collapsible%open]
+====
+`categorization_examples_limit`:::
 (long)
 include::{docdir}/ml/ml-shared.asciidoc[tag=categorization-examples-limit]
 
-`analysis_limits`.`model_memory_limit`:::
+`model_memory_limit`:::
 (long or string) 
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
+====
+//End analysis_limits
 
 `background_persist_interval`::
 (Optional, <<time-units, time units>>)
@@ -193,9 +218,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (Optional, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
+//Begin data_description
 [[put-datadescription]]`data_description`::
 (Required, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=data-description]
+//End data_description
+
+`daily_model_snapshot_retention_after_days`::
+(Optional, long)
+include::{docdir}/ml/ml-shared.asciidoc[tag=daily-model-snapshot-retention-after-days]
 
 `description`::
   (Optional, string) A description of the job.
@@ -204,17 +235,23 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=data-description]
 (Optional, array of strings)
 include::{docdir}/ml/ml-shared.asciidoc[tag=groups]
 
+//Begin model_plot_config
 `model_plot_config`::
 (Optional, object)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config]
-
-`model_plot_config`.`enabled`:::
++
+.Properties of `model_plot_config`
+[%collapsible%open]
+====
+`enabled`:::
 (boolean)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 
-`model_plot_config`.`terms`:::
+`terms`:::
 experimental[] (string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
+====
+//End model_plot_config
 
 `model_snapshot_retention_days`::
 (Optional, long)
@@ -287,7 +324,8 @@ When the job is created, you receive the following results:
     "time_field" : "timestamp",
     "time_format" : "epoch_ms"
   },
-  "model_snapshot_retention_days" : 1,
+  "model_snapshot_retention_days" : 10,
+  "daily_model_snapshot_retention_after_days" : 1,
   "results_index_name" : "shared",
   "allow_lazy_open" : false
 }

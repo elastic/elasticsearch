@@ -73,8 +73,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     protected ScriptedMetricAggregationBuilder(ScriptedMetricAggregationBuilder clone,
-                                               Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                               Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.initScript = clone.initScript;
         this.mapScript = clone.mapScript;
         this.combineScript = clone.combineScript;
@@ -83,8 +83,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ScriptedMetricAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ScriptedMetricAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -207,6 +207,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected ScriptedMetricAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                       Builder subfactoriesBuilder) throws IOException {
 
@@ -245,7 +250,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
 
         return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
                 initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,
-                params, queryShardContext.lookup(), queryShardContext, parent, subfactoriesBuilder, metaData);
+                params, queryShardContext.lookup(), queryShardContext, parent, subfactoriesBuilder, metadata);
     }
 
 

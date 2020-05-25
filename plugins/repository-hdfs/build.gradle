@@ -35,7 +35,7 @@ esplugin {
 }
 
 versions << [
-  'hadoop2': '2.8.1'
+  'hadoop2': '2.8.5'
 ]
 
 testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
@@ -52,7 +52,7 @@ dependencies {
   compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
   compile 'org.apache.htrace:htrace-core4:4.0.1-incubating'
-  compile 'com.google.guava:guava:11.0.2'
+  runtimeOnly 'com.google.guava:guava:11.0.2'
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
   compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
@@ -74,6 +74,12 @@ dependencies {
   }
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
+  }
+}
+
 normalization {
   runtimeClasspath {
     // ignore generated keytab files for the purposes of build avoidance
@@ -92,7 +98,7 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
-  project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  def tsk = project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
@@ -128,6 +134,10 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
 
     args miniHDFSArgs.toArray()
   }
+
+  // TODO: The task configuration block has side effects that require it currently to be always executed.
+  // Otherwise tests start failing. Therefore we enforce the task creation for now.
+  tsk.get()
 }
 
 Set disabledIntegTestTaskNames = []
@@ -192,7 +202,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
   }
 
   testClusters."${integTestTaskName}" {
-    plugin(file(bundlePlugin.archiveFile))
+    plugin(bundlePlugin.archiveFile)
     if (integTestTaskName.contains("Secure")) {
       systemProperty "java.security.krb5.conf", krb5conf
       extraConfigFile(

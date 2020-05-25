@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullE
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -118,6 +119,7 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.Duration;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
@@ -138,9 +140,11 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.dateTimeOfEscapedLitera
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private final Map<Token, SqlTypedParamValue> params;
+    private final ZoneId zoneId;
 
-    ExpressionBuilder(Map<Token, SqlTypedParamValue> params) {
+    ExpressionBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         this.params = params;
+        this.zoneId = zoneId;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -190,19 +194,19 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         switch (op.getSymbol().getType()) {
             case SqlBaseParser.EQ:
-                return new Equals(source, left, right);
+                return new Equals(source, left, right, zoneId);
             case SqlBaseParser.NULLEQ:
-                return new NullEquals(source, left, right);
+                return new NullEquals(source, left, right, zoneId);
             case SqlBaseParser.NEQ:
-                return new NotEquals(source, left, right);
+                return new NotEquals(source, left, right, zoneId);
             case SqlBaseParser.LT:
-                return new LessThan(source, left, right);
+                return new LessThan(source, left, right, zoneId);
             case SqlBaseParser.LTE:
-                return new LessThanOrEqual(source, left, right);
+                return new LessThanOrEqual(source, left, right, zoneId);
             case SqlBaseParser.GT:
-                return new GreaterThan(source, left, right);
+                return new GreaterThan(source, left, right, zoneId);
             case SqlBaseParser.GTE:
-                return new GreaterThanOrEqual(source, left, right);
+                return new GreaterThanOrEqual(source, left, right, zoneId);
             default:
                 throw new ParsingException(source, "Unknown operator {}", source.text());
         }
@@ -223,7 +227,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression e = null;
         switch (pCtx.kind.getType()) {
             case SqlBaseParser.BETWEEN:
-                e = new Range(source, exp, expression(pCtx.lower), true, expression(pCtx.upper), true);
+                e = new Range(source, exp, expression(pCtx.lower), true, expression(pCtx.upper), true, zoneId);
                 break;
             case SqlBaseParser.IN:
                 if (pCtx.query() != null) {
@@ -235,7 +239,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 e = new Like(source, exp, visitPattern(pCtx.pattern()));
                 break;
             case SqlBaseParser.RLIKE:
-                e = new RLike(source, exp, string(pCtx.regex));
+                e = new RLike(source, exp, new RLikePattern(string(pCtx.regex)));
                 break;
             case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
@@ -263,6 +267,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         String pattern = string(ctx.value);
+        if (pattern == null) {
+            throw new ParsingException(source(ctx.value), "Pattern must not be [null]");
+        }
         int pos = pattern.indexOf('*');
         if (pos >= 0) {
             throw new ParsingException(source(ctx.value),
@@ -469,7 +476,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         for (SqlBaseParser.WhenClauseContext when : ctx.whenClause()) {
             if (ctx.operand != null) {
                 expressions.add(new IfConditional(source(when),
-                    new Equals(source(when), expression(ctx.operand), expression(when.condition)), expression(when.result)));
+                    new Equals(source(when), expression(ctx.operand), expression(when.condition), zoneId), expression(when.result)));
             } else {
                 expressions.add(new IfConditional(source(when), expression(when.condition), expression(when.result)));
             }

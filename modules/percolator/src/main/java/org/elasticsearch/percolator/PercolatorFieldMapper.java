@@ -25,7 +25,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
@@ -109,7 +108,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     static final String RANGE_FIELD_NAME = "range_field";
     static final String MINIMUM_SHOULD_MATCH_FIELD_NAME = "minimum_should_match_field";
 
-    static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder> {
 
         private final Supplier<QueryShardContext> queryShardContext;
 
@@ -148,11 +147,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
-            KeywordFieldMapper.Builder queryMetaDataFieldBuilder = new KeywordFieldMapper.Builder(name);
-            queryMetaDataFieldBuilder.docValues(false);
-            queryMetaDataFieldBuilder.store(false);
-            queryMetaDataFieldBuilder.indexOptions(IndexOptions.DOCS);
-            return queryMetaDataFieldBuilder.build(context);
+            KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(name);
+            queryMetadataFieldBuilder.docValues(false);
+            queryMetadataFieldBuilder.store(false);
+            queryMetadataFieldBuilder.indexOptions(IndexOptions.DOCS);
+            return queryMetadataFieldBuilder.build(context);
         }
 
         static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
@@ -460,11 +459,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         } else {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, extractionResultField.fieldType()));
         }
-        List<IndexableField> fields = new ArrayList<>(1);
-        createFieldNamesField(context, fields);
-        for (IndexableField field : fields) {
-            context.doc().add(field);
-        }
+
+        createFieldNamesField(context);
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
@@ -501,7 +497,12 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("should not be invoked");
     }
 

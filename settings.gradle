@@ -1,5 +1,5 @@
 plugins {
-  id "com.gradle.enterprise" version "3.1.1"
+  id "com.gradle.enterprise" version "3.3.1"
 }
 
 String dirName = rootProject.projectDir.name
@@ -27,20 +27,30 @@ List projects = [
   'distribution:archives:darwin-tar',
   'distribution:archives:oss-no-jdk-darwin-tar',
   'distribution:archives:no-jdk-darwin-tar',
+  'distribution:archives:oss-linux-aarch64-tar',
   'distribution:archives:oss-linux-tar',
+  'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:oss-no-jdk-linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
+  'distribution:docker:docker-aarch64-build-context',
+  'distribution:docker:docker-aarch64-export',
+  'distribution:docker:oss-docker-aarch64-build-context',
+  'distribution:docker:oss-docker-aarch64-export',
   'distribution:docker:docker-build-context',
   'distribution:docker:docker-export',
   'distribution:docker:oss-docker-build-context',
   'distribution:docker:oss-docker-export',
+  'distribution:packages:aarch64-oss-deb',
   'distribution:packages:oss-deb',
+  'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-no-jdk-deb',
   'distribution:packages:no-jdk-deb',
+  'distribution:packages:aarch64-oss-rpm',
   'distribution:packages:oss-rpm',
+  'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
   'distribution:packages:oss-no-jdk-rpm',
   'distribution:packages:no-jdk-rpm',

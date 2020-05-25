@@ -58,7 +58,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                 "    }"),
                     XContentType.JSON));
         });
-        assertTrue(e.getMessage(), e.getMessage().contains("different type"));
+        assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
     }
 
     public void testEmptyArrayProperties() throws Exception {

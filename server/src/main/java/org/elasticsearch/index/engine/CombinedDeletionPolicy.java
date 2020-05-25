@@ -84,17 +84,17 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             this.safeCommitInfo = SafeCommitInfo.EMPTY;
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = commits.get(keptPosition);
-            if (keptPosition == commits.size() - 1) {
-                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
-            } else {
-                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-            }
             for (int i = 0; i < keptPosition; i++) {
                 if (snapshottedCommits.containsKey(commits.get(i)) == false) {
                     deleteCommit(commits.get(i));
                 }
             }
             updateRetentionPolicy();
+            if (keptPosition == commits.size() - 1) {
+                this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
+            } else {
+                this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            }
             safeCommit = this.safeCommit;
         }
 

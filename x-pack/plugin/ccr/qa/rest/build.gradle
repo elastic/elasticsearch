@@ -5,6 +5,7 @@ apply plugin: 'elasticsearch.standalone-test'
 
 restResources {
   restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'info'
     includeXpack 'ccr'
   }
 }
@@ -25,7 +26,6 @@ testClusters.restTest {
   // that is thrown in production when indexing a document directly in a follower index.
   jvmArgs '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   // TODO: reduce the need for superuser here

@@ -45,7 +45,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
         try {
             final String samlIdpEntityId = "urn:idp:entity";
             final Path samlIdpPath = createTempFile("idp", "xml");
-            SamlRealmTestHelper.writeIdpMetaData(samlIdpPath, samlIdpEntityId);
+            SamlRealmTestHelper.writeIdpMetadata(samlIdpPath, samlIdpEntityId);
 
             final Path kerbKeyTab = createTempFile("es", "keytab");
             KerberosRealmTestCase.writeKeyTab(kerbKeyTab, null);

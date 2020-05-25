@@ -84,7 +84,7 @@ public abstract class MappedFieldType extends FieldType {
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
-        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
+        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
         this.similarity = ref.similarity();
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
@@ -148,77 +148,15 @@ public abstract class MappedFieldType extends FieldType {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
+        int hash = Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
             eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString, meta);
+        return hash;
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
-
-    /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    private void checkTypeName(MappedFieldType other) {
-        if (typeName().equals(other.typeName()) == false) {
-            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName()
-                + "] to [" + other.typeName() + "]");
-        } else if (getClass() != other.getClass()) {
-            throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and "
-                + other.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * Checks for any conflicts between this field type and other.
-     * If strict is true, all properties must be equal.
-     * Otherwise, only properties which must never change in an index are checked.
-     */
-    public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-        checkTypeName(other);
-
-        boolean indexed =  indexOptions() != IndexOptions.NONE;
-        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
-        // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (indexed != mergeWithIndexed) {
-            conflicts.add("mapper [" + name() + "] has different [index] values");
-        }
-        if (stored() != other.stored()) {
-            conflicts.add("mapper [" + name() + "] has different [store] values");
-        }
-        if (hasDocValues() != other.hasDocValues()) {
-            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
-        }
-        if (omitNorms() && !other.omitNorms()) {
-            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
-        }
-        if (storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
-        }
-        if (storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
-        }
-        if (storeTermVectorPositions() != other.storeTermVectorPositions()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
-        }
-        if (storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
-        }
-
-        // null and "default"-named index analyzers both mean the default is used
-        if (indexAnalyzer() == null || "default".equals(indexAnalyzer().name())) {
-            if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [analyzer]");
-            }
-        } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        }
-
-        if (Objects.equals(similarity(), other.similarity()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
-    }
 
     public String name() {
         return name;
@@ -368,14 +306,14 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name
+        throw new QueryShardException(context, "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
                                QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 

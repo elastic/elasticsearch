@@ -25,13 +25,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -44,11 +43,12 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.shard.ShardStateMetaData;
+import org.elasticsearch.index.shard.ShardStateMetadata;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -108,18 +108,18 @@ public class TransportNodesListGatewayStartedShards extends
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
+            ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry,
                 nodeEnv.availableShardPaths(request.shardId));
-            if (shardStateMetaData != null) {
+            if (shardStateMetadata != null) {
                 if (indicesService.getShardOrNull(shardId) == null) {
                     final String customDataPath;
                     if (request.getCustomDataPath() != null) {
                         customDataPath = request.getCustomDataPath();
                     } else {
                         // TODO: Fallback for BWC with older ES versions. Remove once request.getCustomDataPath() always returns non-null
-                        final IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
-                        if (metaData != null) {
-                            customDataPath = new IndexSettings(metaData, settings).customDataPath();
+                        final IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+                        if (metadata != null) {
+                            customDataPath = new IndexSettings(metadata, settings).customDataPath();
                         } else {
                             logger.trace("{} node doesn't have meta data for the requests index", shardId);
                             throw new ElasticsearchException("node doesn't have meta data for index " + shardId.getIndex());
@@ -138,20 +138,20 @@ public class TransportNodesListGatewayStartedShards extends
                         logger.trace(() -> new ParameterizedMessage(
                                 "{} can't open index for shard [{}] in path [{}]",
                                 shardId,
-                                shardStateMetaData,
+                                shardStateMetadata,
                                 (finalShardPath != null) ? finalShardPath.resolveIndex() : ""),
                             exception);
-                        String allocationId = shardStateMetaData.allocationId != null ?
-                            shardStateMetaData.allocationId.getId() : null;
-                        return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetaData.primary,
+                        String allocationId = shardStateMetadata.allocationId != null ?
+                            shardStateMetadata.allocationId.getId() : null;
+                        return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetadata.primary,
                             exception);
                     }
                 }
 
-                logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
-                String allocationId = shardStateMetaData.allocationId != null ?
-                    shardStateMetaData.allocationId.getId() : null;
-                return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetaData.primary);
+                logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
+                String allocationId = shardStateMetadata.allocationId != null ?
+                    shardStateMetadata.allocationId.getId() : null;
+                return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetadata.primary);
             }
             logger.trace("{} no local shard info found", shardId);
             return new NodeGatewayStartedShards(clusterService.localNode(), null, false);
@@ -229,7 +229,7 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
         private final ShardId shardId;
         @Nullable

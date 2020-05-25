@@ -37,14 +37,14 @@ public class SearchTask extends CancellableTask {
     /**
      * Attach a {@link SearchProgressListener} to this task.
      */
-    public void setProgressListener(SearchProgressListener progressListener) {
+    public final void setProgressListener(SearchProgressListener progressListener) {
         this.progressListener = progressListener;
     }
 
     /**
      * Return the {@link SearchProgressListener} attached to this task.
      */
-    public SearchProgressListener getProgressListener() {
+    public final SearchProgressListener getProgressListener() {
         return progressListener;
     }
 

@@ -14,7 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -88,7 +88,6 @@ public class JobManager {
     private static final Logger logger = LogManager.getLogger(JobManager.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
     private final JobResultsPersister jobResultsPersister;
     private final ClusterService clusterService;
@@ -108,7 +107,6 @@ public class JobManager {
                       JobResultsPersister jobResultsPersister, ClusterService clusterService, AnomalyDetectionAuditor auditor,
                       ThreadPool threadPool, Client client, UpdateJobProcessNotifier updateJobProcessNotifier,
                       NamedXContentRegistry xContentRegistry) {
-        this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -172,7 +170,7 @@ public class JobManager {
 
     /**
      * Get the jobs that match the given {@code expression}.
-     * Note that when the {@code jobId} is {@link MetaData#ALL} all jobs are returned.
+     * Note that when the {@code jobId} is {@link Metadata#ALL} all jobs are returned.
      *
      * @param expression   the jobId or an expression matching jobIds
      * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
@@ -227,7 +225,7 @@ public class JobManager {
      * The overall structure can be validated at parse time, but the exact names need to be checked separately,
      * as plugins that provide the functionality can be installed/uninstalled.
      */
-    static void validateCategorizationAnalyzer(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry, Environment environment)
+    static void validateCategorizationAnalyzer(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry)
         throws IOException {
         CategorizationAnalyzerConfig categorizationAnalyzerConfig = jobBuilder.getAnalysisConfig().getCategorizationAnalyzerConfig();
         if (categorizationAnalyzerConfig != null) {
@@ -242,13 +240,16 @@ public class JobManager {
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
 
-        request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
-        validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry, environment);
+        Job.Builder jobBuilder = request.getJobBuilder();
+        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
+        jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
+        validateCategorizationAnalyzer(jobBuilder, analysisRegistry);
 
-        Job job = request.getJobBuilder().build(new Date());
+        Job job = jobBuilder.build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            deprecationLogger.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
+            deprecationLogger.deprecatedAndMaybeLog("ml_create_job_delimited_data",
+                "Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
         // Check for the job in the cluster state first
@@ -258,7 +259,7 @@ public class JobManager {
             return;
         }
 
-        ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
+        ActionListener<Boolean> putJobListener = new ActionListener<>() {
             @Override
             public void onResponse(Boolean mappingsUpdated) {
 
@@ -275,8 +276,8 @@ public class JobManager {
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IllegalArgumentException) {
                     // the underlying error differs depending on which way around the clashing fields are seen
-                    Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:of different type, " +
-                            "current_type \\[.*\\], merged_type|with an object mapping) \\[.*\\]").matcher(e.getMessage());
+                    Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:cannot be changed " +
+                            "from type \\[.*\\] to|with an object mapping) \\[.*\\]").matcher(e.getMessage());
                     if (matcher.matches()) {
                         String msg = Messages.getMessage(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, matcher.group(1));
                         actionListener.onFailure(ExceptionsHelper.badRequestException(msg, e));
@@ -331,9 +332,7 @@ public class JobManager {
         );
 
         ActionListener<Boolean> checkNoGroupWithTheJobId = ActionListener.wrap(
-                ok -> {
-                    jobConfigProvider.groupExists(job.getId(), checkNoJobsWithGroupId);
-                },
+                ok -> jobConfigProvider.groupExists(job.getId(), checkNoJobsWithGroupId),
                 actionListener::onFailure
         );
 
@@ -400,7 +399,7 @@ public class JobManager {
                 ));
             }
         } else {
-            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
+            logger.debug("[{}] No process update required for job update: {}", request::getJobId, () -> {
                 try {
                     XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
                     request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -482,13 +481,13 @@ public class JobManager {
     }
 
     private boolean isJobOpen(ClusterState clusterState, String jobId) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
     }
 
     private Set<String> openJobIds(ClusterState clusterState) {
-        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.openJobIds(persistentTasks);
     }
 

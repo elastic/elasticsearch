@@ -28,17 +28,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
  */
-public abstract class AbstractObjectParser<Value, Context>
-        implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
-
-    final List<String[]> requiredFieldSets = new ArrayList<>();
-    final List<String[]> exclusiveFieldSets = new ArrayList<>();
+public abstract class AbstractObjectParser<Value, Context> {
 
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
@@ -46,6 +41,31 @@ public abstract class AbstractObjectParser<Value, Context>
      */
     public abstract <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
             ValueType type);
+
+    /**
+     * Declares a single named object.
+     *
+     * <pre>
+     * <code>
+     * {
+     *   "object_name": {
+     *     "instance_name": { "field1": "value1", ... }
+     *     }
+     *   }
+     * }
+     * </code>
+     * </pre>
+     *
+     * @param consumer
+     *            sets the value once it has been parsed
+     * @param namedObjectParser
+     *            parses the named object
+     * @param parseField
+     *            the field to parse
+     */
+    public abstract <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
+                                                 ParseField parseField);
+
 
     /**
      * Declares named objects in the style of aggregations. These are named
@@ -161,6 +181,14 @@ public abstract class AbstractObjectParser<Value, Context>
     public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.floatValue(), field, ValueType.FLOAT);
+    }
+
+    /**
+     * Declare a float field that parses explicit {@code null}s in the json to a default value.
+     */
+    public void declareFloatOrNull(BiConsumer<Value, Float> consumer, float nullValue, ParseField field) {
+        declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.floatValue(),
+                field, ValueType.FLOAT_OR_NULL);
     }
 
     public void declareDouble(BiConsumer<Value, Double> consumer, ParseField field) {
@@ -288,12 +316,7 @@ public abstract class AbstractObjectParser<Value, Context>
      * @param requiredSet
      *          A set of required fields, where at least one of the fields in the array _must_ be present
      */
-    public void declareRequiredFieldSet(String... requiredSet) {
-        if (requiredSet.length == 0) {
-            return;
-        }
-        this.requiredFieldSets.add(requiredSet);
-    }
+    public abstract void declareRequiredFieldSet(String... requiredSet);
 
     /**
      * Declares a set of fields of which at most one must appear for parsing to succeed
@@ -307,12 +330,7 @@ public abstract class AbstractObjectParser<Value, Context>
      *
      * @param exclusiveSet a set of field names, at most one of which must appear
      */
-    public void declareExclusiveFieldSet(String... exclusiveSet) {
-        if (exclusiveSet.length == 0) {
-            return;
-        }
-        this.exclusiveFieldSets.add(exclusiveSet);
-    }
+    public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
     private interface IOSupplier<T> {
         T get() throws IOException;

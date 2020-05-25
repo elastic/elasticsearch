@@ -12,9 +12,9 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -58,6 +58,7 @@ public final class TransformInternalIndex {
      * version 3 (7.5): rename to .transform-internal-xxx
      * version 4 (7.6): state::should_stop_at_checkpoint
      *                  checkpoint::checkpoint
+     * version 5 (7.7): stats::processing_time_in_ms, stats::processing_total
      */
 
     // constants for mappings
@@ -77,33 +78,34 @@ public final class TransformInternalIndex {
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
 
-    public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+    public static IndexTemplateMetadata getIndexTemplateMetadata() throws IOException {
+        IndexTemplateMetadata transformTemplate = IndexTemplateMetadata.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
             .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
             .version(Version.CURRENT.id)
             .settings(
                 Settings.builder()
                     // the configurations are expected to be small
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             )
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
             .build();
         return transformTemplate;
     }
 
-    public static IndexTemplateMetaData getAuditIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX)
+    public static IndexTemplateMetadata getAuditIndexTemplateMetadata() throws IOException {
+        IndexTemplateMetadata transformTemplate = IndexTemplateMetadata.builder(TransformInternalIndexConstants.AUDIT_INDEX)
             .patterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
             .version(Version.CURRENT.id)
             .settings(
                 Settings.builder()
                     // the audits are expected to be small
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
             )
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
-            .putAlias(AliasMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))
+            .putAlias(AliasMetadata.builder(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS).isHidden(true))
             .build();
         return transformTemplate;
     }
@@ -237,10 +239,16 @@ public final class TransformInternalIndex {
                      .startObject(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())
                         .field(TYPE, LONG)
                     .endObject()
+                    .startObject(TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName())
+                        .field(TYPE, LONG)
+                     .endObject()
                      .startObject(TransformIndexerStats.INDEX_TOTAL.getPreferredName())
                         .field(TYPE, LONG)
                     .endObject()
                      .startObject(TransformIndexerStats.SEARCH_TOTAL.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                    .startObject(TransformIndexerStats.PROCESSING_TOTAL.getPreferredName())
                         .field(TYPE, LONG)
                     .endObject()
                      .startObject(TransformIndexerStats.SEARCH_FAILURES.getPreferredName())
@@ -340,11 +348,11 @@ public final class TransformInternalIndex {
     }
 
     protected static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
     protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
+        return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
     }
 
     protected static void installLatestVersionedIndexTemplateIfRequired(
@@ -361,12 +369,12 @@ public final class TransformInternalIndex {
 
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
-            IndexTemplateMetaData indexTemplateMetaData = getIndexTemplateMetaData();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().uncompressed());
+            IndexTemplateMetadata indexTemplateMetadata = getIndexTemplateMetadata();
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().uncompressed());
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-                .patterns(indexTemplateMetaData.patterns())
-                .version(indexTemplateMetaData.version())
-                .settings(indexTemplateMetaData.settings())
+                .patterns(indexTemplateMetadata.patterns())
+                .version(indexTemplateMetadata.version())
+                .settings(indexTemplateMetadata.settings())
                 .mapping(XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
             executeAsyncWithOrigin(
@@ -395,13 +403,13 @@ public final class TransformInternalIndex {
 
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
-            IndexTemplateMetaData indexTemplateMetaData = getAuditIndexTemplateMetaData();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().uncompressed());
+            IndexTemplateMetadata indexTemplateMetadata = getAuditIndexTemplateMetadata();
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().uncompressed());
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
-                indexTemplateMetaData.patterns()
+                indexTemplateMetadata.patterns()
             )
-                .version(indexTemplateMetaData.version())
-                .settings(indexTemplateMetaData.settings())
+                .version(indexTemplateMetadata.version())
+                .settings(indexTemplateMetadata.settings())
                 .mapping(XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
             executeAsyncWithOrigin(

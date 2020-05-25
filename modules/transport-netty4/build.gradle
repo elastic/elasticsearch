@@ -43,6 +43,12 @@ dependencies {
   compile "io.netty:netty-transport:${versions.netty}"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 dependencyLicenses {
   mapping from: /netty-.*/, to: 'netty'
 }
@@ -149,6 +155,7 @@ thirdPartyAudit {
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
     'com.ning.compress.lzf.LZFEncoder',
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',

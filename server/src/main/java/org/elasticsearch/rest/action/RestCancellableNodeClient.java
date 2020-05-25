@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
@@ -86,41 +85,28 @@ public class RestCancellableNodeClient extends FilterClient {
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        final AtomicBoolean created = new AtomicBoolean(false);
-        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> {
-            created.set(true);
-            return new CloseListener();
-        });
+        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener());
         TaskHolder taskHolder = new TaskHolder();
-        final Task task;
-        boolean success = false;
-        try {
-            task = client.executeLocally(action, request,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Response response) {
-                        try {
-                            closeListener.unregisterTask(taskHolder);
-                        } finally {
-                            listener.onResponse(response);
-                        }
+        Task task = client.executeLocally(action, request,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        closeListener.unregisterTask(taskHolder);
+                    } finally {
+                        listener.onResponse(response);
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            closeListener.unregisterTask(taskHolder);
-                        } finally {
-                            listener.onFailure(e);
-                        }
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        closeListener.unregisterTask(taskHolder);
+                    } finally {
+                        listener.onFailure(e);
                     }
-                });
-            success = true;
-        } finally {
-            if (success == false && created.get()) {
-                httpChannels.remove(httpChannel);
-            }
-        }
+                }
+            });
         final TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
         closeListener.registerTask(taskHolder, taskId);
         closeListener.maybeRegisterChannel(httpChannel);

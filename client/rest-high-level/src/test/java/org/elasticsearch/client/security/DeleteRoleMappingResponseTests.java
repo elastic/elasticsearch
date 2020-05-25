@@ -35,15 +35,7 @@ public class DeleteRoleMappingResponseTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         final String json = "{ \"found\" : \"true\" }";
         final DeleteRoleMappingResponse response = DeleteRoleMappingResponse.fromXContent(XContentType.JSON.xContent().createParser(
-                new NamedXContentRegistry(Collections.emptyList()), new DeprecationHandler() {
-                    @Override
-                    public void usedDeprecatedName(String usedName, String modernName) {
-                    }
-
-                    @Override
-                    public void usedDeprecatedField(String usedName, String replacedWith) {
-                    }
-                }, json));
+                new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json));
         final DeleteRoleMappingResponse expectedResponse = new DeleteRoleMappingResponse(true);
         assertThat(response, equalTo(expectedResponse));
     }

@@ -64,28 +64,39 @@ import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
+import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
 import org.elasticsearch.client.indices.DetailAnalyzeResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
+import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
+import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.indices.IndexTemplateMetaData;
+import org.elasticsearch.client.indices.IndexTemplateMetadata;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutComponentTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse.ReloadDetails;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -107,8 +118,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -590,8 +604,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-mappings-execute
 
             // tag::get-mappings-response
-            Map<String, MappingMetaData> allMappings = getMappingResponse.mappings(); // <1>
-            MappingMetaData indexMapping = allMappings.get("twitter"); // <2>
+            Map<String, MappingMetadata> allMappings = getMappingResponse.mappings(); // <1>
+            MappingMetadata indexMapping = allMappings.get("twitter"); // <2>
             Map<String, Object> mapping = indexMapping.sourceAsMap(); // <3>
             // end::get-mappings-response
 
@@ -642,8 +656,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                Map<String, MappingMetaData> allMappings = r.mappings();
-                MappingMetaData indexMapping = allMappings.get("twitter");
+                Map<String, MappingMetadata> allMappings = r.mappings();
+                MappingMetadata indexMapping = allMappings.get("twitter");
                 Map<String, Object> mapping = indexMapping.sourceAsMap();
 
                 Map<String, String> type = new HashMap<>();
@@ -701,27 +715,22 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::get-field-mappings-request-indicesOptions
 
-        // tag::get-field-mappings-request-local
-        request.local(true); // <1>
-        // end::get-field-mappings-request-local
-
         {
-
             // tag::get-field-mappings-execute
             GetFieldMappingsResponse response =
                 client.indices().getFieldMapping(request, RequestOptions.DEFAULT);
             // end::get-field-mappings-execute
 
             // tag::get-field-mappings-response
-            final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+            final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                 response.mappings();// <1>
-            final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings =
+            final Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings =
                 mappings.get("twitter"); // <2>
-            final GetFieldMappingsResponse.FieldMappingMetaData metaData =
+            final GetFieldMappingsResponse.FieldMappingMetadata metadata =
                 fieldMappings.get("message");// <3>
 
-            final String fullName = metaData.fullName();// <4>
-            final Map<String, Object> source = metaData.sourceAsMap(); // <5>
+            final String fullName = metadata.fullName();// <4>
+            final Map<String, Object> source = metadata.sourceAsMap(); // <5>
             // end::get-field-mappings-response
         }
 
@@ -745,14 +754,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetFieldMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+                final Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                     r.mappings();
-                final Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fieldMappings =
+                final Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fieldMappings =
                     mappings.get("twitter");
-                final GetFieldMappingsResponse.FieldMappingMetaData metaData1 = fieldMappings.get("message");
+                final GetFieldMappingsResponse.FieldMappingMetadata metadata1 = fieldMappings.get("message");
 
-                final String fullName = metaData1.fullName();
-                final Map<String, Object> source = metaData1.sourceAsMap();
+                final String fullName = metadata1.fullName();
+                final Map<String, Object> source = metadata1.sourceAsMap();
                 latchListener.onResponse(r);
             }, e -> {
                 latchListener.onFailure(e);
@@ -1143,9 +1152,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-index-execute
 
         // tag::get-index-response
-        MappingMetaData indexMappings = getIndexResponse.getMappings().get("index"); // <1>
+        MappingMetadata indexMappings = getIndexResponse.getMappings().get("index"); // <1>
         Map<String, Object> indexTypeMappings = indexMappings.getSourceAsMap(); // <2>
-        List<AliasMetaData> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
+        List<AliasMetadata> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
         String numberOfShardsString = getIndexResponse.getSetting("index", "index.number_of_shards"); // <4>
         Settings indexSettings = getIndexResponse.getSettings().get("index"); // <5>
         Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <6>
@@ -1907,7 +1916,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-alias-execute
 
             // tag::get-alias-response
-            Map<String, Set<AliasMetaData>> aliases = response.getAliases(); // <1>
+            Map<String, Set<AliasMetadata>> aliases = response.getAliases(); // <1>
             // end::get-alias-response
 
             // tag::get-alias-response-error
@@ -2231,7 +2240,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-templates-execute
 
         // tag::get-templates-response
-        List<IndexTemplateMetaData> templates = getTemplatesResponse.getIndexTemplates(); // <1>
+        List<IndexTemplateMetadata> templates = getTemplatesResponse.getIndexTemplates(); // <1>
         // end::get-templates-response
 
         assertThat(templates, hasSize(1));
@@ -2259,6 +2268,329 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::get-templates-execute-async
         client.indices().getIndexTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::get-templates-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetIndexTemplatesV2() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            Template template = new Template(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build(),
+                new CompressedXContent("{ \"properties\": { \"message\": { \"type\": \"text\" } } }"),
+                null);
+            PutIndexTemplateV2Request putRequest = new PutIndexTemplateV2Request()
+                .name("my-template")
+                .indexTemplate(
+                    new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null)
+                );
+            assertTrue(client.indices().putIndexTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::get-index-templates-v2-request
+        GetIndexTemplateV2Request request = new GetIndexTemplateV2Request("my-template"); // <1>
+        request = new GetIndexTemplateV2Request("my-*"); // <2>
+        // end::get-index-templates-v2-request
+
+        // tag::get-index-templates-v2-request-masterTimeout
+        request.setMasterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.setMasterNodeTimeout("1m"); // <2>
+        // end::get-index-templates-v2-request-masterTimeout
+
+        // tag::get-index-templates-v2-execute
+        GetIndexTemplatesV2Response getTemplatesResponse = client.indices().getIndexTemplate(request, RequestOptions.DEFAULT);
+        // end::get-index-templates-v2-execute
+
+        // tag::get-index-templates-v2-response
+        Map<String, IndexTemplateV2> templates = getTemplatesResponse.getIndexTemplates(); // <1>
+        // end::get-index-templates-v2-response
+
+        assertThat(templates.size(), is(1));
+        assertThat(templates.get("my-template"), is(notNullValue()));
+
+        // tag::get-index-templates-v2-execute-listener
+        ActionListener<GetIndexTemplatesV2Response> listener =
+            new ActionListener<GetIndexTemplatesV2Response>() {
+                @Override
+                public void onResponse(GetIndexTemplatesV2Response response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-index-templates-v2-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-index-templates-v2-execute-async
+        client.indices().getIndexTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-index-templates-v2-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testPutIndexTemplateV2() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::put-index-template-v2-request
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template"); // <1>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request
+        }
+
+        {
+            // tag::put-index-template-v2-request-settings
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            Settings settings = Settings.builder() // <1>
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 1)
+                .build();
+            Template template = new Template(settings, null, null); // <2>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-settings
+        }
+
+        {
+            // tag::put-index-template-v2-request-mappings-json
+            String mappingJson = "{\n" +
+                "  \"properties\": {\n" +
+                "    \"message\": {\n" +
+                "      \"type\": \"text\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}"; // <1>
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            Template template = new Template(null, new CompressedXContent(mappingJson), null); // <2>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-mappings-json
+        }
+
+        {
+            // tag::put-index-template-v2-request-aliases
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build(); // <1>
+            AliasMetadata placeholderAlias = AliasMetadata.builder("{index}_alias").searchRouting("xyz").build(); // <2>
+            Template template = new Template(null, null, Map.of("twitter_alias", twitterAlias, "{index}_alias", placeholderAlias)); // <3>
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null); // <3>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-aliases
+        }
+
+        {
+            Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
+            ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
+            client.cluster().putComponentTemplate(new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate),
+                RequestOptions.DEFAULT);
+
+            // tag::put-index-template-v2-request-component-template
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 =
+                new IndexTemplateV2(List.of("pattern-1", "log-*"), null, List.of("ct1"), null, null, null); // <1>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-component-template
+        }
+
+        {
+            // tag::put-index-template-v2-request-priority
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, 20L, null, null); // <1>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-priority
+        }
+
+        {
+            // tag::put-index-template-v2-request-version
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, 3L, null); // <1>
+            request.indexTemplate(indexTemplateV2);
+
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            // end::put-index-template-v2-request-version
+
+            // tag::put-index-template-v2-request-create
+            request.create(true);  // <1>
+            // end::put-index-template-v2-request-create
+
+            // tag::put-index-template-v2-request-masterTimeout
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            // end::put-index-template-v2-request-masterTimeout
+
+            request.create(false); // make test happy
+
+            // tag::put-index-template-v2-execute
+            AcknowledgedResponse putTemplateResponse = client.indices().putIndexTemplate(request, RequestOptions.DEFAULT);
+            // end::put-index-template-v2-execute
+
+            // tag::put-index-template-v2-response
+            boolean acknowledged = putTemplateResponse.isAcknowledged(); // <1>
+            // end::put-index-template-v2-response
+            assertTrue(acknowledged);
+
+            // tag::put-index-template-v2-execute-listener
+            ActionListener<AcknowledgedResponse> listener =
+                new ActionListener<AcknowledgedResponse>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse putIndexTemplateResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::put-index-template-v2-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-index-template-v2-execute-async
+            client.indices().putIndexTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-index-template-v2-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteIndexTemplateV2() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-index-template-v2-request
+        DeleteIndexTemplateV2Request deleteRequest = new DeleteIndexTemplateV2Request("my-template"); // <1>
+        // end::delete-index-template-v2-request
+
+        // tag::delete-index-template-v2-request-masterTimeout
+        deleteRequest.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        // end::delete-index-template-v2-request-masterTimeout
+
+        // tag::delete-index-template-v2-execute
+        AcknowledgedResponse deleteTemplateAcknowledge = client.indices().deleteIndexTemplate(deleteRequest, RequestOptions.DEFAULT);
+        // end::delete-index-template-v2-execute
+
+        // tag::delete-index-template-v2-response
+        boolean acknowledged = deleteTemplateAcknowledge.isAcknowledged(); // <1>
+        // end::delete-index-template-v2-response
+        assertThat(acknowledged, equalTo(true));
+
+        {
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template");
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), null, null, null, null, null); // <2>
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::delete-index-template-v2-execute-listener
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::delete-index-template-v2-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::delete-index-template-v2-execute-async
+        client.indices().deleteIndexTemplateAsync(deleteRequest, RequestOptions.DEFAULT, listener); // <1>
+        // end::delete-index-template-v2-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testSimulateIndexTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            PutIndexTemplateV2Request request = new PutIndexTemplateV2Request()
+                .name("my-template"); // <1>
+            Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
+            IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("pattern-1", "log-*"), template, null, null, null, null);
+            request.indexTemplate(indexTemplateV2);
+            assertTrue(client.indices().putIndexTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+        }
+
+        // tag::simulate-index-template-request
+        SimulateIndexTemplateRequest simulateRequest = new SimulateIndexTemplateRequest("log-000001"); // <1>
+        PutIndexTemplateV2Request newIndexTemplateRequest = new PutIndexTemplateV2Request()
+            .name("used-for-simulation");
+        Settings settings = Settings.builder().put("index.number_of_shards", 6).build();
+        Template template = new Template(settings, null, null); // <2>
+        IndexTemplateV2 indexTemplateV2 = new IndexTemplateV2(List.of("log-*"), template, null, 90L, null, null);
+        newIndexTemplateRequest.indexTemplate(indexTemplateV2);
+
+        simulateRequest.indexTemplateV2Request(newIndexTemplateRequest); // <2>
+        // end::simulate-index-template-request
+
+        // tag::simulate-index-template-response
+        SimulateIndexTemplateResponse simulateIndexTemplateResponse = client.indices().simulateIndexTemplate(simulateRequest,
+            RequestOptions.DEFAULT);
+        assertThat(simulateIndexTemplateResponse.resolvedTemplate().settings().get("index.number_of_shards"), is("6")); // <1>
+        assertThat(simulateIndexTemplateResponse.overlappingTemplates().get("my-template"),
+            containsInAnyOrder("pattern-1", "log-*")); // <2>
+        // end::simulate-index-template-response
+
+        // tag::simulate-index-template-execute-listener
+        ActionListener<SimulateIndexTemplateResponse> listener =
+            new ActionListener<SimulateIndexTemplateResponse>() {
+                @Override
+                public void onResponse(SimulateIndexTemplateResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::simulate-index-template-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::simulate-index-template-execute-async
+        client.indices().simulateIndexTemplateAsync(simulateRequest, RequestOptions.DEFAULT, listener); // <1>
+        // end::simulate-index-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

@@ -16,6 +16,23 @@ quickly match events with shared properties. You can use EQL and query
 DSL together to better filter your searches.
 
 [float]
+[[eql-advantages]]
+=== Advantages of EQL
+
+* *EQL lets you express relationships between events.* +
+Many query languages allow you to match only single events. EQL lets you match a
+sequence of events across different event categories and time spans.
+
+* *EQL has a low learning curve.* +
+EQL syntax looks like other query languages. It lets you write and read queries
+intuitively, which makes for quick, iterative searching.
+
+* *We designed EQL for security use cases.* +
+While you can use EQL for any event-based data, we created EQL for threat
+hunting. EQL not only supports indicator of compromise (IOC) searching but
+makes it easy to describe activity that goes beyond IOCs.
+
+[float]
 [[when-to-use-eql]]
 === When to use EQL
 
@@ -32,9 +49,11 @@ Consider using EQL if you:
 * <<eql-requirements>>
 * <<eql-search>>
 * <<eql-syntax>>
+* <<eql-function-ref>>
 * <<eql-limitations>>
 
 include::requirements.asciidoc[]
 include::search.asciidoc[]
 include::syntax.asciidoc[]
+include::functions.asciidoc[]
 include::limitations.asciidoc[]

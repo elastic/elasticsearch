@@ -30,8 +30,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -41,11 +41,12 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DateFieldMapperTests extends ESSingleNodeTestCase {
+public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Builder> {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -54,11 +55,23 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("format", false, (a, b) -> {
+            a.format("basic_week_date");
+        });
+        addModifier("locale", false, (a, b) -> {
+            a.locale(Locale.CANADA);
+            b.locale(Locale.JAPAN);
+        });
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected DateFieldMapper.Builder newBuilder() {
+        return new DateFieldMapper.Builder("date");
     }
 
     public void testDefaults() throws Exception {
@@ -202,7 +215,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
-        assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
+        assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
     }
 
     public void testChangeFormat() throws IOException {
@@ -397,7 +410,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapper.merge(update.mapping()));
-        assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
+        assertEquals("mapper [date] cannot be changed from type [date] to [text]", e.getMessage());
     }
 
     public void testIllegalFormatField() throws Exception {
@@ -443,4 +456,5 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
+
 }

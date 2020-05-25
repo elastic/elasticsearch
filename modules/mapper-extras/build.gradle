@@ -21,3 +21,9 @@ esplugin {
   description 'Adds advanced field mappers'
   classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
 }
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get' 
+  }
+}

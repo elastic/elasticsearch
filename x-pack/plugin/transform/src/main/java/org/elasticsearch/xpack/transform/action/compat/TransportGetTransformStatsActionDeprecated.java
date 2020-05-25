@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.action.compat;
 
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.transport.TransportService;
@@ -21,8 +22,9 @@ public class TransportGetTransformStatsActionDeprecated extends TransportGetTran
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        Client client
     ) {
-        super(GetTransformStatsActionDeprecated.NAME, transportService, actionFilters, clusterService, transformServices);
+        super(GetTransformStatsActionDeprecated.NAME, transportService, actionFilters, clusterService, transformServices, client);
     }
 }

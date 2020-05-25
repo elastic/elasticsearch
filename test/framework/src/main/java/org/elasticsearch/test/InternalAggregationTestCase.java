@@ -25,6 +25,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -34,12 +35,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
@@ -51,9 +55,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoTileGrid;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -78,10 +82,10 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.ParsedSignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -136,6 +140,7 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 
 import java.io.IOException;
@@ -156,9 +161,41 @@ import static org.elasticsearch.search.aggregations.InternalMultiBucketAggregati
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
+/**
+ * Implementors of this test case should be aware that the aggregation under test needs to be registered
+ * in the test's namedWriteableRegistry.  Core aggregations are registered already, but non-core
+ * aggs should override {@link InternalAggregationTestCase#registerPlugin()} so that the NamedWriteables
+ * can be extracted from the AggregatorSpecs in the plugin (as well as any other custom NamedWriteables)
+ */
+public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
+    /**
+     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
+     */
+    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder() {
+        return emptyReduceContextBuilder(PipelineTree.EMPTY);
+    }
+
+    /**
+     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid and nearly
+     * empty <strong>except</strong> that it contain {@link PipelineAggregator}s.
+     */
+    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder(PipelineTree pipelineTree) {
+        return new InternalAggregation.ReduceContextBuilder() {
+            @Override
+            public InternalAggregation.ReduceContext forPartialReduction() {
+                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree);
+            }
+
+            @Override
+            public ReduceContext forFinalReduction() {
+                return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree);
+            }
+        };
+    }
+
     public static final int DEFAULT_MAX_BUCKETS = 100000;
     protected static final double TOLERANCE = 1e-10;
 
@@ -172,8 +209,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
     };
 
-    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
 
     private final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(getNamedXContents());
 
@@ -241,39 +277,90 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return namedXContents;
     }
 
-    protected abstract T createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
-
-    /** Return an instance on an unmapped field. */
-    protected T createUnmappedInstance(String name,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        // For most impls, we use the same instance in the unmapped case and in the mapped case
-        return createTestInstance(name, pipelineAggregators, metaData);
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return namedXContentRegistry;
     }
 
-    public void testReduceRandom() {
-        String name = randomAlphaOfLength(5);
+    @Override
+    protected final NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
+    }
+
+    /**
+     * Implementors can override this if they want to provide a custom list of namedWriteables.  If the implementor
+     * _just_ wants to register in namedWriteables provided by a plugin, prefer overriding
+     * {@link InternalAggregationTestCase#registerPlugin()} instead because that route handles the automatic
+     * conversion of AggSpecs into namedWriteables.
+     */
+    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        SearchPlugin plugin = registerPlugin();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, plugin == null ? emptyList() : List.of(plugin));
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(searchModule.getNamedWriteables());
+
+        // Modules/plugins may have extra namedwriteables that are not added by agg specs
+        if (plugin != null) {
+            entries.addAll(((Plugin) plugin).getNamedWriteables());
+        }
+
+        return entries;
+    }
+
+    /**
+     * If a test needs to register additional aggregation specs for namedWriteable, etc, this method
+     * can be overridden by the implementor.
+     */
+    protected SearchPlugin registerPlugin() {
+        return null;
+    }
+
+    protected abstract T createTestInstance(String name, Map<String, Object> metadata);
+
+    /** Return an instance on an unmapped field. */
+    protected T createUnmappedInstance(String name, Map<String, Object> metadata) {
+        // For most impls, we use the same instance in the unmapped case and in the mapped case
+        return createTestInstance(name, metadata);
+    }
+
+    @Override
+
+    protected final Class<T> categoryClass() {
+        return (Class<T>) InternalAggregation.class;
+    }
+
+    /**
+     * Generate a list of inputs to reduce. Defaults to calling
+     * {@link #createTestInstance(String)} and
+     * {@link #createUnmappedInstance(String)} but should be overridden
+     * if it isn't realistic to reduce test instances.
+     */
+    protected List<T> randomResultsToReduce(String name, int size) {
         List<T> inputs = new ArrayList<>();
-        List<InternalAggregation> toReduce = new ArrayList<>();
-        int toReduceSize = between(1, 200);
-        for (int i = 0; i < toReduceSize; i++) {
+        for (int i = 0; i < size; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
-            toReduce.add(t);
         }
+        return inputs;
+    }
+
+    public void testReduceRandom() throws IOException {
+        String name = randomAlphaOfLength(5);
+        int size = between(1, 200);
+        List<T> inputs = randomResultsToReduce(name, size);
+        assertThat(inputs, hasSize(size));
+        List<InternalAggregation> toReduce = new ArrayList<>();
+        toReduce.addAll(inputs);
         // Sort aggs so that unmapped come last.  This mimicks the behavior of InternalAggregations.reduce()
         inputs.sort(INTERNAL_AGG_COMPARATOR);
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
-            // sometimes do an incremental reduce
+            // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
-            int r = randomIntBetween(1, toReduceSize);
+            int r = randomIntBetween(1, inputs.size());
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
-            MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
-                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-            InternalAggregation.ReduceContext context =
-                new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer,false);
+            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+                    bigArrays, mockScriptService, () -> PipelineAggregator.PipelineTree.EMPTY);
             @SuppressWarnings("unchecked")
             T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
             int initialBucketCount = 0;
@@ -283,14 +370,21 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             int reducedBucketCount = countInnerBucket(reduced);
             //check that non final reduction never adds buckets
             assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
-            assertMultiBucketConsumer(reducedBucketCount, bucketConsumer);
-            toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
+            /*
+             * Sometimes serializing and deserializing the partially reduced
+             * result to simulate the compaction that we attempt after a
+             * partial reduce. And to simulate cross cluster search.
+             */
+            if (randomBoolean()) {
+                reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
+            }
+            toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
-        InternalAggregation.ReduceContext context =
-            new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer, true);
+        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+                bigArrays, mockScriptService, bucketConsumer, PipelineTree.EMPTY);
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         assertMultiBucketConsumer(reduced, bucketConsumer);
@@ -312,39 +406,25 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     private T createTestInstance(String name) {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
-        // TODO populate pipelineAggregators
-        Map<String, Object> metaData = null;
+        Map<String, Object> metadata = null;
         if (randomBoolean()) {
-            metaData = new HashMap<>();
-            int metaDataCount = between(0, 10);
-            while (metaData.size() < metaDataCount) {
-                metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            metadata = new HashMap<>();
+            int metadataCount = between(0, 10);
+            while (metadata.size() < metadataCount) {
+                metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
         }
-        return createTestInstance(name, pipelineAggregators, metaData);
+        return createTestInstance(name, metadata);
     }
 
     /** Return an instance on an unmapped field. */
     protected final T createUnmappedInstance(String name) {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>();
-        // TODO populate pipelineAggregators
-        Map<String, Object> metaData = new HashMap<>();
-        int metaDataCount = randomBoolean() ? 0 : between(1, 10);
-        while (metaData.size() < metaDataCount) {
-            metaData.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Map<String, Object> metadata = new HashMap<>();
+        int metadataCount = randomBoolean() ? 0 : between(1, 10);
+        while (metadata.size() < metadataCount) {
+            metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
-        return createUnmappedInstance(name, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return namedXContentRegistry;
+        return createUnmappedInstance(name, metadata);
     }
 
     public final void testFromXContent() throws IOException {
@@ -408,7 +488,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
             Aggregation agg = parsedAggregation.get();
             assertEquals(aggregation.getName(), agg.getName());
-            assertEquals(aggregation.getMetaData(), agg.getMetaData());
+            assertEquals(aggregation.getMetadata(), agg.getMetadata());
 
             assertTrue(agg instanceof ParsedAggregation);
             assertEquals(aggregation.getType(), agg.getType());

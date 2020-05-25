@@ -31,12 +31,12 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -136,7 +137,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+            Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
@@ -162,7 +163,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) throws Exception {
-        if (!licenseState.isTransformAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
@@ -170,7 +171,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 
         // <5> Wait for the allocated task's state to STARTED
-        ActionListener<PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
+        ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
             .wrap(task -> {
                 TransformTaskParams transformTask = transformTaskHolder.get();
                 assert transformTask != null;
@@ -186,7 +187,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
             TransformTaskParams transformTask = transformTaskHolder.get();
             assert transformTask != null;
-            PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> existingTask = getExistingTask(transformTask.getId(), state);
+            PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> existingTask = getExistingTask(transformTask.getId(), state);
             if (existingTask == null) {
                 // Create the allocated task and wait for it to be started
                 persistentTasksService.sendStartRequest(
@@ -298,8 +299,14 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> TransformIndex.createDestinationIndex(client, Clock.systemUTC(), config, mappings, listener),
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(mappings -> {
+            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                mappings,
+                config.getId(),
+                Clock.systemUTC()
+            );
+            TransformIndex.createDestinationIndex(client, config, generateddestIndexSettings, listener);
+        },
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )
@@ -323,12 +330,12 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     @SuppressWarnings("unchecked")
-    private static PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> getExistingTask(String id, ClusterState state) {
-        PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+    private static PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> getExistingTask(String id, ClusterState state) {
+        PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (pTasksMeta == null) {
             return null;
         }
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> existingTask = pTasksMeta.findTasks(
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> existingTask = pTasksMeta.findTasks(
             TransformTaskParams.NAME,
             t -> t.getId().equals(id)
         );
@@ -336,9 +343,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             return null;
         } else {
             assert (existingTask.size() == 1);
-            PersistentTasksCustomMetaData.PersistentTask<?> pTask = existingTask.iterator().next();
+            PersistentTasksCustomMetadata.PersistentTask<?> pTask = existingTask.iterator().next();
             if (pTask.getParams() instanceof TransformTaskParams) {
-                return (PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>) pTask;
+                return (PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>) pTask;
             }
             throw new ElasticsearchStatusException(
                 "Found transform persistent task [" + id + "] with incorrect params",
@@ -348,9 +355,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
-        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+        persistentTasksService.sendRemoveRequest(taskId, new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in canceling the persistent task, but the
                 // problem that caused us to cancel it is the overall result
                 onFailure.accept(exception);
@@ -385,7 +392,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             timeout,
             new PersistentTasksService.WaitForPersistentTaskListener<TransformTaskParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> persistentTask) {
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask) {
                     if (predicate.exception != null) {
                         // We want to return to the caller without leaving an unassigned persistent task
                         cancelTransformTask(taskId, params.getId(), predicate.exception, listener::onFailure);
@@ -413,18 +420,18 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class TransformPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private class TransformPredicate implements Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> {
 
         private volatile Exception exception;
 
         @Override
-        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+        public boolean test(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
             if (persistentTask == null) {
                 return false;
             }
-            PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+            PersistentTasksCustomMetadata.Assignment assignment = persistentTask.getAssignment();
             if (assignment != null
-                && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false
+                && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
                 && assignment.isAssigned() == false) {
                 // For some reason, the task is not assigned to a node, but is no longer in the `INITIAL_ASSIGNMENT` state
                 // Consider this a failure.
@@ -441,7 +448,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         // checking for `isNotStopped` as the state COULD be marked as failed for any number of reasons
         // But if it is in a failed state, _stats will show as much and give good reason to the user.
         // If it is not able to be assigned to a node all together, we should just close the task completely
-        private boolean isNotStopped(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+        private boolean isNotStopped(PersistentTasksCustomMetadata.PersistentTask<?> task) {
             TransformState state = (TransformState) task.getState();
             return state != null && state.getTaskState().equals(TransformTaskState.STOPPED) == false;
         }

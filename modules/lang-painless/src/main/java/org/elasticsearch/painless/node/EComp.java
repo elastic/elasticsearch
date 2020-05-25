@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ComparisonNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.symbol.ScriptRoot;
@@ -34,13 +35,11 @@ import java.util.Objects;
 /**
  * Represents a comparison expression.
  */
-public final class EComp extends AExpression {
+public class EComp extends AExpression {
 
-    private final Operation operation;
-    private AExpression left;
-    private AExpression right;
-
-    private Class<?> promotedType;
+    protected final Operation operation;
+    protected final AExpression left;
+    protected final AExpression right;
 
     public EComp(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -51,259 +50,74 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (operation == Operation.EQ) {
-            analyzeEq(scriptRoot, scope);
-        } else if (operation == Operation.EQR) {
-            analyzeEqR(scriptRoot, scope);
-        } else if (operation == Operation.NE) {
-            analyzeNE(scriptRoot, scope);
-        } else if (operation == Operation.NER) {
-            analyzeNER(scriptRoot, scope);
-        } else if (operation == Operation.GTE) {
-            analyzeGTE(scriptRoot, scope);
-        } else if (operation == Operation.GT) {
-            analyzeGT(scriptRoot, scope);
-        } else if (operation == Operation.LTE) {
-            analyzeLTE(scriptRoot, scope);
-        } else if (operation == Operation.LT) {
-            analyzeLT(scriptRoot, scope);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
+        if (input.read == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
+        }
+
+        Class<?> promotedType;
+
+        Output output = new Output();
+
+        Input leftInput = new Input();
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
+
+        Input rightInput = new Input();
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
+
+        if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
+            promotedType = AnalyzerCaster.promoteEquality(leftOutput.actual, rightOutput.actual);
+        } else if (operation == Operation.GT || operation == Operation.GTE || operation == Operation.LT || operation == Operation.LTE) {
+            promotedType = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
         } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
+            throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
         }
-    }
-
-    private void analyzeEq(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
 
         if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply equals [==] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
+            throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                    "[" + operation.symbol + "] to the types " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
         }
 
-        if (promotedType == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
+        if (operation != Operation.EQR && operation != Operation.NER && promotedType == def.class) {
+            leftInput.expected = leftOutput.actual;
+            rightInput.expected = rightOutput.actual;
         } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
+            leftInput.expected = promotedType;
+            rightInput.expected = promotedType;
         }
 
-        if (left instanceof ENull && right instanceof ENull) {
-            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
+        if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
+                && left.getChildIf(ENull.class) != null && right.getChildIf(ENull.class) != null) {
+            throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
         }
 
-        left.cast();
-        right.cast();
+        PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
+                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
+        PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
+                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
-        actual = boolean.class;
-    }
+        output.actual = boolean.class;
 
-    private void analyzeEqR(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply reference equals [===] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        left.expected = promotedType;
-        right.expected = promotedType;
-
-        if (left instanceof ENull && right instanceof ENull) {
-            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
-        }
-
-        left.cast();
-        right.cast();
-
-        actual = boolean.class;
-    }
-
-    private void analyzeNE(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply not equals [!=] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        if (promotedType == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-        } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
-        }
-
-        if (left instanceof ENull && right instanceof ENull) {
-            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
-        }
-
-        left.cast();
-        right.cast();
-
-        actual = boolean.class;
-    }
-
-    private void analyzeNER(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteEquality(left.actual, right.actual);
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply reference not equals [!==] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        left.expected = promotedType;
-        right.expected = promotedType;
-
-        if (left instanceof ENull && right instanceof ENull) {
-            throw createError(new IllegalArgumentException("Extraneous comparison of null constants."));
-        }
-
-        left.cast();
-        right.cast();
-
-        actual = boolean.class;
-    }
-
-    private void analyzeGTE(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply greater than or equals [>=] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        if (promotedType == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-        } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
-        }
-
-        left.cast();
-        right.cast();
-
-        actual = boolean.class;
-    }
-
-    private void analyzeGT(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply greater than [>] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        if (promotedType == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-        } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
-        }
-
-        left.cast();
-        right.cast();
-
-        actual = boolean.class;
-    }
-
-    private void analyzeLTE(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply less than or equals [<=] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        if (promotedType == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-        } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
-        }
-
-        left.cast();
-        right.cast();
-
-        actual = boolean.class;
-    }
-
-    private void analyzeLT(ScriptRoot scriptRoot, Scope variables) {
-        left.analyze(scriptRoot, variables);
-        right.analyze(scriptRoot, variables);
-
-        promotedType = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
-
-        if (promotedType == null) {
-            throw createError(new ClassCastException("Cannot apply less than [>=] to types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(left.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(right.actual) + "]."));
-        }
-
-        if (promotedType == def.class) {
-            left.expected = left.actual;
-            right.expected = right.actual;
-        } else {
-            left.expected = promotedType;
-            right.expected = promotedType;
-        }
-
-        left.cast();
-        right.cast();
-
-        actual = boolean.class;
-    }
-
-    @Override
-    ComparisonNode write(ClassNode classNode) {
         ComparisonNode comparisonNode = new ComparisonNode();
 
-        comparisonNode.setLeftNode(left.cast(left.write(classNode)));
-        comparisonNode.setRightNode(right.cast(right.write(classNode)));
+        comparisonNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
+        comparisonNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         comparisonNode.setLocation(location);
-        comparisonNode.setExpressionType(actual);
+        comparisonNode.setExpressionType(output.actual);
         comparisonNode.setComparisonType(promotedType);
         comparisonNode.setOperation(operation);
 
-        return comparisonNode;
-    }
+        output.expressionNode = comparisonNode;
 
-    @Override
-    public String toString() {
-        return singleLineToString(left, operation.symbol, right);
+        return output;
     }
 }

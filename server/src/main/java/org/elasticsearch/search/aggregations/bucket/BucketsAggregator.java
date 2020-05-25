@@ -21,23 +21,31 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.AbstractList;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.ToLongFunction;
 
 public abstract class BucketsAggregator extends AggregatorBase {
 
@@ -46,8 +54,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, metadata);
         bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);
         if (context.aggregations() != null) {
@@ -138,14 +146,250 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Required method to build the child aggregations of the given bucket (identified by the bucket ordinal).
+     * Hook to allow taking an action before building buckets.
      */
-    protected final InternalAggregations bucketAggregations(long bucket) throws IOException {
-        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {}
+
+    /**
+     * Build the results of the sub-aggregations of the buckets at each of
+     * the provided ordinals.
+     * <p>
+     * Most aggregations should probably use something like
+     * {@link #buildSubAggsForAllBuckets(Object[][], ToLongFunction, BiConsumer)}
+     * or {@link #buildAggregationsForVariableBuckets(long[], LongHash, BucketBuilderForVariable, Function)}
+     * or {@link #buildAggregationsForFixedBucketCount(long[], int, BucketBuilderForFixedCount, Function)}
+     * or {@link #buildAggregationsForSingleBucket(long[], SingleBucketResultBuilder)}
+     * instead of calling this directly.
+     * @return the sub-aggregation results in the same order as the provided
+     *         array of ordinals
+     */
+    protected final InternalAggregations[] buildSubAggsForBuckets(long[] bucketOrdsToCollect) throws IOException {
+        beforeBuildingBuckets(bucketOrdsToCollect);
+        InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
-            aggregations[i] = subAggregators[i].buildAggregation(bucket);
+            aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
         }
-        return new InternalAggregations(Arrays.asList(aggregations));
+        InternalAggregations[] result = new InternalAggregations[bucketOrdsToCollect.length];
+        for (int ord = 0; ord < bucketOrdsToCollect.length; ord++) {
+            InternalAggregation[] slice = new InternalAggregation[subAggregators.length];
+            for (int i = 0; i < subAggregators.length; i++) {
+                slice[i] = aggregations[i][ord];
+            }
+            final int thisOrd = ord;
+            result[ord] = new InternalAggregations(new AbstractList<InternalAggregation>() {
+                @Override
+                public InternalAggregation get(int index) {
+                    return aggregations[index][thisOrd];
+                }
+
+                @Override
+                public int size() {
+                    return aggregations.length;
+                }
+            }); 
+        }
+        return result;
+    }
+
+    /**
+     * Build the sub aggregation results for a list of buckets and set them on
+     * the buckets. This is usually used by aggregations that are selective
+     * in which bucket they build. They use some mechanism of selecting a list
+     * of buckets to build use this method to "finish" building the results.
+     * @param buckets the buckets to finish building
+     * @param bucketToOrd how to convert a bucket into an ordinal
+     * @param setAggs how to set the sub-aggregation results on a bucket
+     */
+    protected final <B> void buildSubAggsForBuckets(B[] buckets,
+            ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs) throws IOException {
+        InternalAggregations[] results = buildSubAggsForBuckets(Arrays.stream(buckets).mapToLong(bucketToOrd).toArray());
+        for (int i = 0; i < buckets.length; i++) {
+            setAggs.accept(buckets[i], results[i]);
+        }
+    }
+
+    /**
+     * Build the sub aggregation results for a list of buckets and set them on
+     * the buckets. This is usually used by aggregations that are selective
+     * in which bucket they build. They use some mechanism of selecting a list
+     * of buckets to build use this method to "finish" building the results.
+     * @param buckets the buckets to finish building
+     * @param bucketToOrd how to convert a bucket into an ordinal
+     * @param setAggs how to set the sub-aggregation results on a bucket
+     */
+    protected final <B> void buildSubAggsForAllBuckets(B[][] buckets,
+            ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs) throws IOException {
+        int totalBucketOrdsToCollect = 0;
+        for (B[] bucketsForOneResult : buckets) {
+            totalBucketOrdsToCollect += bucketsForOneResult.length;
+        }
+        long[] bucketOrdsToCollect = new long[totalBucketOrdsToCollect];
+        int s = 0;
+        for (B[] bucketsForOneResult : buckets) {
+            for (B bucket : bucketsForOneResult) {
+                bucketOrdsToCollect[s++] = bucketToOrd.applyAsLong(bucket);
+            }
+        }
+        InternalAggregations[] results = buildSubAggsForBuckets(bucketOrdsToCollect);
+        s = 0;
+        for (int r = 0; r < buckets.length; r++) {
+            for (int b = 0; b < buckets[r].length; b++) {
+                setAggs.accept(buckets[r][b], results[s++]);
+            }
+        }
+    }
+
+    /**
+     * Build the sub aggregation results for a list of buckets and set them on
+     * the buckets. This is usually used by aggregations that are selective
+     * in which bucket they build. They use some mechanism of selecting a list
+     * of buckets to build use this method to "finish" building the results.
+     * @param buckets the buckets to finish building
+     * @param bucketToOrd how to convert a bucket into an ordinal
+     * @param setAggs how to set the sub-aggregation results on a bucket
+     */
+    protected final <B> void buildSubAggsForBuckets(List<B> buckets,
+            ToLongFunction<B> bucketToOrd, BiConsumer<B, InternalAggregations> setAggs) throws IOException {
+        InternalAggregations[] results = buildSubAggsForBuckets(buckets.stream().mapToLong(bucketToOrd).toArray());
+        for (int i = 0; i < buckets.size(); i++) {
+            setAggs.accept(buckets.get(i), results[i]);
+        }
+    }
+
+    /**
+     * Build aggregation results for an aggregator that has a fixed number of buckets per owning ordinal.
+     * @param <B> the type of the bucket
+     * @param owningBucketOrds owning bucket ordinals for which to build the results
+     * @param bucketsPerOwningBucketOrd how many buckets there are per ord
+     * @param bucketBuilder how to build a bucket
+     * @param resultBuilder how to build a result from buckets
+     */
+    protected final <B> InternalAggregation[] buildAggregationsForFixedBucketCount(long[] owningBucketOrds, int bucketsPerOwningBucketOrd,
+            BucketBuilderForFixedCount<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
+        int totalBuckets = owningBucketOrds.length * bucketsPerOwningBucketOrd;
+        consumeBucketsAndMaybeBreak(totalBuckets);
+        long[] bucketOrdsToCollect = new long[totalBuckets];
+        int bucketOrdIdx = 0;
+        for (long owningBucketOrd : owningBucketOrds) {
+            long ord = owningBucketOrd * bucketsPerOwningBucketOrd;
+            for (int offsetInOwningOrd = 0; offsetInOwningOrd < bucketsPerOwningBucketOrd; offsetInOwningOrd++) {
+                bucketOrdsToCollect[bucketOrdIdx++] = ord++;
+            }
+        }
+        bucketOrdIdx = 0;
+        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
+            List<B> buckets = new ArrayList<>(bucketsPerOwningBucketOrd);
+            for (int offsetInOwningOrd = 0; offsetInOwningOrd < bucketsPerOwningBucketOrd; offsetInOwningOrd++) {
+                buckets.add(bucketBuilder.build(
+                    offsetInOwningOrd, bucketDocCount(bucketOrdsToCollect[bucketOrdIdx]), subAggregationResults[bucketOrdIdx++]));
+            }
+            results[owningOrdIdx] = resultBuilder.apply(buckets);
+        }
+        return results;
+    }
+    @FunctionalInterface
+    protected interface BucketBuilderForFixedCount<B> {
+        B build(int offsetInOwningOrd, int docCount, InternalAggregations subAggregationResults);
+    }
+
+    /**
+     * Build aggregation results for an aggregator that always contain a single bucket.
+     * @param owningBucketOrds owning bucket ordinals for which to build the results
+     * @param resultBuilder how to build a result from the sub aggregation results
+     */
+    protected final InternalAggregation[] buildAggregationsForSingleBucket(long[] owningBucketOrds, 
+                SingleBucketResultBuilder resultBuilder) throws IOException {
+        /*
+         * It'd be entirely reasonable to call
+         * `consumeBucketsAndMaybeBreak(owningBucketOrds.length)`
+         * here but we don't because single bucket aggs never have.
+         */
+        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(owningBucketOrds);
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], subAggregationResults[ordIdx]);
+        }
+        return results;
+    }
+    @FunctionalInterface
+    protected interface SingleBucketResultBuilder {
+        InternalAggregation build(long owningBucketOrd, InternalAggregations subAggregationResults);
+    }
+
+    /**
+     * Build aggregation results for an aggregator with a varying number of
+     * {@code long} keyed buckets that is at the top level or wrapped in
+     * {@link AggregatorFactory#asMultiBucketAggregator}.
+     * @param owningBucketOrds owning bucket ordinals for which to build the results
+     * @param bucketOrds hash of values to the bucket ordinal
+     */
+    protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(long[] owningBucketOrds, LongHash bucketOrds,
+            BucketBuilderForVariable<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
+        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
+        long[] bucketOrdsToCollect = new long[(int) bucketOrds.size()];
+        for (int bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {
+            bucketOrdsToCollect[bucketOrd] = bucketOrd;
+        }
+
+        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        List<B> buckets = new ArrayList<>((int) bucketOrds.size());
+        for (int bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {
+            buckets.add(bucketBuilder.build(bucketOrds.get(bucketOrd), bucketDocCount(bucketOrd), subAggregationResults[bucketOrd]));
+        }
+
+        return new InternalAggregation[] { resultBuilder.apply(buckets) };
+    }
+
+    /**
+     * Build aggregation results for an aggregator with a varying number of
+     * {@code long} keyed buckets that is at the top level or wrapped in
+     * {@link AggregatorFactory#asMultiBucketAggregator}.
+     * @param owningBucketOrds owning bucket ordinals for which to build the results
+     * @param bucketOrds hash of values to the bucket ordinal
+     */
+    protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(long[] owningBucketOrds, LongKeyedBucketOrds bucketOrds,
+            BucketBuilderForVariable<B> bucketBuilder, Function<List<B>, InternalAggregation> resultBuilder) throws IOException {
+        long totalOrdsToCollect = 0;
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            totalOrdsToCollect += bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
+        }
+        if (totalOrdsToCollect > Integer.MAX_VALUE) {
+            throw new AggregationExecutionException("Can't collect more than [" + Integer.MAX_VALUE
+                    + "] buckets but attempted [" + totalOrdsToCollect + "]");
+        }
+        consumeBucketsAndMaybeBreak((int) totalOrdsToCollect);
+        long[] bucketOrdsToCollect = new long[(int) totalOrdsToCollect];
+        int b = 0;
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+            while(ordsEnum.next()) {
+                bucketOrdsToCollect[b++] = ordsEnum.ord();
+            }
+        }
+        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        b = 0;
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            List<B> buckets = new ArrayList<>((int) bucketOrds.size());
+            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+            while(ordsEnum.next()) {
+                if (bucketOrdsToCollect[b] != ordsEnum.ord()) {
+                    throw new AggregationExecutionException("Iteration order of [" + bucketOrds + "] changed without mutating. ["
+                        + ordsEnum.ord() + "] should have been [" + bucketOrdsToCollect[b] + "]");
+                }
+                buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
+            }
+            results[ordIdx] = resultBuilder.apply(buckets);
+        }
+        return results;
+    }
+    @FunctionalInterface
+    protected interface BucketBuilderForVariable<B> {
+        B build(long bucketValue, int docCount, InternalAggregations subAggregationResults);
     }
 
     /**
@@ -176,7 +420,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     @Override
     public BucketComparator bucketComparator(String key, SortOrder order) {
-        if (key == null || false == "doc_count".equals(key)) {
+        if (false == this instanceof SingleBucketAggregator) {
+            return super.bucketComparator(key, order);
+        }
+        if (key == null || "doc_count".equals(key)) {
             return (lhs, rhs) -> order.reverseMul() * Integer.compare(bucketDocCount(lhs), bucketDocCount(rhs));
         }
         throw new IllegalArgumentException("Ordering on a single-bucket aggregation can only be done on its doc_count. " +

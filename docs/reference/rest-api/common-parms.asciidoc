@@ -99,6 +99,10 @@ tag::bytes[]
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
 
+tag::checkpointing-changes-last-detected-at[]
+The timestamp when changes were last detected in the source indices.
+end::checkpointing-changes-last-detected-at[]
+
 tag::cluster-health-status[]
 (string)
 Health status of the cluster, based on the state of its primary and replica
@@ -167,16 +171,31 @@ given in the query string.
 end::df[]
 
 tag::docs-count[]
-Number of non-deleted documents in the segment, such as `25`. This
-number is based on Lucene documents and may include documents from
-<<nested,nested>> fields.
+The number of documents as reported by Lucene. This excludes deleted documents
+and counts any <<nested,nested documents>> separately from their parents. It
+also excludes documents which were indexed recently and do not yet belong to a
+segment.
 end::docs-count[]
 
 tag::docs-deleted[]
-Number of deleted documents in the segment, such as `0`. This number
-is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
-documents when a segment is merged.
+The number of deleted documents as reported by Lucene, which may be higher or
+lower than the number of delete operations you have performed. This number
+excludes deletes that were performed recently and do not yet belong to a
+segment. Deleted documents are cleaned up by the
+<<index-modules-merge,automatic merge process>> if it makes sense to do so.
+Also, {es} creates extra deleted documents to internally track the recent
+history of operations on a shard.
 end::docs-deleted[]
+
+tag::docs-indexed[]
+The number of documents that have been indexed into the destination index
+for the {transform}.
+end::docs-indexed[]
+
+tag::docs-processed[]
+The number of documents that have been processed from the source index of
+the {transform}.
+end::docs-processed[]
 
 tag::enrich-policy[]
 Enrich policy name
@@ -187,11 +206,12 @@ tag::expand-wildcards[]
 `expand_wildcards`::
 +
 --
-(Optional, string) Controls what kind of indices that wildcard
-expressions can expand to. Valid values are:
+(Optional, string) Controls what kind of indices that wildcard expressions can
+expand to. Multiple values are accepted when separated by a comma, as in
+`open,hidden`. Valid values are:
 
 `all`::
-Expand to open and closed indices.
+Expand to open and closed indices, including <<index-hidden,hidden indices>>.
 
 `open`::
 Expand only to open indices.
@@ -200,12 +220,27 @@ Expand only to open indices.
 Expand only to closed indices.
 
 `hidden`::
-Expansion of wildcards will include hidden indices.
+Expansion of wildcards will include <<index-hidden,hidden indices>>.
+Must be combined with `open`, `closed`, or both.
 
 `none`::
 Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
+
+tag::exponential-avg-checkpoint-duration-ms[]
+Exponential moving average of the duration of the checkpoint, in milliseconds.
+end::exponential-avg-checkpoint-duration-ms[]
+
+tag::exponential-avg-documents-indexed[]
+Exponential moving average of the number of new documents that have been
+indexed.
+end::exponential-avg-documents-indexed[]
+
+tag::exponential-avg-documents-processed[]
+Exponential moving average of the number of documents that have been
+processed.
+end::exponential-avg-documents-processed[]
 
 tag::field_statistics[]
 `field_statistics`::
@@ -338,7 +373,7 @@ end::if_seq_no[]
 tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices are
-ignored when throttled.
+ignored when frozen.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -379,6 +414,18 @@ tag::index[]
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
+
+tag::index-failures[]
+The number of indexing failures.
+end::index-failures[]
+
+tag::index-time-ms[]
+The amount of time spent indexing, in milliseconds.
+end::index-time-ms[]
+
+tag::index-total[]
+The number of indices created.
+end::index-total[]
 
 tag::bulk-index[]
 `_index`::
@@ -574,6 +621,11 @@ tag::pipeline[]
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::pipeline[]
 
+tag::pages-processed[]
+The number of search or bulk index operations processed. Documents are
+processed in batches instead of individually.
+end::pages-processed[]
+
 tag::path-pipeline[]
 `<pipeline>`::
 (Optional, string) Comma-separated list or wildcard expression of pipeline IDs
@@ -593,10 +645,14 @@ are supported:
 * <<search-aggregations-metrics-avg-aggregation,Average>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
+* <<search-aggregations-bucket-filter-aggregation,Filter>>
+* <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
+* <<search-aggregations-bucket-terms-aggregation, Terms>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
+* <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
@@ -620,13 +676,6 @@ Defines how to group the data. More than one grouping can be defined
 --
 end::pivot-group-by[]
 
-tag::pivot-max-page-search-size[]
-Defines the initial page size to use for the composite aggregation for each
-checkpoint. If circuit breaker exceptions occur, the page size is dynamically
-adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
-The default value is `500`.
-end::pivot-max-page-search-size[]
-
 tag::positions[]
 `positions`::
 (Optional, boolean) If `true`, the response includes term positions.
@@ -638,6 +687,14 @@ tag::preference[]
 (Optional, string) Specifies the node or shard the operation should be
 performed on. Random by default.
 end::preference[]
+
+tag::processing-time-ms[]
+The amount of time spent processing results, in milliseconds.
+end::processing-time-ms[]
+
+tag::processing-total[]
+The number of processing operations.
+end::processing-total[]
 
 tag::search-q[]
 `q`::
@@ -706,12 +763,24 @@ tag::scroll_size[]
 Defaults to 100.
 end::scroll_size[]
 
+tag::search-failures[]
+The number of search failures.
+end::search-failures[]
+
+tag::search-time-ms[]
+The amount of time spent searching, in milliseconds.
+end::search-time-ms[]
+
 tag::search_timeout[]
 `timeout`::
 (Optional, <<time-units, time units>>)
 Explicit timeout for each search request.
 Defaults to no timeout.
 end::search_timeout[]
+
+tag::search-total[]
+The number of search operations on the source index for the {transform}.
+end::search-total[]
 
 tag::search_type[]
 `search_type`::
@@ -802,6 +871,26 @@ A query clause that retrieves a subset of data from the source index. See
 <<query-dsl>>.
 end::source-query-transforms[]
 
+tag::state-transform[]
+The status of the {transform}, which can be one of the following values:
++
+--
+* `aborting`: The {transform} is aborting.
+* `failed`: The {transform} failed. For more information about the failure,
+check the reason field.
+* `indexing`: The {transform} is actively processing data and creating new
+documents.
+* `started`: The {transform} is running but not actively indexing data.
+* `stopped`: The {transform} is stopped.
+* `stopping`: The {transform} is stopping.
+--
+end::state-transform[]
+
+tag::state-transform-reason[]
+If a {transform} has a `failed` state, this property provides details about the
+reason for the failure.
+end::state-transform-reason[]
+
 tag::stats[]
 `stats`::
 (Optional, string) Specific `tag` of the request for logging and statistical
@@ -831,6 +920,23 @@ tag::sync-time-delay[]
 The time delay between the current time and the latest input data time. The
 default value is `60s`.
 end::sync-time-delay[]
+
+tag::transform-settings[]
+Defines optional {transform} settings.
+end::transform-settings[]
+
+tag::transform-settings-docs-per-second[]
+Specifies a limit on the number of input documents per second. This setting
+throttles the {transform} by adding a wait time between search requests. The 
+default value is `null`, which disables throttling.
+end::transform-settings-docs-per-second[]
+
+tag::transform-settings-max-page-search-size[]
+Defines the initial page size to use for the composite aggregation for each
+checkpoint. If circuit breaker exceptions occur, the page size is dynamically
+adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+The default value is `500`.
+end::transform-settings-max-page-search-size[]
 
 tag::target-index[]
 `<target-index>`::
@@ -870,12 +976,6 @@ end::time[]
 tag::timeoutparms[]
 
 tag::timeout[]
-`timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
-end::timeout[]
-
 tag::master-timeout[]
 `master_timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
@@ -883,6 +983,11 @@ a connection to the master node. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
 end::master-timeout[]
 
+`timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `30s`.
+end::timeout[]
 end::timeoutparms[]
 
 tag::transform-id[]
@@ -896,6 +1001,13 @@ Identifier for the {transform}. It can be a {transform} identifier or a wildcard
 expression. If you do not specify one of these options, the API returns
 information for all {transforms}.
 end::transform-id-wildcard[]
+
+tag::trigger-count[]
+The number of times the {transform} has been triggered by the scheduler. For 
+example, the scheduler triggers the {transform} indexer to check for updates
+or ingest new data at an interval specified in the
+<<put-transform-request-body,`frequency` property>>.
+end::trigger-count[]
 
 tag::cat-v[]
 `v`::
@@ -922,7 +1034,7 @@ end::segment-version[]
 tag::version_type[]
 `version_type`::
 (Optional, enum) Specific version type: `internal`, `external`,
-`external_gte`, `force`.
+`external_gte`.
 end::version_type[]
 
 tag::wait_for_active_shards[]

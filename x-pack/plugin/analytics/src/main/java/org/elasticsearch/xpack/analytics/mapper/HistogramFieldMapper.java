@@ -13,7 +13,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -30,15 +29,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicHistogramFieldData;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -51,10 +50,10 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -88,7 +87,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
     public static final ParseField VALUES_FIELD = new ParseField("values");
 
-    public static class Builder extends FieldMapper.Builder<Builder, HistogramFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
 
         public Builder(String name) {
@@ -128,8 +127,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<Builder, HistogramFieldMapper> parse(String name,
-                                                                   Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
             TypeParsers.parseMeta(builder, name, node);
@@ -155,9 +153,8 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) other;
         if (gpfmMergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
         }
@@ -169,7 +166,7 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
@@ -204,8 +201,8 @@ public class HistogramFieldMapper extends FieldMapper {
                     return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name()) {
 
                         @Override
-                        public AtomicHistogramFieldData load(LeafReaderContext context) {
-                            return new AtomicHistogramFieldData() {
+                        public LeafHistogramFieldData load(LeafReaderContext context) {
+                            return new LeafHistogramFieldData() {
                                 @Override
                                 public HistogramValues getHistogramValues() throws IOException {
                                     try {
@@ -258,7 +255,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public AtomicHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
+                        public LeafHistogramFieldData loadDirect(LeafReaderContext context) throws Exception {
                             return load(context);
                         }
 
@@ -280,8 +277,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public ValuesSourceType getValuesSourceType() {
-            // TODO: Histogram ValuesSourceType should move into this plugin.
-            return CoreValuesSourceType.HISTOGRAM;
+            return AnalyticsValuesSourceType.HISTOGRAM;
         }
 
         @Override

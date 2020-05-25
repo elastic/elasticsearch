@@ -52,7 +52,8 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
@@ -62,11 +63,11 @@ import java.util.List;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
+public class LegacyGeoShapeQueryProcessor implements QueryProcessor {
 
-    private AbstractGeometryFieldMapper.AbstractGeometryFieldType ft;
+    private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;
 
-    public LegacyGeoShapeQueryProcessor(AbstractGeometryFieldMapper.AbstractGeometryFieldType ft) {
+    public LegacyGeoShapeQueryProcessor(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft) {
         this.ft = ft;
     }
 

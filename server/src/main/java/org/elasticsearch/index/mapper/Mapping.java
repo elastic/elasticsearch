@@ -89,19 +89,19 @@ public final class Mapping implements ToXContentFragment {
     /** @see DocumentMapper#merge(Mapping) */
     public Mapping merge(Mapping mergeWith) {
         RootObjectMapper mergedRoot = root.merge(mergeWith.root);
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetaDataMappers = new HashMap<>(metadataMappersMap);
+        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetadataMappers = new HashMap<>(metadataMappersMap);
         for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
-            MetadataFieldMapper mergeInto = mergedMetaDataMappers.get(metaMergeWith.getClass());
+            MetadataFieldMapper mergeInto = mergedMetadataMappers.get(metaMergeWith.getClass());
             MetadataFieldMapper merged;
             if (mergeInto == null) {
                 merged = metaMergeWith;
             } else {
-                merged = mergeInto.merge(metaMergeWith);
+                merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith);
             }
-            mergedMetaDataMappers.put(merged.getClass(), merged);
+            mergedMetadataMappers.put(merged.getClass(), merged);
         }
         Map<String, Object> mergedMeta = mergeWith.meta == null ? meta : mergeWith.meta;
-        return new Mapping(indexCreated, mergedRoot, mergedMetaDataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
+        return new Mapping(indexCreated, mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
     /**

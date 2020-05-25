@@ -33,6 +33,16 @@ import static java.util.stream.Collectors.toList;
 
 public class FunctionRegistry {
 
+    // Translation table for error messaging in the following function
+    private static final String[] NUM_NAMES = {
+            "zero",
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+    };
+
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
     // a single function will have one entry for itself with its name associated to its instance and, also, one entry for each alias
     // it has with the alias name associated to the FunctionDefinition instance
@@ -86,9 +96,13 @@ public class FunctionRegistry {
         return def;
     }
 
+    protected String normalize(String name) {
+        return name.toUpperCase(Locale.ROOT);
+    }
+
     public String resolveAlias(String alias) {
-        String upperCase = alias.toUpperCase(Locale.ROOT);
-        return aliases.getOrDefault(upperCase, upperCase);
+        String normalized = normalize(alias);
+        return aliases.getOrDefault(normalized, normalized);
     }
 
     public boolean functionExists(String functionName) {
@@ -102,7 +116,7 @@ public class FunctionRegistry {
 
     public Collection<FunctionDefinition> listFunctions(String pattern) {
         // It is worth double checking if we need this copy. These are immutable anyway.
-        Pattern p = Strings.hasText(pattern) ? Pattern.compile(pattern.toUpperCase(Locale.ROOT)) : null;
+        Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
@@ -354,7 +368,7 @@ public class FunctionRegistry {
         return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
     }
 
-    protected interface FunctionBuilder {
+    public interface FunctionBuilder {
         Function build(Source source, List<Expression> children, boolean distinct, Configuration cfg);
     }
 
@@ -399,6 +413,36 @@ public class FunctionRegistry {
         T build(Source source, Expression src, Expression exp1, Expression exp2, Expression exp3);
     }
 
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              FiveParametersFunctionBuilder<T> ctorRef,
+                                                              int numOptionalParams, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            final int NUM_TOTAL_PARAMS = 5;
+            boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
+            if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
+                throw new QlIllegalArgumentException("expects between " + NUM_NAMES[NUM_TOTAL_PARAMS - numOptionalParams]
+                        + " and " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+            } else if (hasOptionalParams == false && children.size() != NUM_TOTAL_PARAMS) {
+                throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source,
+                    children.size() > 0 ? children.get(0) : null,
+                    children.size() > 1 ? children.get(1) : null,
+                    children.size() > 2 ? children.get(2) : null,
+                    children.size() > 3 ? children.get(3) : null,
+                    children.size() > 4 ? children.get(4) : null);
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface FiveParametersFunctionBuilder<T> {
+        T build(Source source, Expression src, Expression exp1, Expression exp2, Expression exp3, Expression exp4);
+    }
+
     /**
      * Special method to create function definition for Cast as its
      * signature is not compatible with {@link UnresolvedFunction}
@@ -416,5 +460,49 @@ public class FunctionRegistry {
 
     protected interface CastFunctionBuilder<T> {
         T build(Source source, Expression expression, DataType dataType);
+    }
+
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              TwoParametersVariadicBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumOne && children.size() < 1) {
+                throw new QlIllegalArgumentException("expects at least one argument");
+            } else if (!hasMinimumOne && children.size() < 2) {
+                throw new QlIllegalArgumentException("expects at least two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.subList(1, children.size()));
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface TwoParametersVariadicBuilder<T> {
+        T build(Source source, Expression src, List<Expression> remaining);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that is case sensitive aware.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+        ScalarBiFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), cfg);
+        };
+        return def(function, builder, true, names);
+    }
+
+    protected interface ScalarBiFunctionConfigurationAwareBuilder<T> {
+        T build(Source source, Expression e1, Expression e2, Configuration configuration);
     }
 }

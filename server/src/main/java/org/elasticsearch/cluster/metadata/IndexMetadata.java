@@ -227,6 +227,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.intSetting("index.priority", 1, 0, Property.Dynamic, Property.IndexScope);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
+    public static final String SETTING_HISTORY_UUID = "index.history.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final Setting<String> INDEX_DATA_PATH_SETTING =
         new Setting<>(SETTING_DATA_PATH, "", Function.identity(), Property.IndexScope);

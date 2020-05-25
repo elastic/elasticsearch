@@ -47,6 +47,7 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
     private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
+        refCounted.incRef();
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
@@ -63,9 +64,7 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
     }
 
     public ReleasableBytesReference retainedSlice(int from, int length) {
-        BytesReference slice = delegate.slice(from, length);
-        refCounted.incRef();
-        return new ReleasableBytesReference(slice, refCounted);
+        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
     }
 
     @Override

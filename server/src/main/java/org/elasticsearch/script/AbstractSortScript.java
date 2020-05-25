@@ -18,25 +18,41 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 abstract class AbstractSortScript implements ScorerAware {
 
-    private static final Map<String, String> DEPRECATIONS = Map.of(
-            "doc",
-            "Accessing variable [doc] via [params.doc] from within a sort-script is deprecated in favor of directly accessing [doc].",
-            "_doc",
-            "Accessing variable [doc] via [params._doc] from within a sort-script is deprecated in favor of directly accessing [doc].");
+    private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
+            "doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("sort-script_doc",
+                        "Accessing variable [doc] via [params.doc] from within an sort-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("sort-script__doc",
+                        "Accessing variable [doc] via [params._doc] from within an sort-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     /**
      * The generic runtime parameters for the script.
@@ -55,7 +71,7 @@ abstract class AbstractSortScript implements ScorerAware {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         Map<String, Object> parameters = new HashMap<>(params);
         parameters.putAll(leafLookup.asMap());
-        this.params = new DeprecationMap(parameters, DEPRECATIONS, "sort-script");
+        this.params = new DynamicMap(parameters, PARAMS_FUNCTIONS);
     }
 
     protected AbstractSortScript() {

@@ -109,8 +109,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-`size`::
-(Optional, <<size-units, size unit>>) Multiplier used to display quantities.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=time]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 

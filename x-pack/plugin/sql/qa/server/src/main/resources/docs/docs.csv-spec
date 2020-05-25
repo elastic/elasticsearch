@@ -1,0 +1,3261 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// CSV spec used by the docs
+//
+
+///////////////////////////////
+//
+// Describe table
+//
+///////////////////////////////
+
+describeTable
+// tag::describeTable
+DESCRIBE emp;
+
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
+
+// end::describeTable
+;
+
+//describeTableAlias
+// tag::describeTableAlias
+//DESCRIBE employee;
+
+//    column     |     type      
+//---------------+---------------
+
+// end::describeTableAlias
+//;
+
+//
+// Show columns
+// 
+showColumns
+// tag::showColumns
+SHOW COLUMNS IN emp;
+
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |datetime
+dep                 |STRUCT         |nested
+dep.dep_id          |VARCHAR        |keyword
+dep.dep_name        |VARCHAR        |text
+dep.dep_name.keyword|VARCHAR        |keyword
+dep.from_date       |TIMESTAMP      |datetime
+dep.to_date         |TIMESTAMP      |datetime
+emp_no              |INTEGER        |integer
+first_name          |VARCHAR        |text
+first_name.keyword  |VARCHAR        |keyword
+gender              |VARCHAR        |keyword
+hire_date           |TIMESTAMP      |datetime
+languages           |TINYINT        |byte
+last_name           |VARCHAR        |text
+last_name.keyword   |VARCHAR        |keyword
+salary              |INTEGER        |integer
+
+// end::showColumns
+;
+
+//showColumnsInAlias
+// tag::showColumnsInAlias
+//SHOW COLUMNS FROM employee;
+
+//    column     |     type      
+//---------------+---------------
+               
+// end::showColumnsInAlias
+//;
+
+///////////////////////////////
+//
+// Show Tables
+//
+///////////////////////////////
+
+showTables
+// tag::showTables
+SHOW TABLES;
+
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
+
+// end::showTables
+;
+
+showTablesLikeExact
+// tag::showTablesLikeExact
+SHOW TABLES LIKE 'emp';
+
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX    
+
+// end::showTablesLikeExact
+;
+
+showTablesLikeWildcard
+// tag::showTablesLikeWildcard
+SHOW TABLES LIKE 'emp%';
+
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS             
+
+// end::showTablesLikeWildcard
+;
+
+
+showTablesLikeOneChar
+// tag::showTablesLikeOneChar
+SHOW TABLES LIKE 'em_';
+
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX     
+
+// end::showTablesLikeOneChar
+;
+
+showTablesLikeMixed
+// tag::showTablesLikeMixed
+SHOW TABLES LIKE '%em_';
+
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX        
+
+// end::showTablesLikeMixed
+;
+
+showTablesLikeEscape
+schema::name:s|type:s|kind:s
+// tag::showTablesLikeEscape
+SHOW TABLES LIKE 'emp!%' ESCAPE '!';
+
+     name      |     type      |     kind      
+---------------+---------------+---------------
+
+// end::showTablesLikeEscape
+;
+
+
+showTablesEsMultiIndex
+// tag::showTablesEsMultiIndex
+SHOW TABLES "*,-l*";
+
+     name      | type     |     kind      
+---------------+----------+---------------
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS  
+
+// end::showTablesEsMultiIndex
+;
+
+
+//
+// include FROZEN
+//
+showTablesIncludeFrozen
+// tag::showTablesIncludeFrozen
+SHOW TABLES INCLUDE FROZEN;
+
+     name      | type     |     kind      
+---------------+----------+---------------
+archive        |TABLE     |FROZEN INDEX
+emp            |TABLE     |INDEX          
+employees      |VIEW      |ALIAS          
+library        |TABLE     |INDEX    
+
+// end::showTablesIncludeFrozen
+;
+
+
+///////////////////////////////
+//
+// Show Functions
+//
+///////////////////////////////
+
+showFunctions
+// tag::showFunctions
+SHOW FUNCTIONS;
+
+      name       |     type
+-----------------+---------------
+AVG              |AGGREGATE      
+COUNT            |AGGREGATE
+FIRST            |AGGREGATE
+FIRST_VALUE      |AGGREGATE
+LAST             |AGGREGATE
+LAST_VALUE       |AGGREGATE
+MAX              |AGGREGATE      
+MIN              |AGGREGATE      
+SUM              |AGGREGATE      
+KURTOSIS         |AGGREGATE
+MAD              |AGGREGATE      
+PERCENTILE       |AGGREGATE      
+PERCENTILE_RANK  |AGGREGATE      
+SKEWNESS         |AGGREGATE      
+STDDEV_POP       |AGGREGATE      
+SUM_OF_SQUARES   |AGGREGATE      
+VAR_POP          |AGGREGATE      
+HISTOGRAM        |GROUPING
+CASE             |CONDITIONAL
+COALESCE         |CONDITIONAL
+GREATEST         |CONDITIONAL
+IFNULL           |CONDITIONAL
+IIF              |CONDITIONAL
+ISNULL           |CONDITIONAL
+LEAST            |CONDITIONAL
+NULLIF           |CONDITIONAL
+NVL              |CONDITIONAL
+CURDATE          |SCALAR
+CURRENT_DATE     |SCALAR
+CURRENT_TIME     |SCALAR
+CURRENT_TIMESTAMP|SCALAR
+CURTIME          |SCALAR
+DATEADD          |SCALAR
+DATEDIFF         |SCALAR
+DATEPART         |SCALAR
+DATETIME_FORMAT  |SCALAR
+DATETIME_PARSE   |SCALAR
+DATETRUNC        |SCALAR
+DATE_ADD         |SCALAR
+DATE_DIFF        |SCALAR
+DATE_PART        |SCALAR
+DATE_TRUNC       |SCALAR
+DAY              |SCALAR
+DAYNAME          |SCALAR
+DAYOFMONTH       |SCALAR
+DAYOFWEEK        |SCALAR
+DAYOFYEAR        |SCALAR
+DAY_NAME         |SCALAR
+DAY_OF_MONTH     |SCALAR
+DAY_OF_WEEK      |SCALAR
+DAY_OF_YEAR      |SCALAR
+DOM              |SCALAR
+DOW              |SCALAR         
+DOY              |SCALAR
+HOUR             |SCALAR
+HOUR_OF_DAY      |SCALAR         
+IDOW             |SCALAR
+ISODAYOFWEEK     |SCALAR
+ISODOW           |SCALAR
+ISOWEEK          |SCALAR
+ISOWEEKOFYEAR    |SCALAR
+ISO_DAY_OF_WEEK  |SCALAR
+ISO_WEEK_OF_YEAR |SCALAR
+IW               |SCALAR
+IWOY             |SCALAR
+MINUTE           |SCALAR         
+MINUTE_OF_DAY    |SCALAR         
+MINUTE_OF_HOUR   |SCALAR         
+MONTH            |SCALAR         
+MONTHNAME        |SCALAR         
+MONTH_NAME       |SCALAR         
+MONTH_OF_YEAR    |SCALAR
+NOW              |SCALAR
+QUARTER          |SCALAR         
+SECOND           |SCALAR         
+SECOND_OF_MINUTE |SCALAR
+TIMESTAMPADD     |SCALAR
+TIMESTAMPDIFF    |SCALAR
+TIMESTAMP_ADD    |SCALAR
+TIMESTAMP_DIFF   |SCALAR
+TODAY            |SCALAR
+WEEK             |SCALAR
+WEEK_OF_YEAR     |SCALAR         
+YEAR             |SCALAR         
+ABS              |SCALAR         
+ACOS             |SCALAR         
+ASIN             |SCALAR         
+ATAN             |SCALAR         
+ATAN2            |SCALAR         
+CBRT             |SCALAR         
+CEIL             |SCALAR         
+CEILING          |SCALAR         
+COS              |SCALAR         
+COSH             |SCALAR         
+COT              |SCALAR         
+DEGREES          |SCALAR         
+E                |SCALAR         
+EXP              |SCALAR         
+EXPM1            |SCALAR         
+FLOOR            |SCALAR         
+LOG              |SCALAR         
+LOG10            |SCALAR         
+MOD              |SCALAR         
+PI               |SCALAR         
+POWER            |SCALAR         
+RADIANS          |SCALAR         
+RAND             |SCALAR         
+RANDOM           |SCALAR         
+ROUND            |SCALAR         
+SIGN             |SCALAR         
+SIGNUM           |SCALAR         
+SIN              |SCALAR         
+SINH             |SCALAR         
+SQRT             |SCALAR         
+TAN              |SCALAR         
+TRUNC            |SCALAR
+TRUNCATE         |SCALAR
+ASCII            |SCALAR
+BIT_LENGTH       |SCALAR         
+CHAR             |SCALAR         
+CHARACTER_LENGTH |SCALAR         
+CHAR_LENGTH      |SCALAR         
+CONCAT           |SCALAR         
+INSERT           |SCALAR         
+LCASE            |SCALAR         
+LEFT             |SCALAR         
+LENGTH           |SCALAR         
+LOCATE           |SCALAR         
+LTRIM            |SCALAR         
+OCTET_LENGTH     |SCALAR         
+POSITION         |SCALAR         
+REPEAT           |SCALAR         
+REPLACE          |SCALAR         
+RIGHT            |SCALAR         
+RTRIM            |SCALAR         
+SPACE            |SCALAR         
+STARTS_WITH      |SCALAR
+SUBSTRING        |SCALAR         
+UCASE            |SCALAR
+CAST             |SCALAR
+CONVERT          |SCALAR
+DATABASE         |SCALAR
+USER             |SCALAR
+ST_ASTEXT        |SCALAR
+ST_ASWKT         |SCALAR
+ST_DISTANCE      |SCALAR
+ST_GEOMETRYTYPE  |SCALAR
+ST_GEOMFROMTEXT  |SCALAR
+ST_WKTTOSQL      |SCALAR
+ST_X             |SCALAR
+ST_Y             |SCALAR
+ST_Z             |SCALAR
+SCORE            |SCORE
+// end::showFunctions
+;
+
+showFunctionsLikeExact
+// tag::showFunctionsLikeExact
+SHOW FUNCTIONS LIKE 'ABS';
+
+     name      |     type      
+---------------+---------------
+ABS            |SCALAR    
+
+// end::showFunctionsLikeExact
+;
+
+showFunctionsLikeWildcard
+// tag::showFunctionsLikeWildcard
+SHOW FUNCTIONS LIKE 'A%';
+
+     name      |     type      
+---------------+---------------
+AVG            |AGGREGATE      
+ABS            |SCALAR         
+ACOS           |SCALAR         
+ASIN           |SCALAR         
+ATAN           |SCALAR         
+ATAN2          |SCALAR
+ASCII          |SCALAR     
+// end::showFunctionsLikeWildcard
+;
+
+showFunctionsLikeChar
+// tag::showFunctionsLikeChar
+SHOW FUNCTIONS LIKE 'A__';
+
+     name      |     type      
+---------------+---------------
+AVG            |AGGREGATE      
+ABS            |SCALAR         
+// end::showFunctionsLikeChar
+;
+
+showFunctionsWithPattern
+// tag::showFunctionsWithPattern
+SHOW FUNCTIONS LIKE '%DAY%';
+
+     name      |     type      
+---------------+---------------
+DAY            |SCALAR
+DAYNAME        |SCALAR
+DAYOFMONTH     |SCALAR
+DAYOFWEEK      |SCALAR
+DAYOFYEAR      |SCALAR
+DAY_NAME       |SCALAR
+DAY_OF_MONTH   |SCALAR
+DAY_OF_WEEK    |SCALAR
+DAY_OF_YEAR    |SCALAR
+HOUR_OF_DAY    |SCALAR         
+ISODAYOFWEEK   |SCALAR
+ISO_DAY_OF_WEEK|SCALAR
+MINUTE_OF_DAY  |SCALAR         
+TODAY          |SCALAR
+
+// end::showFunctionsWithPattern
+;
+
+///////////////////////////////
+//
+// Select
+//
+///////////////////////////////
+
+selectColumnAlias
+// tag::selectColumnAlias
+SELECT 1 + 1 AS result;
+
+    result     
+---------------
+2    
+
+// end::selectColumnAlias
+;
+
+selectInline
+// tag::selectInline
+SELECT 1 + 1;
+
+    1 + 1    
+--------------
+2      
+
+// end::selectInline
+;
+
+selectColumn
+// tag::selectColumn
+SELECT emp_no FROM emp LIMIT 1;
+
+    emp_no     
+---------------
+10001   
+
+// end::selectColumn
+;
+
+selectQualifiedColumn
+// tag::selectQualifiedColumn
+SELECT emp.emp_no FROM emp LIMIT 1;
+
+    emp_no     
+---------------
+10001   
+
+// end::selectQualifiedColumn
+;
+
+
+wildcardWithOrder
+// tag::wildcardWithOrder
+SELECT * FROM emp LIMIT 1;
+
+     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
+--------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305 
+
+// end::wildcardWithOrder
+;
+
+fromTable
+// tag::fromTable
+SELECT * FROM emp LIMIT 1;
+
+     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
+--------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305        
+  
+
+// end::fromTable
+;
+
+fromTableQuoted
+// tag::fromTableQuoted
+SELECT * FROM "emp" LIMIT 1;
+
+     birth_date     |    emp_no     |  first_name   |    gender     |     hire_date      |   languages   |   last_name   |    salary     
+--------------------+---------------+---------------+---------------+--------------------+---------------+---------------+---------------
+1953-09-02T00:00:00Z|10001          |Georgi         |M              |1986-06-26T00:00:00Z|2              |Facello        |57305   
+
+// end::fromTableQuoted
+;
+
+fromTableIncludeFrozen
+// tag::fromTableIncludeFrozen
+SELECT * FROM FROZEN archive LIMIT 1;
+
+     author      |        name        |  page_count   |    release_date    
+-----------------+--------------------+---------------+--------------------
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
+
+// end::fromTableIncludeFrozen
+;
+
+fromTableQuoted
+// tag::fromTablePatternQuoted
+SELECT emp_no FROM "e*p" LIMIT 1;
+
+    emp_no     
+---------------
+10001   
+
+// end::fromTablePatternQuoted
+;
+
+fromTableAlias
+// tag::fromTableAlias
+SELECT e.emp_no FROM emp AS e LIMIT 1;
+
+    emp_no     
+-------------
+10001   
+
+// end::fromTableAlias
+;
+
+basicWhere
+// tag::basicWhere
+SELECT last_name FROM emp WHERE emp_no = 10001;
+
+   last_name   
+---------------
+Facello   
+
+// end::basicWhere
+;
+
+///////////////////////////////
+//
+// Group By
+//
+///////////////////////////////
+
+groupByColumn
+schema::g:s
+// tag::groupByColumn
+SELECT gender AS g FROM emp GROUP BY gender;
+
+       g       
+---------------
+null
+F
+M
+
+// end::groupByColumn
+;
+
+groupByOrdinal
+schema::gender:s
+// tag::groupByOrdinal
+SELECT gender FROM emp GROUP BY 1;
+
+    gender     
+---------------
+null
+F              
+M   
+
+// end::groupByOrdinal
+;
+
+groupByAlias
+schema::g:s
+// tag::groupByAlias
+SELECT gender AS g FROM emp GROUP BY g;
+
+       g       
+---------------
+null
+F              
+M  
+
+// end::groupByAlias
+;
+
+groupByExpression
+// tag::groupByExpression
+SELECT languages + 1 AS l FROM emp GROUP BY l;
+
+       l       
+---------------
+null
+2              
+3              
+4              
+5              
+6              
+ 
+
+// end::groupByExpression
+;
+
+groupByMulti
+schema::g:s|l:i|c:l
+// tag::groupByMulti
+SELECT gender g, languages l, COUNT(*) c FROM "emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
+
+       g       |       l       |       c       
+---------------+---------------+---------------
+M              |null           |7              
+F              |null           |3              
+M              |1              |9              
+F              |1              |4              
+null           |1              |2              
+M              |2              |11             
+F              |2              |5              
+null           |2              |3              
+M              |3              |11             
+F              |3              |6              
+M              |4              |11             
+F              |4              |6              
+null           |4              |1              
+M              |5              |8              
+F              |5              |9              
+null           |5              |4  
+
+
+// end::groupByMulti
+;
+
+
+groupByAndAgg
+schema::g:s|c:i
+// tag::groupByAndAgg
+SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender;
+
+       g       |       c       
+---------------+---------------
+null           |10             
+F              |33             
+M              |57       
+
+// end::groupByAndAgg
+;
+
+groupByAndAggExpression
+schema::g:s|salary:i
+// tag::groupByAndAggExpression
+SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
+
+       g       |    salary     
+---------------+---------------
+null           |253            
+F              |260            
+M              |259        
+// end::groupByAndAggExpression
+;
+
+groupByAndMultipleAggs
+schema::g:s|k:d|s:d
+// tag::groupByAndMultipleAggs
+SELECT gender AS g, KURTOSIS(salary) AS k, SKEWNESS(salary) AS s FROM emp GROUP BY gender;
+
+       g       |        k         |         s         
+---------------+------------------+-------------------
+null           |2.2215791166941923|-0.03373126000214023
+F              |1.7873117044424276|0.05504995122217512 
+M              |2.280646181070106 |0.44302407229580243 
+
+
+// end::groupByAndMultipleAggs
+;
+
+groupByImplicitCount
+// tag::groupByImplicitCount
+SELECT COUNT(*) AS count FROM emp;
+
+     count     
+---------------
+100 
+
+// end::groupByImplicitCount
+;
+
+///////////////////////////////
+//
+// Having
+//
+///////////////////////////////
+
+groupByHaving
+// tag::groupByHaving
+SELECT languages AS l, COUNT(*) AS c FROM emp GROUP BY l HAVING c BETWEEN 15 AND 20;
+
+       l       |       c       
+---------------+---------------
+1              |15             
+2              |19             
+3              |17             
+4              |18     
+
+// end::groupByHaving
+;
+
+groupByHavingMultiple
+// tag::groupByHavingMultiple
+SELECT MIN(salary) AS min, MAX(salary) AS max, MAX(salary) - MIN(salary) AS diff FROM emp GROUP BY languages HAVING diff - max % min > 0 AND AVG(salary) > 30000;
+
+      min      |      max      |     diff      
+---------------+---------------+---------------
+28336          |74999          |46663          
+25976          |73717          |47741          
+29175          |73578          |44403          
+26436          |74970          |48534          
+27215          |74572          |47357          
+25324          |66817          |41493          
+
+
+// end::groupByHavingMultiple
+;
+
+groupByImplicitMultipleAggs
+// tag::groupByImplicitMultipleAggs
+SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS count FROM emp;
+
+      min:i    |      max:i    |      avg:d    |     count:l     
+---------------+---------------+---------------+---------------
+25324          |74999          |48248.55       |100  
+
+// end::groupByImplicitMultipleAggs
+;
+
+groupByHavingImplicitMatch
+// tag::groupByHavingImplicitMatch
+SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
+
+      min      |      max      
+---------------+---------------
+25324          |74999        
+
+// end::groupByHavingImplicitMatch
+;
+
+//groupByHavingImplicitNoMatch
+// tag::groupByHavingImplicitNoMatch
+//SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING max > 75000;
+
+//      min      |      max      
+//---------------+---------------
+
+// end::groupByHavingImplicitNoMatch
+//;
+
+
+
+///////////////////////////////
+//
+// Grouping
+//
+///////////////////////////////
+
+histogramNumeric
+// tag::histogramNumeric
+SELECT HISTOGRAM(salary, 5000) AS h FROM emp GROUP BY h;
+
+       h       
+---------------
+25000          
+30000          
+35000          
+40000          
+45000          
+50000          
+55000          
+60000          
+65000          
+70000
+
+// end::histogramNumeric  
+;
+
+histogramNumericExpression
+schema::h:i|c:l
+// tag::histogramNumericExpression
+SELECT HISTOGRAM(salary % 100, 10) AS h, COUNT(*) AS c FROM emp GROUP BY h;
+
+       h       |       c       
+---------------+---------------
+0              |10             
+10             |15             
+20             |10             
+30             |14             
+40             |9              
+50             |9              
+60             |8              
+70             |13             
+80             |3              
+90             |9    
+
+// end::histogramNumericExpression  
+;
+
+histogramDateTime
+schema::h:ts|c:l
+// tag::histogramDateTime
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) AS c FROM emp GROUP BY h;
+
+
+           h            |       c       
+------------------------+---------------
+null                    |10             
+1952-01-01T00:00:00.000Z|8              
+1953-01-01T00:00:00.000Z|11             
+1954-01-01T00:00:00.000Z|8              
+1955-01-01T00:00:00.000Z|4              
+1956-01-01T00:00:00.000Z|5              
+1957-01-01T00:00:00.000Z|4              
+1958-01-01T00:00:00.000Z|7              
+1959-01-01T00:00:00.000Z|9              
+1960-01-01T00:00:00.000Z|8              
+1961-01-01T00:00:00.000Z|8              
+1962-01-01T00:00:00.000Z|6              
+1963-01-01T00:00:00.000Z|7              
+1964-01-01T00:00:00.000Z|4              
+1965-01-01T00:00:00.000Z|1              
+
+// end::histogramDateTime
+;
+
+expressionOnHistogramNotAllowed-Ignore
+// tag::expressionOnHistogramNotAllowed
+SELECT MONTH(HISTOGRAM(birth_date), 2)) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
+// end::expressionOnHistogramNotAllowed
+
+histogramDateTimeExpression
+schema::h:i|c:l
+// tag::histogramDateTimeExpression
+SELECT HISTOGRAM(MONTH(birth_date), 2) AS h, COUNT(*) as c FROM emp GROUP BY h ORDER BY h DESC;
+
+       h       |       c       
+---------------+---------------
+12             |7              
+10             |17             
+8              |16             
+6              |16             
+4              |18             
+2              |10             
+0              |6              
+null           |10 
+
+// end::histogramDateTimeExpression
+;
+
+///////////////////////////////
+//
+// DateTime/Time
+//
+///////////////////////////////
+
+
+dtIntervalPlusInterval
+// tag::dtIntervalPlusInterval
+SELECT INTERVAL 1 DAY + INTERVAL 53 MINUTES AS result;
+
+    result
+---------------
++1 00:53:00
+
+// end::dtIntervalPlusInterval
+;
+
+
+dtDateTimePlusInterval
+// tag::dtDateTimePlusInterval
+SELECT CAST('1969-05-13T12:34:56' AS DATETIME) + INTERVAL 49 YEARS AS result;
+
+       result       
+--------------------
+2018-05-13T12:34:56Z
+// end::dtDateTimePlusInterval
+;
+
+dtMinusInterval
+// tag::dtMinusInterval
+SELECT - INTERVAL '49-1' YEAR TO MONTH result;
+
+    result     
+---------------
+-49-1         
+
+// end::dtMinusInterval
+;
+
+dtIntervalMinusInterval
+// tag::dtIntervalMinusInterval
+SELECT INTERVAL '1' DAY - INTERVAL '2' HOURS AS result;
+
+    result
+---------------
++0 22:00:00
+// end::dtIntervalMinusInterval
+;
+
+
+dtDateTimeMinusInterval
+// tag::dtDateTimeMinusInterval
+SELECT CAST('2018-05-13T12:34:56' AS DATETIME) - INTERVAL '2-8' YEAR TO MONTH AS result;
+
+       result       
+--------------------
+2015-09-13T12:34:56Z
+// end::dtDateTimeMinusInterval
+;
+
+dtIntervalMul
+// tag::dtIntervalMul
+SELECT -2 * INTERVAL '3' YEARS AS result;
+
+    result     
+---------------
+-6-0    
+// end::dtIntervalMul
+;
+
+
+///////////////////////////////
+//
+// Order By
+//
+///////////////////////////////
+
+orderByBasic
+// tag::orderByBasic
+SELECT * FROM library ORDER BY page_count DESC LIMIT 5;
+
+     author      |        name        |  page_count   |    release_date    
+-----------------+--------------------+---------------+--------------------
+Peter F. Hamilton|Pandora's Star      |768            |2004-03-02T00:00:00Z
+Vernor Vinge     |A Fire Upon the Deep|613            |1992-06-01T00:00:00Z
+Frank Herbert    |Dune                |604            |1965-06-01T00:00:00Z
+Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00Z
+James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
+
+// end::orderByBasic
+;
+
+orderByGroup
+schema::g:s|c:i
+// tag::orderByGroup
+SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender ORDER BY g DESC;
+
+       g       |       c       
+---------------+---------------
+M              |57
+F              |33             
+null           |10             
+      
+// end::orderByGroup
+;
+
+orderByAgg
+schema::g:s|salary:i
+// tag::orderByAgg
+SELECT gender AS g, MIN(salary) AS salary FROM emp GROUP BY gender ORDER BY salary DESC;
+
+       g       |    salary     
+---------------+---------------
+F              |25976          
+M              |25945          
+null           |25324             
+    
+// end::orderByAgg
+;
+
+simpleMatch
+// tag::simpleMatch
+SELECT author, name FROM library WHERE MATCH(author, 'frank');
+
+    author     |       name
+---------------+-------------------
+Frank Herbert  |Dune
+Frank Herbert  |Dune Messiah
+Frank Herbert  |Children of Dune
+Frank Herbert  |God Emperor of Dune
+
+// end::simpleMatch
+;
+
+multiFieldsMatch
+// tag::multiFieldsMatch
+SELECT author, name, SCORE() FROM library WHERE MATCH('author^2,name^5', 'frank dune');
+
+    author     |       name        |    SCORE()
+---------------+-------------------+---------------
+Frank Herbert  |Dune               |11.443176
+Frank Herbert  |Dune Messiah       |9.446629
+Frank Herbert  |Children of Dune   |8.043278
+Frank Herbert  |God Emperor of Dune|7.0029488
+
+// end::multiFieldsMatch
+;
+
+optionalParamsForMatch
+// tag::optionalParamsForMatch
+SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=OR;fuzziness=AUTO:1,5;minimum_should_match=1')
+ORDER BY SCORE() DESC LIMIT 2;
+
+     author      |                name                |    SCORE()
+-----------------+------------------------------------+---------------
+Douglas Adams    |The Hitchhiker's Guide to the Galaxy|3.1756816
+Peter F. Hamilton|Pandora's Star                      |3.0997515
+
+// end::optionalParamsForMatch
+;
+
+simpleQueryQuery
+// tag::simpleQueryQuery
+SELECT author, name, SCORE() FROM library WHERE QUERY('name:dune');
+
+    author     |       name        |    SCORE()
+---------------+-------------------+---------------
+Frank Herbert  |Dune               |2.2886353
+Frank Herbert  |Dune Messiah       |1.8893257
+Frank Herbert  |Children of Dune   |1.6086556
+Frank Herbert  |God Emperor of Dune|1.4005898
+// end::simpleQueryQuery
+;
+
+advancedQueryQuery
+// tag::advancedQueryQuery
+SELECT author, name, page_count, SCORE() FROM library WHERE QUERY('_exists_:"author" AND page_count:>200 AND (name:/star.*/ OR name:duna~)');
+
+      author      |       name        |  page_count   |    SCORE()
+------------------+-------------------+---------------+---------------
+Frank Herbert     |Dune               |604            |3.7164764
+Frank Herbert     |Dune Messiah       |331            |3.4169943
+Frank Herbert     |Children of Dune   |408            |3.2064917
+Frank Herbert     |God Emperor of Dune|454            |3.0504425
+Peter F. Hamilton |Pandora's Star     |768            |3.0
+Robert A. Heinlein|Starship Troopers  |335            |3.0
+// end::advancedQueryQuery
+;
+
+optionalParameterQuery
+// tag::optionalParameterQuery
+SELECT author, name, SCORE() FROM library WHERE QUERY('dune god', 'default_operator=and;default_field=name');
+
+    author     |       name        |    SCORE()
+---------------+-------------------+---------------
+Frank Herbert  |God Emperor of Dune|3.6984892
+// end::optionalParameterQuery
+;
+
+orderByScore
+// tag::orderByScore
+SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY SCORE() DESC;
+
+    SCORE()    |    author     |       name        |  page_count   |    release_date    
+---------------+---------------+-------------------+---------------+--------------------
+2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
+1.6086556      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
+1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
+
+// end::orderByScore
+;
+
+orderByScoreWithMatch
+// tag::orderByScoreWithMatch
+SELECT SCORE(), * FROM library WHERE MATCH(name, 'dune') ORDER BY page_count DESC;
+
+    SCORE()    |    author     |       name        |  page_count   |    release_date    
+---------------+---------------+-------------------+---------------+--------------------
+2.2886353      |Frank Herbert  |Dune               |604            |1965-06-01T00:00:00Z
+1.4005898      |Frank Herbert  |God Emperor of Dune|454            |1981-05-28T00:00:00Z
+1.6086556      |Frank Herbert  |Children of Dune   |408            |1976-04-21T00:00:00Z
+1.8893257      |Frank Herbert  |Dune Messiah       |331            |1969-10-15T00:00:00Z
+
+// end::orderByScoreWithMatch
+;
+
+scoreWithMatch
+// tag::scoreWithMatch
+SELECT SCORE() AS score, name, release_date FROM library WHERE QUERY('dune') ORDER BY YEAR(release_date) DESC;
+
+     score     |       name        |    release_date    
+---------------+-------------------+--------------------
+1.4005898      |God Emperor of Dune|1981-05-28T00:00:00Z
+1.6086556      |Children of Dune   |1976-04-21T00:00:00Z
+1.8893257      |Dune Messiah       |1969-10-15T00:00:00Z
+2.2886353      |Dune               |1965-06-01T00:00:00Z
+// end::scoreWithMatch
+;
+
+
+///////////////////////////////
+//
+// Limit
+//
+///////////////////////////////
+
+limitBasic
+// tag::limitBasic
+SELECT first_name, last_name, emp_no FROM emp LIMIT 1;
+
+  first_name   |   last_name   |    emp_no     
+---------------+---------------+---------------
+Georgi         |Facello        |10001     
+
+// end::limitBasic
+;
+
+///////////////////////////////
+//
+// Aggregations
+//
+///////////////////////////////
+
+aggAvg
+schema::avg:d
+// tag::aggAvg
+SELECT AVG(salary) AS avg FROM emp;
+
+      avg
+---------------
+48248.55
+// end::aggAvg
+;
+
+aggAvgScalars
+schema::avg:d
+// tag::aggAvgScalars
+SELECT AVG(salary / 12.0) AS avg FROM emp;
+
+      avg
+---------------
+4020.7125
+// end::aggAvgScalars
+;
+
+aggCountStar
+// tag::aggCountStar
+SELECT COUNT(*) AS count FROM emp;
+
+     count     
+---------------
+100               
+// end::aggCountStar
+;
+
+aggCountAll
+// tag::aggCountAll
+SELECT COUNT(ALL last_name) AS count_all, COUNT(DISTINCT last_name) count_distinct FROM emp;
+
+   count_all   |  count_distinct  
+---------------+------------------
+100            |96   
+// end::aggCountAll
+;
+
+aggCountAllScalars
+// tag::aggCountAllScalars
+SELECT COUNT(ALL CASE WHEN languages IS NULL THEN -1 ELSE languages END) AS count_all, COUNT(DISTINCT CASE WHEN languages IS NULL THEN -1 ELSE languages END) count_distinct FROM emp;
+
+   count_all   |  count_distinct
+---------------+---------------
+100            |6
+
+// end::aggCountAllScalars
+;
+
+aggCountDistinct
+// tag::aggCountDistinct
+SELECT COUNT(DISTINCT hire_date) unique_hires, COUNT(hire_date) AS hires FROM emp;
+
+  unique_hires  |     hires
+----------------+---------------
+99              |100
+// end::aggCountDistinct
+;
+
+aggCountDistinctScalars
+// tag::aggCountDistinctScalars
+SELECT COUNT(DISTINCT DATE_TRUNC('YEAR', hire_date)) unique_hires, COUNT(DATE_TRUNC('YEAR', hire_date)) AS hires FROM emp;
+
+ unique_hires  |     hires
+---------------+---------------
+14             |100
+// end::aggCountDistinctScalars
+;
+
+firstWithOneArg
+schema::FIRST(first_name):s
+// tag::firstWithOneArg
+SELECT FIRST(first_name) FROM emp;
+
+   FIRST(first_name)
+--------------------
+Alejandro
+
+// end::firstWithOneArg
+;
+
+firstWithOneArgAndGroupBy
+schema::gender:s|FIRST(first_name):s
+// tag::firstWithOneArgAndGroupBy
+SELECT gender, FIRST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   FIRST(first_name)
+------------+--------------------
+null        |   Berni
+F           |   Alejandro
+M           |   Amabile
+
+// end::firstWithOneArgAndGroupBy
+;
+
+firstWithTwoArgs
+schema::FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgs
+SELECT FIRST(first_name, birth_date) FROM emp;
+
+   FIRST(first_name, birth_date)
+--------------------------------
+Remzi
+
+// end::firstWithTwoArgs
+;
+
+firstWithTwoArgsAndGroupBy
+schema::gender:s|FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgsAndGroupBy
+SELECT gender, FIRST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST(first_name, birth_date)
+--------------+--------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstWithTwoArgsAndGroupBy
+;
+
+firstValueWithTwoArgsAndGroupBy
+schema::gender:s|FIRST_VALUE(first_name, birth_date):s
+// tag::firstValueWithTwoArgsAndGroupBy
+SELECT gender, FIRST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST_VALUE(first_name, birth_date)
+--------------+--------------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstValueWithTwoArgsAndGroupBy
+;
+
+firstValueWithTwoArgsAndGroupByScalars
+schema::gender:s|first:s
+// tag::firstValueWithTwoArgsAndGroupByScalars
+SELECT gender, FIRST_VALUE(SUBSTRING(first_name, 2, 6), birth_date) AS "first" FROM emp GROUP BY gender ORDER BY gender;
+
+    gender     |     first
+---------------+---------------
+null           |illian
+F              |umant
+M              |emzi
+// end::firstValueWithTwoArgsAndGroupByScalars
+;
+
+lastWithOneArg
+schema::LAST(first_name):s
+// tag::lastWithOneArg
+SELECT LAST(first_name) FROM emp;
+
+   LAST(first_name)
+-------------------
+Zvonko
+
+// end::lastWithOneArg
+;
+
+
+lastWithOneArgAndGroupBy
+schema::gender:s|LAST(first_name):s
+// tag::lastWithOneArgAndGroupBy
+SELECT gender, LAST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   LAST(first_name)
+------------+-------------------
+null        |   Patricio
+F           |   Xinglin
+M           |   Zvonko
+
+// end::lastWithOneArgAndGroupBy
+;
+
+
+lastWithTwoArgs
+schema::LAST(first_name, birth_date):s
+// tag::lastWithTwoArgs
+SELECT LAST(first_name, birth_date) FROM emp;
+
+   LAST(first_name, birth_date)
+-------------------------------
+Hilari
+
+// end::lastWithTwoArgs
+;
+
+lastWithTwoArgsAndGroupBy
+schema::gender:s|LAST(first_name, birth_date):s
+// tag::lastWithTwoArgsAndGroupBy
+SELECT gender, LAST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST(first_name, birth_date)
+-----------+-------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastWithTwoArgsAndGroupBy
+;
+
+lastValueWithTwoArgsAndGroupBy
+schema::gender:s|LAST_VALUE(first_name, birth_date):s
+// tag::lastValueWithTwoArgsAndGroupBy
+SELECT gender, LAST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST_VALUE(first_name, birth_date)
+-----------+-------------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastValueWithTwoArgsAndGroupBy
+;
+
+lastValueWithTwoArgsAndGroupByScalars
+schema::gender:s|last:s
+// tag::lastValueWithTwoArgsAndGroupByScalars
+SELECT gender, LAST_VALUE(SUBSTRING(first_name, 3, 8), birth_date) AS "last" FROM emp GROUP BY gender ORDER BY gender;
+
+    gender     |     last
+---------------+---------------
+null           |erhardt
+F              |ldiodio
+M              |lari
+// end::lastValueWithTwoArgsAndGroupByScalars
+;
+
+aggMax
+// tag::aggMax
+SELECT MAX(salary) AS max FROM emp;
+
+      max     
+---------------
+74999               
+// end::aggMax
+;
+
+aggMaxScalars
+schema::max:d
+// tag::aggMaxScalars
+SELECT MAX(ABS(salary / -12.0)) AS max FROM emp;
+
+       max
+-----------------
+6249.916666666667
+// end::aggMaxScalars
+;
+
+aggMin
+// tag::aggMin
+SELECT MIN(salary) AS min FROM emp;
+
+      min     
+---------------
+25324               
+// end::aggMin
+;
+
+aggMinScalars
+schema::min:d
+// tag::aggMinScalars
+SELECT MIN(ABS(salary / 12.0)) AS min FROM emp;
+
+       min
+------------------
+2110.3333333333335
+// end::aggMinScalars
+;
+
+aggSum
+// tag::aggSum
+SELECT SUM(salary) AS sum FROM emp;
+
+      sum
+---------------
+4824855
+// end::aggSum
+;
+
+aggSumScalars
+schema::sum:d
+// tag::aggSumScalars
+SELECT ROUND(SUM(salary / 12.0), 1) AS sum FROM emp;
+
+      sum
+---------------
+402071.3
+// end::aggSumScalars
+;
+
+aggKurtosis
+// tag::aggKurtosis
+SELECT MIN(salary) AS min, MAX(salary) AS max, KURTOSIS(salary) AS k FROM emp;
+
+      min      |      max      |        k         
+---------------+---------------+------------------
+25324          |74999          |2.0444718929142986
+// end::aggKurtosis
+;
+
+aggMad
+// tag::aggMad
+SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, MAD(salary) AS mad FROM emp;
+
+      min      |      max      |      avg      |      mad      
+---------------+---------------+---------------+---------------
+25324          |74999          |48248.55       |10096.5   
+// end::aggMad
+;
+
+aggMadScalars
+schema::min:d|max:d|avg:d|mad:d
+// tag::aggMadScalars
+SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, AVG(salary/ 12.0) AS avg, MAD(salary / 12.0) AS mad FROM emp;
+
+       min        |       max       |      avg      |       mad
+------------------+-----------------+---------------+-----------------
+2110.3333333333335|6249.916666666667|4020.7125      |841.3750000000002
+// end::aggMadScalars
+;
+
+aggPercentile
+// tag::aggPercentile
+SELECT languages, PERCENTILE(salary, 95) AS "95th" FROM emp 
+       GROUP BY languages;
+
+   languages   |      95th       
+---------------+-----------------
+null           |74999.0          
+1              |72790.5          
+2              |71924.70000000001
+3              |73638.25         
+4              |72115.59999999999
+5              |61071.7       
+// end::aggPercentile
+;
+
+aggPercentileScalars
+schema::languages:i|95th:d
+// tag::aggPercentileScalars
+SELECT languages, PERCENTILE(salary / 12.0, 95) AS "95th" FROM emp
+       GROUP BY languages;
+
+   languages   |       95th
+---------------+------------------
+null           |6249.916666666667
+1              |6065.875
+2              |5993.725
+3              |6136.520833333332
+4              |6009.633333333332
+5              |5089.3083333333325
+// end::aggPercentileScalars
+;
+
+aggPercentileRank
+// tag::aggPercentileRank
+SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY languages;
+
+   languages   |      rank       
+---------------+-----------------
+null           |73.65766569962062
+1              |73.7291625157734 
+2              |88.88005607010643
+3              |79.43662623295829
+4              |85.70446389643493
+5              |100.0      
+// end::aggPercentileRank
+;
+
+aggPercentileRankScalars
+schema::languages:i|rank:d
+// tag::aggPercentileRankScalars
+SELECT languages, PERCENTILE_RANK(salary/12, 5000) AS rank FROM emp GROUP BY languages;
+
+   languages   |       rank
+---------------+------------------
+null           |66.91240875912409
+1              |66.70766707667076
+2              |84.13266895048271
+3              |61.052992625621684
+4              |76.55646443990001
+5              |94.00696864111498
+// end::aggPercentileRankScalars
+;
+
+aggSkewness
+// tag::aggSkewness
+SELECT MIN(salary) AS min, MAX(salary) AS max, SKEWNESS(salary) AS s FROM emp;
+
+      min      |      max      |        s         
+---------------+---------------+------------------
+25324          |74999          |0.2707722118423227
+// end::aggSkewness
+;
+
+aggStddevPop
+// tag::aggStddevPop
+SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_POP(salary) AS stddev 
+       FROM emp;
+
+      min      |      max      |      stddev      
+---------------+---------------+------------------
+25324          |74999          |13765.125502787832
+// end::aggStddevPop
+;
+
+aggStddevPopScalars
+schema::min:d|max:d|stddev:d
+// tag::aggStddevPopScalars
+SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, STDDEV_POP(salary / 12.0) AS stddev FROM emp;
+
+       min        |       max       |     stddev
+------------------+-----------------+-----------------
+2110.3333333333335|6249.916666666667|1147.093791898986
+// end::aggStddevPopScalars
+;
+
+
+aggSumOfSquares
+// tag::aggSumOfSquares
+SELECT MIN(salary) AS min, MAX(salary) AS max, SUM_OF_SQUARES(salary) AS sumsq 
+       FROM emp;
+
+      min      |      max      |     sumsq      
+---------------+---------------+----------------
+25324          |74999          |2.51740125721E11
+// end::aggSumOfSquares
+;
+
+aggSumOfSquaresScalars
+schema::min:d|max:d|sumsq:d
+// tag::aggSumOfSquaresScalars
+SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, SUM_OF_SQUARES(salary / 24.0) AS sumsq FROM emp;
+
+       min        |       max        |       sumsq
+------------------+------------------+-------------------
+1055.1666666666667|3124.9583333333335|4.370488293767361E8
+// end::aggSumOfSquaresScalars
+;
+
+aggVarPop
+// tag::aggVarPop
+SELECT MIN(salary) AS min, MAX(salary) AS max, VAR_POP(salary) AS varpop FROM emp;
+
+      min      |      max      |     varpop     
+---------------+---------------+----------------
+25324          |74999          |1.894786801075E8
+// end::aggVarPop
+;
+
+aggVarPopScalars
+schema::min:d|max:d|varpop:d
+// tag::aggVarPopScalars
+SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, VAR_POP(salary / 24.0) AS varpop FROM emp;
+
+       min        |       max        |      varpop
+------------------+------------------+------------------
+1055.1666666666667|3124.9583333333335|328956.04185329855
+
+// end::aggVarPopScalars
+;
+
+///////////////////////////////
+//
+// String
+//
+///////////////////////////////
+
+stringAscii
+// tag::stringAscii
+SELECT ASCII('Elastic');
+
+ASCII('Elastic') 
+----------------
+69   
+// end::stringAscii
+;
+
+stringBitLength
+// tag::stringBitLength
+SELECT BIT_LENGTH('Elastic');
+
+BIT_LENGTH('Elastic')
+---------------------
+56  
+// end::stringBitLength
+;
+
+stringChar
+// tag::stringChar
+SELECT CHAR(69);
+
+   CHAR(69)    
+---------------
+E        
+// end::stringChar
+;
+
+stringCharLength
+// tag::stringCharLength
+SELECT CHAR_LENGTH('Elastic');
+
+CHAR_LENGTH('Elastic')
+----------------------
+7     
+// end::stringCharLength
+;
+
+stringConcat
+// tag::stringConcat
+SELECT CONCAT('Elasticsearch', ' SQL');
+
+CONCAT('Elasticsearch', ' SQL')
+-------------------------------
+Elasticsearch SQL  
+// end::stringConcat
+;
+
+stringInsert
+// tag::stringInsert
+SELECT INSERT('Elastic ', 8, 1, 'search');
+
+INSERT('Elastic ', 8, 1, 'search')
+----------------------------------
+Elasticsearch
+// end::stringInsert
+;
+
+stringLCase
+// tag::stringLCase
+SELECT LCASE('Elastic');
+
+LCASE('Elastic')
+----------------
+elastic    
+// end::stringLCase
+;
+
+stringLeft
+// tag::stringLeft
+SELECT LEFT('Elastic',3);
+
+LEFT('Elastic',3)
+-----------------
+Ela    
+// end::stringLeft
+;
+
+stringLength
+// tag::stringLength
+SELECT LENGTH('Elastic   ');
+
+LENGTH('Elastic   ')
+--------------------
+7     
+// end::stringLength
+;
+
+stringLocateWoStart
+// tag::stringLocateWoStart
+SELECT LOCATE('a', 'Elasticsearch');
+
+LOCATE('a', 'Elasticsearch')
+----------------------------
+3        
+// end::stringLocateWoStart
+;
+
+stringLocateWithStart
+// tag::stringLocateWithStart
+SELECT LOCATE('a', 'Elasticsearch', 5);
+
+LOCATE('a', 'Elasticsearch', 5)
+-------------------------------
+10
+// end::stringLocateWithStart
+;
+
+stringLTrim
+// tag::stringLTrim
+SELECT LTRIM('   Elastic');
+
+LTRIM('   Elastic')
+-------------------
+Elastic   
+// end::stringLTrim
+;
+
+stringOctetLength
+// tag::stringOctetLength
+SELECT OCTET_LENGTH('Elastic');
+
+OCTET_LENGTH('Elastic')
+-----------------------
+7  
+// end::stringOctetLength
+;
+
+stringPosition
+// tag::stringPosition
+SELECT POSITION('Elastic', 'Elasticsearch');
+
+POSITION('Elastic', 'Elasticsearch')
+------------------------------------
+1  
+// end::stringPosition
+;
+
+stringRepeat
+// tag::stringRepeat
+SELECT REPEAT('La', 3);
+
+ REPEAT('La', 3)  
+----------------
+LaLaLa      
+// end::stringRepeat
+;
+
+stringReplace
+// tag::stringReplace
+SELECT REPLACE('Elastic','El','Fant');
+
+REPLACE('Elastic','El','Fant')
+------------------------------
+Fantastic
+// end::stringReplace
+;
+
+stringRight
+// tag::stringRight
+SELECT RIGHT('Elastic',3);
+
+RIGHT('Elastic',3)
+------------------
+tic    
+// end::stringRight
+;
+
+stringRTrim
+// tag::stringRTrim
+SELECT RTRIM('Elastic   ');
+
+RTRIM('Elastic   ')
+-------------------
+Elastic       
+// end::stringRTrim
+;
+
+stringSpace-Ignore
+schema::SPACE(3):s
+// tag::stringSpace
+SELECT SPACE(3);
+
+   SPACE(3)    
+---------------
+               
+ 
+// end::stringSpace
+;
+
+stringStartsWithTrue
+// tag::stringStartsWithTrue
+SELECT STARTS_WITH('Elasticsearch', 'Elastic');
+
+STARTS_WITH('Elasticsearch', 'Elastic')
+--------------------------------
+true    
+// end::stringStartsWithTrue
+;
+
+stringStartsWithFalse
+// tag::stringStartsWithFalse
+SELECT STARTS_WITH('Elasticsearch', 'ELASTIC');
+
+STARTS_WITH('Elasticsearch', 'ELASTIC')
+--------------------------------
+false   
+// end::stringStartsWithFalse
+;
+
+stringSubString
+// tag::stringSubString
+SELECT SUBSTRING('Elasticsearch', 0, 7);
+
+SUBSTRING('Elasticsearch', 0, 7)
+--------------------------------
+Elastic    
+// end::stringSubString
+;
+
+stringUCase
+// tag::stringUCase
+SELECT UCASE('Elastic');
+
+UCASE('Elastic') 
+----------------
+ELASTIC    
+// end::stringUCase
+;
+
+
+///////////////////////////////
+//
+// Cast
+//
+///////////////////////////////
+
+conversionStringToIntCast
+// tag::conversionStringToIntCast
+SELECT CAST('123' AS INT) AS int;
+
+      int      
+---------------
+123    
+// end::conversionStringToIntCast
+;
+
+conversionIntToStringCast-Ignore
+// tag::conversionIntToStringCast
+SELECT CAST(123 AS VARCHAR) AS string;
+
+    string     
+---------------
+123   
+
+// end::conversionIntToStringCast
+;
+
+conversionStringToDateTimeCast
+// tag::conversionStringToDateTimeCast
+SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
+
+     year
+---------------
+2018
+// end::conversionStringToDateTimeCast
+;
+
+///////////////////////////////
+//
+// Convert
+//
+///////////////////////////////
+
+conversionStringToIntConvertESDataType
+// tag::conversionStringToIntConvertESDataType
+SELECT CONVERT('123', INTEGER) AS int;
+
+      int
+---------------
+123
+// end::conversionStringToIntConvertESDataType
+;
+
+conversionStringToIntConvertODBCDataType
+// tag::conversionStringToIntConvertODBCDataType
+SELECT CONVERT('123', SQL_INTEGER) AS int;
+
+      int
+---------------
+123
+// end::conversionStringToIntConvertODBCDataType
+;
+
+conversionStringToLongCastOperator
+// tag::conversionStringToLongCastOperator
+SELECT '123'::long AS long;
+
+      long
+---------------
+123
+// end::conversionStringToLongCastOperator
+;
+
+
+///////////////////////////////
+//
+// Math
+//
+///////////////////////////////
+
+mathInlineAbs
+// tag::abs
+SELECT ABS(-123.5), ABS(55);
+
+  ABS(-123.5)  |    ABS(55)
+---------------+---------------
+123.5          |55
+// end::abs
+;
+
+mathInlineAcos
+// tag::mathInlineAcos
+SELECT ACOS(COS(PI())), PI();
+
+ ACOS(COS(PI())) |      PI()
+-----------------+-----------------
+3.141592653589793|3.141592653589793
+// end::mathInlineAcos
+;
+
+mathInlineAsin
+// tag::mathInlineAsin
+SELECT ROUND(DEGREES(ASIN(0.7071067811865475))) AS "ASIN(0.707)", ROUND(SIN(RADIANS(45)), 3) AS "SIN(45)";
+
+  ASIN(0.707)  |    SIN(45)
+---------------+---------------
+45.0           |0.707
+// end::mathInlineAsin
+;
+
+mathInlineAtan
+// tag::mathInlineAtan
+SELECT DEGREES(ATAN(TAN(RADIANS(90))));
+
+DEGREES(ATAN(TAN(RADIANS(90))))
+-------------------------------
+90.0
+// end::mathInlineAtan
+;
+
+mathInlineAtan2
+// tag::mathInlineAtan2
+SELECT ATAN2(5 * SIN(RADIANS(45)), 5 * COS(RADIANS(45))) AS "ATAN2(5*SIN(45), 5*COS(45))", RADIANS(45);
+
+ATAN2(5*SIN(45), 5*COS(45))|   RADIANS(45)
+---------------------------+------------------
+0.7853981633974483         |0.7853981633974483
+// end::mathInlineAtan2
+;
+
+mathInlineCbrtWithNegativeValue
+// tag::mathInlineCbrtWithNegativeValue
+SELECT CBRT(-125.5);
+
+   CBRT(-125.5)
+-------------------
+-5.0066577974783435
+// end::mathInlineCbrtWithNegativeValue
+;
+
+mathInlineCeiling
+// tag::mathInlineCeiling
+SELECT CEIL(125.01), CEILING(-125.99);
+
+ CEIL(125.01)  |CEILING(-125.99)
+---------------+----------------
+126            |-125
+// end::mathInlineCeiling
+;
+
+mathInlineCosine
+// tag::mathInlineCosine
+SELECT COS(RADIANS(180)), POWER(SIN(RADIANS(54)), 2) + POWER(COS(RADIANS(54)), 2) AS pythagorean_identity;
+
+COS(RADIANS(180))|pythagorean_identity
+-----------------+--------------------
+-1.0             |1.0
+// end::mathInlineCosine
+;
+
+mathInlineCosh
+// tag::mathInlineCosh
+SELECT COSH(5), (POWER(E(), 5) + POWER(E(), -5)) / 2 AS "(e^5 + e^-5)/2";
+
+     COSH(5)     | (e^5 + e^-5)/2
+-----------------+-----------------
+74.20994852478785|74.20994852478783
+// end::mathInlineCosh
+;
+
+mathInlineCotangent
+// tag::mathInlineCotangent
+SELECT COT(RADIANS(30)) AS "COT(30)", COS(RADIANS(30)) / SIN(RADIANS(30)) AS "COS(30)/SIN(30)";
+
+     COT(30)      | COS(30)/SIN(30)
+------------------+------------------
+1.7320508075688774|1.7320508075688776
+// end::mathInlineCotangent
+;
+
+mathInlineDegrees
+// tag::mathInlineDegrees
+SELECT DEGREES(PI() * 2), DEGREES(PI());
+
+DEGREES(PI() * 2)| DEGREES(PI())
+-----------------+---------------
+360.0            |180.0
+// end::mathInlineDegrees
+;
+
+mathEulersNumber
+// tag::mathEulersNumber
+SELECT E(), CEIL(E());
+
+       E()       |   CEIL(E())
+-----------------+---------------
+2.718281828459045|3
+// end::mathEulersNumber
+;
+
+mathExpInline
+// tag::mathExpInline
+SELECT EXP(1), E(), EXP(2), E() * E();
+
+     EXP(1)      |       E()       |     EXP(2)     |     E() * E()
+-----------------+-----------------+----------------+------------------
+2.718281828459045|2.718281828459045|7.38905609893065|7.3890560989306495
+// end::mathExpInline
+;
+
+mathExpm1Inline
+// tag::mathExpm1Inline
+SELECT E(), EXP(2), EXPM1(2);
+
+       E()       |     EXP(2)     |    EXPM1(2)
+-----------------+----------------+----------------
+2.718281828459045|7.38905609893065|6.38905609893065
+// end::mathExpm1Inline
+;
+
+mathInlineFloor
+// tag::mathInlineFloor
+SELECT FLOOR(125.01), FLOOR(-125.99);
+
+ FLOOR(125.01) |FLOOR(-125.99)
+---------------+---------------
+125            |-126
+// end::mathInlineFloor
+;
+
+mathInlineLog
+// tag::mathInlineLog
+SELECT EXP(3), LOG(20.085536923187668);
+
+      EXP(3)      |LOG(20.085536923187668)
+------------------+-----------------------
+20.085536923187668|3.0
+// end::mathInlineLog
+;
+
+mathInlineLog10
+// tag::mathInlineLog10
+SELECT LOG10(5), LOG(5)/LOG(10);
+
+     LOG10(5)     |    LOG(5)/LOG(10)
+------------------+-----------------------
+0.6989700043360189|0.6989700043360187
+// end::mathInlineLog10
+;
+
+mathPINumber
+// tag::mathPINumber
+SELECT PI();
+
+      PI()
+-----------------
+3.141592653589793
+// end::mathPINumber
+;
+
+mathInlinePowerPositive
+// tag::mathInlinePowerPositive
+SELECT POWER(3, 2), POWER(3, 3);
+
+  POWER(3, 2)  |  POWER(3, 3)
+---------------+---------------
+9.0            |27.0
+// end::mathInlinePowerPositive
+;
+
+mathInlinePowerNegative
+// tag::mathInlinePowerNegative
+SELECT POWER(5, -1), POWER(5, -2);
+
+  POWER(5, -1) |  POWER(5, -2)
+---------------+---------------
+0.2            |0.04
+// end::mathInlinePowerNegative
+;
+
+mathInlineRadians
+// tag::mathInlineRadians
+SELECT RADIANS(90), PI()/2;
+
+   RADIANS(90)    |      PI()/2
+------------------+------------------
+1.5707963267948966|1.5707963267948966
+// end::mathInlineRadians
+;
+
+mathRandom
+// tag::mathRandom
+SELECT RANDOM(123);
+
+   RANDOM(123)
+------------------
+0.7231742029971469
+// end::mathRandom
+;
+
+mathRoundWithNegativeParameter
+// tag::mathRoundWithNegativeParameter
+SELECT ROUND(-345.153, -1) AS rounded;
+
+    rounded
+---------------
+-350.0
+// end::mathRoundWithNegativeParameter
+;
+
+mathRoundWithPositiveParameter
+// tag::mathRoundWithPositiveParameter
+SELECT ROUND(-345.153, 1) AS rounded;
+
+    rounded
+---------------
+-345.2
+// end::mathRoundWithPositiveParameter
+;
+
+mathInlineSign
+// tag::mathInlineSign
+SELECT SIGN(-123), SIGN(0), SIGN(415);
+
+  SIGN(-123)   |    SIGN(0)    |   SIGN(415)
+---------------+---------------+---------------
+-1             |0              |1
+// end::mathInlineSign
+;
+
+mathInlineSine
+// tag::mathInlineSine
+SELECT SIN(RADIANS(90)), POWER(SIN(RADIANS(67)), 2) + POWER(COS(RADIANS(67)), 2) AS pythagorean_identity;
+
+SIN(RADIANS(90))|pythagorean_identity
+----------------+--------------------
+1.0             |1.0
+// end::mathInlineSine
+;
+
+mathInlineSinh
+// tag::mathInlineSinh
+SELECT SINH(5), (POWER(E(), 5) - POWER(E(), -5)) / 2 AS "(e^5 - e^-5)/2";
+
+     SINH(5)     | (e^5 - e^-5)/2
+-----------------+-----------------
+74.20321057778875|74.20321057778874
+// end::mathInlineSinh
+;
+
+mathInlineSqrt
+// tag::mathInlineSqrt
+SELECT SQRT(EXP(2)), E(), SQRT(25);
+
+  SQRT(EXP(2))   |       E()       |   SQRT(25)
+-----------------+-----------------+---------------
+2.718281828459045|2.718281828459045|5.0
+// end::mathInlineSqrt
+;
+
+mathInlineTanget
+// tag::mathInlineTanget
+SELECT TAN(RADIANS(66)) AS "TAN(66)", SIN(RADIANS(66))/COS(RADIANS(66)) AS "SIN(66)/COS(66)=TAN(66)";
+
+     TAN(66)      |SIN(66)/COS(66)=TAN(66)
+------------------+-----------------------
+2.2460367739042164|2.246036773904216
+// end::mathInlineTanget
+;
+
+mathTruncateWithNegativeParameter
+// tag::mathTruncateWithNegativeParameter
+SELECT TRUNCATE(-345.153, -1) AS trimmed;
+
+    trimmed
+---------------
+-340.0
+// end::mathTruncateWithNegativeParameter
+;
+
+mathTruncateWithPositiveParameter
+// tag::mathTruncateWithPositiveParameter
+SELECT TRUNC(-345.153, 1) AS trimmed;
+
+    trimmed
+---------------
+-345.1
+// end::mathTruncateWithPositiveParameter
+;
+
+///////////////////////////////
+//
+// Conditional
+//
+///////////////////////////////
+
+case
+schema::case:s
+// tag::case
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 <= 3 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+search
+// end::case
+;
+
+caseReturnNull
+schema::case:s
+// tag::caseReturnNull
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+null
+// end::caseReturnNull
+;
+
+caseWithElse
+schema::case:s
+// tag::caseWithElse
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithElse
+;
+
+caseWithOperand
+schema::case:s
+// tag::caseWithOperand
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 5 THEN 'elasticsearch'
+       END AS "case";
+
+    case
+---------------
+elasticsearch
+// end::caseWithOperand
+;
+
+caseWithOperandAndElse
+schema::case:s
+// tag::caseWithOperandAndElse
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 3 THEN 'elasticsearch'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithOperandAndElse
+;
+
+coalesceReturnNonNull
+// tag::coalesceReturnNonNull
+SELECT COALESCE(null, 'elastic', 'search') AS "coalesce";
+
+    coalesce
+---------------
+elastic
+// end::coalesceReturnNonNull
+;
+
+
+coalesceReturnNull
+// tag::coalesceReturnNull
+SELECT COALESCE(null, null, null, null) AS "coalesce";
+
+    coalesce
+---------------
+null
+// end::coalesceReturnNull
+;
+
+ifNullReturnFirst
+// tag::ifNullReturnFirst
+SELECT IFNULL('elastic', null) AS "ifnull";
+
+    ifnull
+---------------
+elastic
+// end::ifNullReturnFirst
+;
+
+
+iifWithDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithDefaultValue
+SELECT IIF(1 < 2, 'TRUE', 'FALSE') AS result1, IIF(1 > 2, 'TRUE', 'FALSE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |FALSE
+// end::iifWithDefaultValue
+;
+
+iifWithoutDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithoutDefaultValue
+SELECT IIF(1 < 2, 'TRUE') AS result1, IIF(1 > 2 , 'TRUE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |null
+// end::iifWithoutDefaultValue
+;
+
+
+ifNullReturnSecond
+// tag::ifNullReturnSecond
+SELECT IFNULL(null, 'search') AS "ifnull";
+
+    ifnull
+---------------
+search
+// end::ifNullReturnSecond
+;
+
+isNullReturnFirst
+// tag::isNullReturnFirst
+SELECT ISNULL('elastic', null) AS "isnull";
+
+    isnull
+---------------
+elastic
+// end::isNullReturnFirst
+;
+
+
+isNullReturnSecond
+// tag::isNullReturnSecond
+SELECT ISNULL(null, 'search') AS "isnull";
+
+    isnull
+---------------
+search
+// end::isNullReturnSecond
+;
+
+nvlReturnFirst
+// tag::nvlReturnFirst
+SELECT NVL('elastic', null) AS "nvl";
+
+    nvl
+---------------
+elastic
+// end::nvlReturnFirst
+;
+
+
+nvlReturnSecond
+// tag::nvlReturnSecond
+SELECT NVL(null, 'search') AS "nvl";
+
+    nvl
+---------------
+search
+// end::nvlReturnSecond
+;
+
+
+nullIfReturnFirst
+// tag::nullIfReturnFirst
+SELECT NULLIF('elastic', 'search') AS "nullif";
+    nullif
+---------------
+elastic
+// end::nullIfReturnFirst
+;
+
+
+nullIfReturnNull
+// tag::nullIfReturnNull
+SELECT NULLIF('elastic', 'elastic') AS "nullif";
+
+    nullif:s
+---------------
+null
+// end::nullIfReturnNull
+;
+
+greatestReturnNonNull
+// tag::greatestReturnNonNull
+SELECT GREATEST(null, 1, 2) AS "greatest";
+
+    greatest
+---------------
+2
+// end::greatestReturnNonNull
+;
+
+
+greatestReturnNull
+// tag::greatestReturnNull
+SELECT GREATEST(null, null, null, null) AS "greatest";
+
+    greatest
+---------------
+null
+// end::greatestReturnNull
+;
+
+leastReturnNonNull
+// tag::leastReturnNonNull
+SELECT LEAST(null, 2, 1) AS "least";
+
+    least
+---------------
+1
+// end::leastReturnNonNull
+;
+
+
+leastReturnNull
+// tag::leastReturnNull
+SELECT LEAST(null, null, null, null) AS "least";
+
+    least
+---------------
+null
+// end::leastReturnNull
+;
+
+nullEqualsCompareWithNull
+// tag::nullEqualsCompareWithNull
+SELECT 'elastic' <=> null AS "equals";
+
+    equals
+---------------
+false
+// end::nullEqualsCompareWithNull
+;
+
+nullEqualsCompareTwoNulls
+// tag::nullEqualsCompareTwoNulls
+SELECT null <=> null AS "equals";
+
+    equals
+---------------
+true
+// end::nullEqualsCompareTwoNulls
+;
+
+///////////////////////////////
+//
+// System functions
+//
+///////////////////////////////
+
+// ignored because tests run with a docs-not-worthy cluster name
+// at the time of this test being ignored, the cluster name was x-pack_plugin_sql_qa_single-node_integTestCluster
+database-Ignore
+// tag::database
+SELECT DATABASE();
+
+   DATABASE
+---------------
+elasticsearch
+// end::database
+;
+
+// ignored because tests run with a docs-not-worthy user name
+// at the time of this test being ignored, there was no user name being used
+user-Ignore
+// tag::user
+SELECT USER();
+
+     USER
+---------------
+elastic
+// end::user
+;
+
+///////////////////////////////
+//
+// DateTime-Time functions
+//
+///////////////////////////////
+
+constantYear
+// tag::year
+SELECT YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS year;
+
+     year
+---------------
+2018
+// end::year
+;
+
+constantMonthOfYear
+// tag::monthOfYear
+SELECT MONTH_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+2
+// end::monthOfYear
+;
+
+constantIsoWeekOfYear
+// tag::isoWeekOfYear
+SELECT ISO_WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
+
+     week
+---------------
+8
+// end::isoWeekOfYear
+;
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantDayName-Ignore
+// tag::dayName
+SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+Monday
+// end::dayName
+;
+
+
+// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
+constantMonthName-Ignore
+// tag::monthName
+SELECT MONTH_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
+
+     month
+---------------
+February
+// end::monthName
+;
+
+constantDayOfYear
+// tag::dayOfYear
+SELECT DAY_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::dayOfYear
+;
+
+extractDayOfYear
+// tag::extractDayOfYear
+SELECT EXTRACT(DAY_OF_YEAR FROM CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+50
+// end::extractDayOfYear
+;
+
+constantDayOfMonth
+// tag::dayOfMonth
+SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+19
+// end::dayOfMonth
+;
+
+dateAddDateTimeYears
+// tag::dateAddDateTimeYears
+SELECT DATE_ADD('years', 10, '2019-09-04T11:22:33.000Z'::datetime) AS "+10 years";
+
+      +10 years
+------------------------
+2029-09-04T11:22:33.000Z
+// end::dateAddDateTimeYears
+;
+
+dateAddDateTimeWeeks
+// tag::dateAddDateTimeWeeks
+SELECT DATE_ADD('week', 10, '2019-09-04T11:22:33.000Z'::datetime) AS "+10 weeks";
+
+      +10 weeks
+------------------------
+2019-11-13T11:22:33.000Z
+// end::dateAddDateTimeWeeks
+;
+
+dateAddDateTimeSeconds
+// tag::dateAddDateTimeSeconds
+SELECT DATE_ADD('seconds', -1234, '2019-09-04T11:22:33.000Z'::datetime) AS "-1234 seconds";
+
+      -1234 seconds
+------------------------
+2019-09-04T11:01:59.000Z
+// end::dateAddDateTimeSeconds
+;
+
+dateAddDateQuarters
+// tag::dateAddDateQuarters
+SELECT DATE_ADD('qq', -417, '2019-09-04'::date) AS "-417 quarters";
+
+      -417 quarters
+------------------------
+1915-06-04T00:00:00.000Z
+// end::dateAddDateQuarters
+;
+
+dateAddDateMinutes
+// tag::dateAddDateMinutes
+SELECT DATE_ADD('minutes', 9235, '2019-09-04'::date) AS "+9235 minutes";
+
+      +9235 minutes
+------------------------
+2019-09-10T09:55:00.000Z
+// end::dateAddDateMinutes
+;
+
+dateDiffDateTimeYears
+// tag::dateDiffDateTimeYears
+SELECT DATE_DIFF('years', '2019-09-04T11:22:33.000Z'::datetime, '2032-09-04T22:33:11.000Z'::datetime) AS "diffInYears";
+
+      diffInYears
+------------------------
+13
+// end::dateDiffDateTimeYears
+;
+
+dateDiffDateTimeWeeks
+// tag::dateDiffDateTimeWeeks
+SELECT DATE_DIFF('week', '2019-09-04T11:22:33.000Z'::datetime, '2016-12-08T22:33:11.000Z'::datetime) AS "diffInWeeks";
+
+      diffInWeeks
+------------------------
+-143
+// end::dateDiffDateTimeWeeks
+;
+
+dateDiffDateTimeHours
+// tag::dateDiffDateTimeHours
+SELECT DATEDIFF('hours', '2019-11-10T12:10:00.000Z'::datetime, '2019-11-10T23:59:59.999Z'::datetime) AS "diffInHours";
+
+      diffInHours
+------------------------
+11
+// end::dateDiffDateTimeHours
+;
+
+
+dateDiffDateTimeMinutes
+// tag::dateDiffDateTimeMinutes
+SELECT DATEDIFF('minute', '2019-11-10T12:10:00.000Z'::datetime, '2019-11-10T12:15:59.999Z'::datetime) AS "diffInMinutes";
+
+      diffInMinutes
+------------------------
+5
+// end::dateDiffDateTimeMinutes
+;
+
+dateDiffDateTimeSeconds
+// tag::dateDiffDateTimeSeconds
+SELECT DATE_DIFF('seconds', '2019-09-04T11:22:33.123Z'::datetime, '2019-07-12T22:33:11.321Z'::datetime) AS "diffInSeconds";
+
+      diffInSeconds
+------------------------
+-4625362
+// end::dateDiffDateTimeSeconds
+;
+
+dateDiffDateQuarters
+// tag::dateDiffDateQuarters
+SELECT DATE_DIFF('qq', '2019-09-04'::date, '2025-04-25'::date) AS "diffInQuarters";
+
+      diffInQuarters
+------------------------
+23
+// end::dateDiffDateQuarters
+;
+
+dateDiffDateMinutes
+// tag::dateDiffDateMinutes
+SELECT DATE_DIFF('minutes', '2019-09-04'::date, '2015-08-17T22:33:11.567Z'::datetime) AS "diffInMinutes";
+
+      diffInMinutes
+------------------------
+-2128407
+// end::dateDiffDateMinutes
+;
+
+dateTimeFormatDate
+// tag::dateTimeFormatDate
+SELECT DATETIME_FORMAT(CAST('2020-04-05' AS DATE), 'dd/MM/YYYY') AS "date";
+
+      date
+------------------
+05/04/2020
+// end::dateTimeFormatDate
+;
+
+dateTimeFormatDateTime
+// tag::dateTimeFormatDateTime
+SELECT DATETIME_FORMAT(CAST('2020-04-05T11:22:33.987654' AS DATETIME), 'dd/MM/YYYY HH:mm:ss.SS') AS "datetime";
+
+      datetime
+------------------
+05/04/2020 11:22:33.98
+// end::dateTimeFormatDateTime
+;
+
+dateTimeFormatTime
+// tag::dateTimeFormatTime
+SELECT DATETIME_FORMAT(CAST('11:22:33.987' AS TIME), 'HH mm ss.S') AS "time";
+
+      time
+------------------
+11 22 33.9
+// end::dateTimeFormatTime
+;
+
+// Cannot assert millis: https://github.com/elastic/elasticsearch/issues/54947
+dateTimeParse1-Ignore
+schema::datetime:ts
+// tag::dateTimeParse1
+SELECT DATETIME_PARSE('07/04/2020 10:20:30.123', 'dd/MM/uuuu HH:mm:ss.SSS') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T10:20:30.123Z
+// end::dateTimeParse1
+;
+
+dateTimeParse2
+schema::datetime:ts
+// tag::dateTimeParse2
+SELECT DATETIME_PARSE('10:20:30 07/04/2020 Europe/Berlin', 'HH:mm:ss dd/MM/uuuu VV') AS "datetime";
+
+      datetime
+------------------------
+2020-04-07T08:20:30.000Z
+// end::dateTimeParse2
+;
+
+dateTimeParse3-Ignore
+schema::datetime:ts
+// tag::dateTimeParse3
+{
+    "query" : "SELECT DATETIME_PARSE('10:20:30 07/04/2020', 'HH:mm:ss dd/MM/uuuu') AS \"datetime\"",
+    "time_zone" : "Europe/Athens"
+}
+
+      datetime
+-----------------------------
+2020-04-07T10:20:30.000+03:00
+// end::dateTimeParse3
+;
+
+datePartDateTimeYears
+// tag::datePartDateTimeYears
+SELECT DATE_PART('year', '2019-09-22T11:22:33.123Z'::datetime) AS "years";
+
+   years
+----------
+2019
+// end::datePartDateTimeYears
+;
+
+datePartDateTimeWeek
+// tag::datePartDateTimeWeek
+SELECT DATE_PART('week', '2019-09-22T11:22:33.123Z'::datetime) AS week;
+
+   week
+----------
+39
+// end::datePartDateTimeWeek
+;
+
+datePartDateTimeMinutes
+// tag::datePartDateTimeMinutes
+SELECT DATE_PART('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
+
+   mins
+-----------
+22
+// end::datePartDateTimeMinutes
+;
+
+datePartDateTimeTzOffsetPlus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
+// tag::datePartDateTimeTzOffsetPlus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123+05:15'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+315
+// end::datePartDateTimeTzOffsetPlus
+;
+
+datePartDateTimeTzOffsetMinus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
+// tag::datePartDateTimeTzOffsetMinus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123-03:49'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+-229
+// end::datePartDateTimeTzOffsetMinus
+;
+
+datePartDateQuarter
+// tag::datePartDateQuarter
+SELECT DATE_PART('quarters', CAST('2019-09-24' AS DATE)) AS quarter;
+
+   quarter
+-------------
+3
+// end::datePartDateQuarter
+;
+
+datePartDateMonth
+// tag::datePartDateMonth
+SELECT DATE_PART('month', CAST('2019-09-24' AS DATE)) AS month;
+
+   month
+-------------
+9
+// end::datePartDateMonth
+;
+
+truncateDateTimeMillennium
+// tag::truncateDateTimeMillennium
+SELECT DATE_TRUNC('millennium', '2019-09-04T11:22:33.123Z'::datetime) AS millennium;
+
+      millennium
+------------------------
+2000-01-01T00:00:00.000Z
+// end::truncateDateTimeMillennium
+;
+
+truncateDateTimeWeek
+// tag::truncateDateTimeWeek
+SELECT DATETRUNC('week', '2019-08-24T11:22:33.123Z'::datetime) AS week;
+
+      week
+------------------------
+2019-08-19T00:00:00.000Z
+// end::truncateDateTimeWeek
+;
+
+truncateDateTimeMinutes
+// tag::truncateDateTimeMinutes
+SELECT DATE_TRUNC('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
+
+      mins
+------------------------
+2019-09-04T11:22:00.000Z
+// end::truncateDateTimeMinutes
+;
+
+truncateDateDecades
+schema::decades:ts
+// tag::truncateDateDecades
+SELECT DATE_TRUNC('decade', CAST('2019-09-04' AS DATE)) AS decades;
+
+      decades
+------------------------
+2010-01-01T00:00:00.000Z
+// end::truncateDateDecades
+;
+
+truncateDateQuarter
+schema::quarter:ts
+// tag::truncateDateQuarter
+SELECT DATETRUNC('quarters', CAST('2019-09-04' AS DATE)) AS quarter;
+
+      quarter
+------------------------
+2019-07-01T00:00:00.000Z
+// end::truncateDateQuarter
+;
+
+truncateIntervalCenturies
+// tag::truncateIntervalCenturies
+SELECT DATE_TRUNC('centuries', INTERVAL '199-5' YEAR TO MONTH) AS centuries;
+
+      centuries
+------------------
+ +100-0
+// end::truncateIntervalCenturies
+;
+
+truncateIntervalHour
+// tag::truncateIntervalHour
+SELECT DATE_TRUNC('hours', INTERVAL '17 22:13:12' DAY TO SECONDS) AS hour;
+
+      hour
+------------------
++17 22:00:00
+// end::truncateIntervalHour
+;
+
+truncateIntervalDay
+// tag::truncateIntervalDay
+SELECT DATE_TRUNC('days', INTERVAL '19 15:24:19' DAY TO SECONDS) AS day;
+
+      day
+------------------
++19 00:00:00
+// end::truncateIntervalDay
+;
+
+constantDayOfWeek
+// tag::dayOfWeek
+SELECT DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+2
+// end::dayOfWeek
+;
+
+constantIsoDayOfWeek
+// tag::isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
+
+      day
+---------------
+1
+// end::isoDayOfWeek
+;
+
+constantHourOfDay
+// tag::hourOfDay
+SELECT HOUR_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS hour;
+
+     hour
+---------------
+10
+// end::hourOfDay
+;
+
+constantMinuteOfDay
+// tag::minuteOfDay
+SELECT MINUTE_OF_DAY(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+623
+// end::minuteOfDay
+;
+
+constantMinuteOfHour
+// tag::minuteOfHour
+SELECT MINUTE_OF_HOUR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS minute;
+
+    minute
+---------------
+23
+// end::minuteOfHour
+;
+
+constantSecondOfMinute
+// tag::secondOfMinute
+SELECT SECOND_OF_MINUTE(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS second;
+
+    second
+---------------
+27
+// end::secondOfMinute
+;
+
+constantQuarter
+// tag::quarter
+SELECT QUARTER(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS quarter;
+
+    quarter
+---------------
+1
+// end::quarter
+;
+
+constantWeekOfYear
+// tag::weekOfYear
+SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS isoweek;
+
+      week     |   isoweek
+---------------+---------------
+2              |1
+// end::weekOfYear
+;
+
+
+
+
+currentDate-Ignore
+// tag::currentDate
+SELECT CURRENT_DATE AS result;
+
+         result
+------------------------
+2018-12-12
+// end::currentDate
+;
+
+currentDateFunction-Ignore
+// tag::currentDateFunction
+SELECT CURRENT_DATE() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::currentDateFunction
+;
+
+curDateFunction-Ignore
+// tag::curDateFunction
+SELECT CURDATE() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::curDateFunction
+;
+
+todayFunction-Ignore
+// tag::todayFunction
+SELECT TODAY() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::todayFunction
+;
+
+filterToday
+// tag::filterToday
+SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 35 YEARS ORDER BY first_name ASC LIMIT 5;
+
+ first_name
+------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+// end::filterToday
+;
+
+
+currentTime-Ignore
+// tag::currentTime
+SELECT CURRENT_TIME AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTime
+;
+
+currentTimeFunction-Ignore
+// tag::currentTimeFunction
+SELECT CURRENT_TIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTimeFunction
+;
+
+curTimeFunction-Ignore
+// tag::curTimeFunction
+SELECT CURTIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::curTimeFunction
+;
+
+currentTimeFunctionPrecision-Ignore
+// tag::currentTimeFunctionPrecision
+SELECT CURRENT_TIME(1) AS result;
+
+         result
+------------------------
+12:31:27.2Z
+// end::currentTimeFunctionPrecision
+;
+
+
+filterCurrentTime-Ignore
+// tag::filterCurrentTime
+SELECT first_name FROM emp WHERE CAST(hire_date AS TIME) > CURRENT_TIME() - INTERVAL 20 MINUTES ORDER BY first_name ASC LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+// end::filterCurrentTime
+;
+
+
+currentTimestamp-Ignore
+// tag::curTs
+SELECT CURRENT_TIMESTAMP AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTs
+;
+
+currentTimestampFunction-Ignore
+// tag::curTsFunction
+SELECT CURRENT_TIMESTAMP() AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::curTsFunction
+;
+
+currentTimestampFunctionPrecision-Ignore
+// tag::curTsFunctionPrecision
+SELECT CURRENT_TIMESTAMP(1) AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.4Z
+// end::curTsFunctionPrecision
+;
+
+
+nowFunction-Ignore
+// tag::nowFunction
+SELECT NOW() AS result;
+
+         result         
+------------------------
+2018-12-12T14:48:52.448Z
+// end::nowFunction
+;
+
+filterNow
+// tag::filterNow
+SELECT first_name FROM emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+// end::filterNow
+;
+
+////////////
+// Next two queries need to have the same output, as they should be equivalent.
+// They are used in the "SQL Limitations" page.
+////////////
+limitationSubSelect
+// tag::limitationSubSelect
+SELECT * FROM (SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%') WHERE first_name LIKE 'A%' ORDER BY 1;
+
+  first_name   |   last_name
+---------------+---------------
+ Alejandro     |McAlpine
+ Anneke        |Preusig
+ Anoosh        |Peyn
+ Arumugam      |Ossenbruggen
+// end::limitationSubSelect
+;
+
+limitationSubSelectRewritten
+// tag::limitationSubSelectRewritten
+SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_name LIKE 'A%' ORDER BY 1;
+// end::limitationSubSelectRewritten
+  first_name   |   last_name
+---------------+---------------
+ Alejandro     |McAlpine
+ Anneke        |Preusig
+ Anoosh        |Peyn
+ Arumugam      |Ossenbruggen
+;
+
+simpleLikeOperator
+// tag::simpleLike
+SELECT author, name FROM library WHERE name LIKE 'Dune%';
+
+    author     |     name
+---------------+---------------
+Frank Herbert  |Dune
+Frank Herbert  |Dune Messiah
+// end::simpleLike
+;
+
+simpleRLikeOperator
+// tag::simpleRLike
+SELECT author, name FROM library WHERE name RLIKE 'Child.* Dune';
+
+    author     |      name
+---------------+----------------
+Frank Herbert  |Children of Dune
+// end::simpleRLike
+;
+

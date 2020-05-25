@@ -84,9 +84,6 @@ public final class IndexSettings {
                         "[true, false, checksum] but was: " + s);
             }
         }, Property.IndexScope);
-    // This setting is undocumented as it is considered as an escape hatch.
-    public static final Setting<Boolean> ON_HEAP_ID_TERMS_INDEX =
-            Setting.boolSetting("index.force_memory_id_terms_dictionary", false, Property.IndexScope);
 
     /**
      * Index setting describing the maximum value of from + size on a query.
@@ -665,6 +662,11 @@ public final class IndexSettings {
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + getUUID() + " but was: " + newUUID);
+        }
+        final String newRestoreUUID = newSettings.get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+        final String restoreUUID = this.settings.get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
+        if (newRestoreUUID.equals(restoreUUID) == false) {
+            throw new IllegalArgumentException("uuid mismatch on settings update expected: " + restoreUUID + " but was: " + newRestoreUUID);
         }
         this.indexMetadata = indexMetadata;
         final Settings newIndexSettings = Settings.builder().put(nodeSettings).put(newSettings).build();

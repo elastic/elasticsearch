@@ -118,13 +118,22 @@ public class DistroTestPlugin implements Plugin<Project> {
             lifecyleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
         }
 
-        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
-        configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask).configure(
-            t -> t.setPluginsDir(pluginsDir)
+        TaskProvider<BatsTestTask> batsPluginsTest = configureBatsTest(
+            project,
+            "plugins",
+            distributionsDir,
+            copyDistributionsTask,
+            copyPluginsTask
         );
-        configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask).configure(
-            t -> t.setUpgradeDir(upgradeDir)
+        batsPluginsTest.configure(t -> t.setPluginsDir(pluginsDir));
+        TaskProvider<BatsTestTask> batsUpgradeTest = configureBatsTest(
+            project,
+            "upgrade",
+            distributionsDir,
+            copyDistributionsTask,
+            copyUpgradeTask
         );
+        batsUpgradeTest.configure(t -> t.setUpgradeDir(upgradeDir));
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);
@@ -168,12 +177,15 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             }
 
-            batsTests.forEach((desc, task) -> {
-                configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
-                    t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                    t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
-                    t.dependsOn(copyDistributionsTask);
-                });
+            configureVMWrapperTask(vmProject, "bats plugins", batsPluginsTest.getName(), vmDependencies).configure(t -> {
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                t.dependsOn(copyDistributionsTask, copyPluginsTask);
+            });
+            configureVMWrapperTask(vmProject, "bats upgrade", batsUpgradeTest.getName(), vmDependencies).configure(t -> {
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                t.dependsOn(copyDistributionsTask, copyUpgradeTask);
             });
         });
     }
@@ -221,7 +233,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         String firstPartOfSeed = BuildParams.getTestSeed().split(":")[0];
         final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16);
-        BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+        BwcVersions bwcVersions = BuildParams.getBwcVersions();
         final List<Version> indexCompatVersions = bwcVersions.getIndexCompatible();
         return indexCompatVersions.get(new Random(seed).nextInt(indexCompatVersions.size()));
     }
@@ -291,8 +303,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             Path upgradePath = upgradeDir.get().getAsFile().toPath();
 
             // write bwc version, and append -SNAPSHOT if it is an unreleased version
-            ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-            BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+            BwcVersions bwcVersions = BuildParams.getBwcVersions();
             final String upgradeFromVersion;
             if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
                 upgradeFromVersion = upgradeVersion.toString() + "-SNAPSHOT";

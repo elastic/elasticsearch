@@ -32,12 +32,16 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
         BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskSuccessful(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
-        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+
+        // using task avoidance api means the task configuration of the sample task is never triggered
+        assertBuildFileDoesNotExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
 
         result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskUpToDate(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
-        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+
+        // using task avoidance api means the task configuration of the sample task is never triggered
+        assertBuildFileDoesNotExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
     }
 
     public void testImplicitTaskDependencyCopy() {
@@ -46,8 +50,10 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
         assertTaskSuccessful(result, ":buildResources");
         assertTaskSuccessful(result, ":sampleCopyAll");
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");
-        // This is a side effect of compile time reference
-        assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle_suppressions.xml");
+
+        // using task avoidance api means the task configuration of the sample task is never triggered
+        // which means buildResource is not configured to copy this file
+        assertBuildFileDoesNotExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle_suppressions.xml");
     }
 
     public void testImplicitTaskDependencyInputFileOfOther() {

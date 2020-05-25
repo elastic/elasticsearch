@@ -240,10 +240,12 @@ public class JobManager {
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
 
-        request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
-        validateCategorizationAnalyzer(request.getJobBuilder(), analysisRegistry);
+        Job.Builder jobBuilder = request.getJobBuilder();
+        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
+        jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
+        validateCategorizationAnalyzer(jobBuilder, analysisRegistry);
 
-        Job job = request.getJobBuilder().build(new Date());
+        Job job = jobBuilder.build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
             deprecationLogger.deprecatedAndMaybeLog("ml_create_job_delimited_data",
@@ -274,8 +276,8 @@ public class JobManager {
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IllegalArgumentException) {
                     // the underlying error differs depending on which way around the clashing fields are seen
-                    Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:of different type, " +
-                            "current_type \\[.*\\], merged_type|with an object mapping) \\[.*\\]").matcher(e.getMessage());
+                    Matcher matcher = Pattern.compile("(?:mapper|Can't merge a non object mapping) \\[(.*)\\] (?:cannot be changed " +
+                            "from type \\[.*\\] to|with an object mapping) \\[.*\\]").matcher(e.getMessage());
                     if (matcher.matches()) {
                         String msg = Messages.getMessage(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, matcher.group(1));
                         actionListener.onFailure(ExceptionsHelper.badRequestException(msg, e));

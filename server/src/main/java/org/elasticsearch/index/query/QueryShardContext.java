@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -56,6 +57,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -100,7 +102,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final ValuesSourceRegistry valuesSourceRegistry;
 
     public QueryShardContext(int shardId,
                              IndexSettings indexSettings,
@@ -312,6 +314,11 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexNameMatcher.test(pattern);
     }
 
+    public boolean indexSortedOnField(String field) {
+        IndexSortConfig indexSortConfig = indexSettings.getIndexSortConfig();
+        return indexSortConfig.hasPrimarySortOnField(field);
+    }
+
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
         return toQuery(queryBuilder, q -> {
             Query query = q.toQuery(this);
@@ -469,5 +476,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitsetFilterCache getBitsetFilterCache() {
         return bitsetFilterCache;
+    }
+
+    public AggregationUsageService getUsageService() {
+        return valuesSourceRegistry.getUsageService();
     }
 }

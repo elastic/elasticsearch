@@ -30,7 +30,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -86,7 +85,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, AnnotatedTextFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
 
@@ -148,7 +147,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<AnnotatedTextFieldMapper.Builder, AnnotatedTextFieldMapper> parse(
+        public Mapper.Builder<AnnotatedTextFieldMapper.Builder> parse(
                 String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AnnotatedTextFieldMapper.Builder builder = new AnnotatedTextFieldMapper.Builder(fieldName);
 
@@ -569,12 +568,17 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         return (AnnotatedTextFieldMapper) super.clone();
     }
 
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
     public int getPositionIncrementGap() {
         return this.positionIncrementGap;
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -588,9 +592,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
-            fields.add(field);
+            context.doc().add(field);
             if (fieldType().omitNorms()) {
-                createFieldNamesField(context, fields);
+                createFieldNamesField(context);
             }
         }
     }

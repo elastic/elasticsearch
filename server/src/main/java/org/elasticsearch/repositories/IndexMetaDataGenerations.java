@@ -161,7 +161,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Compute identifier for {@link IndexMetadata} from its index uuid as well as its settings-, mapping- and alias-version.
+     * Compute identifier for {@link IndexMetadata} from its index- and history-uuid as well as its settings-, mapping- and alias-version.
      * If an index did not see a change in its settings, mappings or aliases between two points in time then the identifier will not change
      * between them either.
      *
@@ -169,7 +169,9 @@ public final class IndexMetaDataGenerations {
      * @return identifier string
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
-        return indexMetaData.getIndexUUID() + "-" + indexMetaData.getSettingsVersion() + "-"
-            + indexMetaData.getMappingVersion() + "-" + indexMetaData.getAliasesVersion();
+        return indexMetaData.getIndexUUID() + "-" +
+            indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE) +
+            indexMetaData.getSettingsVersion() + "-" + indexMetaData.getMappingVersion() + "-" +
+            indexMetaData.getAliasesVersion();
     }
 }

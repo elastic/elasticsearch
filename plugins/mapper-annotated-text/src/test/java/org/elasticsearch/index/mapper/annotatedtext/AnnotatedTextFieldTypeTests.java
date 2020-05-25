@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 
-public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
+public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new AnnotatedTextFieldMapper.AnnotatedTextFieldType();

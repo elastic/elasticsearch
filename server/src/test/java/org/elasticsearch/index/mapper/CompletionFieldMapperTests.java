@@ -43,13 +43,16 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
+import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.hamcrest.core.CombinableMatcher;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -61,7 +64,24 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
+public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFieldMapper.Builder> {
+
+    @Before
+    public void addModifiers() {
+        addBooleanModifier("preserve_separators", false, CompletionFieldMapper.Builder::preserveSeparators);
+        addBooleanModifier("preserve_position_increments", false, CompletionFieldMapper.Builder::preservePositionIncrements);
+        addModifier("context_mappings", false, (a, b) -> {
+            ContextMappings contextMappings = new ContextMappings(Arrays.asList(ContextBuilder.category("foo").build(),
+                ContextBuilder.geo("geo").build()));
+            a.contextMappings(contextMappings);
+        });
+    }
+
+    @Override
+    protected CompletionFieldMapper.Builder newBuilder() {
+        return new CompletionFieldMapper.Builder("completion");
+    }
+
     public void testDefaultConfiguration() throws IOException {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -958,4 +978,5 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             }
         };
     }
+
 }

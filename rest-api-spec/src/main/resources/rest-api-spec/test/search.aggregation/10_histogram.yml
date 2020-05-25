@@ -418,3 +418,55 @@ setup:
   - length: { aggregations.histo.buckets: 1 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2015-12-31T17:00:00.000-07:00" }
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
+
+---
+"profiler":
+  - skip:
+      version: " - 7.8.99"
+      reason:  debug info added in 7.9.0
+
+  - do:
+      indices.create:
+          index: test_2
+          body:
+            settings:
+              number_of_replicas: 0
+              number_of_shards: 1
+            mappings:
+              properties:
+                date:
+                  type: date
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+            - '{"index": {}}'
+            - '{"date": "2016-01-01"}'
+            - '{"index": {}}'
+            - '{"date": "2016-01-02"}'
+            - '{"index": {}}'
+            - '{"date": "2016-02-01"}'
+            - '{"index": {}}'
+            - '{"date": "2016-03-01"}'
+
+  - do:
+      search:
+        index: test_2
+        body:
+          size: 0
+          profile: true
+          aggs:
+            histo:
+              date_histogram:
+                field: date
+                calendar_interval: month
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2016-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 2 }
+  - match: { profile.shards.0.aggregations.0.type: DateHistogramAggregator }
+  - match: { profile.shards.0.aggregations.0.description: histo }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.total_buckets: 3 }

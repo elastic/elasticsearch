@@ -13,23 +13,43 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
 
-public class ConstantKeywordFieldMapperTests extends ESSingleNodeTestCase {
+public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<ConstantKeywordFieldMapper.Builder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(ConstantKeywordMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
+    }
+
+    @Override
+    protected ConstantKeywordFieldMapper.Builder newBuilder() {
+        return new ConstantKeywordFieldMapper.Builder("constant");
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier("value", false, (a, b) -> {
+            a.setValue("foo");
+            b.setValue("bar");
+        });
+        addModifier("unset", false, (a, b) -> {
+            a.setValue("foo");;
+        });
+        addModifier("value-from-null", true, (a, b) -> {
+            b.setValue("bar");
+        });
     }
 
     public void testDefaults() throws Exception {

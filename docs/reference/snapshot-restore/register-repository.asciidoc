@@ -79,6 +79,18 @@ or
 GET /_snapshot/_all
 -----------------------------------
 
+You can unregister a repository using the <<delete-snapshot-repo-api,delete
+snapshot repository API>>:
+
+[source,console]
+-----------------------------------
+DELETE /_snapshot/my_backup
+-----------------------------------
+
+When a repository is unregistered, {es} only removes the reference to the
+location where the repository is storing the snapshots. The snapshots themselves
+are left untouched and in place.
+
 [float]
 [[snapshots-filesystem-repository]]
 === Shared file system repository

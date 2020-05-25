@@ -53,7 +53,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     public static final String CONTENT_TYPE = "geo_shape";
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
-            GeoShapeFieldMapper, GeoShapeFieldType> {
+            GeoShapeFieldType> {
         public Builder(String name) {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
         }
@@ -143,14 +143,13 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
         if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
             LegacyGeoShapeFieldMapper legacy = (LegacyGeoShapeFieldMapper) mergeWith;
-            throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
+            throw new IllegalArgumentException("[" + fieldType.name() + "] with field mapper [" + fieldType.typeName() + "] " +
                 "using [BKD] strategy cannot be merged with " + "[" + legacy.fieldType().typeName() + "] with [" +
                 legacy.fieldType().strategy() + "] strategy");
         }
-        super.doMerge(mergeWith);
     }
 
     @Override

@@ -22,7 +22,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -81,8 +81,8 @@ public class DataStreamIT extends ESIntegTestCase {
         createDataStreamRequest.setTimestampFieldName("@timestamp2");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        GetDataStreamsAction.Request getDataStreamRequest = new GetDataStreamsAction.Request("*");
-        GetDataStreamsAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         getDataStreamResponse.getDataStreams().sort(Comparator.comparing(DataStream::getName));
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("metrics-bar"));
@@ -224,8 +224,10 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
         verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
         verifyResolvability(dataStreamName, getMapping(dataStreamName), true);
-        verifyResolvability(dataStreamName, getSettings(dataStreamName), true);
+        verifyResolvability(dataStreamName, getSettings(dataStreamName), false);
         verifyResolvability(dataStreamName, health(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().cluster().prepareState().setIndices(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().prepareFieldCaps(dataStreamName).setFields("*"), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
         request.setTimestampFieldName("ts");
@@ -251,8 +253,10 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
         verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);
         verifyResolvability(wildcardExpression, getMapping(wildcardExpression), true);
-        verifyResolvability(wildcardExpression, getSettings(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getSettings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, health(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().cluster().prepareState().setIndices(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {

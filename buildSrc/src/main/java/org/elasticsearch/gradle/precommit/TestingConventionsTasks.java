@@ -106,7 +106,7 @@ public class TestingConventionsTasks extends DefaultTask {
         return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
-    public void naming(Closure<TestingConventionRule> action) {
+    public void naming(Closure<?> action) {
         naming.configure(action);
     }
 

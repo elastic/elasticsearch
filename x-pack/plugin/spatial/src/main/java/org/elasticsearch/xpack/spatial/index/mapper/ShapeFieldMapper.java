@@ -45,7 +45,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
-            ShapeFieldMapper, ShapeFieldType> {
+            ShapeFieldType> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -123,6 +123,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
+    }
+
+    @Override
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
+
     }
 
     @Override

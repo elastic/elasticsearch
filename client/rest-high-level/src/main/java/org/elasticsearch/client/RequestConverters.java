@@ -283,9 +283,6 @@ final class RequestConverters {
     }
 
     static Request getGrokPattens(GetGrokPatternsRequest getGrokPatternsRequest) {
-        return sourceGetGrokPatternsRequest(getGrokPatternsRequest); }
-
-    static Request sourceGetGrokPatternsRequest(GetGrokPatternsRequest getGrokPatternsRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_ingest/processor/grok")
             .build();

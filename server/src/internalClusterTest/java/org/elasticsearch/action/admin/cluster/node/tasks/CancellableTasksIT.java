@@ -19,7 +19,6 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
@@ -30,7 +29,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,7 +40,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -54,13 +51,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -86,7 +79,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CancellableTasksIT extends AbstractMultiClustersTestCase {
+public class CancellableTasksIT extends ESIntegTestCase {
 
     static int idGenerator = 0;
     static final Map<TestRequest, CountDownLatch> beforeSendLatches = ConcurrentCollections.newConcurrentMap();
@@ -103,26 +96,15 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         completedLatches.clear();
     }
 
-    static TestRequest generateTestRequest(Map<String, InternalTestCluster> clusters,
-                                           String clusterAlias, int level, int maxLevel) {
+    static TestRequest generateTestRequest(Set<DiscoveryNode> nodes, int level, int maxLevel) {
         List<TestRequest> subRequests = new ArrayList<>();
         int lower = level == 0 ? 1 : 0;
         int upper = 10 / (level + 1);
         int numOfSubRequests = randomIntBetween(lower, upper);
-        final String nextClusterAlias;
-        if (clusterAlias.equals(LOCAL_CLUSTER) && level > 0 && randomBoolean()) {
-            nextClusterAlias = randomFrom(clusters.keySet());
-        } else {
-            nextClusterAlias = clusterAlias;
-        }
         for (int i = 0; i < numOfSubRequests && level <= maxLevel; i++) {
-            subRequests.add(generateTestRequest(clusters, nextClusterAlias, level + 1, maxLevel));
+            subRequests.add(generateTestRequest(nodes, level + 1, maxLevel));
         }
-        final Set<DiscoveryNode> nodes = StreamSupport
-            .stream(clusters.get(nextClusterAlias).clusterService().state().nodes().spliterator(), false)
-            .collect(Collectors.toSet());
-        final String requestClusterAlias = nextClusterAlias.equals(clusterAlias) ? null : nextClusterAlias;
-        final TestRequest request = new TestRequest(idGenerator++, requestClusterAlias, randomFrom(nodes), subRequests);
+        final TestRequest request = new TestRequest(idGenerator++, randomFrom(nodes), subRequests);
         beforeSendLatches.put(request, new CountDownLatch(1));
         arrivedLatches.put(request, new CountDownLatch(1));
         beforeExecuteLatches.put(request, new CountDownLatch(1));
@@ -182,17 +164,19 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
 
     void ensureAllBansRemoved() throws Exception {
         assertBusy(() -> {
-            for (InternalTestCluster cluster : clusters().values()) {
-                for (String node : cluster.getNodeNames()) {
-                    TaskManager taskManager = cluster.getInstance(TransportService.class, node).getTaskManager();
-                    assertThat("node " + node, taskManager.getBannedTaskIds(), empty());
-                }
+            for (String node : internalCluster().getNodeNames()) {
+                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node).getTaskManager();
+                assertThat("node " + node, taskManager.getBannedTaskIds(), empty());
             }
         }, 30, TimeUnit.SECONDS);
     }
 
     public void testBanOnlyNodesWithOutstandingDescendantTasks() throws Exception {
-        final TestRequest rootRequest = generateTestRequest(clusters(), LOCAL_CLUSTER, 0, between(1, 4));
+        if (randomBoolean()) {
+            internalCluster().startNodes(randomIntBetween(1, 3));
+        }
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
         TaskId rootTaskId = getRootTaskId(rootRequest);
@@ -205,38 +189,33 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
                 client().admin().cluster().prepareCancelTasks().setTaskId(subTask.getTaskId()).waitForCompletion(false).get();
             }
         }
-        try {
-            assertBusy(() -> {
-                for (InternalTestCluster cluster : clusters().values()) {
-                    for (DiscoveryNode node : cluster.clusterService().state().nodes()) {
-                        TaskManager taskManager = cluster.getInstance(TransportService.class, node.getName()).getTaskManager();
-                        Set<TaskId> expectedBans = new HashSet<>();
-                        for (TestRequest req : pendingRequests) {
-                            if (req.node.equals(node)) {
-                                List<Task> childTasks = taskManager.getTasks().values().stream()
-                                    .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                                    .collect(Collectors.toList());
-                                assertThat(childTasks, hasSize(1));
-                                CancellableTask childTask = (CancellableTask) childTasks.get(0);
-                                assertTrue(childTask.getDescription(), childTask.isCancelled());
-                                expectedBans.add(childTask.getParentTaskId());
-                            }
-                        }
-                        assertThat(node.toString(), taskManager.getBannedTaskIds(), equalTo(expectedBans));
+        assertBusy(() -> {
+            for (DiscoveryNode node : nodes) {
+                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
+                Set<TaskId> expectedBans = new HashSet<>();
+                for (TestRequest req : pendingRequests) {
+                    if (req.node.equals(node)) {
+                        List<Task> childTasks = taskManager.getTasks().values().stream()
+                            .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
+                            .collect(Collectors.toList());
+                        assertThat(childTasks, hasSize(1));
+                        CancellableTask childTask = (CancellableTask) childTasks.get(0);
+                        assertTrue(childTask.isCancelled());
+                        expectedBans.add(childTask.getParentTaskId());
                     }
                 }
-            }, 30, TimeUnit.SECONDS);
-        } finally {
-            allowEntireRequest(rootRequest);
-        }
-        waitForFuture(cancelFuture);
+                assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBans));
+            }
+        }, 30, TimeUnit.SECONDS);
+        allowEntireRequest(rootRequest);
+        cancelFuture.actionGet();
         waitForRootTask(rootTaskFuture);
         ensureAllBansRemoved();
     }
 
-
     public void testCancelTaskMultipleTimes() throws Exception {
-        TestRequest rootRequest = generateTestRequest(clusters(), LOCAL_CLUSTER, 0, randomIntBetween(1, 3));
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        TestRequest rootRequest = generateTestRequest(nodes, 0, randomIntBetween(1, 3));
         ActionFuture<TestResponse> mainTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
         allowPartialRequest(rootRequest);
@@ -247,9 +226,8 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
             .waitForCompletion(true).execute();
         assertFalse(cancelFuture.isDone());
         allowEntireRequest(rootRequest);
-        CancelTasksResponse cancelResponse = waitForFuture(cancelFuture);
-        assertThat(cancelResponse.getTaskFailures(), empty());
-        assertThat(cancelResponse.getTaskFailures(), empty());
+        assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
+        assertThat(cancelFuture.actionGet().getTaskFailures(), empty());
         waitForRootTask(mainTaskFuture);
         CancelTasksResponse cancelError = client().admin().cluster().prepareCancelTasks()
             .setTaskId(taskId).waitForCompletion(randomBoolean()).get();
@@ -260,7 +238,8 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
     }
 
     public void testDoNotWaitForCompletion() throws Exception {
-        TestRequest rootRequest = generateTestRequest(clusters(), LOCAL_CLUSTER, 0, between(1, 3));
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> mainTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
         if (randomBoolean()) {
@@ -276,21 +255,20 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         }
         allowEntireRequest(rootRequest);
         waitForRootTask(mainTaskFuture);
-        waitForFuture(cancelFuture);
+        cancelFuture.actionGet();
         ensureAllBansRemoved();
     }
 
     public void testFailedToStartChildTaskAfterCancelled() throws Exception {
-        TestRequest rootRequest = generateTestRequest(clusters(), LOCAL_CLUSTER, 0, between(1, 3));
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         TaskId taskId = getRootTaskId(rootRequest);
         client().admin().cluster().prepareCancelTasks().setTaskId(taskId).waitForCompletion(false).get();
-        DiscoveryNode nodeWithParentTask = StreamSupport
-            .stream(cluster(LOCAL_CLUSTER).clusterService().state().nodes().spliterator(), false)
-            .filter(node -> node.getId().equals(taskId.getNodeId())).findFirst().get();
-        TransportTestAction mainAction = cluster(LOCAL_CLUSTER).getInstance(TransportTestAction.class, nodeWithParentTask.getName());
+        DiscoveryNode nodeWithParentTask = nodes.stream().filter(n -> n.getId().equals(taskId.getNodeId())).findFirst().get();
+        TransportTestAction mainAction = internalCluster().getInstance(TransportTestAction.class, nodeWithParentTask.getName());
         PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
-        TestRequest subRequest = generateTestRequest(clusters(), LOCAL_CLUSTER, 0, between(0, 1));
+        TestRequest subRequest = generateTestRequest(nodes, 0, between(0, 1));
         beforeSendLatches.get(subRequest).countDown();
         mainAction.startSubTask(taskId, subRequest, future);
         TransportException te = expectThrows(TransportException.class, future::actionGet);
@@ -301,7 +279,7 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         ensureAllBansRemoved();
     }
 
-    TaskId getRootTaskId(TestRequest request) throws Exception {
+    static TaskId getRootTaskId(TestRequest request) throws Exception {
         SetOnce<TaskId> taskId = new SetOnce<>();
         assertBusy(() -> {
             ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks()
@@ -315,12 +293,11 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         return taskId.get();
     }
 
-    void waitForRootTask(ActionFuture<TestResponse> rootTask) {
+    static void waitForRootTask(ActionFuture<TestResponse> rootTask) {
         try {
-            waitForFuture(rootTask);
+            rootTask.actionGet();
         } catch (Exception e) {
             final Throwable cause = ExceptionsHelper.unwrap(e, TaskCancelledException.class);
-            assertNotNull(e.toString() + ExceptionsHelper.stackTrace(e), cause);
             assertThat(cause.getMessage(), anyOf(
                 equalTo("The parent task was cancelled, shouldn't start any child tasks"),
                 containsString("Task cancelled before it started:"),
@@ -328,29 +305,13 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    <T> T waitForFuture(ActionFuture<T> future) {
-        try {
-            return future.actionGet(TimeValue.timeValueMinutes(1));
-        } catch (ElasticsearchTimeoutException e) {
-            for (String clusterAlias : clusters().keySet()) {
-                final String hotThreads = client(clusterAlias).admin().cluster().prepareNodesHotThreads().setThreads(99999)
-                    .setIgnoreIdleThreads(false)
-                    .get().getNodes().stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
-                logger.info("cluster {}, hot threads {}", clusterAlias, hotThreads);
-            }
-            throw e;
-        }
-    }
-
     static class TestRequest extends ActionRequest {
         final int id;
-        final String clusterAlias;
         final DiscoveryNode node;
         final List<TestRequest> subRequests;
 
-        TestRequest(int id, String clusterAlias, DiscoveryNode node, List<TestRequest> subRequests) {
+        TestRequest(int id, DiscoveryNode node, List<TestRequest> subRequests) {
             this.id = id;
-            this.clusterAlias = clusterAlias;
             this.node = node;
             this.subRequests = subRequests;
         }
@@ -358,7 +319,6 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         TestRequest(StreamInput in) throws IOException {
             super(in);
             this.id = in.readInt();
-            this.clusterAlias = in.readOptionalString();
             this.node = new DiscoveryNode(in);
             this.subRequests = in.readList(TestRequest::new);
         }
@@ -381,7 +341,6 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeInt(id);
-            out.writeOptionalString(clusterAlias);
             node.writeTo(out);
             out.writeList(subRequests);
         }
@@ -443,7 +402,6 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
         @Inject
         public TransportTestAction(TransportService transportService, NodeClient client, ActionFilters actionFilters) {
             super(ACTION.name(), transportService, actionFilters, TestRequest::new, ThreadPool.Names.GENERIC);
-            TransportActionProxy.registerProxyAction(transportService, ACTION.name(), TestResponse::new);
             this.transportService = transportService;
             this.client = client;
         }
@@ -487,14 +445,7 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
                             latchedListener.onFailure(new TransportException(e));
                         }
                     } else {
-                        final Transport.Connection connection;
-                        if (subRequest.clusterAlias == null || subRequest.clusterAlias.equals(LOCAL_CLUSTER)) {
-                            connection = transportService.getConnection(subRequest.node);
-                        } else {
-                            connection = transportService.getRemoteClusterService().getConnection(subRequest.node, subRequest.clusterAlias);
-                            assertThat(connection.clusterAlias(), equalTo(subRequest.clusterAlias));
-                        }
-                        transportService.sendRequest(connection, ACTION.name(), subRequest, TransportRequestOptions.EMPTY,
+                        transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,
                             new TransportResponseHandler<TestResponse>() {
                                 @Override
                                 public void handleResponse(TestResponse response) {
@@ -531,8 +482,8 @@ public class CancellableTasksIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(TaskPlugin.class);
         return plugins;
     }

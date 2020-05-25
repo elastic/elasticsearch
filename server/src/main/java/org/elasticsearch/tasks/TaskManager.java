@@ -21,7 +21,6 @@ package org.elasticsearch.tasks;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -45,10 +44,10 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -60,10 +59,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
@@ -85,9 +84,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private final AtomicLong taskIdGenerator = new AtomicLong();
 
-    private final Map<TaskId, BanReason> banedParents = new ConcurrentHashMap<>();
-    private final long banParentRetainingIntervalInMillis;
-    private long oldestBanMarkerInMillis = Long.MAX_VALUE;
+    private final Map<TaskId, String> banedParents = new ConcurrentHashMap<>();
 
     private TaskResultsService taskResultsService;
 
@@ -96,13 +93,8 @@ public class TaskManager implements ClusterStateApplier {
     private final ByteSizeValue maxHeaderSize;
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        this(settings, threadPool, TimeValue.timeValueMinutes(10).millis(), taskHeaders);
-    }
-
-    TaskManager(Settings settings, ThreadPool threadPool, long banParentRetainingIntervalInMillis, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
-        this.banParentRetainingIntervalInMillis = banParentRetainingIntervalInMillis;
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 
@@ -150,7 +142,7 @@ public class TaskManager implements ClusterStateApplier {
                             BiConsumer<Task, Response> onResponse, BiConsumer<Task, Exception> onFailure) {
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
-            unregisterChildNode = registerChildNode(request.getParentTask().getId(), lastDiscoveryNodes.getLocalNode(), null);
+            unregisterChildNode = registerChildNode(request.getParentTask().getId(), lastDiscoveryNodes.getLocalNode());
         } else {
             unregisterChildNode = () -> {};
         }
@@ -192,11 +184,11 @@ public class TaskManager implements ClusterStateApplier {
         // Check if this task was banned before we start it. The empty check is used to avoid
         // computing the hash code of the parent taskId as most of the time banedParents is empty.
         if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
-            final BanReason reason = banedParents.get(task.getParentTaskId());
+            String reason = banedParents.get(task.getParentTaskId());
             if (reason != null) {
                 try {
-                    holder.cancel(reason.reason);
-                    throw new TaskCancelledException("Task cancelled before it started: " + reason.reason);
+                    holder.cancel(reason);
+                    throw new TaskCancelledException("Task cancelled before it started: " + reason);
                 } finally {
                     // let's clean up the registration
                     unregister(task);
@@ -241,22 +233,17 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Register a connection whose target node will execute a child task. The returned {@link Releasable} must be called
-     * to unregister the connection once the child task is completed or failed.
+     * Register a node on which a child task will execute. The returned {@link Releasable} must be called
+     * to unregister the child node once the child task is completed or failed.
      */
-    public Releasable registerChildConnection(long taskId, Transport.Connection connection) {
-        return registerChildNode(taskId, connection.getNode(), connection.clusterAlias());
-    }
-
-    private Releasable registerChildNode(long taskId, DiscoveryNode node, String clusterAlias) {
+    public Releasable registerChildNode(long taskId, DiscoveryNode node) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
-            logger.trace("register child node [{}] cluster [{}]task [{}]", node, clusterAlias, taskId);
-            final DiscoveryNodeAndClusterAlias key = new DiscoveryNodeAndClusterAlias(node, clusterAlias);
-            holder.registerChildNode(key);
+            logger.trace("register child node [{}] task [{}]", node, taskId);
+            holder.registerChildNode(node);
             return Releasables.releaseOnce(() -> {
-                logger.trace("unregister child node [{}] cluster [{}]task [{}]", node, clusterAlias, taskId);
-                holder.unregisterChildNode(key);
+                logger.trace("unregister child node [{}] task [{}]", node, taskId);
+                holder.unregisterChildNode(node);
             });
         }
         return () -> {};
@@ -390,15 +377,14 @@ public class TaskManager implements ClusterStateApplier {
      * This method is called when a parent task that has children is cancelled.
      * @return a list of pending cancellable child tasks
      */
-    public List<CancellableTask> setBan(TaskId parentTaskId, boolean removeOnNodeLeft, String reason) {
+    public List<CancellableTask> setBan(TaskId parentTaskId, String reason) {
         logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
-        final long timeInMillis = threadPool.relativeTimeInMillis();
+
         // Set the ban first, so the newly created tasks cannot be registered
         synchronized (banedParents) {
-            maybeCleanupOldBanMarkers(timeInMillis);
-            if (removeOnNodeLeft == false || lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId())) {
+            if (lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId())) {
                 // Only set the ban if the node is the part of the cluster
-                banedParents.put(parentTaskId, new BanReason(removeOnNodeLeft, reason, timeInMillis));
+                banedParents.put(parentTaskId, reason);
             }
         }
         return cancellableTasks.values().stream()
@@ -417,32 +403,6 @@ public class TaskManager implements ClusterStateApplier {
         banedParents.remove(parentTaskId);
     }
 
-    /**
-     * If a node that installed some ban parent markers disconnects before it can remove them,
-     * then we need to manually clean up those markers after the retaining interval elapsed.
-     */
-    private void maybeCleanupOldBanMarkers(long nowInMillis) {
-        assert Thread.holdsLock(banedParents);
-        if (oldestBanMarkerInMillis - nowInMillis > banParentRetainingIntervalInMillis) {
-            final Iterator<Map.Entry<TaskId, BanReason>> banIterator = banedParents.entrySet().iterator();
-            oldestBanMarkerInMillis = Long.MAX_VALUE;
-            while (banIterator.hasNext()) {
-                final Map.Entry<TaskId, BanReason> entry = banIterator.next();
-                // TODO: extends the time to live of the marker
-                if (entry.getValue().removeOnNodeLeft == false) {
-                    final long elapsed = nowInMillis - entry.getValue().timeInMillis;
-                    if (elapsed > banParentRetainingIntervalInMillis) {
-                        logger.debug("Clean up ban for the parent task [{}] after [{}]",
-                            entry.getKey(), TimeValue.timeValueMillis(elapsed));
-                        banIterator.remove();
-                    } else {
-                        oldestBanMarkerInMillis = Math.min(oldestBanMarkerInMillis, entry.getValue().timeInMillis);
-                    }
-                }
-            }
-        }
-    }
-
     // for testing
     public Set<TaskId> getBannedTaskIds() {
         return Collections.unmodifiableSet(banedParents.keySet());
@@ -455,13 +415,13 @@ public class TaskManager implements ClusterStateApplier {
      * @param onChildTasksCompleted called when all child tasks are completed or failed
      * @return the set of current nodes that have outstanding child tasks
      */
-    public Map<String, List<DiscoveryNode>> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
+    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
             return holder.startBan(onChildTasksCompleted);
         } else {
             onChildTasksCompleted.run();
-            return Collections.emptyMap();
+            return Collections.emptySet();
         }
     }
 
@@ -472,12 +432,12 @@ public class TaskManager implements ClusterStateApplier {
             synchronized (banedParents) {
                 lastDiscoveryNodes = event.state().getNodes();
                 // Remove all bans that were registered by nodes that are no longer in the cluster state
-                Iterator<Map.Entry<TaskId, BanReason>> banIterator = banedParents.entrySet().iterator();
+                Iterator<TaskId> banIterator = banedParents.keySet().iterator();
                 while (banIterator.hasNext()) {
-                    Map.Entry<TaskId, BanReason> entry = banIterator.next();
-                    if (entry.getValue().removeOnNodeLeft && lastDiscoveryNodes.nodeExists(entry.getKey().getNodeId()) == false) {
-                        logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
-                            entry.getKey(), event.state().getNodes().getLocalNode());
+                    TaskId taskId = banIterator.next();
+                    if (lastDiscoveryNodes.nodeExists(taskId.getNodeId()) == false) {
+                        logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone", taskId,
+                            event.state().getNodes().getLocalNode());
                         banIterator.remove();
                     }
                 }
@@ -517,7 +477,7 @@ public class TaskManager implements ClusterStateApplier {
         private final CancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<DiscoveryNodeAndClusterAlias> childTasksPerNode = null;
+        private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
         private boolean banChildren = false;
         private List<Runnable> childTaskCompletedListeners = null;
 
@@ -594,7 +554,7 @@ public class TaskManager implements ClusterStateApplier {
             return task;
         }
 
-        synchronized void registerChildNode(DiscoveryNodeAndClusterAlias node) {
+        synchronized void registerChildNode(DiscoveryNode node) {
             if (banChildren) {
                 throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }
@@ -604,7 +564,7 @@ public class TaskManager implements ClusterStateApplier {
             childTasksPerNode.addTo(node, 1);
         }
 
-        void unregisterChildNode(DiscoveryNodeAndClusterAlias node) {
+        void unregisterChildNode(DiscoveryNode node) {
             final List<Runnable> listeners;
             synchronized (this) {
                 if (childTasksPerNode.addTo(node, -1) == 0) {
@@ -620,20 +580,16 @@ public class TaskManager implements ClusterStateApplier {
             notifyListeners(listeners);
         }
 
-        Map<String, List<DiscoveryNode>> startBan(Runnable onChildTasksCompleted) {
-            final Map<String, List<DiscoveryNode>> pendingChildNodes;
+        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted) {
+            final Set<DiscoveryNode> pendingChildNodes;
             final Runnable toRun;
             synchronized (this) {
                 banChildren = true;
                 if (childTasksPerNode == null) {
-                    pendingChildNodes = Collections.emptyMap();
+                    pendingChildNodes = Collections.emptySet();
                 } else {
-                    pendingChildNodes = new HashMap<>();
-                    for (ObjectCursor<DiscoveryNodeAndClusterAlias> cursor : childTasksPerNode.keys()) {
-                        final DiscoveryNodeAndClusterAlias node = cursor.value;
-                        final String clusterAlias = Objects.requireNonNullElse(node.clusterAlias, LOCAL_CLUSTER_GROUP_KEY);
-                        pendingChildNodes.computeIfAbsent(clusterAlias, k -> new ArrayList<>()).add(node.node);
-                    }
+                    pendingChildNodes = StreamSupport.stream(childTasksPerNode.spliterator(), false)
+                        .map(e -> e.key).collect(Collectors.toUnmodifiableSet());
                 }
                 if (pendingChildNodes.isEmpty()) {
                     assert childTaskCompletedListeners == null;
@@ -651,39 +607,4 @@ public class TaskManager implements ClusterStateApplier {
         }
     }
 
-    private static class BanReason {
-        // for bwc purpose when the parent task on an old node which does not send heartbeats periodically
-        private final boolean removeOnNodeLeft;
-        private final String reason;
-        private final long timeInMillis;
-
-        BanReason(boolean removeOnNodeLeft, String reason, long timeInMillis) {
-            this.removeOnNodeLeft = removeOnNodeLeft;
-            this.reason = reason;
-            this.timeInMillis = timeInMillis;
-        }
-    }
-
-    private static class DiscoveryNodeAndClusterAlias {
-        private final DiscoveryNode node;
-        private final String clusterAlias;
-
-        DiscoveryNodeAndClusterAlias(DiscoveryNode node, String clusterAlias) {
-            this.node = node;
-            this.clusterAlias = clusterAlias;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final DiscoveryNodeAndClusterAlias that = (DiscoveryNodeAndClusterAlias) o;
-            return this.node.equals(that.node) && Objects.equals(clusterAlias, that.clusterAlias);
-        }
-
-        @Override
-        public int hashCode() {
-            return node.hashCode() * 31 + (clusterAlias == null ? 0 : clusterAlias.hashCode());
-        }
-    }
 }

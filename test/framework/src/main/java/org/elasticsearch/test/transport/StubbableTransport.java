@@ -225,11 +225,6 @@ public class StubbableTransport implements Transport {
         }
 
         @Override
-        public String clusterAlias() {
-            return connection.clusterAlias();
-        }
-
-        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
             TransportAddress address = connection.getNode().getAddress();

@@ -184,7 +184,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                 new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
     }
 
-    public final RemoteClusterService getRemoteClusterService() {
+    public RemoteClusterService getRemoteClusterService() {
         return remoteClusterService;
     }
 
@@ -564,7 +564,8 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                                                                 TransportResponseHandler<T> handler) {
         try {
             if (request.getParentTask().isSet()) {
-                final Releasable unregisterChildNode = taskManager.registerChildConnection(request.getParentTask().getId(), connection);
+                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
+                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
                 final TransportResponseHandler<T> delegate = handler;
                 handler = new TransportResponseHandler<>() {
                     @Override

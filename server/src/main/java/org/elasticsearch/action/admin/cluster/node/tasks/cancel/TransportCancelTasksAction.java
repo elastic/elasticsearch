@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -43,20 +42,16 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -75,7 +70,6 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             CancelTasksRequest::new, CancelTasksResponse::new, TaskInfo::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
             new BanParentRequestHandler());
-        TransportActionProxy.registerProxyAction(transportService, BAN_PARENT_ACTION_NAME, in -> TransportResponse.Empty.INSTANCE);
     }
 
     @Override
@@ -124,7 +118,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
-            Map<String, List<DiscoveryNode>> childConnections = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
+            Collection<DiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
             });
@@ -132,14 +126,13 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 logger.trace("task [{}] is cancelled", taskId);
                 groupedListener.onResponse(null);
             });
-
             StepListener<Void> banOnNodesListener = new StepListener<>();
-            setBanOnNodes(reason, waitForCompletion, task, childConnections, banOnNodesListener);
+            setBanOnNodes(reason, waitForCompletion, task, childrenNodes, banOnNodesListener);
             banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
             // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
             // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
             final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
-                .preserveContext(() -> removeBanOnNodes(task, childConnections));
+                .preserveContext(() -> removeBanOnNodes(task, childrenNodes));
             // We remove bans after all child tasks are completed although in theory we can do it on a per-node basis.
             completedListener.whenComplete(r -> removeBansRunnable.run(), e -> removeBansRunnable.run());
             // if wait_for_completion is true, then only return when (1) bans are placed on child nodes, (2) child tasks are
@@ -161,64 +154,47 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     private void setBanOnNodes(String reason, boolean waitForCompletion, CancellableTask task,
-                               Map<String, List<DiscoveryNode>> childConnections, ActionListener<Void> listener) {
-        if (childConnections.isEmpty()) {
+                               Collection<DiscoveryNode> childNodes, ActionListener<Void> listener) {
+        if (childNodes.isEmpty()) {
             listener.onResponse(null);
             return;
         }
         final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        logger.trace("cancelling task {} on child nodes {}", task.getId(), childConnections);
-        int groupSize = childConnections.values().stream().mapToInt(List::size).sum();
-        GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, r -> null), groupSize);
-        final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(
-            new TaskId(clusterService.localNode().getId(), task.getId()), reason, waitForCompletion);
-        for (Map.Entry<String, List<DiscoveryNode>> entry : childConnections.entrySet()) {
-            for (DiscoveryNode node : entry.getValue()) {
-                sendBanRequest(entry.getKey(), node, banRequest, groupedListener);
-            }
-        }
-    }
-
-    private void removeBanOnNodes(CancellableTask task, Map<String, List<DiscoveryNode>> childConnections) {
-        final BanParentTaskRequest request =
-            BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId()));
-        for (Map.Entry<String, List<DiscoveryNode>> entry : childConnections.entrySet()) {
-            for (DiscoveryNode node : entry.getValue()) {
-                sendBanRequest(entry.getKey(), node, request, ActionListener.wrap(() -> {}));
-            }
-        }
-    }
-
-    private void sendBanRequest(String clusterAlias, DiscoveryNode node, BanParentTaskRequest request, ActionListener<Void> listener) {
-        final Transport.Connection connection;
-        try {
-            if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                connection = transportService.getConnection(node);
-            } else {
-                connection = transportService.getRemoteClusterService().getConnection(node, clusterAlias);
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        if (connection.getVersion().onOrAfter(Version.V_8_0_0)) {
-            transportService.sendRequest(connection, BAN_PARENT_ACTION_NAME, request, TransportRequestOptions.EMPTY,
+        logger.trace("cancelling child tasks of [{}] on child nodes {}", taskId, childNodes);
+        GroupedActionListener<Void> groupedListener =
+            new GroupedActionListener<>(ActionListener.map(listener, r -> null), childNodes.size());
+        final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(taskId, reason, waitForCompletion);
+        for (DiscoveryNode node : childNodes) {
+            transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, banRequest,
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty response) {
-                        listener.onResponse(null);
+                        logger.trace("sent ban for tasks with the parent [{}] to the node [{}]", taskId, node);
+                        groupedListener.onResponse(null);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
-                        logger.warn(new ParameterizedMessage("failed to send {} request for task {} to node {}",
-                            request.ban ? "ban" : "unban", request.parentTaskId, connection.getNode()), exp);
-                        listener.onFailure(exp);
+                        logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
+                        groupedListener.onFailure(exp);
                     }
                 });
-        } else {
-            listener.onResponse(null);
+        }
+    }
+
+    private void removeBanOnNodes(CancellableTask task, Collection<DiscoveryNode> childNodes) {
+        final BanParentTaskRequest request =
+            BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(clusterService.localNode().getId(), task.getId()));
+        for (DiscoveryNode node : childNodes) {
+            logger.trace("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node);
+            transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                @Override
+                public void handleException(TransportException exp) {
+                    assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
+                    logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
+                }
+            });
         }
     }
 
@@ -283,8 +259,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             if (request.ban) {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     clusterService.localNode().getId(), request.reason);
-                final boolean removeOnNodeLeave = channel.getVersion().before(Version.V_8_0_0);
-                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, removeOnNodeLeave, request.reason);
+                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(ActionListener.map(
                     new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request), r -> TransportResponse.Empty.INSTANCE),
                     childTasks.size() + 1);

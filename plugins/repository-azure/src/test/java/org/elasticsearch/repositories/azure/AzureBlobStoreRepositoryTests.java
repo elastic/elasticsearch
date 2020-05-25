@@ -78,7 +78,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected List<String> requestTypesTracked() {
-        return org.elasticsearch.common.collect.List.of("GET", "LIST", "HEAD");
+        return org.elasticsearch.common.collect.List.of("GET", "LIST", "HEAD", "PUT", "PUT_BLOCK");
     }
 
     @Override
@@ -185,7 +185,18 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 trackRequest("HEAD");
             } else if (listPattern.matcher(request).matches()) {
                 trackRequest("LIST");
+            } else if (isBlockUpload(request)) {
+                trackRequest("PUT_BLOCK");
+            } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                trackRequest("PUT");
             }
+        }
+
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
+        private boolean isBlockUpload(String request) {
+            return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request)
+                || (Regex.simpleMatch("PUT /*/*?*comp=block*", request) && request.contains("blockid="));
         }
     }
 }

@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -40,7 +39,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -259,8 +257,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private String httpServerUrl(final HttpExchange exchange) {
-        final InetSocketAddress address = exchange.getLocalAddress();
-        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
     }
 
     private static final Pattern NAME_PATTERN = Pattern.compile("\"name\":\"([^\"]*)\"");

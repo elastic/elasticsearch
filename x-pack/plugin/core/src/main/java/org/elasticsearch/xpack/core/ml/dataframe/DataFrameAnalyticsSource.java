@@ -157,6 +157,11 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         return queryProvider.getParsingException();
     }
 
+    // visible for testing
+    QueryProvider getQueryProvider() {
+        return queryProvider;
+    }
+
     /**
      * Calls the parser and returns any gathered deprecations
      *

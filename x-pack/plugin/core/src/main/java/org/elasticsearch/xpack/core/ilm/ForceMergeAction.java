@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -68,7 +68,7 @@ public class ForceMergeAction implements LifecycleAction {
 
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             this.codec = in.readOptionalString();
         } else {
             this.codec = null;
@@ -86,7 +86,7 @@ public class ForceMergeAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeOptionalString(codec);
         }
     }
@@ -114,7 +114,7 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
+        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
         Settings bestCompressionSettings = Settings.builder()
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
 

@@ -76,6 +76,7 @@ public class EmailSslTests extends ESTestCase {
     }
 
     public void testFailureSendingMessageToSmtpServerWithUntrustedCertificateAuthority() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings.Builder settings = Settings.builder();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);

@@ -1,7 +1,8 @@
 {
   "ml.delete_expired_data":{
     "documentation":{
-      "url":null
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html",
+      "description":"Deletes expired and unused machine learning data."
     },
     "stability":"stable",
     "url":{
@@ -13,6 +14,9 @@
           ]
         }
       ]
+    },
+    "body":{
+      "description":"deleting expired data parameters"
     }
   }
 }

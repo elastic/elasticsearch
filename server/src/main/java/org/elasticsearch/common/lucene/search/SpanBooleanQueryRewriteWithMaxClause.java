@@ -33,6 +33,7 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
@@ -92,11 +93,12 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                         continue;
                     }
 
-                    final TermsEnum termsEnum = getTermsEnum(query, terms, null);
+                    final TermsEnum termsEnum = getTermsEnum(query, terms, new AttributeSource());
                     assert termsEnum != null;
 
-                    if (termsEnum == TermsEnum.EMPTY)
+                    if (termsEnum == TermsEnum.EMPTY) {
                         continue;
+                    }
 
                     BytesRef bytes;
                     while ((bytes = termsEnum.next()) != null) {

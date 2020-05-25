@@ -58,8 +58,15 @@ public class LoggingOutputStreamTests extends ESTestCase {
         printStream = new PrintStream(loggingStream, false, StandardCharsets.UTF_8);
     }
 
-    public void testEmptyLine() {
-        printStream.println("");
+    public void testEmptyLineUnix() {
+        printStream.print("\n");
+        assertTrue(loggingStream.lines.isEmpty());
+        printStream.flush();
+        assertTrue(loggingStream.lines.isEmpty());
+    }
+
+    public void testEmptyLineWindows() {
+        printStream.print("\r\n");
         assertTrue(loggingStream.lines.isEmpty());
         printStream.flush();
         assertTrue(loggingStream.lines.isEmpty());
@@ -74,6 +81,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
     // this test explicitly outputs the newlines instead of relying on println, to always test the unix behavior
     public void testFlushOnUnixNewline() {
         printStream.print("hello\n");
+        printStream.print("\n"); // newline by itself does not show up
         printStream.print("world\n");
         assertThat(loggingStream.lines, contains("hello", "world"));
     }
@@ -81,6 +89,7 @@ public class LoggingOutputStreamTests extends ESTestCase {
     // this test explicitly outputs the newlines instead of relying on println, to always test the windows behavior
     public void testFlushOnWindowsNewline() {
         printStream.print("hello\r\n");
+        printStream.print("\r\n"); // newline by itself does not show up
         printStream.print("world\r\n");
         assertThat(loggingStream.lines, contains("hello", "world"));
     }

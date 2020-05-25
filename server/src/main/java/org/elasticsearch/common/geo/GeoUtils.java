@@ -373,12 +373,25 @@ public class GeoUtils {
      * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
      */
     public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
+        return parseGeoPoint(value, new GeoPoint(), ignoreZValue);
+    }
+
+    /**
+     * Parses the value as a geopoint. The following types of values are supported:
+     * <p>
+     * Object: has to contain either lat and lon or geohash fields
+     * <p>
+     * String: expected to be in "latitude, longitude" format or a geohash
+     * <p>
+     * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
+     */
+    public static GeoPoint parseGeoPoint(Object value, GeoPoint point, final boolean ignoreZValue) throws ElasticsearchParseException {
         try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                Collections.singletonMap("null_value", value), null)) {
+            Collections.singletonMap("null_value", value), null)) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value
-            return parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
+            return parseGeoPoint(parser, point, ignoreZValue);
         } catch (IOException ex) {
             throw new ElasticsearchParseException("error parsing geopoint", ex);
         }

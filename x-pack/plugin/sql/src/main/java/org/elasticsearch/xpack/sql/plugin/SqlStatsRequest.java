@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -17,18 +17,18 @@ import java.io.IOException;
  * Request to gather usage statistics
  */
 public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
-    
+
     private boolean includeStats;
 
     public SqlStatsRequest() {
         super((String[]) null);
     }
-    
+
     public SqlStatsRequest(StreamInput in) throws IOException {
         super(in);
         includeStats = in.readBoolean();
     }
-    
+
     public boolean includeStats() {
         return includeStats;
     }
@@ -42,15 +42,15 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         super.writeTo(out);
         out.writeBoolean(includeStats);
     }
-    
+
     @Override
     public String toString() {
         return "sql_stats";
     }
-    
-    static class NodeStatsRequest extends BaseNodeRequest {
+
+    static class NodeStatsRequest extends TransportRequest {
         boolean includeStats;
-        
+
         NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
             includeStats = in.readBoolean();
@@ -59,7 +59,7 @@ public class SqlStatsRequest extends BaseNodesRequest<SqlStatsRequest> {
         NodeStatsRequest(SqlStatsRequest request) {
             includeStats = request.includeStats();
         }
-        
+
         public boolean includeStats() {
             return includeStats;
         }

@@ -15,6 +15,21 @@ services:
     ports:
       - "80"
 
+  s3-fixture-other:
+    build:
+      context: .
+      args:
+        fixtureClass: fixture.s3.S3HttpFixture
+        port: 80
+        bucket: "bucket"
+        basePath: "base_path"
+        accessKey: "access_key"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
+
   s3-fixture-with-session-token:
     build:
       context: .

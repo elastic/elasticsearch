@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -83,7 +84,7 @@ public class HttpExporter extends Exporter {
 
     private static Setting.AffixSettingDependency TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
         @Override
-        public Setting.AffixSetting getSetting() {
+        public Setting.AffixSetting<String> getSetting() {
             return Exporter.TYPE_SETTING;
         }
 
@@ -210,7 +211,6 @@ public class HttpExporter extends Exporter {
                                     HttpExporter.AUTH_USERNAME_SETTING.getNamespace(
                                         HttpExporter.AUTH_USERNAME_SETTING.getConcreteSetting(key));
 
-                                // password must be specified along with username for any auth
                                 if (Strings.isNullOrEmpty(username) == false) {
                                     final String type =
                                         (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
@@ -218,11 +218,6 @@ public class HttpExporter extends Exporter {
                                         throw new SettingsException("username for [" + key + "] is set but type is [" + type + "]");
                                     }
                                 }
-
-                                // it would be ideal to validate that just one of either AUTH_PASSWORD_SETTING or
-                                // AUTH_SECURE_PASSWORD_SETTING were present here, but that is not currently possible with the settings
-                                // validation framework.
-                                // https://github.com/elastic/elasticsearch/issues/51332
                             }
 
                             @Override
@@ -240,52 +235,6 @@ public class HttpExporter extends Exporter {
                         Property.Dynamic,
                         Property.NodeScope,
                         Property.Filtered),
-                    TYPE_DEPENDENCY);
-    /**
-     * Password for basic auth.
-     */
-    public static final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
-            Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password",
-                    (key) -> Setting.simpleString(key,
-                        new Setting.Validator<String>() {
-                            @Override
-                            public void validate(String password) {
-                                // no password validation that is independent of other settings
-                            }
-
-                            @Override
-                            public void validate(String password, Map<Setting<?>, Object> settings) {
-                                final String namespace =
-                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
-                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
-                                final String username =
-                                    (String) settings.get(AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
-
-                                // username is required for any auth
-                                if (Strings.isNullOrEmpty(username)) {
-                                    if (Strings.isNullOrEmpty(password) == false) {
-                                        throw new IllegalArgumentException(
-                                            "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "] without [" +
-                                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace).getKey() + "]");
-                                    }
-                                }
-                            }
-
-                            @Override
-                            public Iterator<Setting<?>> settings() {
-                                final String namespace =
-                                    HttpExporter.AUTH_PASSWORD_SETTING.getNamespace(
-                                        HttpExporter.AUTH_PASSWORD_SETTING.getConcreteSetting(key));
-                                final List<Setting<?>> settings = List.of(
-                                    HttpExporter.AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(namespace));
-                                return settings.iterator();
-                            }
-
-                        },
-                        Property.Dynamic,
-                        Property.NodeScope,
-                        Property.Filtered,
-                        Property.Deprecated),
                     TYPE_DEPENDENCY);
     /**
      * Secure password for basic auth.
@@ -307,6 +256,7 @@ public class HttpExporter extends Exporter {
                 "ssl",
                 (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered),
                 TYPE_DEPENDENCY);
+
     /**
      * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
      */
@@ -482,22 +432,34 @@ public class HttpExporter extends Exporter {
      * Because it is not possible to re-read the secure settings during a dynamic update, we cannot rebuild the {@link SSLIOSessionStrategy}
      * (see {@link #configureSecurity(RestClientBuilder, Config, SSLService)} if this exporter has been configured with secure settings
      */
-    public static void registerSettingValidators(ClusterService clusterService) {
+    public static void registerSettingValidators(ClusterService clusterService, SSLService sslService) {
         clusterService.getClusterSettings().addAffixUpdateConsumer(SSL_SETTING,
             (ignoreKey, ignoreSettings) -> {
             // no-op update. We only care about the validator
             },
-            (namespace, settings) -> {
-                final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix()
-                    .getSecureSettingsInUse(settings)
-                    .stream()
-                    .map(Setting::getKey)
-                    .collect(Collectors.toList());
-                if (secureSettings.isEmpty() == false) {
-                    throw new IllegalStateException("Cannot dynamically update SSL settings for the exporter [" + namespace
-                        + "] as it depends on the secure setting(s) [" + Strings.collectionToCommaDelimitedString(secureSettings) + "]");
-                }
+            (key, settings) -> {
+                validateSslSettings(key, settings);
+                configureSslStrategy(settings, null, sslService);
             });
+    }
+
+    /**
+     * Validates that secure settings are not being used to rebuild the {@link SSLIOSessionStrategy}.
+     *
+     * @param exporter Name of the exporter to validate
+     * @param settings Settings for the exporter
+     * @throws IllegalStateException if any secure settings are used in the SSL configuration
+     */
+    private static void validateSslSettings(String exporter, Settings settings) {
+        final List<String> secureSettings = SSLConfigurationSettings.withoutPrefix()
+            .getSecureSettingsInUse(settings)
+            .stream()
+            .map(Setting::getKey)
+            .collect(Collectors.toList());
+        if (secureSettings.isEmpty() == false) {
+            throw new IllegalStateException("Cannot dynamically update SSL settings for the exporter [" + exporter
+                + "] as it depends on the secure setting(s) [" + Strings.collectionToCommaDelimitedString(secureSettings) + "]");
+        }
     }
 
     /**
@@ -658,6 +620,30 @@ public class HttpExporter extends Exporter {
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
         final Setting<Settings> concreteSetting = SSL_SETTING.getConcreteSettingForNamespace(config.name());
         final Settings sslSettings = concreteSetting.get(config.settings());
+        final SSLIOSessionStrategy sslStrategy = configureSslStrategy(sslSettings, concreteSetting, sslService);
+        final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
+        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        // sending credentials in plaintext!
+        if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
+            logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +
+                    "username/password!", config.name());
+        }
+
+        if (sslStrategy != null) {
+            builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
+        }
+    }
+
+    /**
+     * Configures the {@link SSLIOSessionStrategy} to use. Relies on {@link #registerSettingValidators(ClusterService, SSLService)}
+     * to prevent invalid usage of secure settings in the SSL strategy.
+     * @param sslSettings The exporter's SSL settings
+     * @param concreteSetting Settings to use for {@link SSLConfiguration} if secure settings are used
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @return Appropriately configured instance of {@link SSLIOSessionStrategy}
+     */
+    private static SSLIOSessionStrategy configureSslStrategy(final Settings sslSettings, final Setting<Settings> concreteSetting,
+                                                             final SSLService sslService) {
         final SSLIOSessionStrategy sslStrategy;
         if (SSLConfigurationSettings.withoutPrefix().getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
@@ -670,17 +656,7 @@ public class HttpExporter extends Exporter {
             final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
             sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
         }
-        final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
-        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        // sending credentials in plaintext!
-        if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
-            logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +
-                    "username/password!", config.name());
-        }
-
-        if (sslStrategy != null) {
-            builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
-        }
+        return sslStrategy;
     }
 
     /**
@@ -730,18 +706,8 @@ public class HttpExporter extends Exporter {
     private static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
-        final String deprecatedPassword = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         final SecureString securePassword = SECURE_AUTH_PASSWORDS.get(config.name());
-        final String password;
-        if (securePassword != null) {
-            password = securePassword.toString();
-            if (Strings.isNullOrEmpty(deprecatedPassword) == false) {
-                logger.warn("exporter [{}] specified both auth.secure_password and auth.password.  using auth.secure_password and " +
-                    "ignoring auth.password", config.name());
-            }
-        } else {
-            password = deprecatedPassword;
-        }
+        final String password = securePassword != null ? securePassword.toString() : null;
 
         final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
@@ -870,7 +836,7 @@ public class HttpExporter extends Exporter {
 
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
-        final boolean canUseClusterAlerts = config.licenseState().isMonitoringClusterAlertsAllowed();
+        final boolean canUseClusterAlerts = config.licenseState().isAllowed(Feature.MONITORING_CLUSTER_ALERTS);
 
         // if this changes between updates, then we need to add OR remove the watches
         if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {
@@ -907,9 +873,9 @@ public class HttpExporter extends Exporter {
     }
 
     public static List<Setting.AffixSetting<?>> getDynamicSettings() {
-        return Arrays.asList(HOST_SETTING, TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, AUTH_PASSWORD_SETTING, AUTH_USERNAME_SETTING,
-                BULK_TIMEOUT_SETTING, CONNECTION_READ_TIMEOUT_SETTING, CONNECTION_TIMEOUT_SETTING, PIPELINE_CHECK_TIMEOUT_SETTING,
-                PROXY_BASE_PATH_SETTING, SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING);
+        return Arrays.asList(HOST_SETTING, TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, AUTH_USERNAME_SETTING, BULK_TIMEOUT_SETTING,
+                CONNECTION_READ_TIMEOUT_SETTING, CONNECTION_TIMEOUT_SETTING, PIPELINE_CHECK_TIMEOUT_SETTING, PROXY_BASE_PATH_SETTING,
+                SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING, HEADERS_SETTING);
     }
 
     public static List<Setting.AffixSetting<?>> getSecureSettings() {

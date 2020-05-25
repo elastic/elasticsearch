@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -35,7 +35,7 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
         Settings settings = Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;

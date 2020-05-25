@@ -31,11 +31,11 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
@@ -138,7 +138,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS.get(settings)
+            Node.NODE_REMOTE_CLUSTER_CLIENT.get(settings)
                 ? new RemoteClusterLicenseChecker(client, XPackLicenseState::isTransformAllowedForOperationMode)
                 : null,
             clusterService.getNodeName(),
@@ -203,7 +203,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
 
-        if (!licenseState.isTransformAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
@@ -222,7 +222,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
 
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
-        if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, transformId) != null) {
+        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, transformId) != null) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId))
             );
@@ -237,7 +237,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             ActionListener.wrap(
                 validationResponse -> {
                     // Early check to verify that the user can create the destination index and can read from the source
-                    if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
+                    if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
                         final String username = securityContext.getUser().principal();
                         HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
                         ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(

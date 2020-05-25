@@ -36,7 +36,7 @@
         id: "missing_index"
 
 ---
-"Test start given source index has no compatible fields":
+"Test start outlier_detection given source index has no fields":
 
   - do:
       indices.create:
@@ -57,7 +57,41 @@
           }
 
   - do:
-      catch: /No compatible fields could be detected in index \[empty-index\]/
+      catch: /at least one field must be included in the analysis/
+      ml.start_data_frame_analytics:
+        id: "foo"
+
+---
+"Test start regression given source index only has dependent variable":
+
+  - do:
+      indices.create:
+        index: index-with-dep-var-only
+        body:
+          mappings:
+            properties:
+              my_dep_var: { type: "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": {
+              "index": "index-with-dep-var-only"
+            },
+            "dest": {
+              "index": "results"
+            },
+            "analysis": {
+              "regression":{
+                "dependent_variable": "my_dep_var"
+              }
+            }
+          }
+
+  - do:
+      catch: /at least one field must be included in the analysis \(excluding fields \[my_dep_var\]\)/
       ml.start_data_frame_analytics:
         id: "foo"
 
@@ -142,7 +176,7 @@
         id: "start_given_empty_dest_index"
 
 ---
-"Test start classification analysis when the dependent variable cardinality is too low or too high":
+"Test start classification analysis when the dependent variable cardinality is too low":
   - do:
       indices.create:
         index: index-with-dep-var-with-too-high-card
@@ -177,24 +211,5 @@
 
   - do:
       catch: /Field \[keyword_field\] must have at least \[2\] distinct values but there were \[1\]/
-      ml.start_data_frame_analytics:
-        id: "classification-cardinality-limits"
-
-  - do:
-      index:
-        index: index-with-dep-var-with-too-high-card
-        body: { numeric_field: 2.0, keyword_field: "class_b" }
-
-  - do:
-      index:
-        index: index-with-dep-var-with-too-high-card
-        body: { numeric_field: 3.0, keyword_field: "class_c" }
-
-  - do:
-      indices.refresh:
-        index: index-with-dep-var-with-too-high-card
-
-  - do:
-      catch: /Field \[keyword_field\] must have at most \[2\] distinct values but there were at least \[3\]/
       ml.start_data_frame_analytics:
         id: "classification-cardinality-limits"

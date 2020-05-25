@@ -38,7 +38,7 @@ RP that you commonly need to provide for registration are the following:
 nor the Elastic Stack implementation impose any constraints on this value.
 - `Redirect URI`: This is the URI where the OP will redirect the user's browser after authentication. The
 appropriate value for this will depend on your setup and whether or not {kib} sits behind a proxy or
-load balancer. It will typically be +$\{kibana-url}/api/security/v1/oidc+ (for the authorization code flow) or +$\{kibana-url}/api/security/v1/oidc/implicit+ (for the implicit flow) where _$\{kibana-url}_  is the base URL for your {kib} instance. You might also see this
+load balancer. It will typically be +$\{kibana-url}/api/security/oidc/callback+ (for the authorization code flow) or +$\{kibana-url}/api/security/oidc/implicit+ (for the implicit flow) where _$\{kibana-url}_  is the base URL for your {kib} instance. You might also see this
 called `Callback URI`.
 
 At the end of the registration process, the OP will assign a Client Identifier and a Client Secret for the RP ({stack}) to use.
@@ -101,7 +101,7 @@ xpack.security.authc.realms.oidc.oidc1:
   order: 2
   rp.client_id: "the_client_id"
   rp.response_type: code
-  rp.redirect_uri: "https://kibana.example.org:5601/api/security/v1/oidc"
+  rp.redirect_uri: "https://kibana.example.org:5601/api/security/oidc/callback"
   op.issuer: "https://op.example.org"
   op.authorization_endpoint: "https://op.example.org/oauth2/v1/authorize"
   op.token_endpoint: "https://op.example.org/oauth2/v1/token"
@@ -144,7 +144,7 @@ rp.response_type::
 rp.redirect_uri::
     The redirect URI where the OP will redirect the browser after authentication. This needs to be
     _exactly_ the same as the one <<oidc-guide-op, configured with the OP upon registration>> and will
-    typically be +$\{kibana-url}/api/security/v1/oidc+ where _$\{kibana-url}_ is the base URL for your {kib} instance
+    typically be +$\{kibana-url}/api/security/oidc/callback+ where _$\{kibana-url}_ is the base URL for your {kib} instance
 
 op.issuer::
     A verifiable Identifier for your OpenID Connect Provider. An Issuer Identifier is usually a case sensitive URL.
@@ -320,7 +320,7 @@ xpack.security.authc.realms.oidc.oidc1:
   order: 2
   rp.client_id: "the_client_id"
   rp.response_type: code
-  rp.redirect_uri: "https://kibana.example.org:5601/api/security/v1/oidc"
+  rp.redirect_uri: "https://kibana.example.org:5601/api/security/oidc/callback"
   op.authorization_endpoint: "https://op.example.org/oauth2/v1/authorize"
   op.token_endpoint: "https://op.example.org/oauth2/v1/token"
   op.userinfo_endpoint: "https://op.example.org/oauth2/v1/userinfo"
@@ -522,15 +522,16 @@ The three additional settings that are required for OpenID Connect support are s
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.providers: [oidc]
-xpack.security.authc.oidc.realm: "oidc1"
-server.xsrf.whitelist: [/api/security/v1/oidc]
+xpack.security.authc.providers:
+  oidc.oidc1:
+    order: 0
+    realm: "oidc1"
 ------------------------------------------------------------
 
 The configuration values used in the example above are:
 
 `xpack.security.authc.providers`::
-Set this to `[ oidc ]` to instruct {kib} to use OpenID Connect single sign-on as the
+Add `oidc` provider to instruct {kib} to use OpenID Connect single sign-on as the
 authentication method. This instructs Kibana to attempt to initiate an SSO flow
 everytime a user attempts to access a URL in Kibana, if the user is not already
 authenticated. If you also want to allow users to login with a username and password,
@@ -538,24 +539,20 @@ you must enable the `basic` authentication provider too. For example:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.providers: [oidc, basic]
+xpack.security.authc.providers:
+  oidc.oidc1:
+    order: 0
+    realm: "oidc1"
+  basic.basic1:
+    order: 1
 ------------------------------------------------------------
 
 This will allow users that haven't already authenticated with OpenID Connect to
-navigate directly to the `/login` page in {kib} in order to use the login form.
+log in using the {kib} login form.
 
-`xpack.security.authc.oidc.realm`::
+`xpack.security.authc.providers.oidc.<provider-name>.realm`::
 The name of the OpenID Connect realm in {es} that should handle authentication
 for this Kibana instance.
-
-`server.xsrf.whitelist`::
-{kib} has in-built protection against _Cross Site Request Forgery_ attacks, which
-is designed to prevent the {kib} server from processing requests that
-originated from outside the {kib} application.
-If you use the authorization code flow, {kib} needs to support unsolicited messages that originate from your
-OP or a third party (see <<third-party-login>>). In order to do so, you must explicitly _whitelist_ the
-OpenID Connect authentication endpoint within {kib}, so that the {kib} server will
-not reject these external messages.
 
 [[oidc-without-kibana]]
 === OpenID Connect without {kib}
@@ -626,7 +623,7 @@ authenticate a user with OpenID Connect:
 
 . Make an HTTP POST request to `_security/oidc/prepare`, authenticating as the `facilitator` user, using the name of the
 OpenID Connect realm in the {es} configuration in the request body. For more
-details, see 
+details, see
 <<security-api-oidc-prepare-authentication>>.
 +
 [source,console]
@@ -656,7 +653,7 @@ POST /_security/oidc/prepare
 -----------------------------------------------------------------------
 POST /_security/oidc/authenticate
 {
-  "redirect_uri" : "https://oidc-kibana.elastic.co:5603/api/security/v1/oidc?code=jtI3Ntt8v3_XvcLzCFGq&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
+  "redirect_uri" : "https://oidc-kibana.elastic.co:5603/api/security/oidc/callback?code=jtI3Ntt8v3_XvcLzCFGq&state=4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
   "state" : "4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I",
   "nonce" : "WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM",
   "realm" : "oidc1"
@@ -678,7 +675,7 @@ POST /_security/oidc/logout
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// TEST[catch:unauthorized]
+// TEST[catch:request]
 +
 If the realm is configured accordingly, this may result in a response with a `redirect` parameter indicating where
 the user needs to be redirected in the OP in order to complete the logout process.

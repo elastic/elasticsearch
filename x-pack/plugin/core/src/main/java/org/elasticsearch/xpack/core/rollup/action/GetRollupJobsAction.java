@@ -14,7 +14,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +52,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
 
         public Request(String id) {
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
+                this.id = Metadata.ALL;
             } else {
                 this.id = id;
             }
@@ -64,7 +64,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
             super(in);
             id = in.readString();
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
+                this.id = Metadata.ALL;
             }
         }
 
@@ -78,7 +78,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description just needs to start
             // with `rollup_`
-            if (id.equals(MetaData.ALL)) {
+            if (id.equals(Metadata.ALL)) {
                 return task.getDescription().startsWith(RollupField.NAME + "_");
             }
             // Otherwise find the task by ID

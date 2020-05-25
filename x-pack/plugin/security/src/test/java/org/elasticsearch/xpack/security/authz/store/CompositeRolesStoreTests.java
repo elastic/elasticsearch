@@ -13,8 +13,8 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -55,7 +56,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -89,7 +90,6 @@ import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -116,7 +116,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .grantedFields("*")
@@ -186,7 +187,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testRolesWhenDlsFlsLicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         RoleDescriptor flsRole = new RoleDescriptor("fls", null, new IndicesPrivileges[] {
                 IndicesPrivileges.builder()
                         .grantedFields("*")
@@ -530,13 +532,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(flsRole, addsL1Fields), cache, null, future);
         Role role = future.actionGet();
 
-        MetaData metaData = MetaData.builder()
-                .put(new IndexMetaData.Builder("test")
+        Metadata metadata = Metadata.builder()
+                .put(new IndexMetadata.Builder("test")
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
         Map<String, IndicesAccessControl.IndexAccessControl> acls = role.indices().authorize("indices:data/read/search",
-            Collections.singleton("test"), metaData.getAliasAndIndexLookup(), cache);
+            Collections.singleton("test"), metadata.getIndicesLookup(), cache);
         assertFalse(acls.isEmpty());
         assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(acls.get("test").getFieldPermissions().grantsAccessTo("L2.foo"));
@@ -758,7 +760,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
             mock(ApiKeyService.class), documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
         // these licenses allow custom role providers
-        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.TRIAL), true, null);
+        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), true, null);
         roleNames = Sets.newHashSet("roleA");
         future = new PlainActionFuture<>();
         compositeRolesStore.roles(roleNames, future);
@@ -774,7 +776,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore, mock(NativePrivilegeStore.class),
             Arrays.asList(inMemoryProvider), new ThreadContext(Settings.EMPTY), xPackLicenseState, cache,
             mock(ApiKeyService.class), documentSubsetBitsetCache, rds -> effectiveRoleDescriptors.set(rds));
-        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.TRIAL), false, null);
+        xPackLicenseState.update(randomFrom(OperationMode.PLATINUM, OperationMode.ENTERPRISE, OperationMode.TRIAL), false, null);
         roleNames = Sets.newHashSet("roleA");
         future = new PlainActionFuture<>();
         compositeRolesStore.roles(roleNames, future);
@@ -789,7 +791,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public SecurityIndexManager.State dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isIndexUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetaData.State.OPEN);
+            Instant.now(), isIndexUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -900,44 +902,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertEquals(Role.EMPTY, roles);
     }
 
-    public void testAnonymousUserEnabledRoleAdded() {
-        Settings settings = Settings.builder()
-            .put(SECURITY_ENABLED_SETTINGS)
-            .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role")
-            .build();
-        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
-        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
-        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
-        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
-        doAnswer(invocationOnMock -> {
-            Set<String> names = (Set<String>) invocationOnMock.getArguments()[0];
-            if (names.size() == 1 && names.contains("anonymous_user_role")) {
-                RoleDescriptor rd = new RoleDescriptor("anonymous_user_role", null, null, null);
-                return Collections.singleton(rd);
-            }
-            return Collections.emptySet();
-        }).
-        when(fileRolesStore).roleDescriptors(anySetOf(String.class));
-        doAnswer((invocationOnMock) -> {
-            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
-            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
-            return null;
-        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
-        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
-
-        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, mock(NativePrivilegeStore.class), null, mock(ApiKeyService.class), null, null);
-        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
-
-        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        final User user = new User("no role user");
-        Authentication auth = new Authentication(user, new RealmRef("name", "type", "node"), null);
-        compositeRolesStore.getRoles(user, auth, rolesFuture);
-        final Role roles = rolesFuture.actionGet();
-        assertThat(Arrays.asList(roles.names()), hasItem("anonymous_user_role"));
-    }
-
-    public void testDoesNotUseRolesStoreForXPackUser() {
+    public void testDoesNotUseRolesStoreForXPacAndAsyncSearchUser() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
@@ -959,11 +924,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 rds -> effectiveRoleDescriptors.set(rds));
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
+        // test Xpack user short circuits to its own reserved role
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
         Authentication auth = new Authentication(XPackUser.INSTANCE, new RealmRef("name", "type", "node"), null);
         compositeRolesStore.getRoles(XPackUser.INSTANCE, auth, rolesFuture);
-        final Role roles = rolesFuture.actionGet();
+        Role roles = rolesFuture.actionGet();
         assertThat(roles, equalTo(XPackUser.ROLE));
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
+
+        // test AyncSearch user short circuits to its own reserved role
+        rolesFuture = new PlainActionFuture<>();
+        auth = new Authentication(AsyncSearchUser.INSTANCE, new RealmRef("name", "type", "node"), null);
+        compositeRolesStore.getRoles(AsyncSearchUser.INSTANCE, auth, rolesFuture);
+        roles = rolesFuture.actionGet();
+        assertThat(roles, equalTo(AsyncSearchUser.ROLE));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
     }

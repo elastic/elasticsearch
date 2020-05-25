@@ -9,6 +9,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -27,17 +29,38 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class ResultsPersisterService {
+    /**
+     * List of rest statuses that we consider irrecoverable
+     */
+    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Collections.unmodifiableSet(new HashSet<>(
+        Arrays.asList(
+            RestStatus.GONE,
+            RestStatus.NOT_IMPLEMENTED,
+            RestStatus.NOT_FOUND,
+            RestStatus.BAD_REQUEST,
+            RestStatus.UNAUTHORIZED,
+            RestStatus.FORBIDDEN,
+            RestStatus.METHOD_NOT_ALLOWED,
+            RestStatus.NOT_ACCEPTABLE
+        )
+    ));
+
     private static final Logger LOGGER = LogManager.getLogger(ResultsPersisterService.class);
 
     public static final Setting<Integer> PERSIST_RESULTS_MAX_RETRIES = Setting.intSetting(
@@ -95,15 +118,48 @@ public class ResultsPersisterService {
                                            String jobId,
                                            Supplier<Boolean> shouldRetry,
                                            Consumer<String> msgHandler) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler,
+            providedBulkRequest -> client.bulk(providedBulkRequest).actionGet());
+    }
+
+    public BulkResponse bulkIndexWithHeadersWithRetry(Map<String, String> headers,
+                                                      BulkRequest bulkRequest,
+                                                      String jobId,
+                                                      Supplier<Boolean> shouldRetry,
+                                                      Consumer<String> msgHandler) {
+        return bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, msgHandler,
+            providedBulkRequest -> ClientHelper.executeWithHeaders(
+                headers, ClientHelper.ML_ORIGIN, client, () -> client.execute(BulkAction.INSTANCE, bulkRequest).actionGet()));
+    }
+
+    private BulkResponse bulkIndexWithRetry(BulkRequest bulkRequest,
+                                            String jobId,
+                                            Supplier<Boolean> shouldRetry,
+                                            Consumer<String> msgHandler,
+                                            Function<BulkRequest, BulkResponse> actionExecutor) {
         RetryContext retryContext = new RetryContext(jobId, shouldRetry, msgHandler);
         while (true) {
-            BulkResponse bulkResponse = client.bulk(bulkRequest).actionGet();
+            BulkResponse bulkResponse = actionExecutor.apply(bulkRequest);
             if (bulkResponse.hasFailures() == false) {
                 return bulkResponse;
             }
-
+            for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
+                if (itemResponse.isFailed()) {
+                    if (isIrrecoverable(itemResponse.getFailure().getCause())) {
+                        Throwable unwrappedParticular = ExceptionsHelper.unwrapCause(itemResponse.getFailure().getCause());
+                        LOGGER.warn(new ParameterizedMessage(
+                            "[{}] experienced failure that cannot be automatically retried. Bulk failure message [{}]",
+                                jobId,
+                                bulkResponse.buildFailureMessage()),
+                            unwrappedParticular);
+                        throw new ElasticsearchException(
+                            "{} experienced failure that cannot be automatically retried. See logs for bulk failures",
+                            unwrappedParticular,
+                            jobId);
+                    }
+                }
+            }
             retryContext.nextIteration("index", bulkResponse.buildFailureMessage());
-
             // We should only retry the docs that failed.
             bulkRequest = buildNewRequestFromFailures(bulkRequest, bulkResponse);
         }
@@ -125,10 +181,26 @@ public class ResultsPersisterService {
             } catch (ElasticsearchException e) {
                 LOGGER.warn("[" + jobId + "] Exception while executing search action", e);
                 failureMessage = e.getDetailedMessage();
+                if (isIrrecoverable(e)) {
+                    LOGGER.warn(new ParameterizedMessage("[{}] experienced failure that cannot be automatically retried", jobId), e);
+                    throw new ElasticsearchException("{} experienced failure that cannot be automatically retried", e, jobId);
+                }
             }
 
             retryContext.nextIteration("search", failureMessage);
         }
+    }
+
+    /**
+     * @param ex The exception to check
+     * @return true when the failure will persist no matter how many times we retry.
+     */
+    private static boolean isIrrecoverable(Exception ex) {
+        Throwable t = ExceptionsHelper.unwrapCause(ex);
+        if (t instanceof ElasticsearchException) {
+            return IRRECOVERABLE_REST_STATUSES.contains(((ElasticsearchException) t).status());
+        }
+        return false;
     }
 
     /**

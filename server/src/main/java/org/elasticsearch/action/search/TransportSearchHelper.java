@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -32,16 +33,25 @@ import java.util.Base64;
 
 final class TransportSearchHelper {
 
-    static InternalScrollSearchRequest internalScrollSearchRequest(long id, SearchScrollRequest request) {
+    private static final String INCLUDE_CONTEXT_UUID = "include_context_uuid";
+
+    static InternalScrollSearchRequest internalScrollSearchRequest(SearchContextId id, SearchScrollRequest request) {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) throws IOException {
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults,
+                                boolean includeContextUUID) throws IOException {
         try (RAMOutputStream out = new RAMOutputStream()) {
+            if (includeContextUUID) {
+                out.writeString(INCLUDE_CONTEXT_UUID);
+            }
             out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
             out.writeVInt(searchPhaseResults.asList().size());
             for (SearchPhaseResult searchPhaseResult : searchPhaseResults.asList()) {
-                out.writeLong(searchPhaseResult.getRequestId());
+                if (includeContextUUID) {
+                    out.writeString(searchPhaseResult.getContextId().getReaderId());
+                }
+                out.writeLong(searchPhaseResult.getContextId().getId());
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
                     out.writeString(
@@ -60,9 +70,19 @@ final class TransportSearchHelper {
         try {
             byte[] bytes = Base64.getUrlDecoder().decode(scrollId);
             ByteArrayDataInput in = new ByteArrayDataInput(bytes);
-            String type = in.readString();
+            final boolean includeContextUUID;
+            final String type;
+            final String firstChunk = in.readString();
+            if (INCLUDE_CONTEXT_UUID.equals(firstChunk)) {
+                includeContextUUID = true;
+                type = in.readString();
+            } else {
+                includeContextUUID = false;
+                type = firstChunk;
+            }
             ScrollIdForNode[] context = new ScrollIdForNode[in.readVInt()];
             for (int i = 0; i < context.length; ++i) {
+                final String contextUUID = includeContextUUID ? in.readString() : "";
                 long id = in.readLong();
                 String target = in.readString();
                 String clusterAlias;
@@ -73,7 +93,7 @@ final class TransportSearchHelper {
                     clusterAlias = target.substring(0, index);
                     target = target.substring(index+1);
                 }
-                context[i] = new ScrollIdForNode(clusterAlias, target, id);
+                context[i] = new ScrollIdForNode(clusterAlias, target, new SearchContextId(contextUUID, id));
             }
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");

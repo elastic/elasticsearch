@@ -27,7 +27,7 @@ import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome
 
 /**
  *  We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
@@ -36,7 +36,7 @@ import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
  *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  *  and configure them to build various versions here.
  */
-bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleasedVersion ->
+BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleasedVersion ->
   project("${unreleasedVersion.gradleProjectPath}") {
     Version bwcVersion = unreleasedVersion.version
     String bwcBranch = unreleasedVersion.branch
@@ -149,7 +149,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
           spec.workingDir = checkoutDir
           spec.commandLine "git", "checkout", refspec
         }
-        String checkoutHash = GlobalBuildInfoPlugin.gitRevision(checkoutDir)
+        String checkoutHash = GlobalBuildInfoPlugin.gitInfo(checkoutDir).revision
         logger.lifecycle("Checkout hash for ${project.path} is ${checkoutHash}")
         file("${project.buildDir}/refspec").text = checkoutHash
       }
@@ -157,7 +157,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
 
 
     Closure createRunBwcGradleTask = { name, extraConfig ->
-      return tasks.create(name: "$name", type: LoggedExec) {
+      return tasks.register("$name", LoggedExec) {
         dependsOn checkoutBwcBranch
         spoolOutput = true
         workingDir = checkoutDir
@@ -166,7 +166,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
           List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
           environment(
             'JAVA_HOME',
-            getJavaHome(it, Integer.parseInt(
+            getJavaHome(Integer.parseInt(
               lines
                 .findAll({ it.startsWith("ES_BUILD_JAVA=") })
                 .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
@@ -176,7 +176,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
           )
           environment(
             'RUNTIME_JAVA_HOME',
-            getJavaHome(it, Integer.parseInt(
+            getJavaHome(Integer.parseInt(
               lines
                 .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
                 .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
@@ -193,6 +193,10 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         }
         if (gradle.startParameter.isOffline()) {
           args "--offline"
+        }
+        String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
+        if (buildCacheUrl) {
+          args "-Dorg.elasticsearch.build.cache.url=${buildCacheUrl}"
         }
 
         args "-Dbuild.snapshot=true"
@@ -221,10 +225,11 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
       return "buildBwc${projectName.replaceAll(/-\w/) { it[1].toUpperCase() }.capitalize()}"
     }
 
-    task buildBwc {}
+    def buildBwc = tasks.register("buildBwc");
 
     Closure createBuildBwcTask = { projectName, projectDir, projectArtifact ->
-      Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
+      def bwcTaskName = buildBwcTaskName(projectName)
+      createRunBwcGradleTask(bwcTaskName) {
         inputs.file("${project.buildDir}/refspec")
         outputs.files(projectArtifact)
         outputs.cacheIf("BWC distribution caching is disabled on 'master' branch") {
@@ -241,7 +246,9 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
           }
         }
       }
-      buildBwc.dependsOn bwcTask
+      buildBwc.configure {
+        dependsOn(bwcTaskName)
+      }
     }
 
     Map<String, File> artifactFiles = [:]

@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -96,7 +96,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         BoolQueryBuilder innerBool = QueryBuilders.boolQuery().must(
             QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
 
-        if (MetaData.ALL.equals(request.getForecastId()) == false) {
+        if (Metadata.ALL.equals(request.getForecastId()) == false) {
             Set<String> forcastIds = new HashSet<>(Arrays.asList(Strings.tokenizeToStringArray(forecastsExpression, ",")));
             innerBool.must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(), forcastIds));
         }
@@ -122,7 +122,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
 
         if (forecastsToDelete.isEmpty()) {
-            if (MetaData.ALL.equals(request.getForecastId()) &&
+            if (Metadata.ALL.equals(request.getForecastId()) &&
                 request.isAllowNoForecasts()) {
                 listener.onResponse(new AcknowledgedResponse(true));
             } else {

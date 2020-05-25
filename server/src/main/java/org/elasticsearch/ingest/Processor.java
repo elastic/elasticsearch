@@ -47,12 +47,14 @@ public interface Processor {
      * otherwise just overwrite {@link #execute(IngestDocument)}.
      */
     default void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        final IngestDocument result;
         try {
-            IngestDocument result = execute(ingestDocument);
-            handler.accept(result, null);
+            result = execute(ingestDocument);
         } catch (Exception e) {
             handler.accept(null, e);
+            return;
         }
+        handler.accept(result, null);
     }
 
     /**

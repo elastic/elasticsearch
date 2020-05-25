@@ -21,6 +21,10 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.rest.RestRequest.Method;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Handler for REST requests
@@ -58,5 +62,90 @@ public interface RestHandler {
      */
     default boolean allowsUnsafeBuffers() {
         return false;
+    }
+
+    /**
+     * The list of {@link Route}s that this RestHandler is responsible for handling.
+     */
+    default List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * A list of routes handled by this RestHandler that are deprecated and do not have a direct
+     * replacement. If changing the {@code path} or {@code method} of a route,
+     * use {@link #replacedRoutes()}.
+     */
+    default List<DeprecatedRoute> deprecatedRoutes() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * A list of routes handled by this RestHandler that have had their {@code path} and/or
+     * {@code method} changed. The pre-existing {@code route} will be registered
+     * as deprecated alongside the updated {@code route}.
+     */
+    default List<ReplacedRoute> replacedRoutes() {
+        return Collections.emptyList();
+    }
+
+    class Route {
+
+        private final String path;
+        private final Method method;
+
+        public Route(Method method, String path) {
+            this.path = path;
+            this.method = method;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public Method getMethod() {
+            return method;
+        }
+    }
+
+    /**
+     * Represents an API that has been deprecated and is slated for removal.
+     */
+    class DeprecatedRoute extends Route {
+
+        private final String deprecationMessage;
+
+        public DeprecatedRoute(Method method, String path, String deprecationMessage) {
+            super(method, path);
+            this.deprecationMessage = deprecationMessage;
+        }
+
+        public String getDeprecationMessage() {
+            return deprecationMessage;
+        }
+    }
+
+    /**
+     * Represents an API that has had its {@code path} or {@code method} changed. Holds both the
+     * new and previous {@code path} and {@code method} combination.
+     */
+    class ReplacedRoute extends Route {
+
+        private final String deprecatedPath;
+        private final Method deprecatedMethod;
+
+        public ReplacedRoute(Method method, String path, Method deprecatedMethod, String deprecatedPath) {
+            super(method, path);
+            this.deprecatedMethod = deprecatedMethod;
+            this.deprecatedPath = deprecatedPath;
+        }
+
+        public String getDeprecatedPath() {
+            return deprecatedPath;
+        }
+
+        public Method getDeprecatedMethod() {
+            return deprecatedMethod;
+        }
     }
 }

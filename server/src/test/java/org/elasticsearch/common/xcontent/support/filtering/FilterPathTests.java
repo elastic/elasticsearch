@@ -26,9 +26,9 @@ import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -49,7 +49,7 @@ public class FilterPathTests extends ESTestCase {
         FilterPath next = filterPath.getNext();
         assertNotNull(next);
         assertThat(next.matches(), is(true));
-        assertThat(next.getSegment(), isEmptyString());
+        assertThat(next.getSegment(), is(emptyString()));
         assertSame(next, FilterPath.EMPTY);
     }
 
@@ -73,7 +73,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
     }
 
@@ -102,7 +102,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
     }
 
@@ -148,7 +148,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
 
         input = "w\\.0\\.0\\.t";
@@ -165,7 +165,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
 
 
@@ -187,7 +187,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
     }
 
@@ -231,7 +231,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
     }
 
@@ -271,7 +271,7 @@ public class FilterPathTests extends ESTestCase {
         next = next.getNext();
         assertNotNull(next);
         assertThat(next.matches(), is(true));
-        assertThat(next.getSegment(), isEmptyString());
+        assertThat(next.getSegment(), is(emptyString()));
         assertSame(next, FilterPath.EMPTY);
     }
 
@@ -301,7 +301,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
     }
 
@@ -337,7 +337,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
 
         // test.dot\.ted
@@ -354,7 +354,7 @@ public class FilterPathTests extends ESTestCase {
         filterPath = filterPath.getNext();
         assertNotNull(filterPath);
         assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), isEmptyString());
+        assertThat(filterPath.getSegment(), is(emptyString()));
         assertSame(filterPath, FilterPath.EMPTY);
     }
 }

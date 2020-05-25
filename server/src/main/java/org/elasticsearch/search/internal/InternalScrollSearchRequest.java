@@ -33,33 +33,33 @@ import java.util.Map;
 
 public class InternalScrollSearchRequest extends TransportRequest {
 
-    private long id;
+    private SearchContextId contextId;
 
     private Scroll scroll;
 
     public InternalScrollSearchRequest() {
     }
 
-    public InternalScrollSearchRequest(SearchScrollRequest request, long id) {
-        this.id = id;
+    public InternalScrollSearchRequest(SearchScrollRequest request, SearchContextId contextId) {
+        this.contextId = contextId;
         this.scroll = request.scroll();
     }
 
     public InternalScrollSearchRequest(StreamInput in) throws IOException {
         super(in);
-        id = in.readLong();
+        contextId = new SearchContextId(in);
         scroll = in.readOptionalWriteable(Scroll::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        contextId.writeTo(out);
         out.writeOptionalWriteable(scroll);
     }
 
-    public long id() {
-        return id;
+    public SearchContextId contextId() {
+        return contextId;
     }
 
     public Scroll scroll() {
@@ -78,7 +78,7 @@ public class InternalScrollSearchRequest extends TransportRequest {
 
     @Override
     public String getDescription() {
-        return "id[" + id + "], scroll[" + scroll + "]";
+        return "id[" + contextId.getId() + "], scroll[" + scroll + "]";
     }
 
 }

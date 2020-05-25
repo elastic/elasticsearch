@@ -26,7 +26,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms.Bucket;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.internal.SearchContext;
@@ -41,9 +42,9 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             BucketOrder order, BucketCountThresholds bucketCountThresholds, SearchContext aggregationContext, Aggregator parent,
             SubAggCollectionMode collectionMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
         super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode,
-                showTermDocCountError, longFilter, pipelineAggregators, metaData);
+                showTermDocCountError, longFilter, collectsFromSingleBucket, metadata);
     }
 
     @Override
@@ -52,9 +53,8 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public DoubleTerms buildAggregation(long owningBucketOrdinal) throws IOException {
-        final LongTerms terms = (LongTerms) super.buildAggregation(owningBucketOrdinal);
-        return convertToDouble(terms);
+    protected InternalAggregation buildResult(long otherDocCount, List<Bucket> buckets) {
+        return convertToDouble((LongTerms) super.buildResult(otherDocCount, buckets));
     }
 
     @Override
@@ -65,8 +65,8 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
 
     private static DoubleTerms convertToDouble(LongTerms terms) {
         List<DoubleTerms.Bucket> buckets = terms.buckets.stream().map(DoubleTermsAggregator::convertToDouble).collect(Collectors.toList());
-        return new DoubleTerms(terms.getName(), terms.order, terms.requiredSize, terms.minDocCount, terms.pipelineAggregators(),
-                terms.getMetaData(), terms.format, terms.shardSize, terms.showTermDocCountError, terms.otherDocCount, buckets,
+        return new DoubleTerms(terms.getName(), terms.order, terms.requiredSize, terms.minDocCount,
+                terms.getMetadata(), terms.format, terms.shardSize, terms.showTermDocCountError, terms.otherDocCount, buckets,
                 terms.docCountError);
     }
 

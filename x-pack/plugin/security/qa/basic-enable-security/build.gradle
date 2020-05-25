@@ -20,7 +20,6 @@ integTest {
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'false'

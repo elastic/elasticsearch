@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTi
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormat;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
@@ -111,6 +113,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 
 public class SqlFunctionRegistry extends FunctionRegistry {
 
@@ -168,6 +171,8 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
                 def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
+                def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),
                 def(HourOfDay.class, HourOfDay::new, "HOUR_OF_DAY", "HOUR"),
                 def(IsoDayOfWeek.class, IsoDayOfWeek::new, "ISO_DAY_OF_WEEK", "ISODAYOFWEEK", "ISODOW", "IDOW"),
@@ -234,6 +239,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Right.class, Right::new, "RIGHT"),
                 def(RTrim.class, RTrim::new, "RTRIM"),
                 def(Space.class, Space::new, "SPACE"),
+                def(StartsWith.class, StartsWith::new, "STARTS_WITH"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
                 def(UCase.class, UCase::new, "UCASE")
             },
@@ -262,4 +268,5 @@ public class SqlFunctionRegistry extends FunctionRegistry {
             }
         };
     }
+
 }

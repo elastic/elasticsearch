@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
@@ -27,9 +29,10 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -63,7 +66,7 @@ public class Pivot {
         this.cachedCompositeAggregation = createCompositeAggregation(config);
 
         boolean supportsIncrementalBucketUpdate = false;
-        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
+        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
             supportsIncrementalBucketUpdate |= entry.getValue().supportsIncrementalBucketUpdate();
         }
 
@@ -83,17 +86,30 @@ public class Pivot {
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
-                listener.onFailure(new ElasticsearchStatusException("Unexpected null response from test query",
-                    RestStatus.SERVICE_UNAVAILABLE));
+                listener.onFailure(
+                    new ElasticsearchStatusException("Unexpected null response from test query", RestStatus.SERVICE_UNAVAILABLE)
+                );
                 return;
             }
             if (response.status() != RestStatus.OK) {
-                listener.onFailure(new ElasticsearchStatusException("Unexpected status from response of test query: " + response.status(),
-                    response.status()));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Unexpected status from response of test query: " + response.status(),
+                        response.status()
+                    )
+                );
                 return;
             }
             listener.onResponse(true);
-        }, e -> listener.onFailure(new ElasticsearchStatusException("Failed to test query", RestStatus.SERVICE_UNAVAILABLE, e))));
+        }, e -> {
+            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+            RestStatus status = unwrapped instanceof ElasticsearchException ?
+                ((ElasticsearchException)unwrapped).status() :
+                RestStatus.SERVICE_UNAVAILABLE;
+            listener.onFailure(new ElasticsearchStatusException("Failed to test query",
+                status,
+                unwrapped));
+        }));
     }
 
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
@@ -128,6 +144,8 @@ public class Pivot {
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+
+        logger.trace("Search request: {}", searchRequest);
         return searchRequest;
     }
 
@@ -149,7 +167,7 @@ public class Pivot {
     public Map<String, Set<String>> initialIncrementalBucketUpdateMap() {
 
         Map<String, Set<String>> changedBuckets = new HashMap<>();
-        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
+        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
             if (entry.getValue().supportsIncrementalBucketUpdate()) {
                 changedBuckets.put(entry.getKey(), new HashSet<>());
             }
@@ -162,60 +180,50 @@ public class Pivot {
         return supportsIncrementalBucketUpdate;
     }
 
-    public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
-                                                      Map<String, String> fieldTypeMap,
-                                                      TransformIndexerStats transformIndexerStats) {
-
+    public Stream<Map<String, Object>> extractResults(
+        CompositeAggregation agg,
+        Map<String, String> fieldTypeMap,
+        TransformIndexerStats transformIndexerStats
+    ) {
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg,
+        return AggregationResultUtils.extractCompositeAggregationResults(
+            agg,
             groups,
             aggregationBuilders,
             pipelineAggregationBuilders,
             fieldTypeMap,
-            transformIndexerStats);
+            transformIndexerStats
+        );
     }
 
-    public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
-
-        if (changedBuckets == null || changedBuckets.isEmpty()) {
-            return null;
-        }
+    public QueryBuilder filterBuckets(
+        Map<String, Set<String>> changedBuckets,
+        String synchronizationField,
+        long lastSynchronizationCheckpoint
+    ) {
+        assert changedBuckets != null;
 
         if (config.getGroupConfig().getGroups().size() == 1) {
             Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
-            // it should not be possible to get into this code path
-            assert (entry.getValue().supportsIncrementalBucketUpdate());
-
-            logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());
-            if (changedBuckets.containsKey(entry.getKey())) {
-                return entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
-            }
+            logger.trace(() -> new ParameterizedMessage("filter by bucket: {}/{}", entry.getKey(), entry.getValue().getField()));
+            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
+            return entry.getValue()
+                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
         }
 
         // else: more than 1 group by, need to nest it
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
         for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            if (entry.getValue().supportsIncrementalBucketUpdate() == false) {
-                continue;
+            Set<String> changedBucketsByGroup = changedBuckets.get(entry.getKey());
+            QueryBuilder sourceQueryFilter = entry.getValue()
+                .getIncrementalBucketUpdateFilterQuery(changedBucketsByGroup, synchronizationField, lastSynchronizationCheckpoint);
+            // the source might not define a filter optimization
+            if (sourceQueryFilter != null) {
+                filteredQuery.filter(sourceQueryFilter);
             }
-
-            if (changedBuckets.containsKey(entry.getKey())) {
-                QueryBuilder sourceQueryFilter = entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
-                // the source might not define an filter optimization
-                if (sourceQueryFilter != null) {
-                    filteredQuery.filter(sourceQueryFilter);
-                }
-            } else {
-                // should never happen
-                throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
-            }
-
         }
 
         return filteredQuery;
@@ -235,8 +243,10 @@ public class Pivot {
 
         try (XContentBuilder builder = jsonBuilder()) {
             config.toCompositeAggXContent(builder, forChangeDetection);
-            XContentParser parser = builder.generator().contentType().xContent().createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
         } catch (IOException e) {
             throw new RuntimeException(TransformMessages.TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);

@@ -28,13 +28,13 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -74,7 +74,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper);
-        assertTrue(fd instanceof SortedSetDVOrdinalsIndexFieldData);
+        assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
                 new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.BYTE).build(ctx).fieldType(),
@@ -84,20 +84,20 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper);
-            assertTrue(fd instanceof SortedNumericDVIndexFieldData);
+            assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
         final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT)
                 .build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper);
-        assertTrue(fd instanceof SortedNumericDVIndexFieldData);
+        assertTrue(fd instanceof SortedNumericIndexFieldData);
 
         final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE)
                 .build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper);
-        assertTrue(fd instanceof SortedNumericDVIndexFieldData);
+        assertTrue(fd instanceof SortedNumericIndexFieldData);
     }
 
     public void testClearField() throws Exception {
@@ -110,7 +110,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1").fielddata(true).build(ctx).fieldType();
         final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2").fielddata(true).build(ctx).fieldType();
-        final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("field_1", "thisisastring", Store.NO));
         doc.add(new StringField("field_2", "thisisanotherstring", Store.NO));
@@ -132,8 +132,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         IndexFieldData<?> ifd1 = ifdService.getForField(mapper1);
         IndexFieldData<?> ifd2 = ifdService.getForField(mapper2);
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
-        AtomicFieldData loadField1 = ifd1.load(leafReaderContext);
-        AtomicFieldData loadField2 = ifd2.load(leafReaderContext);
+        LeafFieldData loadField1 = ifd1.load(leafReaderContext);
+        LeafFieldData loadField2 = ifd2.load(leafReaderContext);
 
         assertEquals(2, onCacheCalled.get());
         assertEquals(0, onRemovalCalled.get());
@@ -169,7 +169,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         final MappedFieldType mapper1 = new TextFieldMapper.Builder("s").fielddata(true).build(ctx).fieldType();
-        final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
+        final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
         writer.addDocument(doc);
@@ -201,7 +201,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         });
         IndexFieldData<?> ifd = ifdService.getForField(mapper1);
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
-        AtomicFieldData load = ifd.load(leafReaderContext);
+        LeafFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
         assertEquals(0, onRemovalCalled.get());
         reader.close();

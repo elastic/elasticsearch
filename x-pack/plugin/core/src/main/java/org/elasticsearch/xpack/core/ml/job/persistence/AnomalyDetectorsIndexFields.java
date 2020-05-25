@@ -9,11 +9,9 @@ public final class AnomalyDetectorsIndexFields {
 
     public static final String CONFIG_INDEX = ".ml-config";
 
-    public static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
-
     public static final String STATE_INDEX_PREFIX = ".ml-state";
-    public static final String STATE_INDEX_PATTERN = STATE_INDEX_PREFIX + "*";
 
+    public static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
     public static final String RESULTS_INDEX_DEFAULT = "shared";
 
     private AnomalyDetectorsIndexFields() {}

@@ -54,9 +54,9 @@ public class DateHistogramValuesSourceBuilder
     extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
     static final String TYPE = "date_histogram";
 
-    private static final ObjectParser<DateHistogramValuesSourceBuilder, Void> PARSER;
+    static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER =
+            ObjectParser.fromBuilder(TYPE, DateHistogramValuesSourceBuilder::new);
     static {
-        PARSER = new ObjectParser<>(DateHistogramValuesSourceBuilder.TYPE);
         PARSER.declareString(DateHistogramValuesSourceBuilder::format, new ParseField("format"));
         DateIntervalWrapper.declareIntervalFields(PARSER);
         PARSER.declareField(DateHistogramValuesSourceBuilder::offset, p -> {
@@ -74,9 +74,6 @@ public class DateHistogramValuesSourceBuilder
             }
         }, new ParseField("time_zone"), ObjectParser.ValueType.LONG);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
-    }
-    static DateHistogramValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new DateHistogramValuesSourceBuilder(name), null);
     }
 
     private ZoneId timeZone = null;
@@ -250,15 +247,17 @@ public class DateHistogramValuesSourceBuilder
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<?> config) throws IOException {
+    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        ValuesSource orig = config.toValuesSource(queryShardContext);
+        ValuesSource orig = config.toValuesSource();
         if (orig == null) {
             orig = ValuesSource.Numeric.EMPTY;
         }
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
-            RoundingValuesSource vs = new RoundingValuesSource(numeric, rounding);
+            // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it here
+            Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
+            RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;

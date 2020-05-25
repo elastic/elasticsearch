@@ -53,7 +53,6 @@ import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
@@ -89,9 +88,9 @@ final class CompositeAggregator extends BucketsAggregator {
     private boolean earlyTerminated;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                        Map<String, Object> metadata,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, metadata);
         this.size = size;
         this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
@@ -134,8 +133,9 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long zeroBucket) throws IOException {
-        assert zeroBucket == 0L;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        // Composite aggregator must be at the top of the aggregation tree
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0L;
         consumeBucketsAndMaybeBreak(queue.size());
         if (deferredCollectors != NO_OP_COLLECTOR) {
             // Replay all documents that contain at least one top bucket (collected during the first pass).
@@ -144,22 +144,29 @@ final class CompositeAggregator extends BucketsAggregator {
 
         int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
+        long[] bucketOrdsToCollect = new long[queue.size()];
+        for (int i = 0; i < queue.size(); i++) {
+            bucketOrdsToCollect[i] = i;
+        }
+        InternalAggregations[] subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
         while (queue.size() > 0) {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
-            InternalAggregations aggs = bucketAggregations(slot);
+            InternalAggregations aggs = subAggsForBuckets[slot];
             int docCount = queue.getDocCount(slot);
             buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
-            earlyTerminated, pipelineAggregators(), metaData());
+        return new InternalAggregation[] {
+            new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
+                    earlyTerminated, metadata())
+        };
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
-            false, pipelineAggregators(), metaData());
+            false, metadata());
     }
 
     private void finishLeaf() {
@@ -202,7 +209,8 @@ final class CompositeAggregator extends BucketsAggregator {
             return null;
         }
         List<SortField> sortFields = new ArrayList<>();
-        for (int i = 0; i < indexSort.getSort().length; i++) {
+        int end = Math.min(indexSort.getSort().length, sourceConfigs.length);
+        for (int i = 0; i < end; i++) {
             CompositeValuesSourceConfig sourceConfig = sourceConfigs[i];
             SingleDimensionValuesSource<?> source = sources[i];
             SortField indexSortField = indexSort.getSort()[i];

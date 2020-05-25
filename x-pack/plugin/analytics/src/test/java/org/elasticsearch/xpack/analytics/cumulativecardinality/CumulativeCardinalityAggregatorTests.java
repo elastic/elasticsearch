@@ -16,46 +16,26 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.analytics.StubAggregatorFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -83,7 +63,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
-        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality", ValueType.NUMERIC).field(VALUE_FIELD));
+        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality").field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "the_cardinality"));
 
         executeTestCase(query, aggBuilder, histogram -> {
@@ -103,7 +83,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
-        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality", ValueType.NUMERIC).field("foo"));
+        aggBuilder.subAggregation(new CardinalityAggregationBuilder("the_cardinality").field("foo"));
         aggBuilder.subAggregation(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "the_cardinality"));
 
         executeTestCase(query, aggBuilder, histogram -> {
@@ -113,53 +93,6 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
                 assertThat(((InternalSimpleLongValue) (bucket.getAggregations().get("cumulative_card"))).value(), equalTo(0.0));
             }
         });
-    }
-
-    public void testParentValidations() throws IOException {
-        ValuesSourceConfig<ValuesSource> valuesSource = new ValuesSourceConfig<>(CoreValuesSourceType.NUMERIC);
-
-        // Histogram
-        Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        AggregatorFactory parent = new HistogramAggregatorFactory("name", valuesSource, 0.0d, 0.0d,
-            mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(QueryShardContext.class), null,
-            new AggregatorFactories.Builder(), Collections.emptyMap());
-        CumulativeCardinalityPipelineAggregationBuilder builder
-            = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
-        builder.validate(parent, Collections.emptySet(), aggBuilders);
-
-        // Date Histogram
-        aggBuilders.clear();
-        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        parent = new DateHistogramAggregatorFactory("name", valuesSource,
-            mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
-            mock(ExtendedBounds.class), mock(QueryShardContext.class), mock(AggregatorFactory.class),
-            new AggregatorFactories.Builder(), Collections.emptyMap());
-        builder = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
-        builder.validate(parent, Collections.emptySet(), aggBuilders);
-
-        // Auto Date Histogram
-        ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(CoreValuesSourceType.NUMERIC);
-        aggBuilders.clear();
-        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
-        parent = new AutoDateHistogramAggregatorFactory("name", numericVS,
-            1, roundings,
-            mock(QueryShardContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
-        builder = new CumulativeCardinalityPipelineAggregationBuilder("name", "valid");
-        builder.validate(parent, Collections.emptySet(), aggBuilders);
-
-        // Mocked "test" agg, should fail validation
-        aggBuilders.clear();
-        aggBuilders.add(new CumulativeCardinalityPipelineAggregationBuilder("cumulative_card", "sum"));
-        StubAggregatorFactory parentFactory = StubAggregatorFactory.createInstance();
-
-        CumulativeCardinalityPipelineAggregationBuilder failBuilder
-            = new CumulativeCardinalityPipelineAggregationBuilder("name", "invalid_agg>metric");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
-            () -> failBuilder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("cumulative_cardinality aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
-            ex.getMessage());
     }
 
     public void testNonCardinalityAgg() {

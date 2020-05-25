@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 
 import java.util.Objects;
 

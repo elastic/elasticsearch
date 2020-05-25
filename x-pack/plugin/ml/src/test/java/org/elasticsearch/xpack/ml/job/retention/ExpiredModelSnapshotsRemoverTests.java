@@ -74,7 +74,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         givenClientRequestsSucceed(responses);
 
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -89,20 +89,22 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                         JobTests.buildJobBuilder("job-2").setModelSnapshotRetentionDays(17L).setModelSnapshotId("active").build()
         )));
 
-        Date oneDayAgo = new Date(new Date().getTime() - TimeValue.timeValueDays(1).getMillis());
+        Date now = new Date();
+        Date oneDayAgo = new Date(now.getTime() - TimeValue.timeValueDays(1).getMillis());
         ModelSnapshot snapshot1_1 = createModelSnapshot("job-1", "fresh-snapshot", oneDayAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(snapshot1_1)));
 
-        Date eightDaysAgo = new Date(new Date().getTime() - TimeValue.timeValueDays(8).getMillis());
-        ModelSnapshot snapshotToBeDeleted = createModelSnapshot("job-1", "old-snapshot", eightDaysAgo);
+        // It needs to be strictly more than 7 days before the most recent snapshot, hence the extra millisecond
+        Date eightDaysAndOneMsAgo = new Date(now.getTime() - TimeValue.timeValueDays(8).getMillis() - 1);
+        ModelSnapshot snapshotToBeDeleted = createModelSnapshot("job-1", "old-snapshot", eightDaysAndOneMsAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(snapshotToBeDeleted)));
 
-        ModelSnapshot snapshot2_1 = createModelSnapshot("job-1", "snapshots-1_1", eightDaysAgo);
+        ModelSnapshot snapshot2_1 = createModelSnapshot("job-1", "snapshots-1_1", eightDaysAndOneMsAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(snapshot2_1)));
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.emptyList()));
 
         givenClientRequestsSucceed(searchResponses);
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -127,9 +129,10 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             JobTests.buildJobBuilder("snapshots-2").setModelSnapshotRetentionDays(17L).setModelSnapshotId("active").build()
         )));
 
-        List<ModelSnapshot> snapshots1JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-1", "snapshots-1_1"),
-            createModelSnapshot("snapshots-1", "snapshots-1_2"));
-        List<ModelSnapshot> snapshots2JobSnapshots = Collections.singletonList(createModelSnapshot("snapshots-2", "snapshots-2_1"));
+        Date now = new Date();
+        List<ModelSnapshot> snapshots1JobSnapshots = Arrays.asList(createModelSnapshot("snapshots-1", "snapshots-1_1", now),
+            createModelSnapshot("snapshots-1", "snapshots-1_2", now));
+        List<ModelSnapshot> snapshots2JobSnapshots = Collections.singletonList(createModelSnapshot("snapshots-2", "snapshots-2_1", now));
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots1JobSnapshots));
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots2JobSnapshots));
 
@@ -138,7 +141,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         final int timeoutAfter = randomIntBetween(0, 1);
         AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
 
-        createExpiredModelSnapshotsRemover().remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> (attemptsLeft.getAndDecrement() <= 0));
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));
@@ -153,7 +156,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         )));
 
         givenClientSearchRequestsFail(searchResponses);
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));
@@ -173,19 +176,23 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("snapshots-2").setModelSnapshotRetentionDays(17L).setModelSnapshotId("active").build()
         )));
 
-        ModelSnapshot snapshot1_1 = createModelSnapshot("snapshots-1", "snapshots-1_1");
+        Date now = new Date();
+        Date oneDayAgo = new Date(new Date().getTime() - TimeValue.timeValueDays(1).getMillis());
+        ModelSnapshot snapshot1_1 = createModelSnapshot("snapshots-1", "snapshots-1_1", oneDayAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(snapshot1_1)));
 
+        // It needs to be strictly more than 7 days before the most recent snapshot, hence the extra millisecond
+        Date eightDaysAndOneMsAgo = new Date(now.getTime() - TimeValue.timeValueDays(8).getMillis() - 1);
         List<ModelSnapshot> snapshots1JobSnapshots = Arrays.asList(
                 snapshot1_1,
-                createModelSnapshot("snapshots-1", "snapshots-1_2"));
+                createModelSnapshot("snapshots-1", "snapshots-1_2", eightDaysAndOneMsAgo));
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(snapshots1JobSnapshots));
 
-        ModelSnapshot snapshot2_2 = createModelSnapshot("snapshots-2", "snapshots-2_1");
+        ModelSnapshot snapshot2_2 = createModelSnapshot("snapshots-2", "snapshots-2_1", eightDaysAndOneMsAgo);
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(snapshot2_2)));
 
         givenClientDeleteModelSnapshotRequestsFail(searchResponses);
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));
@@ -197,7 +204,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(1));
         DeleteModelSnapshotAction.Request deleteSnapshotRequest = capturedDeleteModelSnapshotRequests.get(0);
         assertThat(deleteSnapshotRequest.getJobId(), equalTo("snapshots-1"));
-        assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_1"));
+        assertThat(deleteSnapshotRequest.getSnapshotId(), equalTo("snapshots-1_2"));
     }
 
     @SuppressWarnings("unchecked")
@@ -211,12 +218,12 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         givenClientRequests(searchResponses, true, true);
 
         long retentionDays = 3L;
-        ActionListener<Long> cutoffListener = mock(ActionListener.class);
+        ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
         createExpiredModelSnapshotsRemover().calcCutoffEpochMs("job-1", retentionDays, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;
         long expectedCutoffTime = oneDayAgo.getTime() - (dayInMills * retentionDays);
-        verify(cutoffListener).onResponse(eq(expectedCutoffTime));
+        verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(oneDayAgo.getTime(), expectedCutoffTime)));
     }
 
     private ExpiredModelSnapshotsRemover createExpiredModelSnapshotsRemover() {
@@ -232,10 +239,6 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 }
         ).when(executor).execute(any());
         return new ExpiredModelSnapshotsRemover(originSettingClient, threadPool);
-    }
-
-    private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId) {
-        return new ModelSnapshot.Builder(jobId).setSnapshotId(snapshotId).setTimestamp(new Date()).build();
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {
@@ -269,7 +272,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                 capturedSearchRequests.add(searchRequest);
                 // Only the last search request should fail
                 if (shouldSearchRequestsSucceed || callCount.get() < searchResponses.size()) {
-                    listener.onResponse(searchResponses.get(callCount.getAndIncrement()));
+                    SearchResponse response = searchResponses.get(callCount.getAndIncrement());
+                    listener.onResponse(response);
                 } else {
                     listener.onFailure(new RuntimeException("search failed"));
                 }

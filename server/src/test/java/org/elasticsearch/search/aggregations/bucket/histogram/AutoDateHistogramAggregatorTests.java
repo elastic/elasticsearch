@@ -31,7 +31,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
@@ -47,7 +47,6 @@ import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregat
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -205,13 +204,6 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
             }
         );
         testSearchAndReduceCase(DEFAULT_QUERY, dates, aggregation,
-            Assert::assertNull
-        );
-    }
-
-    public void testAggregateWrongField() throws IOException {
-        testBothCases(DEFAULT_QUERY, DATES_WITH_TIME,
-            aggregation -> aggregation.setNumBuckets(10).field("wrong_field"),
             histogram -> {
                 assertEquals(0, histogram.getBuckets().size());
                 assertFalse(AggregationInspectionHelper.hasValue(histogram));
@@ -219,20 +211,41 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testUnmappedMissing() throws IOException {
-        testBothCases(DEFAULT_QUERY, DATES_WITH_TIME,
-            aggregation -> aggregation.setNumBuckets(10).field("wrong_field").missing("2017-12-12"),
-            histogram -> {
-                assertEquals(1, histogram.getBuckets().size());
-                assertTrue(AggregationInspectionHelper.hasValue(histogram));
-            }
-        );
+    public void testAggregateWrongField() throws IOException {
+        AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
+            setNumBuckets(10).field("bogus_bogus");
+
+        final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
+        final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
+        fieldType.setHasDocValues(true);
+        fieldType.setName("date_field");
+
+        testCase(aggregation, DEFAULT_QUERY,
+            iw -> {},
+            (Consumer<InternalAutoDateHistogram>) histogram -> {
+                assertEquals(0, histogram.getBuckets().size());
+                assertFalse(AggregationInspectionHelper.hasValue(histogram));
+            }, fieldType);
     }
 
+    public void testUnmappedMissing() throws IOException {
+        AutoDateHistogramAggregationBuilder aggregation = new AutoDateHistogramAggregationBuilder("_name").
+            setNumBuckets(10).field("bogus_bogus").missing("2017-12-12");
+
+        final DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
+        final DateFieldMapper.DateFieldType fieldType = builder.fieldType();
+        fieldType.setHasDocValues(true);
+        fieldType.setName("date_field");
+
+        testCase(aggregation, DEFAULT_QUERY,
+            iw -> {},
+            (Consumer<InternalAutoDateHistogram>) histogram -> {
+                assertEquals(0, histogram.getBuckets().size());
+                assertFalse(AggregationInspectionHelper.hasValue(histogram));
+        }, fieldType);
+    }
 
     public void testIntervalYear() throws IOException {
-
-
         final long start = LocalDate.of(2015, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final long end = LocalDate.of(2017, 12, 31).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
         final Query rangeQuery = LongPoint.newRangeQuery(INSTANT_FIELD, start, end);
@@ -790,7 +803,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         final Settings nodeSettings = Settings.builder()
             .put("search.max_buckets", 25000).build();
         return new IndexSettings(
-            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())
@@ -804,21 +817,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                                  final Consumer<InternalAutoDateHistogram> verify) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                final Document document = new Document();
-                int i = 0;
-                for (final ZonedDateTime date : dataset) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
-
-                    final long instant = date.toInstant().toEpochMilli();
-                    document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
-                    document.add(new LongPoint(INSTANT_FIELD, instant));
-                    document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
-                    indexWriter.addDocument(document);
-                    document.clear();
-                    i += 1;
-                }
+                indexSampleData(dataset, indexWriter);
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -850,6 +849,24 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                 }
                 verify.accept(histogram);
             }
+        }
+    }
+
+    private void indexSampleData(List<ZonedDateTime> dataset, RandomIndexWriter indexWriter) throws IOException {
+        final Document document = new Document();
+        int i = 0;
+        for (final ZonedDateTime date : dataset) {
+            if (frequently()) {
+                indexWriter.commit();
+            }
+
+            final long instant = date.toInstant().toEpochMilli();
+            document.add(new SortedNumericDocValuesField(DATE_FIELD, instant));
+            document.add(new LongPoint(INSTANT_FIELD, instant));
+            document.add(new SortedNumericDocValuesField(NUMERIC_FIELD, i));
+            indexWriter.addDocument(document);
+            document.clear();
+            i += 1;
         }
     }
 }

@@ -19,9 +19,7 @@ CAST(
 <1> Expression to cast
 <2> Target data type to cast to
 
-.Description
-
-Casts the result of the given expression to the target <<sql-data-types, data type>>.
+*Description*: Casts the result of the given expression to the target <<sql-data-types, data type>>.
 If the cast is not possible (for example because of target type is too narrow or because
 the value itself cannot be converted), the query fails.
 
@@ -60,9 +58,7 @@ CONVERT(
 <1> Expression to convert
 <2> Target data type to convert to
 
-.Description
-
-Works exactly like <<sql-functions-type-conversion-cast>> with slightly different syntax.
+*Description*: Works exactly like <<sql-functions-type-conversion-cast>> with slightly different syntax.
 Moreover, apart from the standard <<sql-data-types, data types>> it supports the corresponding
 https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/explicit-data-type-conversion-function?view=sql-server-2017[ODBC data types].
 

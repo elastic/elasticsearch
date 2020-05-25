@@ -1,7 +1,11 @@
 setup:
   - skip:
-      features: headers
+      features:
+        - headers
+        - allowed_warnings
   - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple v1 templates [global, test], v2 index templates will only match a single index template"
       indices.create:
         index: foo
         body:
@@ -76,6 +80,8 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
 
@@ -270,6 +276,8 @@ setup:
                 type: keyword
 
   - do:
+      allowed_warnings:
+        - "index [foo_rollup] matches multiple v1 templates [global, test], v2 index templates will only match a single index template"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:

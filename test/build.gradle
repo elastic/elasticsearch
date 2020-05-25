@@ -23,8 +23,7 @@ subprojects {
 
   group = 'org.elasticsearch.test'
   apply plugin: 'elasticsearch.build'
-  apply plugin: 'nebula.maven-base-publish'
-  apply plugin: 'nebula.maven-scm'
+  apply plugin: 'elasticsearch.publish'
 
   // TODO: should we have licenses for our test deps?
   dependencyLicenses.enabled = false

@@ -20,45 +20,58 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     GeoCentroidAggregatorFactory(String name,
-                                    ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                    ValuesSourceConfig config,
                                     QueryShardContext queryShardContext,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                    Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoCentroidAggregator(name, searchContext, parent, null, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoCentroidAggregator(name, searchContext, parent, null, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoCentroidAggregator(name, searchContext, parent, valuesSource, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            GeoCentroidAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof GeoCentroidAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected "
+                + GeoCentroidAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, metadata);
+    }
+
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoCentroidAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+            (GeoCentroidAggregatorSupplier) (name, context, parent, valuesSource, metadata) ->
+                new GeoCentroidAggregator(name, context, parent, (ValuesSource.GeoPoint) valuesSource, metadata));
     }
 }

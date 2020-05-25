@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.ListCursor;
@@ -90,7 +90,7 @@ public class Querier {
     private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;
-    private final Configuration cfg;
+    private final SqlConfiguration cfg;
     private final TimeValue keepAlive, timeout;
     private final int size;
     private final Client client;
@@ -298,7 +298,7 @@ public class Querier {
             }
         });
 
-        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        ImplicitGroupActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output, query, request);
         }
@@ -355,7 +355,7 @@ public class Querier {
 
         private final boolean isPivot;
 
-        CompositeActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        CompositeActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output, query, request);
 
@@ -386,8 +386,8 @@ public class Querier {
         final SearchRequest request;
         final BitSet mask;
 
-        BaseAggActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output, QueryContainer query,
-                SearchRequest request) {
+        BaseAggActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
+                QueryContainer query, SearchRequest request) {
             super(listener, client, cfg, output);
 
             this.query = query;
@@ -456,7 +456,7 @@ public class Querier {
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
 
-        ScrollActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output,
+        ScrollActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output,
                 QueryContainer query) {
             super(listener, client, cfg, output);
             this.query = query;
@@ -525,11 +525,11 @@ public class Querier {
         final ActionListener<Page> listener;
 
         final Client client;
-        final Configuration cfg;
+        final SqlConfiguration cfg;
         final TimeValue keepAlive;
         final Schema schema;
 
-        BaseActionListener(ActionListener<Page> listener, Client client, Configuration cfg, List<Attribute> output) {
+        BaseActionListener(ActionListener<Page> listener, Client client, SqlConfiguration cfg, List<Attribute> output) {
             this.listener = listener;
 
             this.client = client;
@@ -594,36 +594,51 @@ public class Querier {
             this.sortingColumns = sortingColumns;
         }
 
-        // compare row based on the received attribute sort
-        // if a sort item is not in the list, it is assumed the sorting happened in ES
-        // and the results are left as is (by using the row ordering), otherwise it is sorted based on the given criteria.
-        //
-        // Take for example ORDER BY a, x, b, y
-        // a, b - are sorted in ES
-        // x, y - need to be sorted client-side
-        // sorting on x kicks in, only if the values for a are equal.
-
+        /**
+         * Compare row based on the received attribute sort
+         * <ul>
+         *     <li>
+         *         If a tuple in {@code sortingColumns} has a null comparator, it is assumed the sorting
+         *         happened in ES and the results are left as is (by using the row ordering), otherwise it is
+         *         sorted based on the given criteria.
+         *     </li>
+         *     <li>
+         *         If no tuple exists in {@code sortingColumns} for an output column, it means this column
+         *         is not included at all in the ORDER BY
+         *     </li>
+         *</ul>
+         *
+         * Take for example ORDER BY a, x, b, y
+         * a, b - are sorted in ES
+         * x, y - need to be sorted client-side
+         * sorting on x kicks in only if the values for a are equal.
+         * sorting on y kicks in only if the values for a, x and b are all equal
+         *
+         */
         // thanks to @jpountz for the row ordering idea as a way to preserve ordering
         @SuppressWarnings("unchecked")
         @Override
         protected boolean lessThan(Tuple<List<?>, Integer> l, Tuple<List<?>, Integer> r) {
             for (Tuple<Integer, Comparator> tuple : sortingColumns) {
-                int i = tuple.v1().intValue();
+                int columnIdx = tuple.v1().intValue();
                 Comparator comparator = tuple.v2();
 
-                Object vl = l.v1().get(i);
-                Object vr = r.v1().get(i);
+                // Get the values for left and right rows at the current column index
+                Object vl = l.v1().get(columnIdx);
+                Object vr = r.v1().get(columnIdx);
                 if (comparator != null) {
                     int result = comparator.compare(vl, vr);
-                    // if things are equals, move to the next comparator
+                    // if things are not equal: return the comparison result,
+                    // otherwise: move to the next comparator to solve the tie.
                     if (result != 0) {
                         return result > 0;
                     }
                 }
-                // no comparator means the existing order needs to be preserved
+                // no comparator means the rows are pre-ordered by ES for the column at
+                // the current index and the existing order needs to be preserved
                 else {
-                    // check the values - if they are equal move to the next comparator
-                    // otherwise return the row order
+                    // check the values - if they are not equal return the row order
+                    // otherwise: move to the next comparator to solve the tie.
                     if (Objects.equals(vl, vr) == false) {
                         return l.v2().compareTo(r.v2()) > 0;
                     }

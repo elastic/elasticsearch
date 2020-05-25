@@ -18,19 +18,23 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
+import java.util.function.Function;
 
 /**
  * A script used for adjusting the score on a per document basis.
@@ -61,12 +65,23 @@ public abstract class ScoreScript {
         }
     }
 
-    private static final Map<String, String> DEPRECATIONS = Map.of(
-            "doc",
-            "Accessing variable [doc] via [params.doc] from within a score script "
-                    + "is deprecated in favor of directly accessing [doc].",
-            "_doc", "Accessing variable [doc] via [params._doc] from within a score script "
-                    + "is deprecated in favor of directly accessing [doc].");
+    private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
+            "doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("score-script_doc",
+                        "Accessing variable [doc] via [params.doc] from within an score-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("score-script__doc",
+                        "Accessing variable [doc] via [params._doc] from within an score-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     public static final String[] PARAMETERS = new String[]{ "explanation" };
 
@@ -96,7 +111,7 @@ public abstract class ScoreScript {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
-            this.params = new DeprecationMap(params, DEPRECATIONS, "score-script");
+            this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
             this.docBase = leafContext.docBase;
         }
     }

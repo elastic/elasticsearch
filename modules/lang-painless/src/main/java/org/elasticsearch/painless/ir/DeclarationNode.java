@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScopeTable;
@@ -45,6 +44,7 @@ public class DeclarationNode extends StatementNode {
 
     protected String name;
     protected Class<?> declarationType;
+    protected boolean requiresDefault;
 
     public void setName(String name) {
         this.name = name;
@@ -66,31 +66,41 @@ public class DeclarationNode extends StatementNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
     }
 
+    public void setRequiresDefault(boolean requiresDefault) {
+        this.requiresDefault = requiresDefault;
+    }
+
+    public boolean requiresDefault() {
+        return requiresDefault;
+    }
+
     /* ---- end node data ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals, ScopeTable scopeTable) {
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
         methodWriter.writeStatementOffset(location);
 
         Variable variable = scopeTable.defineVariable(declarationType, name);
 
         if (expressionNode == null) {
-            Class<?> sort = variable.getType();
+            if (requiresDefault) {
+                Class<?> sort = variable.getType();
 
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
+                if (sort == void.class || sort == boolean.class || sort == byte.class ||
+                        sort == short.class || sort == char.class || sort == int.class) {
+                    methodWriter.push(0);
+                } else if (sort == long.class) {
+                    methodWriter.push(0L);
+                } else if (sort == float.class) {
+                    methodWriter.push(0F);
+                } else if (sort == double.class) {
+                    methodWriter.push(0D);
+                } else {
+                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
+                }
             }
         } else {
-            expressionNode.write(classWriter, methodWriter, globals, scopeTable);
+            expressionNode.write(classWriter, methodWriter, scopeTable);
         }
 
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());

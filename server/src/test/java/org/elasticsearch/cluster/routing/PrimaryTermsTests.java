@@ -23,8 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -49,7 +49,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     private static final String TEST_INDEX_2 = "test2";
     private int numberOfShards;
     private int numberOfReplicas;
-    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
     private AllocationService allocationService;
     private ClusterState clusterState;
 
@@ -66,20 +66,20 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         this.numberOfReplicas = randomIntBetween(0, 5);
         logger.info("Setup test with {} shards and {} replicas.", this.numberOfShards, this.numberOfReplicas);
         this.primaryTermsPerIndex.clear();
-        MetaData metaData = MetaData.builder()
-                .put(createIndexMetaData(TEST_INDEX_1))
-                .put(createIndexMetaData(TEST_INDEX_2))
+        Metadata metadata = Metadata.builder()
+                .put(createIndexMetadata(TEST_INDEX_1))
+                .put(createIndexMetadata(TEST_INDEX_2))
                 .build();
 
         RoutingTable routingTable = new RoutingTable.Builder()
-                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_1).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_1))
+                .add(new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_1).getIndex()).initializeAsNew(metadata.index(TEST_INDEX_1))
                         .build())
-                .add(new IndexRoutingTable.Builder(metaData.index(TEST_INDEX_2).getIndex()).initializeAsNew(metaData.index(TEST_INDEX_2))
+                .add(new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_2).getIndex()).initializeAsNew(metadata.index(TEST_INDEX_2))
                         .build())
                 .build();
 
         this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(routingTable).build();
+            .metadata(metadata).routingTable(routingTable).build();
     }
 
     /**
@@ -125,8 +125,8 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             builder.routingTable(RoutingTable.builder(newClusterState.routingTable()).version(newClusterState.routingTable().version() + 1)
                     .build());
         }
-        if (previousClusterState.metaData() != newClusterState.metaData()) {
-            builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
+        if (previousClusterState.metadata() != newClusterState.metadata()) {
+            builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1));
         }
         this.clusterState = builder.build();
         final ClusterStateHealth clusterHealth = new ClusterStateHealth(clusterState);
@@ -162,9 +162,9 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
 
     }
 
-    private IndexMetaData.Builder createIndexMetaData(String indexName) {
+    private IndexMetadata.Builder createIndexMetadata(String indexName) {
         primaryTermsPerIndex.put(indexName, new long[numberOfShards]);
-        final IndexMetaData.Builder builder = new IndexMetaData.Builder(indexName)
+        final IndexMetadata.Builder builder = new IndexMetadata.Builder(indexName)
                 .settings(DEFAULT_SETTINGS)
                 .numberOfReplicas(this.numberOfReplicas)
                 .numberOfShards(this.numberOfShards);
@@ -181,15 +181,15 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
 
     private void assertPrimaryTerm(String index) {
         final long[] terms = primaryTermsPerIndex.get(index);
-        final IndexMetaData indexMetaData = clusterState.metaData().index(index);
+        final IndexMetadata indexMetadata = clusterState.metadata().index(index);
         for (IndexShardRoutingTable shardRoutingTable : this.clusterState.routingTable().index(index)) {
             final int shard = shardRoutingTable.shardId().id();
-            assertThat("primary term mismatch between indexMetaData of [" + index + "] and shard [" + shard + "]'s routing",
-                    indexMetaData.primaryTerm(shard), equalTo(terms[shard]));
+            assertThat("primary term mismatch between indexMetadata of [" + index + "] and shard [" + shard + "]'s routing",
+                    indexMetadata.primaryTerm(shard), equalTo(terms[shard]));
         }
     }
 
-    public void testPrimaryTermMetaDataSync() {
+    public void testPrimaryTermMetadataSync() {
         assertAllPrimaryTerm();
 
         initPrimaries();

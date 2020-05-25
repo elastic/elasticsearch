@@ -20,7 +20,7 @@ the process.
 * <<test-analyzer>>
 * <<configuring-analyzers>>
 * <<analysis-custom-analyzer>>
-* <specify-analyer>>
+* <<specify-analyzer>>
 
 
 include::testing.asciidoc[]

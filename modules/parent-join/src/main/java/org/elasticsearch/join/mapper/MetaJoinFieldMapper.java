@@ -20,17 +20,18 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,7 +58,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, MetaJoinFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder> {
         Builder() {
             super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
@@ -92,7 +93,12 @@ public class MetaJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -133,7 +139,12 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new IllegalStateException("Should never be called");
     }
 

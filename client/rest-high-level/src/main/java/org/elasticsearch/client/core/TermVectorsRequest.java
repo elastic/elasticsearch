@@ -258,6 +258,7 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
             builder.field("_type", type);
         }
         if (id != null) builder.field("_id", id);
+        if (fields != null) builder.field("fields", fields);
         // set values only when different from defaults
         if (requestPositions == false) builder.field("positions", false);
         if (requestPayloads == false) builder.field("payloads", false);

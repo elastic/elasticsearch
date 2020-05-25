@@ -1,7 +1,7 @@
 [[modules-gateway]]
-== Local Gateway
+=== Local gateway settings
 
-The local gateway module stores the cluster state and shard data across full
+The local gateway stores the cluster state and shard data across full
 cluster restarts.
 
 The following _static_ settings, which must be set on every master node,
@@ -10,12 +10,14 @@ recover the cluster state and the cluster's data:
 
 `gateway.expected_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.expected_data_nodes` instead.]
     The number of (data or master) nodes that are expected to be in the cluster.
     Recovery of local shards will start as soon as the expected number of
     nodes have joined the cluster. Defaults to `0`
 
 `gateway.expected_master_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.expected_data_nodes` instead.]
     The number of master nodes that are expected to be in the cluster.
     Recovery of local shards will start as soon as the expected number of
     master nodes have joined the cluster. Defaults to `0`
@@ -37,10 +39,12 @@ as long as the following conditions are met:
 
 `gateway.recover_after_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.recover_after_data_nodes` instead.]
     Recover as long as this many data or master nodes have joined the cluster.
 
 `gateway.recover_after_master_nodes`::
 
+    deprecated:[7.7.0, This setting will be removed in 8.0. You should use `gateway.recover_after_data_nodes` instead.]
     Recover as long as this many master nodes have joined the cluster.
 
 `gateway.recover_after_data_nodes`::
@@ -49,12 +53,12 @@ as long as the following conditions are met:
 
 NOTE: These settings only take effect on a full cluster restart.
 
-[[modules-gateway-dangling-indices]]
-=== Dangling indices
+[[dangling-indices]]
+==== Dangling indices
 
 When a node joins the cluster, any shards stored in its local data
-directory which do not already exist in the cluster will be imported into the 
-cluster. This functionality is intended as a best effort to help users who 
-lose all master nodes. If a new master node is started which is unaware of 
-the other indices in the cluster, adding the old nodes will cause the old 
+directory which do not already exist in the cluster will be imported into the
+cluster. This functionality is intended as a best effort to help users who
+lose all master nodes. If a new master node is started which is unaware of
+the other indices in the cluster, adding the old nodes will cause the old
 indices to be imported, instead of being deleted.

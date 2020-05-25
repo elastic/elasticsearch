@@ -25,14 +25,19 @@ esplugin {
 }
 
 dependencies {
-  // Upgrade to 2.10.0 or higher when jackson-core gets upgraded to 2.9.x. Blocked by #27032
-  compile('com.maxmind.geoip2:geoip2:2.9.0')
+  compile('com.maxmind.geoip2:geoip2:2.13.1')
   // geoip2 dependencies:
   compile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  compile("com.fasterxml.jackson.core:jackson-databind:${versions.jacksondatabind}")
-  compile('com.maxmind.db:maxmind-db:1.2.2')
+  compile("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  compile('com.maxmind.db:maxmind-db:1.3.1')
 
   testCompile 'org.elasticsearch:geolite2-databases:20191119'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
+  }
 }
 
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {

@@ -1,0 +1,244 @@
+[role="xpack"]
+[testenv="basic"]
+[[getting-started-index-lifecycle-management]]
+== Tutorial: Automate rollover with {ilm-init}
+
+++++
+<titleabbrev>Automate rollover</titleabbrev>
+++++
+
+This tutorial demonstrates how to use {ilm} 
+({ilm-init}) to manage indices that contain time-series data.
+
+When you continuously index timestamped documents into {es},
+you typically use an index alias so you can periodically roll over to a new index.
+This enables you to implement a hot-warm-cold architecture to meet your performance
+requirements for your newest data, control costs over time, enforce retention policies,
+and still get the most out of your data.
+
+To automate rollover and management of time-series indices with {ilm-init}, you:
+
+. <<ilm-gs-create-policy, Create a lifecycle policy>> that defines the appropriate
+phases and actions.  
+. <<ilm-gs-apply-policy, Create an index template>> to apply the policy to each new index.
+. <<ilm-gs-bootstrap, Bootstrap an index>> as the initial write index.
+. <<ilm-gs-check-progress, Verify indices are moving through the lifecycle phases>> 
+as expected.
+
+For an introduction to rolling indices, see <<index-rollover>>. 
+
+IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
+lifecycle policies are set up automatically. 
+You do not need bootstrap the initial index or take any other actions.
+You can modify the default policies through 
+{kibana-ref}/example-using-index-lifecycle-policy.html[{kib} Management]
+or the {ilm-init} APIs.
+
+
+[discrete]
+[[ilm-gs-create-policy]]
+=== Create a lifecycle policy
+
+A lifecycle policy specifies the phases in the index lifecycle
+and the actions to perform in each phase. A lifecycle can have up to four phases:
+`hot`, `warm`, `cold`, and `delete`. 
+
+You can define and manage policies through {kib} Management or with the 
+<<ilm-put-lifecycle, put policy>> API.
+
+For example, you might define a `timeseries_policy` that has two phases:
+ 
+* A `hot` phase that defines a rollover action to specify that an index rolls over when it 
+reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
+* A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
+Note that this value is relative to the rollover time, not the index creation time. 
+
+The underlying put policy request looks like this:
+
+[source,console]
+------------------------
+PUT _ilm/policy/timeseries_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {                      <1>
+        "actions": {
+          "rollover": {
+            "max_size": "50GB",     <2>
+            "max_age": "30d"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "90d",           <3>
+        "actions": {
+          "delete": {}              <4>
+        }
+      }
+    }
+  }
+}
+------------------------
+<1> The `min_age` defaults to `0ms`, so new indices enter the `hot` phase immediately.
+<2> Trigger the `rollover` action when either of the conditions are met.
+<3> Move the index into the `delete` phase 90 days after rollover.
+<4> Trigger the `delete` action when the index enters the delete phase.
+
+You can also invoke this API directly to add lifecycle policies.
+
+For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
+
+[discrete]
+[[ilm-gs-apply-policy]]
+=== Create an index template to apply the lifecycle policy
+
+To automatically apply a lifecycle policy to the new write index on rollover,
+specify the policy in the index template used to create new indices.
+
+For example, you might create a `timeseries_template` that is applied to new indices
+whose names match the `timeseries-*` index pattern. 
+
+To enable automatic rollover, the template configures two {ilm-init} settings:
+
+* `index.lifecycle.name` specifies the name of the lifecycle policy to apply to new indices
+that match the index pattern.
+* `index.lifecycle.rollover_alias` specifies the index alias to be rolled over
+when the rollover action is triggered for an index.
+
+You can use the {kib} Create template wizard to add the template. 
+This wizard invokes the put template API to create the template with the options you specify. 
+
+The underlying request looks like this:
+
+[source,console]
+-----------------------
+PUT _template/timeseries_template
+{
+  "index_patterns": ["timeseries-*"],                 <1>
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "index.lifecycle.name": "timeseries_policy",      <2>
+    "index.lifecycle.rollover_alias": "timeseries"    <3>
+  }
+}
+-----------------------
+// TEST[continued]
+
+<1> Apply the template to a new index if its name starts with `timeseries-`.
+<2> The name of the lifecycle policy to apply to each new index.
+<3> The name of the alias used to reference these indices.
+Required for policies that use the rollover action.
+
+You can also invoke this API directly to add templates.
+
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/timeseries_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+[discrete]
+[[ilm-gs-bootstrap]]
+=== Bootstrap the initial time-series index
+
+To get things started, you need to bootstrap an initial index and
+designate it as the write index for the rollover alias specified in your index template.
+The name of this index must match the template's index pattern and end with a number.
+On rollover, this value is incremented to generate a name for the new index.
+
+For example, the following request creates an index called `timeseries-000001`
+and makes it the write index for the `timeseries` alias.
+
+[source,console]
+-----------------------
+PUT timeseries-000001
+{
+  "aliases": {
+    "timeseries": {
+      "is_write_index": true
+    }
+  }
+}
+-----------------------
+// TEST[continued]
+
+When the rollover conditions are met, the `rollover` action:
+
+* Creates a new index called `timeseries-000002`.
+This matches the `timeseries-*` pattern, so the settings from `timeseries_template` are applied to the new index.
+* Designates the new index as the write index and makes the bootstrap index read-only.
+
+This process repeats each time rollover conditions are met.
+You can search across all of the indices managed by the `timeseries_policy` with the `timeseries` alias.
+Write operations are routed to the current write index.
+
+[discrete]
+[[ilm-gs-check-progress]]
+=== Check lifecycle progress
+
+To get status information for managed indices, you use the {ilm-init} explain API.
+This lets you find out things like:
+
+* What phase an index is in and when it entered that phase.
+* The current action and what step is being performed.
+* If any errors have occurred or progress is blocked.
+
+For example, the following request gets information about the `timeseries` indices:
+
+[source,console]
+--------------------------------------------------
+GET timeseries-*/_ilm/explain
+--------------------------------------------------
+// TEST[continued]
+
+The response below shows that the bootstrap index is waiting in the `hot` phase's `rollover` action.
+It remains in this state and {ilm-init} continues to call `attempt-rollover`
+until the rollover conditions are met.
+
+// [[36818c6d9f434d387819c30bd9addb14]]
+[source,console-result]
+--------------------------------------------------
+{
+  "indices": {
+    "timeseries-000001": {
+      "index": "timeseries-000001",
+      "managed": true,
+      "policy": "timeseries_policy",             <1>
+      "lifecycle_date_millis": 1538475653281,
+      "age": "30s",                              <2>
+      "phase": "hot",
+      "phase_time_millis": 1538475653317,
+      "action": "rollover",
+      "action_time_millis": 1538475653317,
+      "step": "attempt-rollover",                <3>
+      "step_time_millis": 1538475653317,
+      "phase_execution": {
+        "policy": "timeseries_policy",
+        "phase_definition": {                    <4>
+          "min_age": "0ms",
+          "actions": {
+            "rollover": {
+              "max_size": "50gb",
+              "max_age": "30d"
+            }
+          }
+        },
+        "version": 1,
+        "modified_date_in_millis": 1539609701576
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:no way to know if we will get this response immediately]
+
+<1> The policy used to manage the index
+<2> The age of the index
+<3> The step {ilm-init} is performing on the index
+<4> The definition of the current phase (the `hot` phase)

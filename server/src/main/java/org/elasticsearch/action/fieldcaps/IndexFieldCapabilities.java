@@ -60,7 +60,7 @@ public class IndexFieldCapabilities implements Writeable {
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             this.name = in.readString();
             this.type = in.readString();
             this.isSearchable = in.readBoolean();
@@ -81,7 +81,7 @@ public class IndexFieldCapabilities implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeString(name);
             out.writeString(type);
             out.writeBoolean(isSearchable);

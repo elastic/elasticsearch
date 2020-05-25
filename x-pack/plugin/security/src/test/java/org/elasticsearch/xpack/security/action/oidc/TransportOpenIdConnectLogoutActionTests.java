@@ -33,6 +33,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -166,13 +168,15 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState,
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, new SecurityContext(settings, threadContext),
                                         securityIndex, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,

@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,7 +52,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, RankFeaturesFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -74,7 +75,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RankFeaturesFieldMapper.Builder builder = new RankFeaturesFieldMapper.Builder(name);
             return builder;
         }
@@ -125,6 +126,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     @Override
     protected RankFeaturesFieldMapper clone() {
         return (RankFeaturesFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

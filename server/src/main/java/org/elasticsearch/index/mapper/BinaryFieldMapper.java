@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -62,7 +63,7 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, BinaryFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -195,6 +196,11 @@ public class BinaryFieldMapper extends FieldMapper {
             // no doc values
             createFieldNamesField(context);
         }
+
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }
 

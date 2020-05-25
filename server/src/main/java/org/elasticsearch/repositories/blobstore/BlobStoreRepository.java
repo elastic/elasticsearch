@@ -331,62 +331,52 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
                                              Consumer<Exception> onFailure) {
-        threadPool.generic().execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                final RepositoryMetadata repositoryMetadataStart = metadata;
-                getRepositoryData(ActionListener.wrap(repositoryData -> {
-                    final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
-                    clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority()) {
+        final RepositoryMetadata repositoryMetadataStart = metadata;
+        getRepositoryData(ActionListener.wrap(repositoryData -> {
+            final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
+            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority()) {
 
-                        private boolean executedTask = false;
+                private boolean executedTask = false;
 
-                        @Override
-                        public ClusterState execute(ClusterState currentState) throws Exception {
-                            // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
-                            // If the safe generation has changed, then we have to reload repository data and start over.
-                            // If the pending generation has changed we are in the midst of a write operation and might pick up the
-                            // updated repository data and state on the retry. We don't want to wait for the write to finish though
-                            // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
-                            // to change in any form.
-                            if (repositoryMetadataStart.equals(getRepoMetadata(currentState))) {
-                                executedTask = true;
-                                return updateTask.execute(currentState);
-                            }
-                            return currentState;
-                        }
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
+                    // If the safe generation has changed, then we have to reload repository data and start over.
+                    // If the pending generation has changed we are in the midst of a write operation and might pick up the
+                    // updated repository data and state on the retry. We don't want to wait for the write to finish though
+                    // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
+                    // to change in any form.
+                    if (repositoryMetadataStart.equals(getRepoMetadata(currentState))) {
+                        executedTask = true;
+                        return updateTask.execute(currentState);
+                    }
+                    return currentState;
+                }
 
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            if (executedTask) {
-                                updateTask.onFailure(source, e);
-                            } else {
-                                onFailure.accept(e);
-                            }
-                        }
+                @Override
+                public void onFailure(String source, Exception e) {
+                    if (executedTask) {
+                        updateTask.onFailure(source, e);
+                    } else {
+                        onFailure.accept(e);
+                    }
+                }
 
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            if (executedTask) {
-                                updateTask.clusterStateProcessed(source, oldState, newState);
-                            } else {
-                                executeConsistentStateUpdate(createUpdateTask, source, onFailure);
-                            }
-                        }
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (executedTask) {
+                        updateTask.clusterStateProcessed(source, oldState, newState);
+                    } else {
+                        executeConsistentStateUpdate(createUpdateTask, source, onFailure);
+                    }
+                }
 
-                        @Override
-                        public TimeValue timeout() {
-                            return updateTask.timeout();
-                        }
-                    });
-                }, onFailure));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                onFailure.accept(e);
-            }
-        });
+                @Override
+                public TimeValue timeout() {
+                    return updateTask.timeout();
+                }
+            });
+        }, onFailure));
     }
 
     // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates
@@ -552,17 +542,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
         } else {
-            try {
-                final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
-                final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
-                // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
-                // delete an index that was created by another master node after writing this index-N blob.
-                final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
-                doDeleteShardSnapshots(snapshotIds, repositoryStateId, foundIndices, rootBlobs, repositoryData,
-                    SnapshotsService.useShardGenerations(repositoryMetaVersion), listener);
-            } catch (Exception ex) {
-                listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshots " + snapshotIds, ex));
-            }
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    final Map<String, BlobMetadata> rootBlobs = blobContainer().listBlobs();
+                    final RepositoryData repositoryData = safeRepositoryData(repositoryStateId, rootBlobs);
+                    // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
+                    // delete an index that was created by another master node after writing this index-N blob.
+                    final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
+                    doDeleteShardSnapshots(snapshotIds, repositoryStateId, foundIndices, rootBlobs, repositoryData,
+                            SnapshotsService.useShardGenerations(repositoryMetaVersion), listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshots " + snapshotIds, e));
+                }
+            });
         }
     }
 
@@ -1168,6 +1164,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onFailure(corruptedStateException(null));
             return;
         }
+        final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
+        // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
+        // the latest known repository generation
+        if (bestEffortConsistency == false && cached != null && cached.v1() == latestKnownRepoGen.get()) {
+            try {
+                listener.onResponse(repositoryDataFromCachedEntry(cached));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+            return;
+        }
+        // Slow path if we were not able to safely read the repository data from cache
+        threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
+    }
+
+    private void doGetRepositoryData(ActionListener<RepositoryData> listener) {
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
         // Keep track of the most recent generation we failed to load so we can break out of the loop if we fail to load the same
         // generation repeatedly.

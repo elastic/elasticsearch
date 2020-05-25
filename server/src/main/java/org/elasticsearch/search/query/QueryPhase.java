@@ -244,7 +244,7 @@ public class QueryPhase implements SearchPhase {
 
             CheckedConsumer<List<LeafReaderContext>, IOException> leafSorter = l -> {};
             // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
-            if ((searchContext.sort() != null) && SYS_PROP_REWRITE_SORT) {
+            if ((searchContext.sort() != null) && (searchContext.size() > 0) && SYS_PROP_REWRITE_SORT) {
                 Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
                 if (rewrittenQuery != null) {
                     query = rewrittenQuery;

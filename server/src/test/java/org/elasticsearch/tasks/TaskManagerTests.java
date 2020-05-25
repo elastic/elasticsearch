@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -75,9 +76,10 @@ public class TaskManagerTests extends ESTestCase {
         assertEquals(600000L, total);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56746")
     public void testTrackingChannelTask() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
-        Set<CancellableTask> cancelledTasks = new HashSet<>();
+        Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
@@ -115,7 +117,7 @@ public class TaskManagerTests extends ESTestCase {
                 expectedCancelledTasks.add(task);
             }
         }
-        assertBusy(() -> assertThat(cancelledTasks, equalTo(expectedCancelledTasks)));
+        assertBusy(() -> assertThat(cancelledTasks, equalTo(expectedCancelledTasks)), 30, TimeUnit.SECONDS);
         for (FakeTcpChannel channel : channels) {
             channel.close();
         }
@@ -132,7 +134,7 @@ public class TaskManagerTests extends ESTestCase {
             }
         });
         Set<Task> expectedCancelledTasks = ConcurrentCollections.newConcurrentSet();
-        FakeTcpChannel[] channels = new FakeTcpChannel[randomIntBetween(2, 20)];
+        FakeTcpChannel[] channels = new FakeTcpChannel[randomIntBetween(1, 10)];
         for (int i = 0; i < channels.length; i++) {
             channels[i] = new FakeTcpChannel();
         }
@@ -142,7 +144,7 @@ public class TaskManagerTests extends ESTestCase {
             String threadName = "thread-" + t;
             threads[t] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
-                int iterations = randomIntBetween(100, 1000);
+                int iterations = randomIntBetween(50, 500);
                 for (int i = 0; i < iterations; i++) {
                     final FakeTcpChannel channel = randomFrom(channels);
                     final Task task = taskManager.register("transport", "test", new CancellableRequest(threadName + ":" + i));
@@ -161,7 +163,7 @@ public class TaskManagerTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
-        assertBusy(() -> assertThat(cancelledTasks, equalTo(expectedCancelledTasks)));
+        assertBusy(() -> assertThat(cancelledTasks, equalTo(expectedCancelledTasks)), 1, TimeUnit.MINUTES);
         assertThat(taskManager.numberOfChannelPendingTaskTrackers(), equalTo(0));
     }
 

@@ -100,7 +100,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, WildcardFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
 
@@ -179,7 +179,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
@@ -576,10 +576,8 @@ public class WildcardFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        this.ignoreAbove = ((WildcardFieldMapper) mergeWith).ignoreAbove;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        this.ignoreAbove = ((WildcardFieldMapper) other).ignoreAbove;
     }
 }

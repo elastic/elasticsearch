@@ -82,7 +82,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
-    public static class Builder extends FieldMapper.Builder<Builder, ScaledFloatFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private boolean scalingFactorSet = false;
         private Boolean ignoreMalformed;
@@ -149,7 +149,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -211,14 +211,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
-                conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
-            }
         }
 
         @Override
@@ -450,14 +442,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ScaledFloatFieldMapper mergeWith = (ScaledFloatFieldMapper) other;
+        ScaledFloatFieldType ft = (ScaledFloatFieldType) other.fieldType();
+        if (fieldType().scalingFactor != ft.getScalingFactor()) {
+            conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
         }
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+        if (mergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = mergeWith.ignoreMalformed;
+        }
+        if (mergeWith.coerce.explicit()) {
+            this.coerce = mergeWith.coerce;
         }
     }
 

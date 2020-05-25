@@ -144,7 +144,6 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     @BeforeClass
     public static void init() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49742",System.getProperty("java.vendor", "").contains("Azul"));
         SamlUtils.initialize(LogManager.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.
         Init.init();

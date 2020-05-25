@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class RemoteConnectionManager implements ConnectionManager {
+public final class RemoteConnectionManager implements ConnectionManager {
 
     private final String clusterAlias;
     private final ConnectionManager delegate;
@@ -77,7 +77,7 @@ public class RemoteConnectionManager implements ConnectionManager {
     @Override
     public Transport.Connection getConnection(DiscoveryNode node) {
         try {
-            return delegate.getConnection(node);
+            return new RemoteConnection(delegate.getConnection(node), clusterAlias);
         } catch (NodeNotConnectedException e) {
             return new ProxyConnection(getAnyRemoteConnection(), node);
         }
@@ -105,7 +105,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         if (localConnectedNodes.isEmpty() == false) {
             DiscoveryNode nextNode = localConnectedNodes.get(Math.floorMod(curr, localConnectedNodes.size()));
             try {
-                return delegate.getConnection(nextNode);
+                return new RemoteConnection(delegate.getConnection(nextNode), clusterAlias);
             } catch (NodeNotConnectedException e) {
                 // Ignore. We will manually create an iterator of open nodes
             }
@@ -113,7 +113,7 @@ public class RemoteConnectionManager implements ConnectionManager {
         Set<DiscoveryNode> allConnectionNodes = getAllConnectedNodes();
         for (DiscoveryNode connectedNode : allConnectionNodes) {
             try {
-                return delegate.getConnection(connectedNode);
+                return new RemoteConnection(delegate.getConnection(connectedNode), clusterAlias);
             } catch (NodeNotConnectedException e) {
                 // Ignore. We will try the next one until all are exhausted.
             }
@@ -174,6 +174,11 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
+        public String clusterAlias() {
+            return connection.clusterAlias();
+        }
+
+        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
             connection.sendRequest(requestId, TransportActionProxy.getProxyAction(action),
@@ -198,6 +203,62 @@ public class RemoteConnectionManager implements ConnectionManager {
         @Override
         public Version getVersion() {
             return connection.getVersion();
+        }
+
+        @Override
+        public DiscoveryNode proxyNode() {
+            return connection.getNode();
+        }
+    }
+
+    private static class RemoteConnection implements Transport.Connection {
+        private final Transport.Connection connection;
+        private final String clusterAlias;
+
+        RemoteConnection(Transport.Connection connection, String clusterAlias) {
+            this.connection = connection;
+            this.clusterAlias = clusterAlias;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return connection.getNode();
+        }
+
+        @Override
+        public String clusterAlias() {
+            return clusterAlias;
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            connection.sendRequest(requestId, action, request, options);
+        }
+
+        @Override
+        public void addCloseListener(ActionListener<Void> listener) {
+            connection.addCloseListener(listener);
+        }
+
+        @Override
+        public boolean isClosed() {
+            return connection.isClosed();
+        }
+
+        @Override
+        public Version getVersion() {
+            return connection.getVersion();
+        }
+
+        @Override
+        public Object getCacheKey() {
+            return connection.getCacheKey();
+        }
+
+        @Override
+        public void close() {
+            connection.close();
         }
     }
 }

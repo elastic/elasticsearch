@@ -279,7 +279,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
 
     @Override
     protected void doClose() throws IOException {
-        transport.close();
+        IOUtils.close(taskManager, transport);
     }
 
     /**
@@ -564,8 +564,8 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                                                                 TransportResponseHandler<T> handler) {
         try {
             if (request.getParentTask().isSet()) {
-                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                final Releasable unregisterChildNode = taskManager.registerChildNode(
+                    request.getParentTask().getId(), connection.getNode(), connection.clusterAlias());
                 final TransportResponseHandler<T> delegate = handler;
                 handler = new TransportResponseHandler<>() {
                     @Override

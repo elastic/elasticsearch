@@ -46,11 +46,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -202,6 +204,25 @@ public class TaskManagerTests extends ESTestCase {
                 registeredListener = true;
             }
             super.addCloseListener(listener);
+        }
+    }
+
+    public void testCleanupOldBanParentMarkers() {
+        AtomicLong timeInMillis = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(timeInMillis.get());
+        TimeValue banRetainingInterval = TimeValue.timeValueMillis(randomLongBetween(1, 5000));
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, banRetainingInterval, Collections.emptySet());
+        Map<TaskId, Long> expectedBanParents = new HashMap<>();
+        TaskId taskId;
+        int iters = randomIntBetween(1, 200);
+        for (int i = 0; i < iters; i++) {
+            taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+            taskManager.setBan(taskId, randomAlphaOfLength(10));
+            timeInMillis.addAndGet(randomInt(1000));
+            expectedBanParents.values().removeIf(timestamp -> timestamp - timeInMillis.get() > banRetainingInterval.millis());
+            expectedBanParents.put(taskId, timeInMillis.get());
+            assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBanParents.keySet()));
         }
     }
 }

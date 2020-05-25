@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tasks;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -28,33 +30,59 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.NodeAndClusterAlias;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-public class TaskCancellationService {
+public class TaskCancellationService implements Closeable {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
+    public static final String HEARTBEAT_ACTION_NAME = "internal:admin/tasks/heartbeat";
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
+    private final SendHeartbeatTask sendHeartbeatTask;
 
     public TaskCancellationService(TransportService transportService) {
         this.transportService = transportService;
         this.taskManager = transportService.getTaskManager();
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
             new BanParentRequestHandler());
+        TransportActionProxy.registerProxyAction(transportService, BAN_PARENT_ACTION_NAME, in -> TransportResponse.Empty.INSTANCE);
+        transportService.registerRequestHandler(HEARTBEAT_ACTION_NAME, ThreadPool.Names.SAME, HeartbeatRequest::new,
+            new HeartbeatRequestHandler());
+        TransportActionProxy.registerProxyAction(transportService, HEARTBEAT_ACTION_NAME, in -> TransportResponse.Empty.INSTANCE);
+        this.sendHeartbeatTask = new SendHeartbeatTask(logger, transportService.getThreadPool(),
+            this::sendHeartbeatRequest, TimeValue.timeValueSeconds(10));
+    }
+
+    @Override
+    public void close() throws IOException {
+        sendHeartbeatTask.close();
     }
 
     private String localNodeId() {
@@ -67,7 +95,7 @@ public class TaskCancellationService {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
-            Collection<DiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
+            Collection<NodeAndClusterAlias> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
             });
@@ -75,21 +103,29 @@ public class TaskCancellationService {
                 logger.trace("task [{}] is cancelled", taskId);
                 groupedListener.onResponse(null);
             });
-            StepListener<Void> banOnNodesListener = new StepListener<>();
-            setBanOnNodes(reason, waitForCompletion, task, childrenNodes, banOnNodesListener);
-            banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
-            // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
-            // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
-            final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
-                .preserveContext(() -> removeBanOnNodes(task, childrenNodes));
-            // We remove bans after all child tasks are completed although in theory we can do it on a per-node basis.
-            completedListener.whenComplete(r -> removeBansRunnable.run(), e -> removeBansRunnable.run());
-            // if wait_for_completion is true, then only return when (1) bans are placed on child nodes, (2) child tasks are
-            // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child nodes.
-            if (waitForCompletion) {
-                completedListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
-            } else {
-                banOnNodesListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+            sendHeartbeatTask.register(childrenNodes);
+            final Releasable unregisterTaskHeartbeats = Releasables.releaseOnce(() -> sendHeartbeatTask.unregister(childrenNodes));
+            try {
+                StepListener<Void> banOnNodesListener = new StepListener<>();
+                setBanOnNodes(reason, waitForCompletion, task, childrenNodes, banOnNodesListener);
+                banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
+                // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
+                // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread
+                // context.
+                final Runnable removeBansRunnable = transportService.getThreadPool().getThreadContext()
+                    .preserveContext(() -> Releasables.close(unregisterTaskHeartbeats, () -> removeBanOnNodes(task, childrenNodes)));
+                // We remove bans after all child tasks are completed although in theory we can do it on a per-node basis.
+                completedListener.whenComplete(r -> removeBansRunnable.run(), e -> removeBansRunnable.run());
+                // if wait_for_completion is true, then only return when (1) bans are placed on child nodes, (2) child tasks are
+                // completed or failed, (3) the main task is cancelled. Otherwise, return after bans are placed on child nodes.
+                if (waitForCompletion) {
+                    completedListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+                } else {
+                    banOnNodesListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+                }
+            } catch (Exception e) {
+                unregisterTaskHeartbeats.close();
+                throw e;
             }
         } else {
             logger.trace("task [{}] doesn't have any children that should be cancelled", taskId);
@@ -102,8 +138,34 @@ public class TaskCancellationService {
         }
     }
 
+    private Transport.Connection getConnection(NodeAndClusterAlias nodeAndClusterAlias) {
+        if (nodeAndClusterAlias.getClusterAlias() == null) {
+            return transportService.getConnection(nodeAndClusterAlias.getNode());
+        } else {
+            return transportService.getRemoteClusterService().getConnection(
+                nodeAndClusterAlias.getNode(), nodeAndClusterAlias.getClusterAlias());
+        }
+    }
+
+    private void sendBanRequest(NodeAndClusterAlias nodeAndClusterAlias,
+                                BanParentTaskRequest banRequest, EmptyTransportResponseHandler handler) {
+        final Transport.Connection connection;
+        try {
+            connection = getConnection(nodeAndClusterAlias);
+        } catch (TransportException e) {
+            handler.handleException(e);
+            return;
+        }
+        // We did not register the ban action with the proxy before
+        if (connection.proxyNode() != null && connection.proxyNode().getVersion().before(Version.V_8_0_0)) {
+            handler.handleResponse(TransportResponse.Empty.INSTANCE);
+        } else {
+            transportService.sendRequest(connection, BAN_PARENT_ACTION_NAME, banRequest, TransportRequestOptions.EMPTY, handler);
+        }
+    }
+
     private void setBanOnNodes(String reason, boolean waitForCompletion, CancellableTask task,
-                               Collection<DiscoveryNode> childNodes, ActionListener<Void> listener) {
+                               Collection<NodeAndClusterAlias> childNodes, ActionListener<Void> listener) {
         if (childNodes.isEmpty()) {
             listener.onResponse(null);
             return;
@@ -113,31 +175,30 @@ public class TaskCancellationService {
         GroupedActionListener<Void> groupedListener =
             new GroupedActionListener<>(ActionListener.map(listener, r -> null), childNodes.size());
         final BanParentTaskRequest banRequest = BanParentTaskRequest.createSetBanParentTaskRequest(taskId, reason, waitForCompletion);
-        for (DiscoveryNode node : childNodes) {
-            transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, banRequest,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                    @Override
-                    public void handleResponse(TransportResponse.Empty response) {
-                        logger.trace("sent ban for tasks with the parent [{}] to the node [{}]", taskId, node);
-                        groupedListener.onResponse(null);
-                    }
+        for (NodeAndClusterAlias node : childNodes) {
+            sendBanRequest(node, banRequest, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                @Override
+                public void handleResponse(TransportResponse.Empty response) {
+                    logger.trace("sent ban for tasks with the parent [{}] to the node [{}]", taskId, node);
+                    groupedListener.onResponse(null);
+                }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
-                        logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
-                        groupedListener.onFailure(exp);
-                    }
-                });
+                @Override
+                public void handleException(TransportException exp) {
+                    assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
+                    logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", taskId, node);
+                    groupedListener.onFailure(exp);
+                }
+            });
         }
     }
 
-    private void removeBanOnNodes(CancellableTask task, Collection<DiscoveryNode> childNodes) {
+    private void removeBanOnNodes(CancellableTask task, Collection<NodeAndClusterAlias> childNodes) {
         final BanParentTaskRequest request =
             BanParentTaskRequest.createRemoveBanParentTaskRequest(new TaskId(localNodeId(), task.getId()));
-        for (DiscoveryNode node : childNodes) {
+        for (NodeAndClusterAlias node : childNodes) {
             logger.trace("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node);
-            transportService.sendRequest(node, BAN_PARENT_ACTION_NAME, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+            sendBanRequest(node, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleException(TransportException exp) {
                     assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
@@ -220,6 +281,104 @@ public class TaskCancellationService {
                 logger.debug("Removing ban for the parent [{}] on the node [{}]", request.parentTaskId, localNodeId());
                 taskManager.removeBan(request.parentTaskId);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            }
+        }
+    }
+
+    void sendHeartbeatRequest(NodeAndClusterAlias node) {
+        final Transport.Connection connection;
+        try {
+            connection = getConnection(node);
+        } catch (TransportException ignored) {
+            return;
+        }
+        if (connection.getVersion().onOrAfter(Version.V_8_0_0) && connection.getNode().getVersion().onOrAfter(Version.V_8_0_0)) {
+            final HeartbeatRequest request = new HeartbeatRequest(localNodeId());
+            transportService.sendRequest(connection, HEARTBEAT_ACTION_NAME, request, TransportRequestOptions.EMPTY,
+                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
+                        logger.debug("failed to send a task heartbeat to node {}", node);
+                    }
+                });
+        }
+    }
+
+    private static class HeartbeatRequest extends TransportRequest {
+        final String nodeId;
+
+        HeartbeatRequest(String nodeId) {
+            this.nodeId = Objects.requireNonNull(nodeId);
+        }
+
+        HeartbeatRequest(StreamInput in) throws IOException {
+            super(in);
+            this.nodeId = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(nodeId);
+        }
+    }
+
+    private class HeartbeatRequestHandler implements TransportRequestHandler<HeartbeatRequest> {
+        @Override
+        public void messageReceived(HeartbeatRequest request, TransportChannel channel, Task task) throws Exception {
+            taskManager.updateBanMarkerTimestamp(request.nodeId);
+        }
+    }
+
+    static final class SendHeartbeatTask extends AbstractAsyncTask {
+        private final ObjectIntMap<NodeAndClusterAlias> targets = new ObjectIntHashMap<>();
+        private final Consumer<NodeAndClusterAlias> sendFunction;
+        private final ThreadPool threadPool;
+
+        SendHeartbeatTask(Logger logger, ThreadPool threadPool, Consumer<NodeAndClusterAlias> sendFunction, TimeValue interval) {
+            super(logger, threadPool, interval, true);
+            this.sendFunction = sendFunction;
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        protected synchronized boolean mustReschedule() {
+            return targets.isEmpty() == false;
+        }
+
+        synchronized void register(Collection<NodeAndClusterAlias> nodes) {
+            for (NodeAndClusterAlias node : nodes) {
+                targets.addTo(node, 1);
+            }
+            if (isScheduled() == false) {
+                rescheduleIfNecessary();
+            }
+        }
+
+        synchronized void unregister(Collection<NodeAndClusterAlias> nodes) {
+            for (NodeAndClusterAlias node : nodes) {
+                if (targets.addTo(node, -1) == 0) {
+                    targets.remove(node);
+                }
+            }
+            if (targets.isEmpty()) {
+                cancel();
+            }
+        }
+
+        @Override
+        protected void runInternal() {
+            final List<NodeAndClusterAlias> nodes;
+            synchronized (this) {
+                nodes = StreamSupport.stream(targets.keys().spliterator(), false).map(cursor -> cursor.value).collect(Collectors.toList());
+            }
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+                for (NodeAndClusterAlias node : nodes) {
+                    sendFunction.accept(node);
+                }
             }
         }
     }

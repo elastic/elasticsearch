@@ -184,11 +184,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
-        private final Version version;
         private final boolean compress;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile) {
             this.node = node;
             this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -198,13 +197,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 for (TransportRequestOptions.Type type : handle.getTypes())
                     typeMapping.put(type, handle);
             }
-            version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
-        }
-
-        @Override
-        public Version getVersion() {
-            return version;
         }
 
         public List<TcpChannel> getChannels() {
@@ -928,7 +921,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
                     executeHandshake(node, handshakeChannel, connectionProfile, ActionListener.wrap(version -> {
-                        NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+                        DiscoveryNode targetNode = new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(),
+                            node.getHostName(), node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(), version);
+                        NodeChannels nodeChannels = new NodeChannels(targetNode, channels, connectionProfile);
+                        assert nodeChannels.getNode().equals(targetNode) : nodeChannels.getNode() + "!=" + targetNode;
+                        assert nodeChannels.getVersion().equals(version) : nodeChannels.getVersion() + "!=" + version;
                         long relativeMillisTime = threadPool.relativeTimeInMillis();
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time

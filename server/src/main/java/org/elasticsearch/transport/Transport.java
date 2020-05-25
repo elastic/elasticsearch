@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -95,6 +96,23 @@ public interface Transport extends LifecycleComponent {
          * The node this connection is associated with
          */
         DiscoveryNode getNode();
+
+        /**
+         * Returns the cluster alias of the target cluster if this is a cross cluster connection; otherwise, return null.
+         */
+        @Nullable
+        default String clusterAlias() {
+            assert proxyNode() == null : proxyNode();
+            return null;
+        }
+
+        /**
+         * Returns the proxy node if this is cross cluster connection via a proxy node; otherwise, return null.
+         */
+        @Nullable
+        default DiscoveryNode proxyNode() {
+            return null;
+        }
 
         /**
          * Sends the request to the node this connection is associated with

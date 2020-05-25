@@ -28,7 +28,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -50,7 +49,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -74,8 +72,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -171,21 +167,6 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         assertEquals(1, service.getAuditTrails().size());
         assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(0).name());
-    }
-
-    public void testSecurityRestFilter() throws Exception {
-        boolean showUnauthorizedStackTraces = randomBoolean();
-        Settings settings;
-        if (showUnauthorizedStackTraces || randomBoolean()) {
-            settings = Settings.builder().put(SecurityRestFilter.SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED.getKey(),
-                    showUnauthorizedStackTraces).build();
-        } else {
-            settings = Settings.builder().build();
-        }
-        createComponents(settings);
-        RestHandler securityRestFilter = security.getRestHandlerWrapper(threadContext).apply(mock(RestHandler.class));
-        assertThat(securityRestFilter, instanceOf(SecurityRestFilter.class));
-        assertThat(((SecurityRestFilter)securityRestFilter).showsUnauthorizedErrorTrace(), is(showUnauthorizedStackTraces));
     }
 
     public void testDisabledByDefault() throws Exception {

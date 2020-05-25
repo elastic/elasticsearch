@@ -78,8 +78,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false,
-                randomBoolean());
+        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
     }
 
     public void testProcess() throws Exception {
@@ -148,20 +147,8 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false, false);
+        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
         testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, true, true, false);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, true, false, false);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, false, true, false);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, false, false, false);
-        testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, false, false, false);
-        testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, true, false, false);
-        testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, false, true, false);
-        testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, true, true, true);
-    }
-
-    public void testProcessAuthenticationFailedWithTrace() throws Exception {
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false, true);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, true, true, true);
         testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, true, false, false);
         testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, false, true, false);
         testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, false, false, false);
@@ -238,8 +225,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), any(ActionListener.class));
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false,
-                randomBoolean());
+        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
 
         filter.handleRequest(restRequest, channel, null);
 

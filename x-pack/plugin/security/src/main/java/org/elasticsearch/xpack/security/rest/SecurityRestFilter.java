@@ -12,7 +12,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.http.HttpChannel;
@@ -37,8 +36,6 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 
 public class SecurityRestFilter implements RestHandler {
 
-    public static final Setting<Boolean> SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED =
-            Setting.boolSetting("xpack.security.authc.show_unauthorized_error_trace.enabled", false, Setting.Property.NodeScope);
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
     private final RestHandler restHandler;
@@ -47,18 +44,15 @@ public class SecurityRestFilter implements RestHandler {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
-    private final boolean unauthorizedErrorTrace;
 
     public SecurityRestFilter(XPackLicenseState licenseState, ThreadContext threadContext, AuthenticationService authenticationService,
-                              SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate,
-                              boolean unauthorizedErrorTrace) {
+                              SecondaryAuthenticator secondaryAuthenticator, RestHandler restHandler, boolean extractClientCertificate) {
         this.licenseState = licenseState;
         this.threadContext = threadContext;
         this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.restHandler = restHandler;
         this.extractClientCertificate = extractClientCertificate;
-        this.unauthorizedErrorTrace = unauthorizedErrorTrace;
     }
 
     @Override
@@ -102,10 +96,11 @@ public class SecurityRestFilter implements RestHandler {
                 @Override
                 protected ToXContent.Params paramsFromRequest(RestRequest restRequest) {
                     ToXContent.Params params = restRequest;
-                    if (false == unauthorizedErrorTrace && restStatus == RestStatus.UNAUTHORIZED) {
-                        params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "true"), params);
-                    } else if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
+                    if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)
+                            && restStatus != RestStatus.UNAUTHORIZED) {
                         params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+                    } else {
+                        params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "true"), params);
                     }
                     return params;
                 }
@@ -147,11 +142,6 @@ public class SecurityRestFilter implements RestHandler {
     public List<ReplacedRoute> replacedRoutes() {
         return restHandler.replacedRoutes();
     }
-
-    public boolean showsUnauthorizedErrorTrace() {
-        return unauthorizedErrorTrace;
-    }
-
 
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {

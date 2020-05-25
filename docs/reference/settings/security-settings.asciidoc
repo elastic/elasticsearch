@@ -50,15 +50,6 @@ settings for the ad1 active_directory realm:
 The API already omits all `ssl` settings, `bind_dn`, and `bind_password` due to
 the sensitive nature of the information.
 
-`xpack.security.authc.show_unauthorized_error_trace.enabled`::
-The <<common-options-error-options, `error_trace` request option>> lets
-stacktraces of exceptions be printed in the response body. However, stacktraces
-for authentication errors (401 HTTP response code) are exempted and are *not*
-displayed. Set this to `true` to allow stacktraces of authentication errors
-be returned as well. Note that all response exceptions, which are not
-returned in the response body, can be logged under the `rest.suppressed`
-logger (see <<configuring-logging-levels, logging level configuration>>).
-
 `xpack.security.fips_mode.enabled`::
 Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
 

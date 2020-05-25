@@ -642,7 +642,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(ApiKeyService.CACHE_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
-        settingsList.add(SecurityRestFilter.SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
@@ -986,9 +985,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
         boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
-        final boolean unauthorizedErrorTrace = SecurityRestFilter.SHOW_UNAUTHORIZED_ERROR_TRACE_ENABLED.get(settings);
         return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
-            handler, extractClientCertificate, unauthorizedErrorTrace);
+            handler, extractClientCertificate);
     }
 
     @Override

@@ -1176,7 +1176,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     public void testIgnoredCommentsInLegitimateResponses() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
-        assumeFalse("Can't run in Azul Zulu JVM",System.getProperty("java.vendor", "").contains("Azul"));
+        assumeFalse("Can't run in Azul Zulu JVM", System.getProperty("java.vendor", "").contains("Azul"));
 
         final String nameId = "user<!-- this is a comment -->admin@example.com";
         final String sanitizedNameId = "useradmin@example.com";

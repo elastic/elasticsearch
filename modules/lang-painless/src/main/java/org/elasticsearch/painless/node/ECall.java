@@ -29,6 +29,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
@@ -47,13 +48,15 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
  */
 public class ECall extends AExpression {
 
+    protected final AExpression prefix;
     protected final String name;
     protected final List<AExpression> arguments;
     protected final boolean nullSafe;
 
     public ECall(Location location, AExpression prefix, String name, List<AExpression> arguments, boolean nullSafe) {
-        super(location, prefix);
+        super(location);
 
+        this.prefix = Objects.requireNonNull(prefix);
         this.name = Objects.requireNonNull(name);
         this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
         this.nullSafe = nullSafe;
@@ -71,15 +74,24 @@ public class ECall extends AExpression {
         Input prefixInput = new Input();
         Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
 
+        if (prefixOutput.partialCanonicalTypeName != null) {
+            throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
+        }
+
         ExpressionNode expressionNode;
 
         if (prefixOutput.actual == def.class) {
+            if (output.isStaticType) {
+                throw createError(new IllegalArgumentException("value required: " +
+                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
+            }
+
             List<Output> argumentOutputs = new ArrayList<>(arguments.size());
 
             for (AExpression argument : arguments) {
                 Input expressionInput = new Input();
                 expressionInput.internal = true;
-                Output expressionOutput = argument.analyze(classNode, scriptRoot, scope, expressionInput);
+                Output expressionOutput = analyze(argument, classNode, scriptRoot, scope, expressionInput);
                 argumentOutputs.add(expressionOutput);
 
                 if (expressionOutput.actual == void.class) {
@@ -104,7 +116,7 @@ public class ECall extends AExpression {
             expressionNode = callSubDefNode;
         } else {
             PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
-                    prefixOutput.actual, prefix instanceof EStatic, name, arguments.size());
+                    prefixOutput.actual, prefixOutput.isStaticType, name, arguments.size());
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
@@ -122,7 +134,7 @@ public class ECall extends AExpression {
                 Input expressionInput = new Input();
                 expressionInput.expected = method.typeParameters.get(argument);
                 expressionInput.internal = true;
-                Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+                Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
                 argumentOutputs.add(expressionOutput);
                 argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
                         expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
@@ -133,7 +145,7 @@ public class ECall extends AExpression {
 
             CallSubNode callSubNode = new CallSubNode();
 
-            for (int argument = 0; argument < arguments.size(); ++ argument) {
+            for (int argument = 0; argument < arguments.size(); ++argument) {
                 callSubNode.addArgumentNode(cast(argumentOutputs.get(argument).expressionNode, argumentCasts.get(argument)));
             }
 

@@ -74,7 +74,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
 
         givenClientRequestsSucceed(responses);
 
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -104,7 +104,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.emptyList()));
 
         givenClientRequestsSucceed(searchResponses);
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -141,7 +141,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         final int timeoutAfter = randomIntBetween(0, 1);
         AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
 
-        createExpiredModelSnapshotsRemover().remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> (attemptsLeft.getAndDecrement() <= 0));
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));
@@ -156,7 +156,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         )));
 
         givenClientSearchRequestsFail(searchResponses);
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));
@@ -192,7 +192,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         searchResponses.add(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(snapshot2_2)));
 
         givenClientDeleteModelSnapshotRequestsFail(searchResponses);
-        createExpiredModelSnapshotsRemover().remove(listener, () -> false);
+        createExpiredModelSnapshotsRemover().remove(1.0f, listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));

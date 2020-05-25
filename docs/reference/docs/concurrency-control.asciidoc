@@ -88,8 +88,9 @@ for each search hit by setting <<request-body-search-seq-no-primary-term,`seq_no
 The sequence number and the primary term uniquely identify a change. By noting down 
 the sequence number and primary term returned, you can make sure to only change the
 document if no other change was made to it since you retrieved it. This
-is done by setting the `if_seq_no` and `if_primary_term` parameters of either the
-<<docs-index_,Index API>> or the <<docs-delete,Delete API>>. 
+is done by setting the `if_seq_no` and `if_primary_term` parameters of the 
+<<docs-index_,index API>>, <<docs-update,update API>>, or <<docs-delete,delete
+API>>. 
 
 For example, the following indexing call will make sure to add a tag to the
 document without losing any potential change to the description or an addition
@@ -106,4 +107,3 @@ PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
 --------------------------------------------------
 // TEST[continued]
 // TEST[catch: conflict]
-

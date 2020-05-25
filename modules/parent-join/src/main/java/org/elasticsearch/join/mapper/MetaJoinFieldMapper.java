@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Simple field mapper hack to ensure that there is a one and only {@link ParentJoinFieldMapper} per mapping.
@@ -57,7 +58,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, MetaJoinFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder> {
         Builder() {
             super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
@@ -92,7 +93,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
         }
 
         @Override
@@ -135,6 +136,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
     @Override
     protected MetaJoinFieldMapper clone() {
         return (MetaJoinFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

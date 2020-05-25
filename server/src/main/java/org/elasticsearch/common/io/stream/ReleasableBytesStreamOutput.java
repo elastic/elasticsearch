@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.PagedBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -48,16 +47,6 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         super(expectedSize, bigArrays);
         this.releasable = Releasables.releaseOnce(this.bytes);
-    }
-
-    /**
-     * Returns a {@link Releasable} implementation of a
-     * {@link org.elasticsearch.common.bytes.BytesReference} that represents the current state of
-     * the bytes in the stream.
-     */
-    @Override
-    public ReleasableBytesReference bytes() {
-        return new ReleasableBytesReference(new PagedBytesReference(bytes, count), releasable);
     }
 
     @Override

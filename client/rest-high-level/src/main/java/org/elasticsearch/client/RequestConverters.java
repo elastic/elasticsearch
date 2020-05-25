@@ -40,6 +40,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -48,10 +49,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.core.CountRequest;
-import org.elasticsearch.client.core.GetSourceRequest;
-import org.elasticsearch.client.core.MultiTermVectorsRequest;
-import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.core.*;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
@@ -282,6 +280,17 @@ final class RequestConverters {
 
     static Request getSource(GetSourceRequest getSourceRequest) {
         return sourceRequest(getSourceRequest, HttpGet.METHOD_NAME);
+    }
+
+    static Request getGrokPattens(GetGrokPatternsRequest getGrokPatternsRequest) {
+        return sourceGetGrokPatternsRequest(getGrokPatternsRequest); }
+
+    static Request sourceGetGrokPatternsRequest(GetGrokPatternsRequest getGrokPatternsRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_ingest/processor/grok")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        return request;
     }
 
     private static Request sourceRequest(GetSourceRequest getSourceRequest, String httpMethodName) {

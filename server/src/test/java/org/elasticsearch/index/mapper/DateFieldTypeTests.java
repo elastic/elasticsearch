@@ -30,6 +30,7 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
@@ -41,9 +42,9 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -57,33 +58,37 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Locale;
 
-public class DateFieldTypeTests extends FieldTypeTestCase {
+public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new DateFieldMapper.DateFieldType();
+    protected DateFieldType createDefaultFieldType() {
+        return new DateFieldType();
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier(t -> {
+            DateFieldType copy = (DateFieldType) t.clone();
+            if (copy.dateTimeFormatter == DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) {
+                copy.setDateTimeFormatter(DateFormatter.forPattern("epoch_millis"));
+            } else {
+                copy.setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+            }
+            return copy;
+        });
+        addModifier(t -> {
+            DateFieldType copy = (DateFieldType) t.clone();
+            if (copy.resolution() == Resolution.MILLISECONDS) {
+                copy.setResolution(Resolution.NANOSECONDS);
+            } else {
+                copy.setResolution(Resolution.MILLISECONDS);
+            }
+            return copy;
+        });
     }
 
     private static long nowInMillis;
 
-    @Before
-    public void setupProperties() {
-        setDummyNullValue(10);
-        addModifier(new Modifier("format", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
-            }
-        });
-        addModifier(new Modifier("locale", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("strict_date_optional_time").withLocale(Locale.CANADA));
-            }
-        });
-        nowInMillis = randomNonNegativeLong();
-    }
 
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
@@ -285,6 +290,38 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
+    public void testRangeQueryWithIndexSort() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.sort.field", "field")
+            .build();
+
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index")
+            .settings(settings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+
+        QueryShardContext context = new QueryShardContext(0, indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, () -> 0L, null, null, () -> true, null);
+
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        String date1 = "2015-10-12T14:10:55";
+        String date2 = "2016-04-28T11:33:52";
+        long instant1 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date1)).toInstant().toEpochMilli();
+        long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() + 999;
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        Query pointQuery = LongPoint.newRangeQuery("field", instant1, instant2);
+        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
+        Query expected = new IndexSortSortedNumericDocValuesRangeQuery("field",  instant1, instant2,
+            new IndexOrDocValuesQuery(pointQuery, dvQuery));
+        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
+    }
+
     public void testDateNanoDocValues() throws IOException {
         // Create an index with some docValues
         Directory dir = newDirectory();
@@ -299,7 +336,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         IndexSettings indexSettings =  new IndexSettings(IndexMetadata.builder("foo").settings(settings).build(), settings);
-        SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(indexSettings.getIndex(), "my_date",
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(indexSettings.getIndex(), "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS);
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

@@ -54,20 +54,20 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   for (kind in ["follower", "leader"]) {
     // Attention!! Groovy trap: do not pass `kind` to a closure
 
-    tasks.create("${baseName}#${kind}#clusterTest", RestTestRunnerTask) {
+    tasks.register("${baseName}#${kind}#clusterTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind
       ext.kindExt = kind
     }
 
-    tasks.create("${baseName}#${kind}#oneThirdUpgradedTest", RestTestRunnerTask) {
+    tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'one_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
       ext.kindExt = kind
     }
 
-    tasks.create("${baseName}#${kind}#twoThirdsUpgradedTest", RestTestRunnerTask) {
+    tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", RestTestRunnerTask) {
       systemProperty 'tests.rest.upgrade_state', 'two_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"

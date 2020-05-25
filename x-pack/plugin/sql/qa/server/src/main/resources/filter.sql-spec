@@ -1,0 +1,131 @@
+// To mute tests follow example in file: example.sql-spec
+
+//
+// Filter
+//
+
+whereFieldEquality
+// tag::whereFieldEquality
+SELECT last_name l FROM "test_emp" WHERE emp_no = 10000 LIMIT 5;
+// end::whereFieldEquality
+whereFieldNonEquality
+// tag::whereFieldNonEquality
+SELECT last_name l FROM "test_emp" WHERE emp_no <> 10000 ORDER BY emp_no LIMIT 5;
+// end::whereFieldNonEquality
+whereFieldNonEqualityJavaSyntax
+SELECT last_name l FROM "test_emp" WHERE emp_no != 10000 ORDER BY emp_no LIMIT 5;
+whereFieldLessThan
+// tag::whereFieldLessThan
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 ORDER BY emp_no LIMIT 5;
+// end::whereFieldLessThan
+whereFieldAndComparison
+// tag::whereFieldAndComparison
+SELECT last_name l FROM "test_emp" WHERE emp_no > 10000 AND emp_no < 10005 ORDER BY emp_no LIMIT 5;
+// end::whereFieldAndComparison
+whereFieldOrComparison
+// tag::whereFieldOrComparison
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 OR emp_no = 10005 ORDER BY emp_no LIMIT 5;
+// end::whereFieldOrComparison
+
+
+whereFieldEqualityNot
+// tag::whereFieldEqualityNot
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no = 10000 LIMIT 5;
+// end::whereFieldEqualityNot
+whereFieldNonEqualityNot
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no <> 10000 ORDER BY emp_no LIMIT 5;
+whereFieldNonEqualityJavaSyntaxNot
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no != 10000 ORDER BY emp_no LIMIT 5;
+whereFieldLessThanNot
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no < 10003 ORDER BY emp_no LIMIT 5;
+whereFieldAndComparisonNot
+SELECT last_name l FROM "test_emp" WHERE NOT (emp_no > 10000 AND emp_no < 10005) ORDER BY emp_no LIMIT 5;
+whereFieldOrComparisonNot
+SELECT last_name l FROM "test_emp" WHERE NOT (emp_no < 10003 OR emp_no = 10005) ORDER BY emp_no LIMIT 5;
+
+whereFieldWithOrder
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 ORDER BY emp_no;
+whereFieldWithExactMatchOnString
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND gender = 'M';
+whereFieldWithNotEqualsOnString
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND gender <> 'M';
+whereFieldWithLikeMatch
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name LIKE 'K%';
+whereFieldWithLikeAndScalarsMatch
+SELECT RTRIM(CONCAT(last_name, '     ')) AS l FROM "test_emp" WHERE RTRIM(CONCAT(last_name, '     ')) LIKE '%k%' ORDER BY emp_no;
+whereFieldWithNotLikeMatch
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10020 AND first_name NOT LIKE 'Ma%';
+whereFieldWithInlineLikeMatch
+SELECT emp_no FROM "test_emp" WHERE 'aaabbb' LIKE 'aa%b%' AND 'aaabbb' NOT LIKE 'a%%c%' AND emp_no < 10080 ORDER BY emp_no DESC LIMIT 5;
+
+whereFieldWithOrderNot
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no < 10003 ORDER BY emp_no LIMIT 5;
+whereFieldWithExactMatchOnStringNot
+SELECT last_name l FROM "test_emp" WHERE NOT (emp_no < 10003 AND gender = 'M') ORDER BY emp_no LIMIT 5;
+whereFieldWithNotEqualsOnStringNot
+SELECT last_name l FROM "test_emp" WHERE NOT (emp_no < 10003 AND gender <> 'M') ORDER BY emp_no LIMIT 5;
+whereFieldWithLikeMatchNot
+SELECT last_name l FROM "test_emp" WHERE NOT (emp_no < 10003 AND last_name NOT LIKE 'K%') ORDER BY emp_no LIMIT 5;
+
+whereFieldOnMatchWithAndAndOr
+SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND (gender = 'M' AND NOT FALSE OR last_name LIKE 'K%') ORDER BY emp_no;
+
+whereFieldWithLikeAndNotLike
+SELECT COUNT(*), last_name AS f FROM test_emp WHERE last_name LIKE '%o%' AND last_name NOT LIKE '%f%' GROUP BY f HAVING COUNT(*) > 1;
+
+// TODO: (NOT) RLIKE in particular and more NOT queries in general
+
+whereIsNull
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NULL;
+whereIsNullAndNegation
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no IS NULL;
+whereIsNotNull
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL;
+whereIsNotNullAndNegation
+SELECT last_name l FROM "test_emp" WHERE NOT emp_no IS NOT NULL;
+
+whereIsNullAndComparison
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NULL AND emp_no < 10005 ORDER BY emp_no;
+whereIsNullWithComparisonAndNegation
+SELECT last_name l FROM "test_emp" WHERE (NOT emp_no IS NULL) AND emp_no < 10005 ORDER BY emp_no;
+whereIsNotNullAndComparison
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND emp_no < 10005 ORDER BY emp_no;
+whereIsNotNullWithComparisonAndNegation
+SELECT last_name l FROM "test_emp" WHERE (NOT emp_no IS NOT NULL) AND emp_no < 10005 ORDER BY emp_no;
+
+whereIsNotNullAndIsNull
+// tag::whereIsNotNullAndIsNull
+SELECT last_name l FROM "test_emp" WHERE emp_no IS NOT NULL AND gender IS NULL;
+// end::whereIsNotNullAndIsNull
+whereBetween
+// tag::whereBetween
+SELECT last_name l FROM "test_emp" WHERE emp_no BETWEEN 9990 AND 10003 ORDER BY emp_no;
+// end::whereBetween
+whereNotBetween
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT BETWEEN 10010 AND 10020 ORDER BY emp_no LIMIT 5;
+
+whereNoMatch
+SELECT last_name l FROM "test_emp" WHERE 1 = 2 ORDER BY 1 LIMIT 10;
+
+//
+// IN expression
+//
+whereWithInAndOneValue
+SELECT last_name l FROM "test_emp" WHERE emp_no IN (10001);
+whereWithInAndMultipleValues
+// tag::whereWithInAndMultipleValues
+SELECT last_name l FROM "test_emp" WHERE emp_no IN (10000, 10001, 10002, 999) ORDER BY emp_no LIMIT 5;
+// end::whereWithInAndMultipleValues
+
+whereWithInAndOneValueWithNegation
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10001) ORDER BY emp_no LIMIT 5;
+whereWithInAndMultipleValuesAndNegation
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, 10001, 10002, 999) ORDER BY emp_no LIMIT 5;
+
+whereWithInAndComplexFunctions
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, abs(2 - 10003), 10002, 999) AND lcase(first_name) IN ('sumant', 'mary', 'patricio', 'No''Match') ORDER BY emp_no LIMIT 5;
+
+whereWithInAndNullHandling1
+SELECT last_name l FROM "test_emp" WHERE languages in (2, 10)AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;
+whereWithInAndNullHandling2
+SELECT last_name l FROM "test_emp" WHERE languages in (2, null, 10) AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;

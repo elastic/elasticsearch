@@ -91,6 +91,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_HISTORY_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
@@ -125,7 +126,8 @@ public class RestoreService implements ClusterStateApplier {
             SETTING_VERSION_CREATED,
             SETTING_INDEX_UUID,
             SETTING_CREATION_DATE,
-            IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()));
+            IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+            SETTING_HISTORY_UUID));
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
     private static final Set<String> UNREMOVABLE_SETTINGS;
@@ -334,8 +336,8 @@ public class RestoreService implements ClusterStateApplier {
                                     }
                                     indexMdBuilder.settings(Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
-                                        .put(IndexMetadata.SETTING_INDEX_UUID,
-                                            currentIndexMetadata.getIndexUUID()));
+                                        .put(IndexMetadata.SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID())
+                                        .put(IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID()));
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.index(renamedIndexName).build();
                                     rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);
                                     blocks.updateBlocks(updatedIndexMetadata);

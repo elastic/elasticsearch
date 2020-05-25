@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -84,7 +85,9 @@ public class ScriptedMetricAggContexts {
                             "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script "
                                     + "is deprecated in favor of using [state].");
                     return value;
-                });
+                },
+                "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+        );
 
         private final Map<String, Object> params;
         private final Map<String, Object> state;

@@ -71,14 +71,14 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    static class Builder extends MetadataFieldMapper.Builder<Builder> {
         private boolean enabled = Defaults.ENABLED;
 
-        private Builder(MappedFieldType existing) {
+        Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
-        private Builder enabled(boolean enabled) {
+        Builder enabled(boolean enabled) {
             this.enabled = enabled;
             return this;
         }

@@ -19,21 +19,15 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.ValidationException;
+import java.util.Optional;
 
-import java.io.IOException;
-
-public class GetGrokPatternsRequest extends ActionRequest {
+public class GetGrokPatternsRequest implements Validatable {
     public GetGrokPatternsRequest() {}
 
-    GetGrokPatternsRequest(StreamInput in) throws IOException {
-        super(in);
-    }
-
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public Optional<ValidationException> validate() {
+        return Optional.empty();
     }
 }

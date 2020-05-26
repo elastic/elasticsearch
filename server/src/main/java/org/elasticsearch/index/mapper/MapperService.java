@@ -530,18 +530,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         checkIndexSortCompatibility(indexSettings.getIndexSortConfig(), hasNested);
 
-        if (newMapper != null) {
-            DocumentMapper updatedDocumentMapper = newMapper.updateFieldType(fieldTypes.fullNameToFieldType);
-            if (updatedDocumentMapper != newMapper) {
-                // update both mappers and result
-                newMapper = updatedDocumentMapper;
-                results.put(updatedDocumentMapper.type(), updatedDocumentMapper);
-            }
-        }
-
-        // make structures immutable
-        results = Collections.unmodifiableMap(results);
-
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
             return results;
         }
@@ -559,27 +547,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         if (newMapper != null) {
             this.mapper = newMapper;
+            this.fieldTypes = fieldTypes;
+            this.hasNested = hasNested;
+            this.fullPathObjectMappers = fullPathObjectMappers;
         }
-        this.fieldTypes = fieldTypes;
-        this.hasNested = hasNested;
-        this.fullPathObjectMappers = fullPathObjectMappers;
 
-        assert assertMappersShareSameFieldType();
         assert results.values().stream().allMatch(this::assertSerialization);
 
         return results;
-    }
-
-    private boolean assertMappersShareSameFieldType() {
-        if (mapper != null) {
-            List<FieldMapper> fieldMappers = new ArrayList<>();
-            Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
-            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers, new ArrayList<>());
-            for (FieldMapper fieldMapper : fieldMappers) {
-                assert fieldMapper.fieldType() == fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
-            }
-        }
-        return true;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {

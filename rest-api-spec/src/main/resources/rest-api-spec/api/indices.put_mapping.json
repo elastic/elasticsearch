@@ -127,7 +127,7 @@
           }
         },
         {
-          "path":"{index}/_mappings",
+          "path":"/{index}/_mappings",
           "methods":[
             "PUT",
             "POST"

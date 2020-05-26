@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.search;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -17,7 +16,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
@@ -38,8 +38,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ESIntegTestCase.SuiteScopeTestCase
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56765")
+@SuiteScopeTestCase
+@TestIssueLogging(
+    value = "org.elasticsearch.index:TRACE,org.elasticsearch.env:TRACE",
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/56765")
 public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     private static String indexName;
     private static int numShards;

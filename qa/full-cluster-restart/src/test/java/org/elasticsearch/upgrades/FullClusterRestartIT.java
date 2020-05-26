@@ -653,24 +653,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return EntityUtils.toString(response.getEntity());
     }
 
-    static void assertNoFailures(Map<?, ?> response) {
-        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
-        assertEquals(0, failed);
-    }
-
-    void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
-        int actualTotalHits = extractTotalHits(response);
-        assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
-    }
-
-    int extractTotalHits(Map<?, ?> response) {
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
-            return (Integer) XContentMapValues.extractValue("hits.total", response);
-        } else {
-            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
-        }
-    }
-
     /**
      * Tests that a single document survives. Super basic smoke test.
      */

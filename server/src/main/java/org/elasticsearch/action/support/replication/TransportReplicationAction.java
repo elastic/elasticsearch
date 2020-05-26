@@ -27,6 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -160,11 +161,11 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
-        transportService.registerRequestHandler(transportPrimaryAction, executor, forceExecutionOnPrimary, true,
+        transportService.registerRequestHandler(transportPrimaryAction, ThreadPool.Names.SAME, forceExecutionOnPrimary, true,
             in -> new ConcreteShardRequest<>(requestReader, in), this::handlePrimaryRequest);
 
         // we must never reject on because of thread pool capacity on replicas
-        transportService.registerRequestHandler(transportReplicaAction, executor, true, true,
+        transportService.registerRequestHandler(transportReplicaAction, ThreadPool.Names.SAME, true, true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), this::handleReplicaRequest);
 
         this.transportOptions = transportOptions(settings);
@@ -274,12 +275,23 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
-        execute(task, request, new ChannelActionListener<>(channel, actionName, request));
+        Releasable releasable = checkPrimaryLimits(request);
+        ActionListener<Response> listener =
+            ActionListener.runAfter(new ChannelActionListener<>(channel, actionName, request), releasable::close);
+        execute(task, request, listener);
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        new AsyncPrimaryAction(
-            request, new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
+        Releasable releasable = checkPrimaryLimits(request.getRequest());
+        ActionListener<Response> listener =
+            ActionListener.runAfter(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
+
+        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
+            }
+        });
     }
 
     protected Releasable checkPrimaryLimits(final Request request) {
@@ -494,10 +506,19 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected void handleReplicaRequest(final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
-                                        final TransportChannel channel, final Task task) {
-        new AsyncReplicaAction(
-            replicaRequest, new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), (ReplicationTask) task).run();
+    protected void handleReplicaRequest(final ConcreteReplicaRequest<ReplicaRequest> replicaRequest, final TransportChannel channel,
+                                      final Task task) {
+        Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
+        ActionListener<ReplicaResponse> listener =
+            ActionListener.runAfter(new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), releasable::close);
+
+        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                new AsyncReplicaAction(
+                    replicaRequest, listener, (ReplicationTask) task).run();
+            }
+        });
     }
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {

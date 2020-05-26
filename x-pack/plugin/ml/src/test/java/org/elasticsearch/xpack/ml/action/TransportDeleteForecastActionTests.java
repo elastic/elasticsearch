@@ -28,15 +28,11 @@ public class TransportDeleteForecastActionTests extends ESTestCase {
                 .limit(randomInt(10))
                 .collect(Collectors.toList());
 
-            try {
-                TransportDeleteForecastAction.validateForecastState(
-                    forecastRequestStats,
-                    randomFrom(JobState.values()),
-                    randomAlphaOfLength(10)
-                );
-            } catch (Exception ex) {
-                fail("Should not have thrown: " + ex.getMessage());
-            }
+            // This should not throw.
+            TransportDeleteForecastAction.validateForecastState(
+                forecastRequestStats,
+                randomFrom(JobState.values()),
+                randomAlphaOfLength(10));
         }
     }
 

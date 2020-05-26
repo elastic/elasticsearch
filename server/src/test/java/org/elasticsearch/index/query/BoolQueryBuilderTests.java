@@ -290,6 +290,30 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(null, builder.minimumShouldMatch());
     }
 
+    public void testMustNull() throws IOException {
+        String query = "{\"bool\" : {\"must\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.must().isEmpty());
+    }
+
+    public void testMustNotNull() throws IOException {
+        String query = "{\"bool\" : {\"must_not\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.mustNot().isEmpty());
+    }
+
+    public void testShouldNull() throws IOException {
+        String query = "{\"bool\" : {\"should\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.should().isEmpty());
+    }
+
+    public void testFilterNull() throws IOException {
+        String query = "{\"bool\" : {\"filter\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.filter().isEmpty());
+    }
+
     /**
      * test that unknown query names in the clauses throw an error
      */

@@ -46,7 +46,6 @@ with associated indices.
 POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
-  "include_aliases": false,
   "ignore_unavailable": true,
   "include_global_state": false,              <1>
   "rename_pattern": "index_(.+)",

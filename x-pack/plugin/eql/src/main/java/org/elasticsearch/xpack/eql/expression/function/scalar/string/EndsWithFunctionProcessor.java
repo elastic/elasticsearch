@@ -18,36 +18,36 @@ public class EndsWithFunctionProcessor implements Processor {
 
     public static final String NAME = "senw";
 
-    private final Processor source;
+    private final Processor input;
     private final Processor pattern;
 
-    public EndsWithFunctionProcessor(Processor source, Processor pattern) {
-        this.source = source;
+    public EndsWithFunctionProcessor(Processor input, Processor pattern) {
+        this.input = input;
         this.pattern = pattern;
     }
 
     public EndsWithFunctionProcessor(StreamInput in) throws IOException {
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
         pattern = in.readNamedWriteable(Processor.class);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(source);
+        out.writeNamedWriteable(input);
         out.writeNamedWriteable(pattern);
     }
 
     @Override
-    public Object process(Object input) {
-        return doProcess(source.process(input), pattern.process(input));
+    public Object process(Object o) {
+        return doProcess(input.process(o), pattern.process(o));
     }
 
-    public static Object doProcess(Object source, Object pattern) {
-        if (source == null) {
+    public static Object doProcess(Object input, Object pattern) {
+        if (input == null) {
             return null;
         }
-        if (source instanceof String == false && source instanceof Character == false) {
-            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (input instanceof String == false && input instanceof Character == false) {
+            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (pattern == null) {
             return null;
@@ -56,11 +56,11 @@ public class EndsWithFunctionProcessor implements Processor {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
 
-        return source.toString().toLowerCase(Locale.ROOT).endsWith(pattern.toString().toLowerCase(Locale.ROOT));
+        return input.toString().toLowerCase(Locale.ROOT).endsWith(pattern.toString().toLowerCase(Locale.ROOT));
     }
     
-    protected Processor source() {
-        return source;
+    protected Processor input() {
+        return input;
     }
 
     protected Processor pattern() {
@@ -78,13 +78,13 @@ public class EndsWithFunctionProcessor implements Processor {
         }
         
         EndsWithFunctionProcessor other = (EndsWithFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
+        return Objects.equals(input(), other.input())
                 && Objects.equals(pattern(), other.pattern());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(source(), pattern());
+        return Objects.hash(input(), pattern());
     }
     
 

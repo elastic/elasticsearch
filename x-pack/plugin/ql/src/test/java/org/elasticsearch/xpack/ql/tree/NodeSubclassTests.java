@@ -672,7 +672,8 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
         // filter the class that are not interested
         // (and IDE folders like eclipse)
-        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false) {
+        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false
+            && className.startsWith("org.elasticsearch.xpack.eql") == false) {
             return;
         }
 

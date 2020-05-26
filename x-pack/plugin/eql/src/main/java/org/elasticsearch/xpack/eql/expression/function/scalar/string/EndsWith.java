@@ -34,12 +34,12 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class EndsWith extends ScalarFunction {
 
-    private final Expression source;
+    private final Expression input;
     private final Expression pattern;
 
-    public EndsWith(Source source, Expression src, Expression pattern) {
-        super(source, Arrays.asList(src, pattern));
-        this.source = src;
+    public EndsWith(Source source, Expression input, Expression pattern) {
+        super(source, Arrays.asList(input, pattern));
+        this.input = input;
         this.pattern = pattern;
     }
 
@@ -49,7 +49,7 @@ public class EndsWith extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
@@ -59,39 +59,39 @@ public class EndsWith extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new EndsWithFunctionPipe(source(), this, Expressions.pipe(source), Expressions.pipe(pattern));
+        return new EndsWithFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(pattern));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable() && pattern.foldable();
+        return input.foldable() && pattern.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), pattern.fold());
+        return doProcess(input.fold(), pattern.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, EndsWith::new, source, pattern);
+        return NodeInfo.create(this, EndsWith::new, input, pattern);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate patternScript = asScript(pattern);
 
-        return asScriptFrom(sourceScript, patternScript);
+        return asScriptFrom(inputScript, patternScript);
     }
     
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate patternScript) {
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate patternScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s)"),
                 "endsWith",
-                sourceScript.template(),
+                inputScript.template(),
                 patternScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params())
+                    .script(inputScript.params())
                     .script(patternScript.params())
                     .build(), dataType());
     }

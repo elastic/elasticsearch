@@ -17,12 +17,12 @@ import java.util.Objects;
 
 public class EndsWithFunctionPipe extends Pipe {
 
-    private final Pipe source;
+    private final Pipe input;
     private final Pipe pattern;
 
-    public EndsWithFunctionPipe(Source source, Expression expression, Pipe src, Pipe pattern) {
-        super(source, expression, Arrays.asList(src, pattern));
-        this.source = src;
+    public EndsWithFunctionPipe(Source source, Expression expression, Pipe input, Pipe pattern) {
+        super(source, expression, Arrays.asList(input, pattern));
+        this.input = input;
         this.pattern = pattern;
     }
 
@@ -36,46 +36,46 @@ public class EndsWithFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newPattern = pattern.resolveAttributes(resolver);
-        if (newSource == source && newPattern == pattern) {
+        if (newInput == input && newPattern == pattern) {
             return this;
         }
-        return replaceChildren(newSource, newPattern);
+        return replaceChildren(newInput, newPattern);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery() && pattern.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && pattern.resolved();
+        return input.resolved() && pattern.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource, Pipe newPattern) {
-        return new EndsWithFunctionPipe(source(), expression(), newSource, newPattern);
+    protected EndsWithFunctionPipe replaceChildren(Pipe newInput, Pipe newPattern) {
+        return new EndsWithFunctionPipe(source(), expression(), newInput, newPattern);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         pattern.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<EndsWithFunctionPipe> info() {
-        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), source, pattern);
+        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), input, pattern);
     }
 
     @Override
     public EndsWithFunctionProcessor asProcessor() {
-        return new EndsWithFunctionProcessor(source.asProcessor(), pattern.asProcessor());
+        return new EndsWithFunctionProcessor(input.asProcessor(), pattern.asProcessor());
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
 
     public Pipe pattern() {
@@ -84,7 +84,7 @@ public class EndsWithFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, pattern);
+        return Objects.hash(input, pattern);
     }
 
     @Override
@@ -98,7 +98,7 @@ public class EndsWithFunctionPipe extends Pipe {
         }
 
         EndsWithFunctionPipe other = (EndsWithFunctionPipe) obj;
-        return Objects.equals(source, other.source)
-                && Objects.equals(pattern, other.pattern);
+        return Objects.equals(input(), other.input())
+                && Objects.equals(pattern(), other.pattern());
     }
 }

@@ -770,8 +770,8 @@ See <<ilm-gs-apply-policy>>.
 [role="exclude",id="indices-status"]
 === Index status API
 
-The  index `_status` API has been replaced with the <<indices-stats>> and
-<<indices-recovery>> APIs.
+The  index `_status` API has been replaced with the <<indices-stats,index
+stats>> and <<indices-recovery,index recovery>> APIs.
 
 [role="exclude",id="search-facets"]
 === Search facets

@@ -1,0 +1,106 @@
+[[data-streams]]
+= Data Streams
+
+[partintro]
+--
+A data stream formalizes the notion of a stream of data for time based data sources.
+Data streams groups indices from the same time-based data source together as an
+opaque container. A data stream keeps track of an ordered list of indices. Also known
+as backing indices.
+
+The backing indices of a data steam are hidden indices. The last backing index is the
+write index. The other backing indices handle read requests. A data steam only accepts
+index requests with `op_type` set to `create`. If specific documents need to be updated
+or deleted then these operations should happen via the backing index these documents
+reside in.
+
+Data streams rely on composable templates in order to get created. A composable template
+with a `data_stream` definition must exists for the namespace the data stream gets
+created in. A data stream is created automatically when indexing into namespace with
+a composable template with a `data_stream` definition. A data stream can also
+be created via the Create Data Stream API, but this also requires the existence of
+composable data stream.
+
+As part of setting up a data stream, the field that contains the primary timestamp
+in the time-based data source should be configured with the data stream. This can be
+specified in the `timestamp_field` parameter in the `data_stream` snippet of a
+composable template.
+
+The rollover API is responsible for updating <<rollover-data-stream-ex,a data stream when rolling over>>.
+It will create a new index and update the data stream to include it the list of indices.
+This new index will then become the new write index.
+
+--
+
+[float]
+== Getting started with data streams
+
+Create a composable template with a data stream definition:
+
+[source,console]
+-----------------------------------
+PUT /_index_template/logs_template
+{
+  "index_patterns": ["logs-*"],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+-----------------------------------
+// TEST
+
+Start indexing data into the namespace of this composable template:
+
+[source,console]
+--------------------------------------------------
+POST /logs-foobar/_doc
+--------------------------------------------------
+// TEST[continued]
+
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "_shards" : {
+        "total" : 1,
+        "failed" : 0,
+        "successful" : 1
+    },
+    "_index" : "logs-foobar-000001",
+    "_type" : "_doc",
+    "_id" : "W0tpsmIBdwcYyG50zbta",
+    "_version" : 1,
+    "_seq_no" : 0,
+    "_primary_term" : 1,
+    "result": "created"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/
+
+Or create a data stream via the create data stream api:
+
+[source,console-result]
+--------------------------------------------------
+PUT /_data_stream/logs-barbaz
+--------------------------------------------------
+// TEST[continued]
+
+////
+[source,console]
+-----------------------------------
+DELETE /_data_stream/logs-foobar
+DELETE /_data_stream/logs-barbaz
+DELETE /_index_template/logs_template
+-----------------------------------
+// TEST[continued]
+////
+
+[float]
+== Data stream APIs
+
+The following APIs are for managing data stream APIs:
+
+* To get meta information about data streams use <<indices-get-data-stream, the get data stream api>>.
+* To delete data streams use <<indices-delete-data-stream, the delete data stream api>>.
+* To manually create a data stream use <<indices-create-data-stream, the create data stream api>>.

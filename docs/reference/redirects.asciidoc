@@ -621,12 +621,6 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 
 coming::[7.x]
 
-[role="exclude",id="data-streams"]
-=== Data stream APIs
-
-See <<indices-create-data-stream>>, <<indices-get-data-stream>>, and
-<<indices-delete-data-stream>>.
-
 [role="exclude",id="modules-indices"]
 === Indices module
 

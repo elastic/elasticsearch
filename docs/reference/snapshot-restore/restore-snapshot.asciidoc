@@ -164,7 +164,7 @@ The output looks similar to the following:
       "repository": "my_backup",
       "uuid": "XuBo4l4ISYiVg0nYUen9zg",
       "state": "SUCCESS",
-      "include_global_state": false,
+      "include_global_state": true,
       "shards_stats": {
         "initializing": 0,
         "started": 0,

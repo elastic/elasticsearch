@@ -499,28 +499,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public ObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        List<Mapper> updatedMappers = null;
-        for (Mapper mapper : this) {
-            Mapper updated = mapper.updateFieldType(fullNameToFieldType);
-            if (mapper != updated) {
-                if (updatedMappers == null) {
-                    updatedMappers = new ArrayList<>();
-                }
-                updatedMappers.add(updated);
-            }
-        }
-        if (updatedMappers == null) {
-            return this;
-        }
-        ObjectMapper updated = clone();
-        for (Mapper updatedMapper : updatedMappers) {
-            updated.putMapper(updatedMapper);
-        }
-        return updated;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         toXContent(builder, params, null);
         return builder;

@@ -153,6 +153,8 @@ class DependenciesInfoTask extends ConventionTask {
         if (licenseInfo.sourceRedistributionRequired) {
             File sources = getDependencyInfoFile(group, name, 'SOURCES')
             licenseType += ",${sources.text.trim()}"
+        } else {
+            licenseType += ","
         }
 
         return licenseType

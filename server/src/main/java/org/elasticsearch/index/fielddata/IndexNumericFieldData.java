@@ -19,6 +19,15 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
+
 public interface IndexNumericFieldData extends IndexFieldData<LeafNumericFieldData> {
 
     enum NumericType {
@@ -46,4 +55,27 @@ public interface IndexNumericFieldData extends IndexFieldData<LeafNumericFieldDa
     }
 
     NumericType getNumericType();
+
+    /**
+     * Returns the {@link SortField} to used for sorting.
+     * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
+     * match the field's <code>numericType</code>.
+     */
+    SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
+
+    /**
+     * Builds a {@linkplain BucketedSort} for the {@code targetNumericType},
+     * casting the values if their native type doesn't match.
+     */
+    BucketedSort newBucketedSort(
+        NumericType targetNumericType,
+        BigArrays bigArrays,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    );
 }

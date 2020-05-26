@@ -345,7 +345,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 throw new QueryShardException(context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
             }
-            SortedNumericIndexFieldData numericFieldData = (SortedNumericIndexFieldData) fieldData;
+            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
         } else {
@@ -421,7 +421,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         if (numericType != null) {
-            SortedNumericIndexFieldData numericFieldData = (SortedNumericIndexFieldData) fieldData;
+            if (fieldData instanceof IndexNumericFieldData == false) {
+                throw new QueryShardException(context,
+                    "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
+            }
+            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
                     fieldType.docValueFormat(null, null), bucketSize, extra);

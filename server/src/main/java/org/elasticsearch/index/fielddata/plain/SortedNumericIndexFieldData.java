@@ -118,6 +118,7 @@ public class SortedNumericIndexFieldData implements IndexNumericFieldData {
      * Values are casted to the provided <code>targetNumericType</code> type if it doesn't
      * match the field's <code>numericType</code>.
      */
+    @Override
     public SortField sortField(NumericType targetNumericType, Object missingValue, MultiValueMode sortMode,
                                Nested nested, boolean reverse) {
         final XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
@@ -163,6 +164,7 @@ public class SortedNumericIndexFieldData implements IndexNumericFieldData {
      * Builds a {@linkplain BucketedSort} for the {@code targetNumericType},
      * casting the values if their native type doesn't match.
      */
+    @Override
     public BucketedSort newBucketedSort(NumericType targetNumericType, BigArrays bigArrays, @Nullable Object missingValue,
             MultiValueMode sortMode, Nested nested, SortOrder sortOrder, DocValueFormat format,
             int bucketSize, BucketedSort.ExtraData extra) {

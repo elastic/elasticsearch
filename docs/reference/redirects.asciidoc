@@ -768,7 +768,7 @@ See <<dynamic-mapping>>.
 See <<ilm-gs-apply-policy>>.
 
 [role="exclude",id="indices-status"]
-=== Index Status
+=== Index status API
 
 The  index `_status` API has been replaced with the <<indices-stats>> and
 <<indices-recovery>> APIs.

@@ -222,6 +222,8 @@ public final class Messages {
 
     public static final String JOB_UNKNOWN_ID = "No known job with id ''{0}''";
 
+    public static final String JOB_FORECAST_NATIVE_PROCESS_KILLED = "forecast unable to complete as native process was killed.";
+
     public static final String REST_CANNOT_DELETE_HIGHEST_PRIORITY =
             "Model snapshot ''{0}'' is the active snapshot for job ''{1}'', so cannot be deleted";
     public static final String REST_INVALID_DATETIME_PARAMS =

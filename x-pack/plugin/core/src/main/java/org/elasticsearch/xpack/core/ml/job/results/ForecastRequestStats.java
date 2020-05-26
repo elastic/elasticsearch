@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -89,6 +90,14 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         public static ForecastRequestStatus readFromStream(StreamInput in) throws IOException {
             return in.readEnum(ForecastRequestStatus.class);
         }
+
+        /**
+         * @return {@code true} if state matches any of the given {@code candidates}
+         */
+        public boolean isAnyOf(ForecastRequestStatus... candidates) {
+            return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
+        }
+
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

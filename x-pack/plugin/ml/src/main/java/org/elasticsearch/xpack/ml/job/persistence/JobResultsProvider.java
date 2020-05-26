@@ -140,6 +140,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 
 public class JobResultsProvider {
     private static final Logger LOGGER = LogManager.getLogger(JobResultsProvider.class);
@@ -1290,7 +1291,8 @@ public class JobResultsProvider {
             .setAbortOnVersionConflict(false)
             .setMaxRetries(3)
             .setRefresh(true)
-            .setScript(new Script("ctx._source.forecast_status='failed'"));
+            .setScript(new Script("ctx._source.forecast_status='failed';" +
+                "ctx._source.forecast_messages=['" + JOB_FORECAST_NATIVE_PROCESS_KILLED + "']"));
 
         client.execute(UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
             response -> {

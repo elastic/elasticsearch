@@ -58,7 +58,7 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 cluster state is not restored.
 +
 If `true`, the snapshot's persistent settings, index templates, ingest
-pipelines, and {ilm-init} policies are restored and added to the current
+pipelines, and {ilm-init} policies are restored into the current
 cluster. This overrides current settings, templates, pipeline, and policies with
 the same name.
 

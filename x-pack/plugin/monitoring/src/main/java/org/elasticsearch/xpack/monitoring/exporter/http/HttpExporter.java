@@ -838,6 +838,13 @@ public class HttpExporter extends Exporter {
     public void openBulk(final ActionListener<ExportBulk> listener) {
         final boolean canUseClusterAlerts = config.licenseState().isAllowed(Feature.MONITORING_CLUSTER_ALERTS);
 
+        //for a mixed cluster upgrade, ensure that if master changes and this is the master, allow the resources to re-publish
+        config.clusterService().addListener(clusterChangedEvent -> {
+            if (clusterChangedEvent.nodesDelta().masterNodeChanged() && clusterChangedEvent.localNodeMaster()) {
+                resource.markDirty();
+            }
+        });
+
         // if this changes between updates, then we need to add OR remove the watches
         if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {
             resource.markDirty();

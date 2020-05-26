@@ -16,6 +16,7 @@ import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -76,6 +77,7 @@ public class ClientVersion {
     // (1) a file URL: file:<path><FS separator><driver name>.jar
     // (2) jar file URL pointing to a JAR file: jar:<sub-url><separator><driver name>.jar!/
     // (3) jar file URL pointing to a JAR file entry (likely a fat JAR, but other types are possible): jar:<sub-url>!/driver name>.jar!/
+    @SuppressForbidden(reason="java.util.jar.JarFile must be explicitly closed on Windows")
     static Manifest getManifest(URL url) throws IOException {
         String urlStr = url.toString();
         if (urlStr.endsWith(".jar") || urlStr.endsWith(".jar!/")) {
@@ -87,7 +89,9 @@ public class ClientVersion {
             if (url.getProtocol().equals("jar")) {
                 JarURLConnection jarConn = (JarURLConnection) conn;
                 if (jarConn.getEntryName() == null) { // the URL points to a JAR file
-                    return jarConn.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
+                    try (JarFile jar = jarConn.getJarFile()) { // prevent locked file errors in Windows.
+                        return jar.getManifest(); // in case of a fat JAR, this would return the outermost JAR's manifest
+                    }
                 }
             }
             try (JarInputStream jar = new JarInputStream(conn.getInputStream())) {

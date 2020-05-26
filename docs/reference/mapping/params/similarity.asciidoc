@@ -16,14 +16,13 @@ The only similarities which can be used out of the box, without any further
 configuration are:
 
 `BM25`::
-        The Okapi BM25 algorithm. The algorithm used by default in Elasticsearch and Lucene.
-        See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
-        for more information.
+The https://en.wikipedia.org/wiki/Okapi_BM25[Okapi BM25 algorithm]. The
+algorithm used by default in {es} and Lucene.
 
 `classic`::
-        The TF/IDF algorithm which used to be the default in Elasticsearch and
-        Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
-        for more information.
+deprecated:[7.0.0]
+The https://en.wikipedia.org/wiki/Tf%E2%80%93idf[TF/IDF algorithm], the former
+default in {es} and Lucene.
 
 `boolean`::
         A simple boolean similarity, which is used when full-text ranking is not needed

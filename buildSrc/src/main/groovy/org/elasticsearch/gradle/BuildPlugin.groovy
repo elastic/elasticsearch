@@ -18,17 +18,11 @@
  */
 package org.elasticsearch.gradle
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin
-import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
-import com.github.jengelman.gradle.plugins.shadow.ShadowJavaPlugin
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 import groovy.transform.CompileStatic
-import nebula.plugin.info.InfoBrokerPlugin
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
@@ -43,7 +37,6 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.XmlProvider
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleDependency
@@ -55,32 +48,13 @@ import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
-import org.gradle.api.file.CopySpec
-import org.gradle.api.plugins.BasePlugin
-import org.gradle.api.plugins.BasePluginConvention
 import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
-import org.gradle.api.publish.PublishingExtension
-import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
-import org.gradle.api.publish.maven.tasks.GenerateMavenPom
-import org.gradle.api.tasks.SourceSet
-import org.gradle.api.tasks.SourceSetContainer
-import org.gradle.api.tasks.TaskProvider
-import org.gradle.api.tasks.bundling.Jar
-import org.gradle.api.tasks.compile.JavaCompile
-import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.api.tasks.testing.Test
 import org.gradle.authentication.http.HttpHeaderAuthentication
-import org.gradle.external.javadoc.CoreJavadocOptions
-import org.gradle.internal.jvm.Jvm
-import org.gradle.language.base.plugins.LifecycleBasePlugin
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-
-import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -112,6 +86,7 @@ class BuildPlugin implements Plugin<Project> {
         }
         project.pluginManager.apply('elasticsearch.java')
         project.pluginManager.apply('elasticsearch.publish')
+        project.pluginManager.apply(DependenciesInfoPlugin)
 
         // apply global test task failure listener
         project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
@@ -120,8 +95,7 @@ class BuildPlugin implements Plugin<Project> {
 
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
-        configurePrecommit(project)
-        configureDependenciesInfo(project)
+        PrecommitTasks.create(project, true)
         configureFips140(project)
     }
 
@@ -299,28 +273,6 @@ class BuildPlugin implements Plugin<Project> {
                     uri.toURL())
             throw new GradleException(message)
         }
-    }
-    
-    private static configurePrecommit(Project project) {
-        TaskProvider precommit = PrecommitTasks.create(project, true)
-        project.tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME).configure { it.dependsOn(precommit) }
-        project.tasks.named(JavaPlugin.TEST_TASK_NAME).configure { it.mustRunAfter(precommit) }
-        // only require dependency licenses for non-elasticsearch deps
-        project.tasks.withType(DependencyLicensesTask).named('dependencyLicenses').configure {
-            it.dependencies = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME).fileCollection { Dependency dependency ->
-                dependency.group.startsWith('org.elasticsearch') == false
-            } - project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
-        }
-    }
-
-    private static configureDependenciesInfo(Project project) {
-        project.tasks.register("dependenciesInfo", DependenciesInfoTask, { DependenciesInfoTask task ->
-            task.runtimeConfiguration = project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME)
-            task.compileOnlyConfiguration = project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME)
-            task.getConventionMapping().map('mappings') {
-                (project.tasks.getByName('dependencyLicenses') as DependencyLicensesTask).mappings
-            }
-        } as Action<DependenciesInfoTask>)
     }
 
     private static class TestFailureReportingPlugin implements Plugin<Project> {

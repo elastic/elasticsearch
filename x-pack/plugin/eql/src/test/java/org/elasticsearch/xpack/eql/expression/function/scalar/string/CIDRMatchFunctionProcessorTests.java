@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
-public class CIDRMatchProcessorTests extends ESTestCase {
+public class CIDRMatchFunctionProcessorTests extends ESTestCase {
 
     public void testCIDRMatchFunctionValidInput() {
         // Expects null if source was null

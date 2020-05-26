@@ -383,8 +383,8 @@ public class WildcardFieldMapper extends FieldMapper {
                     String normalizedString = toLowerCase(r.s);
                     result = new TermQuery(new Term("", normalizedString));
                     break;
-                case REGEXP_CHAR:
-                    String cs = Character.toString(r.c);
+                case REGEXP_CHAR:                    
+                    String cs = new StringBuilder().appendCodePoint(r.c).toString();
                     String normalizedChar = toLowerCase(cs);
                     result = new TermQuery(new Term("", normalizedChar));
                     break;

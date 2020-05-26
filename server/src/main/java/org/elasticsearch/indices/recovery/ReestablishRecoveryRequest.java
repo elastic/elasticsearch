@@ -19,34 +19,32 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportRequest {
+/**
+ * Represents a request for starting a peer recovery.
+ */
+public class ReestablishRecoveryRequest extends TransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
-    private final int totalTranslogOps;
+    private final String targetAllocationId;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, long requestSeqNo, ShardId shardId, int totalTranslogOps) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
-        this.totalTranslogOps = totalTranslogOps;
-    }
-
-    RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
+    public ReestablishRecoveryRequest(StreamInput in) throws IOException {
         super(in);
         recoveryId = in.readLong();
         shardId = new ShardId(in);
-        totalTranslogOps = in.readVInt();
-        if (in.getVersion().before(Version.V_7_4_0)) {
-            in.readBoolean(); // was fileBasedRecovery
-        }
+        targetAllocationId = in.readString();
+    }
+    public ReestablishRecoveryRequest(final long recoveryId, final ShardId shardId, final String targetAllocationId) {
+        this.recoveryId = recoveryId;
+        this.shardId = shardId;
+        this.targetAllocationId = targetAllocationId;
     }
 
     public long recoveryId() {
@@ -57,8 +55,8 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         return shardId;
     }
 
-    public int totalTranslogOps() {
-        return totalTranslogOps;
+    public String targetAllocationId() {
+        return targetAllocationId;
     }
 
     @Override
@@ -66,9 +64,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends RecoveryTransportReque
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        out.writeVInt(totalTranslogOps);
-        if (out.getVersion().before(Version.V_7_4_0)) {
-            out.writeBoolean(true); // was fileBasedRecovery
-        }
+        out.writeString(targetAllocationId);
     }
 }

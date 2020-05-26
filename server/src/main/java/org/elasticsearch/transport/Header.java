@@ -42,7 +42,7 @@ public class Header {
     // These are directly set by tests
     String actionName;
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
-    private Set<String> features;
+    Set<String> features;
 
     Header(int networkMessageSize, long requestId, byte status, Version version) {
         this.networkMessageSize = networkMessageSize;

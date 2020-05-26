@@ -721,9 +721,9 @@ See <<ilm-phase-transitions>>.
 See <<install-elasticsearch>>.
 
 [role="exclude",id="mapping-ttl-field"]
-=== Mapping `_ttl` fields
+=== `_ttl` mappings
 
-The `_ttl` field datatype has been removed. As a replacement for `_ttl` field
+The `_ttl` mappings have been removed. As a replacement for `_ttl`
 mappings, we recommend using <<index-lifecycle-management,{ilm-init}>> to create
 time-based indices.
 
@@ -784,9 +784,9 @@ See <<search-aggregations>>.
 See <<getting-started-search>>.
 
 [role="exclude",id="mapping-root-object-type"]
-=== Object field datatype
+=== Mapping root object type
 
-See <<object>>.
+Mapping types have been removed. See <<mapping>>.
 
 [role="exclude",id="query-dsl-filters"]
 === Query DSL filters

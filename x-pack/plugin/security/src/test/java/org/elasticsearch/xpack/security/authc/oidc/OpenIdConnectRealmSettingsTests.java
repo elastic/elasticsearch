@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.oidc;
 
 
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import javax.management.openmbean.OpenDataException;
 import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;

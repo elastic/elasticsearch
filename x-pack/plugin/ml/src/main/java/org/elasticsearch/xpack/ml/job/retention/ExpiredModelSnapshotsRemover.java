@@ -235,7 +235,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         JobSnapshotId idPair = modelSnapshotIterator.next();
         DeleteModelSnapshotAction.Request deleteSnapshotRequest =
             new DeleteModelSnapshotAction.Request(idPair.jobId, idPair.snapshotId);
-        client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<>() {
+        client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     try {

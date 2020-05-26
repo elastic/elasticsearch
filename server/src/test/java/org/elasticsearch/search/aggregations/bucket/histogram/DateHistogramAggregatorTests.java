@@ -171,7 +171,6 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57168")
     public void testAsSubAgg() throws IOException {
         KeywordFieldMapper.KeywordFieldType k1ft = new KeywordFieldMapper.KeywordFieldType();
         k1ft.setName("k1");

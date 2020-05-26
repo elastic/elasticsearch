@@ -11,7 +11,7 @@ esplugin {
 
 ext {
   // SQL dependency versions
-  jlineVersion = "3.10.0"
+  jlineVersion = "3.14.1"
   antlrVersion = "4.5.3"
 
   // SQL test dependency versions

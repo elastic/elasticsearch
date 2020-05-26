@@ -27,8 +27,21 @@ import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.api.*
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.Dependency
+import org.gradle.api.artifacts.ModuleDependency
+import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ExclusiveContentRepository
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository
+import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
+import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
+import org.gradle.api.file.CopySpec
 import org.gradle.api.plugins.ExtraPropertiesExtension
+import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.testing.Test
 import org.gradle.util.GradleVersion
 
@@ -63,6 +76,7 @@ class BuildPlugin implements Plugin<Project> {
             )
         }
         project.pluginManager.apply('elasticsearch.java')
+        configureLicenseAndNotice(project)
         project.pluginManager.apply('elasticsearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
 
@@ -119,7 +133,7 @@ class BuildPlugin implements Plugin<Project> {
 
         }
     }
-
+    
     private static class TestFailureReportingPlugin implements Plugin<Project> {
         @Override
         void apply(Project project) {
@@ -151,5 +165,33 @@ class BuildPlugin implements Plugin<Project> {
 
     private static inFipsJvm(){
         return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
+    }
+
+    static void configureLicenseAndNotice(Project project) {
+        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+        ext.set('licenseFile',  null)
+        ext.set('noticeFile', null)
+        // add license/notice files
+        project.afterEvaluate {
+            project.tasks.withType(Jar).configureEach { Jar jarTask ->
+                if (ext.has('licenseFile') == false || ext.get('licenseFile') == null || ext.has('noticeFile') == false || ext.get('noticeFile') == null) {
+                    throw new GradleException("Must specify license and notice file for project ${project.path}")
+                }
+
+                File licenseFile = ext.get('licenseFile') as File
+                File noticeFile = ext.get('noticeFile') as File
+
+                jarTask.metaInf { CopySpec spec ->
+                    spec.from(licenseFile.parent) { CopySpec from ->
+                        from.include licenseFile.name
+                        from.rename { 'LICENSE.txt' }
+                    }
+                    spec.from(noticeFile.parent) { CopySpec from ->
+                        from.include noticeFile.name
+                        from.rename { 'NOTICE.txt' }
+                    }
+                }
+            }
+        }
     }
 }

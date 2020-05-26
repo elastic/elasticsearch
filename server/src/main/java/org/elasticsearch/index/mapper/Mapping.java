@@ -104,28 +104,6 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(indexCreated, mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
-    /**
-     * Recursively update sub field types.
-     */
-    public Mapping updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        MetadataFieldMapper[] updatedMeta = null;
-        for (int i = 0; i < metadataMappers.length; ++i) {
-            MetadataFieldMapper currentFieldMapper = metadataMappers[i];
-            MetadataFieldMapper updatedFieldMapper = (MetadataFieldMapper) currentFieldMapper.updateFieldType(fullNameToFieldType);
-            if (updatedFieldMapper != currentFieldMapper) {
-                if (updatedMeta == null) {
-                    updatedMeta = Arrays.copyOf(metadataMappers, metadataMappers.length);
-                }
-                updatedMeta[i] = updatedFieldMapper;
-            }
-        }
-        RootObjectMapper updatedRoot = root.updateFieldType(fullNameToFieldType);
-        if (updatedMeta == null && updatedRoot == root) {
-            return this;
-        }
-        return new Mapping(indexCreated, updatedRoot, updatedMeta == null ? metadataMappers : updatedMeta, meta);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         root.toXContent(builder, params, new ToXContent() {

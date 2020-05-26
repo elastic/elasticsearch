@@ -654,7 +654,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithFieldInListOfValues() {
-        assertEquals("1:26: Comparisons against variables are not (currently) supported; offender [int] in [int IN (1, int)]",
+        assertEquals("1:26: Comparisons against fields are not (currently) supported; offender [int] in [int IN (1, int)]",
             error("SELECT * FROM test WHERE int IN (1, int)"));
     }
 

@@ -47,7 +47,7 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
-  "include_global_state": true,              <1>
+  "include_global_state": false,              <1>
   "rename_pattern": "index_(.+)",
   "rename_replacement": "restored_index_$1"
 }

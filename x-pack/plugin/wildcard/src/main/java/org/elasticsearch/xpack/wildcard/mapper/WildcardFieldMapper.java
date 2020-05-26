@@ -98,11 +98,12 @@ public class WildcardFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
+        public static final String NULL_VALUE = null;
     }
 
     public static class Builder extends FieldMapper.Builder<Builder> {
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
-
+        protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -188,7 +189,13 @@ public class WildcardFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
-                if (propName.equals("ignore_above")) {
+                if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
+                    builder.nullValue(propNode.toString());
+                    iterator.remove();
+                } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
                 }
@@ -526,6 +533,9 @@ public class WildcardFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
+        }
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }

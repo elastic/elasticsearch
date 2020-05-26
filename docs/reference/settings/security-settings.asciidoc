@@ -1357,7 +1357,8 @@ set as a URL.
 `http.proxy.scheme`::
 Specifies the protocol to use to connect to the proxy server that will be 
 used by the http client for all back-channel communication to the OpenID 
-Connect Provider endpoints. Defaults to `http`.
+Connect Provider endpoints. Defaults to `http`. Allowed values are 
+`http` or `https`.
 
 `http.proxy.port`::
 Specifies the port of the proxy server that will be used by the http

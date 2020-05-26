@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.oidc;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
@@ -19,7 +20,9 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -141,13 +144,46 @@ public class OpenIdConnectRealmSettings {
         key -> Setting.intSetting(key, 200, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> HTTP_PROXY_HOST
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.proxy.host",
-        key -> Setting.simpleString(key, Setting.Property.NodeScope));
+        key -> Setting.simpleString(key, new Setting.Validator<String>() {
+            @Override
+            public void validate(String value) {
+                // There is no point in validating the hostname in itself without the scheme and port
+            }
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings) {
+                final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
+                final Setting<Integer> portSetting = HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace);
+                final Integer port = (Integer) settings.get(portSetting);
+                final Setting<String> schemeSetting = HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace);
+                final String scheme = (String) settings.get(schemeSetting);
+                try {
+                    new HttpHost(value, port, scheme);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("HTTP host for hostname [" + value + "] (from [" + key + "])," +
+                        " port [" + port + "] (from [" + portSetting.getKey() + "]) and " +
+                        "scheme [" + scheme + "] (from ([" + schemeSetting.getKey() + "]) is invalid");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
+                final List<Setting<?>> settings = List.of(HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace),
+                    HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace));
+                return settings.iterator();
+            }
+        }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<Integer> HTTP_PROXY_PORT
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.proxy.port",
-        key -> Setting.intSetting(key, 80, Setting.Property.NodeScope));
+        key -> Setting.intSetting(key, 80, 1, 65535, Setting.Property.NodeScope), () -> HTTP_PROXY_HOST);
     public static final Setting.AffixSetting<String> HTTP_PROXY_SCHEME
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "http.proxy.scheme",
-        key -> Setting.simpleString(key, "http", Setting.Property.NodeScope));
+        key -> Setting.simpleString(key, "http", value -> {
+            if (value.equals("http") == false && value.equals("https") == false) {
+                throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Only `http` or `https` are allowed.");
+            }
+        }, Setting.Property.NodeScope));
 
     public static final ClaimSetting PRINCIPAL_CLAIM = new ClaimSetting("principal");
     public static final ClaimSetting GROUPS_CLAIM = new ClaimSetting("groups");

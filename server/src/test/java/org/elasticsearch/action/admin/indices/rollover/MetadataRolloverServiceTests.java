@@ -518,7 +518,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         IndexTemplateV2 template = new IndexTemplateV2(List.of(dataStream.getName() + "*"), null, null, null, null, null,
             new IndexTemplateV2.DataStreamTemplate("@timestamp"));
         Metadata.Builder builder = Metadata.builder();
-        builder.put("_id", template);
+        builder.put("template", template);
         for (Index index : dataStream.getIndices()) {
             builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
         }

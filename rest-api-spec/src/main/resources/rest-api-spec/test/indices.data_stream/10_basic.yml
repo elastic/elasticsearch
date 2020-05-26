@@ -90,6 +90,7 @@ setup:
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "data_stream [invalid-data-stream#-name] must not contain '#'" }
 
 ---
 "Get data stream":

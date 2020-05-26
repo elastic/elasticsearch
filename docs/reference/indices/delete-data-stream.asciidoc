@@ -30,7 +30,7 @@ DELETE _data_stream/my-data-stream
 ////
 [source,console]
 -----------------------------------
-DELETE /_index_template/*
+DELETE /_index_template/template
 -----------------------------------
 // TEST[continued]
 ////

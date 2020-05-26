@@ -218,8 +218,6 @@ public class BulkIntegrationIT extends ESIntegTestCase {
     }
 
     public void testMixedAutoCreate() throws Exception {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
-
         PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
         createTemplateRequest.indexTemplate(
             new IndexTemplateV2(

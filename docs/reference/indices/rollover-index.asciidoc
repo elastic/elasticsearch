@@ -225,7 +225,6 @@ The API returns the following response:
 [[rollover-data-stream-ex]]
 ===== Roll over a data stream
 
-////
 [source,console]
 -----------------------------------
 PUT _index_template/template
@@ -237,7 +236,6 @@ PUT _index_template/template
 }
 -----------------------------------
 // TEST
-////
 
 [source,console]
 --------------------------------------------------

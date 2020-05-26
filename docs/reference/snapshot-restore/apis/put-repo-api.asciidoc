@@ -36,7 +36,7 @@ TIP: Because snapshot formats can change between major versions of
 {es}, we recommend registering a new snapshot repository for each major version.
 See <<snapshot-restore-version-compatibility>>.
 
-[[create-snapshot-repo-api-path-params]]
+[[put-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
 
 `<repository>`::

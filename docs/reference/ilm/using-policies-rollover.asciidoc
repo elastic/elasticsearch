@@ -2,7 +2,7 @@
 [testenv="basic"]
 [[ilm-configure-rollover]]
 == Configure rollover
-[[using-policies-rollover]]
+
 You control when the rollover action is triggered by specifying one or more
 rollover criteria:
 

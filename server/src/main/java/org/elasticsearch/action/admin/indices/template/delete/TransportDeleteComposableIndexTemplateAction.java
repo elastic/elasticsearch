@@ -39,19 +39,20 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportDeleteIndexTemplateV2Action
-    extends TransportMasterNodeAction<DeleteIndexTemplateV2Action.Request, AcknowledgedResponse> {
+public class TransportDeleteComposableIndexTemplateAction
+    extends TransportMasterNodeAction<DeleteComposableIndexTemplateAction.Request, AcknowledgedResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateV2Action.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteComposableIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteIndexTemplateV2Action(TransportService transportService, ClusterService clusterService,
-                                                  ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteIndexTemplateV2Action.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteIndexTemplateV2Action.Request::new, indexNameExpressionResolver);
+    public TransportDeleteComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
+                                                        ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
+                                                        ActionFilters actionFilters,
+                                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(DeleteComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            DeleteComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -67,12 +68,12 @@ public class TransportDeleteIndexTemplateV2Action
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteIndexTemplateV2Action.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteComposableIndexTemplateAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteIndexTemplateV2Action.Request request, final ClusterState state,
+    protected void masterOperation(Task task, final DeleteComposableIndexTemplateAction.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         indexTemplateService.removeIndexTemplateV2(request.name(), request.masterNodeTimeout(), listener);
     }

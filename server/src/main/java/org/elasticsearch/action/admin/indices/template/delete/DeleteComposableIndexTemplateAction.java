@@ -31,12 +31,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class DeleteIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
+public class DeleteComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
-    public static final DeleteIndexTemplateV2Action INSTANCE = new DeleteIndexTemplateV2Action();
+    public static final DeleteComposableIndexTemplateAction INSTANCE = new DeleteComposableIndexTemplateAction();
     public static final String NAME = "indices:admin/index_template/delete";
 
-    private DeleteIndexTemplateV2Action() {
+    private DeleteComposableIndexTemplateAction() {
         super(NAME, AcknowledgedResponse::new);
     }
 

@@ -19,7 +19,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateV2Request extends TimedRequest implements ToXContentObject {
+public class PutComposableIndexTemplateRequest extends TimedRequest implements ToXContentObject {
 
     private String name;
 
@@ -37,12 +37,12 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
 
     private boolean create;
 
-    private IndexTemplateV2 indexTemplate;
+    private ComposableIndexTemplate indexTemplate;
 
     /**
      * Sets the name of the index template.
      */
-    public PutIndexTemplateV2Request name(String name) {
+    public PutComposableIndexTemplateRequest name(String name) {
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name cannot be null or empty");
         }
@@ -61,7 +61,7 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
      * Set to {@code true} to force only creation, not an update of an index template. If it already
      * exists, it will fail with an {@link IllegalArgumentException}.
      */
-    public PutIndexTemplateV2Request create(boolean create) {
+    public PutComposableIndexTemplateRequest create(boolean create) {
         this.create = create;
         return this;
     }
@@ -73,7 +73,7 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
     /**
      * The index template to create.
      */
-    public PutIndexTemplateV2Request indexTemplate(IndexTemplateV2 indexTemplate) {
+    public PutComposableIndexTemplateRequest indexTemplate(ComposableIndexTemplate indexTemplate) {
         this.indexTemplate = indexTemplate;
         return this;
     }
@@ -81,7 +81,7 @@ public class PutIndexTemplateV2Request extends TimedRequest implements ToXConten
     /**
      * The cause for this index template creation.
      */
-    public PutIndexTemplateV2Request cause(String cause) {
+    public PutComposableIndexTemplateRequest cause(String cause) {
         this.cause = cause;
         return this;
     }

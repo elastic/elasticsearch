@@ -17,26 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.template.get;
+package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class GetIndexTemplateV2RequestTests extends AbstractWireSerializingTestCase<GetIndexTemplateV2Action.Request> {
+public class DeleteComposableIndexTemplateRequestTests
+    extends AbstractWireSerializingTestCase<DeleteComposableIndexTemplateAction.Request> {
     @Override
-    protected Writeable.Reader<GetIndexTemplateV2Action.Request> instanceReader() {
-        return GetIndexTemplateV2Action.Request::new;
+    protected Writeable.Reader<DeleteComposableIndexTemplateAction.Request> instanceReader() {
+        return DeleteComposableIndexTemplateAction.Request::new;
     }
 
     @Override
-    protected GetIndexTemplateV2Action.Request createTestInstance() {
-        return new GetIndexTemplateV2Action.Request(randomBoolean() ? null : randomAlphaOfLength(4));
+    protected DeleteComposableIndexTemplateAction.Request createTestInstance() {
+        return new DeleteComposableIndexTemplateAction.Request(randomAlphaOfLength(5));
     }
 
     @Override
-    protected GetIndexTemplateV2Action.Request mutateInstance(GetIndexTemplateV2Action.Request instance) throws IOException {
+    protected DeleteComposableIndexTemplateAction.Request mutateInstance(DeleteComposableIndexTemplateAction.Request instance)
+        throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

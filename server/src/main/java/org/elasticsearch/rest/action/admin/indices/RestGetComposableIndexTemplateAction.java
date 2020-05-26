@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestGetIndexTemplateV2Action extends BaseRestHandler {
+public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
@@ -48,12 +48,12 @@ public class RestGetIndexTemplateV2Action extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "get_index_template_v2_action";
+        return "get_composable_index_template_action";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final GetIndexTemplateV2Action.Request getRequest = new GetIndexTemplateV2Action.Request(request.param("name"));
+        final GetComposableIndexTemplateAction.Request getRequest = new GetComposableIndexTemplateAction.Request(request.param("name"));
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
@@ -61,9 +61,9 @@ public class RestGetIndexTemplateV2Action extends BaseRestHandler {
         final boolean implicitAll = getRequest.name() == null;
 
         return channel ->
-            client.execute(GetIndexTemplateV2Action.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
+            client.execute(GetComposableIndexTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
                 @Override
-                protected RestStatus getStatus(final GetIndexTemplateV2Action.Response response) {
+                protected RestStatus getStatus(final GetComposableIndexTemplateAction.Response response) {
                     final boolean templateExists = response.indexTemplates().isEmpty() == false;
                     return (templateExists || implicitAll) ? OK : NOT_FOUND;
                 }

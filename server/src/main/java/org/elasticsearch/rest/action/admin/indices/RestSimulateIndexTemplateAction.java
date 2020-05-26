@@ -21,9 +21,9 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -52,8 +52,9 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
         simulateIndexTemplateRequest.masterNodeTimeout(request.paramAsTime("master_timeout",
             simulateIndexTemplateRequest.masterNodeTimeout()));
         if (request.hasContent()) {
-            PutIndexTemplateV2Action.Request indexTemplateRequest = new PutIndexTemplateV2Action.Request("simulating_template");
-            indexTemplateRequest.indexTemplate(IndexTemplateV2.parse(request.contentParser()));
+            PutComposableIndexTemplateAction.Request indexTemplateRequest =
+                new PutComposableIndexTemplateAction.Request("simulating_template");
+            indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));
 

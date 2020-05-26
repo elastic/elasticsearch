@@ -70,7 +70,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         new CompressedXContent("{\"baz\":\"eggplant\"}"),
                         Collections.singletonMap("alias", AliasMetadata.builder("alias").build())),
                     5L, Collections.singletonMap("my_meta", Collections.singletonMap("foo", "bar"))))
-                .put("index_templatev2", new IndexTemplateV2(Arrays.asList("foo", "bar*"),
+                .put("index_templatev2", new ComposableIndexTemplate(Arrays.asList("foo", "bar*"),
                     new Template(Settings.builder().put("setting", "value").build(),
                         new CompressedXContent("{\"baz\":\"eggplant\"}"),
                         Collections.singletonMap("alias", AliasMetadata.builder("alias").build())),
@@ -78,7 +78,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     5L,
                     4L,
                     Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")),
-                    randomBoolean() ? null : new IndexTemplateV2.DataStreamTemplate("@timestamp")))
+                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate("@timestamp")))
                 .put(IndexMetadata.builder("test12")
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")

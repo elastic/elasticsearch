@@ -59,9 +59,9 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 cluster state is not restored.
 +
 If `true`, the snapshot's persistent settings, index templates, ingest
-pipelines, and {ilm-init} policies are restored into the current
-cluster. This overwrites any existing cluster settings, templates, pipelines and {ilm-init} policies whose names match those in the snapshot.
-the same name.
+pipelines, and {ilm-init} policies are restored into the current cluster. This
+overwrites any existing cluster settings, templates, pipelines and {ilm-init}
+policies whose names match those in the snapshot.
 
 The restore operation can be performed on a functioning cluster. However, an
 existing index can be only restored if it's <<indices-open-close,closed>> and

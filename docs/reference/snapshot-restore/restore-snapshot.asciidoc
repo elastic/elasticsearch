@@ -60,7 +60,7 @@ cluster state is not restored.
 +
 If `true`, the snapshot's persistent settings, index templates, ingest
 pipelines, and {ilm-init} policies are restored into the current
-cluster. This overrides current settings, templates, pipeline, and policies with
+cluster. This overwrites any existing cluster settings, templates, pipelines and {ilm-init} policies whose names match those in the snapshot.
 the same name.
 
 The restore operation can be performed on a functioning cluster. However, an

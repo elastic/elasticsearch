@@ -214,7 +214,7 @@ public class TypeParsersTests extends ESTestCase {
     }
 
     public void testParseMeta() {
-        FieldMapper.Builder<?, ?> builder = new KeywordFieldMapper.Builder("foo");
+        FieldMapper.Builder<?> builder = new KeywordFieldMapper.Builder("foo");
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null);
 
         {

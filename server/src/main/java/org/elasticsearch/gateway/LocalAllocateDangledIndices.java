@@ -35,9 +35,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -142,6 +144,9 @@ public class LocalAllocateDangledIndices {
                             // with the current version and upgrade it if needed.
                             upgradedIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(indexMetadata,
                                 minIndexCompatibilityVersion);
+                            upgradedIndexMetadata = IndexMetadata.builder(upgradedIndexMetadata).settings(
+                                Settings.builder().put(upgradedIndexMetadata.getSettings()).put(
+                                    IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID())).build();
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn(() -> new ParameterizedMessage("found dangled index [{}] on node [{}]. This index cannot be " +

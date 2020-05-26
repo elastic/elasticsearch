@@ -26,8 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.EnabledAttributeMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
@@ -62,7 +63,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         return defaultFieldType;
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, SizeFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
@@ -86,7 +87,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                        ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fieldType(NAME),
                 parserContext.indexVersionCreated());
@@ -176,8 +177,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) other;
         if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
             this.enabledState = sizeFieldMapperMergeWith.enabledState;
         }

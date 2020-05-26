@@ -635,7 +635,7 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context,
+    private static Mapper.Builder<?> createBuilderFromFieldType(final ParseContext context,
                                                                   MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof TextFieldType) {
@@ -682,15 +682,15 @@ final class DocumentParser {
         return builder;
     }
 
-    private static Mapper.Builder<?, ?> newLongBuilder(String name, Version indexCreated) {
+    private static Mapper.Builder<?> newLongBuilder(String name, Version indexCreated) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
     }
 
-    private static Mapper.Builder<?, ?> newFloatBuilder(String name, Version indexCreated) {
+    private static Mapper.Builder<?> newFloatBuilder(String name, Version indexCreated) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
-    private static Mapper.Builder<?, ?> newDateBuilder(String name, DateFormatter dateTimeFormatter, Version indexCreated) {
+    private static Mapper.Builder<?> newDateBuilder(String name, DateFormatter dateTimeFormatter, Version indexCreated) {
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
         if (dateTimeFormatter != null) {
             builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
@@ -698,7 +698,7 @@ final class DocumentParser {
         return builder;
     }
 
-    private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context,
+    private static Mapper.Builder<?> createBuilderFromDynamicValue(final ParseContext context,
                                                                      XContentParser.Token token,
                                                                      String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {

@@ -81,9 +81,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             DateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof DateHistogramAggregationSupplier == false) {
@@ -91,9 +88,22 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 aggregatorSupplier.getClass().toString() + "]");
         }
         Rounding.Prepared preparedRounding = valuesSource.roundingPreparer(queryShardContext.getIndexReader()).apply(shardRounding);
-        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(name, factories, rounding, preparedRounding, order, keyed,
-            minDocCount, extendedBounds, valuesSource, config.format(), searchContext,
-            parent, metadata);
+        return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(
+            name,
+            factories,
+            rounding,
+            preparedRounding,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            valuesSource,
+            config.format(),
+            searchContext,
+            parent,
+            collectsFromSingleBucket,
+            metadata
+        );
     }
 
     @Override
@@ -101,6 +111,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds,
-            null, config.format(), searchContext, parent, metadata);
+            null, config.format(), searchContext, parent, false, metadata);
     }
 }

@@ -18,10 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-
-public class BinaryFieldTypeTests extends FieldTypeTestCase {
+public class BinaryFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {

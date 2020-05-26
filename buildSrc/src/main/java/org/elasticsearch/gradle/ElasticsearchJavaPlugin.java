@@ -38,7 +38,6 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
@@ -398,11 +397,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
     }
 
-    /** Adds additional manifest info to jars */
+    /**
+     * Adds additional manifest info to jars
+     */
     static void configureJars(Project project) {
-        ExtraPropertiesExtension ext = project.getExtensions().getExtraProperties();
-        ext.set("licenseFile", null);
-        ext.set("noticeFile", null);
         project.getTasks()
             .withType(Jar.class)
             .configureEach(
@@ -427,25 +425,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                     );
                 }
             );
-        // add license/notice files
-        project.afterEvaluate(p -> project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-            File licenseFile = (File) ext.get("licenseFile");
-            File noticeFile = (File) ext.get("noticeFile");
-            if (licenseFile == null || noticeFile == null) {
-                throw new GradleException("Must specify license and notice file for project");
-            }
-
-            jarTask.metaInf(spec -> {
-                spec.from(licenseFile.getParent(), from -> {
-                    from.include(licenseFile.getName());
-                    from.rename(s -> "LICENSE.txt");
-                });
-                spec.from(noticeFile.getParent(), from -> {
-                    from.include(noticeFile.getName());
-                    from.rename(s -> "NOTICE.txt");
-                });
-            });
-        }));
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
             project.getTasks()
                 .withType(ShadowJar.class)

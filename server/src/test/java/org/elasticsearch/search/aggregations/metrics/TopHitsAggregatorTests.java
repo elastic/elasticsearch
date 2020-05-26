@@ -68,8 +68,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     protected MapperService mapperServiceMock() {
         MapperService mapperService = mock(MapperService.class);
         DocumentMapper mapper = mock(DocumentMapper.class);
-        when(mapper.typeText()).thenReturn(new Text("_doc"));
-        when(mapper.type()).thenReturn("_doc");
+        when(mapper.typeText()).thenReturn(new Text("type"));
+        when(mapper.type()).thenReturn("type");
         when(mapperService.documentMapper()).thenReturn(mapper);
         return mapperService;
     }

@@ -689,12 +689,8 @@ public class WildcardFieldMapper extends FieldMapper {
         ) {
             String searchTerm = BytesRefs.toString(value);
             String lowerSearchTerm = toLowerCase(searchTerm);
-            
             try {
-            
-
                 BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-
                 //The approximation query can have a prefix and any number of ngrams.
                 BooleanQuery.Builder approxBuilder = new BooleanQuery.Builder();
                 
@@ -734,7 +730,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
                 tokenizer.end();
                 tokenizer.close();
-
                 
                 BooleanQuery.Builder ngramBuilder = new BooleanQuery.Builder();
                 int numClauses = 0;

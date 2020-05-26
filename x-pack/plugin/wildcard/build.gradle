@@ -14,11 +14,3 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
-
-integTest.enabled = false
-
-
-licenseHeaders {
-  additionalLicense 'REGEX', 'RegExp (BSD-like)', 'Copyright (c) 2001-2009 Anders Moeller'
-  excludes << 'org/elasticsearch/xpack/wildcard/mapper/ApproximateRegExp.java'
-}

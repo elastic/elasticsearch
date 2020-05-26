@@ -114,7 +114,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete)
             .setRequestsPerSecond(requestsPerSec)
             .setAbortOnVersionConflict(false);
-        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
+        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 try {

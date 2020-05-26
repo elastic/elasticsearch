@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -41,9 +41,9 @@ public class TransportSearchIT extends ESIntegTestCase {
             final int numPrimaries1 = randomIntBetween(2, 10);
             final int numPrimaries2 = randomIntBetween(1, 10);
             assertAcked(prepareCreate("test1")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries1)));
+                    .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries1)));
             assertAcked(prepareCreate("test2")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
+                    .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numPrimaries2)));
 
             // no exception
             client().prepareSearch("test1").get();
@@ -80,8 +80,8 @@ public class TransportSearchIT extends ESIntegTestCase {
         int numOfReplicas = randomIntBetween(0, 1);
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
         final Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
         assertAcked(prepareCreate("test").setSettings(settings)
             .addMapping("_doc", "{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));

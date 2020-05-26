@@ -79,4 +79,10 @@ public class TimeUtilsTests extends ESTestCase {
     public void testCheckNonNegativeMultiple_GivenPositiveMultiple() {
         TimeUtils.checkNonNegativeMultiple(TimeValue.timeValueMillis(1), TimeUnit.MILLISECONDS, new ParseField("foo"));
     }
+
+    public void testParseToEpochMs() {
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000"));
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000.005"));
+        assertEquals(0L, TimeUtils.parseToEpochMs(".005"));
+    }
 }

@@ -14,11 +14,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -35,12 +30,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -83,6 +77,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
                 .filter(QueryBuilders.existsQuery(ForecastRequestStats.EXPIRY_TIME.getPreferredName())));
         source.size(MAX_FORECASTS);
+        source.fetchSource(false);
+        source.docValueField(Job.ID.getPreferredName(), null);
+        source.docValueField(ForecastRequestStats.FORECAST_ID.getPreferredName(), null);
+        source.docValueField(ForecastRequestStats.EXPIRY_TIME.getPreferredName(), "epoch_millis");
 
         // _doc is the most efficient sort order and will also disable scoring
         source.sort(ElasticsearchMappings.ES_DOC);
@@ -94,11 +92,9 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     private void deleteForecasts(SearchResponse searchResponse, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
-        List<ForecastRequestStats> forecastsToDelete;
-        try {
-            forecastsToDelete = findForecastsToDelete(searchResponse);
-        } catch (IOException e) {
-            listener.onFailure(e);
+        List<JobForecastId> forecastsToDelete = findForecastsToDelete(searchResponse);
+        if (forecastsToDelete.isEmpty()) {
+            listener.onResponse(true);
             return;
         }
 
@@ -129,8 +125,8 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         });
     }
 
-    private List<ForecastRequestStats> findForecastsToDelete(SearchResponse searchResponse) throws IOException {
-        List<ForecastRequestStats> forecastsToDelete = new ArrayList<>();
+    private List<JobForecastId> findForecastsToDelete(SearchResponse searchResponse) {
+        List<JobForecastId> forecastsToDelete = new ArrayList<>();
 
         SearchHits hits = searchResponse.getHits();
         if (hits.getTotalHits() > MAX_FORECASTS) {
@@ -138,19 +134,27 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         }
 
         for (SearchHit hit : hits.getHits()) {
-            try (InputStream stream = hit.getSourceRef().streamInput();
-                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                         NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                ForecastRequestStats forecastRequestStats = ForecastRequestStats.LENIENT_PARSER.apply(parser, null);
-                if (forecastRequestStats.getExpiryTime().toEpochMilli() < cutoffEpochMs) {
-                    forecastsToDelete.add(forecastRequestStats);
+            String expiryTime = stringFieldValueOrNull(hit, ForecastRequestStats.EXPIRY_TIME.getPreferredName());
+            if (expiryTime == null) {
+                LOGGER.warn("Forecast request stats document [{}] has a null [{}] field", hit.getId(),
+                    ForecastRequestStats.EXPIRY_TIME.getPreferredName());
+                continue;
+            }
+            long expiryMs = TimeUtils.parseToEpochMs(expiryTime);
+            if (expiryMs < cutoffEpochMs) {
+                JobForecastId idPair = new JobForecastId(
+                    stringFieldValueOrNull(hit, Job.ID.getPreferredName()),
+                    stringFieldValueOrNull(hit, Forecast.FORECAST_ID.getPreferredName()));
+
+                if (idPair.hasNullValue() == false) {
+                    forecastsToDelete.add(idPair);
                 }
             }
         }
         return forecastsToDelete;
     }
 
-    private DeleteByQueryRequest buildDeleteByQuery(List<ForecastRequestStats> forecastsToDelete) {
+    private DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(5);
 
@@ -158,10 +162,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
         boolQuery.must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE));
-        for (ForecastRequestStats forecastToDelete : forecastsToDelete) {
-            boolQuery.should(QueryBuilders.boolQuery()
-                    .must(QueryBuilders.termQuery(Job.ID.getPreferredName(), forecastToDelete.getJobId()))
-                    .must(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastToDelete.getForecastId())));
+        for (JobForecastId jobForecastId : ids) {
+            if (jobForecastId.hasNullValue() == false) {
+                boolQuery.should(QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobForecastId.jobId))
+                    .must(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), jobForecastId.forecastId)));
+            }
         }
         QueryBuilder query = QueryBuilders.boolQuery().filter(boolQuery);
         request.setQuery(query);
@@ -170,5 +176,19 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
         return request;
+    }
+
+    private static class JobForecastId {
+        private final String jobId;
+        private final String forecastId;
+
+        private JobForecastId(String jobId, String forecastId) {
+            this.jobId = jobId;
+            this.forecastId = forecastId;
+        }
+
+        boolean hasNullValue() {
+            return jobId == null || forecastId == null;
+        }
     }
 }

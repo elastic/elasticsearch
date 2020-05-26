@@ -44,7 +44,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -100,28 +99,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         String forecastsExpression = request.getForecastId();
         final String[] forecastIds = Strings.tokenizeToStringArray(forecastsExpression, ",");
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
-            searchResponse -> {
-                Set<ForecastRequestStats> forecastsToDelete;
-                try {
-                    forecastsToDelete = parseForecastsFromSearch(searchResponse);
-                } catch (IOException e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                ExpandedIdsMatcher expandedIdsMatcher = new ExpandedIdsMatcher(forecastIds, request.isAllowNoForecasts());
-                expandedIdsMatcher.filterMatchedIds(forecastsToDelete.stream()
-                    .map(ForecastRequestStats::getId)
-                    .collect(Collectors.toList()));
-                if (expandedIdsMatcher.hasUnmatchedIds()) {
-                    listener.onFailure(
-                        new ResourceNotFoundException(
-                            Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, expandedIdsMatcher.unmatchedIdsString(), jobId)
-                        )
-                    );
-                    return;
-                }
-                deleteForecasts(forecastsToDelete, jobId, listener);
-            },
+            searchResponse -> deleteForecasts(searchResponse, request, listener),
             e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e)));
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -152,9 +130,28 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
     }
 
-    private void deleteForecasts(Collection<ForecastRequestStats> forecastsToDelete,
-                                 String jobId,
+    private void deleteForecasts(SearchResponse searchResponse,
+                                 DeleteForecastAction.Request request,
                                  ActionListener<AcknowledgedResponse> listener) {
+        final String jobId = request.getJobId();
+        Set<ForecastRequestStats> forecastsToDelete;
+        try {
+            forecastsToDelete = parseForecastsFromSearch(searchResponse);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        if (forecastsToDelete.isEmpty()) {
+            if (Strings.isAllOrWildcard(new String[]{request.getForecastId()}) &&
+                request.isAllowNoForecasts()) {
+                listener.onResponse(new AcknowledgedResponse(true));
+            } else {
+                listener.onFailure(
+                    new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), jobId)));
+            }
+            return;
+        }
         final ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);

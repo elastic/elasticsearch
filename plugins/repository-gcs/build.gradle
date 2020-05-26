@@ -310,14 +310,14 @@ testClusters {
 }
 
 task gcsThirdPartyTest(type: Test) {
-  dependsOn integTest
+  dependsOn integTest,largeBlobIntegTest
   include '**/GoogleCloudStorageThirdPartyTests.class'
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
   nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
   if (useFixture) {
-    dependsOn createServiceAccountFile,largeBlobIntegTest
+    dependsOn createServiceAccountFile
     nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureAddress('gcs-fixture-third-party')}"
     nonInputProperties.systemProperty 'test.google.tokenURI', "${-> fixtureAddress('gcs-fixture-third-party')}/o/oauth2/token"
   }

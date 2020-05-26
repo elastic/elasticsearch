@@ -157,7 +157,7 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
 
 
     Closure createRunBwcGradleTask = { name, extraConfig ->
-      return tasks.create(name: "$name", type: LoggedExec) {
+      return tasks.register("$name", LoggedExec) {
         dependsOn checkoutBwcBranch
         spoolOutput = true
         workingDir = checkoutDir
@@ -225,10 +225,11 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
       return "buildBwc${projectName.replaceAll(/-\w/) { it[1].toUpperCase() }.capitalize()}"
     }
 
-    task buildBwc {}
+    def buildBwc = tasks.register("buildBwc");
 
     Closure createBuildBwcTask = { projectName, projectDir, projectArtifact ->
-      Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
+      def bwcTaskName = buildBwcTaskName(projectName)
+      createRunBwcGradleTask(bwcTaskName) {
         inputs.file("${project.buildDir}/refspec")
         outputs.files(projectArtifact)
         outputs.cacheIf("BWC distribution caching is disabled on 'master' branch") {
@@ -245,7 +246,9 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
           }
         }
       }
-      buildBwc.dependsOn bwcTask
+      buildBwc.configure {
+        dependsOn(bwcTaskName)
+      }
     }
 
     Map<String, File> artifactFiles = [:]

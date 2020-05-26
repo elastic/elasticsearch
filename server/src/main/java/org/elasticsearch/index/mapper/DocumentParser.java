@@ -32,14 +32,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
-import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
@@ -619,53 +616,6 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?> createBuilderFromFieldType(final ParseContext context,
-                                                                  MappedFieldType fieldType, String currentFieldName) {
-        Mapper.Builder builder = null;
-        if (fieldType instanceof TextFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", XContentFieldType.STRING);
-            if (builder == null) {
-                builder = new TextFieldMapper.Builder(currentFieldName)
-                        .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
-            }
-        } else if (fieldType instanceof KeywordFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", XContentFieldType.STRING);
-        } else {
-            switch (fieldType.typeName()) {
-            case DateFieldMapper.CONTENT_TYPE:
-                builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
-                break;
-            case "long":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "long", XContentFieldType.LONG);
-                break;
-            case "double":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "double", XContentFieldType.DOUBLE);
-                break;
-            case "integer":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "integer", XContentFieldType.LONG);
-                break;
-            case "float":
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "float", XContentFieldType.DOUBLE);
-                break;
-            case BooleanFieldMapper.CONTENT_TYPE:
-                builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean", XContentFieldType.BOOLEAN);
-                break;
-            default:
-                break;
-            }
-        }
-        if (builder == null) {
-            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
-            Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
-            if (typeParser == null) {
-                throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()
-                    + "] for [" + currentFieldName + "]");
-            }
-            builder = typeParser.parse(currentFieldName, new HashMap<>(), parserContext);
-        }
-        return builder;
-    }
-
     private static Mapper.Builder<?> newLongBuilder(String name) {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
     }
@@ -801,21 +751,9 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
-        final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
-        final MappedFieldType existingFieldType = context.mapperService().fieldType(path);
-        final Mapper.Builder builder;
-        if (existingFieldType != null) {
-            // create a builder of the same type
-            builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
-        } else {
-            builder = createBuilderFromDynamicValue(context, token, currentFieldName);
-        }
+        final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         Mapper mapper = builder.build(builderContext);
-        if (existingFieldType != null) {
-            // try to not introduce a conflict
-            mapper = mapper.updateFieldType(Collections.singletonMap(path, existingFieldType));
-        }
         context.addDynamicMapper(mapper);
 
         parseObjectOrField(context, mapper);

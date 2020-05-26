@@ -338,21 +338,6 @@ public final class DateFieldMapper extends FieldMapper {
             return resolution.type();
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
-            DateFieldType other = (DateFieldType) fieldType;
-            if (Objects.equals(dateTimeFormatter.pattern(), other.dateTimeFormatter.pattern()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [format] values");
-            }
-            if (Objects.equals(dateTimeFormatter.locale(), other.dateTimeFormatter.locale()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [locale] values");
-            }
-            if (Objects.equals(resolution.type(), other.resolution.type()) == false) {
-                conflicts.add("mapper [" + name() + "] cannot change between milliseconds and nanoseconds");
-            }
-        }
-
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
@@ -648,11 +633,19 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        final DateFieldMapper other = (DateFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        final DateFieldMapper d = (DateFieldMapper) other;
+        if (Objects.equals(fieldType().dateTimeFormatter.pattern(), d.fieldType().dateTimeFormatter.pattern()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [format] values");
+        }
+        if (Objects.equals(fieldType().dateTimeFormatter.locale(), d.fieldType().dateTimeFormatter.locale()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [locale] values");
+        }
+        if (Objects.equals(fieldType().resolution.type(), d.fieldType().resolution.type()) == false) {
+            conflicts.add("mapper [" + name() + "] cannot change between milliseconds and nanoseconds");
+        }
+        if (d.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = d.ignoreMalformed;
         }
     }
 

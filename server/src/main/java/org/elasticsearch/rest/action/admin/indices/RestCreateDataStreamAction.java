@@ -47,10 +47,12 @@ public class RestCreateDataStreamAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         CreateDataStreamAction.Request putDataStreamRequest = new CreateDataStreamAction.Request(request.param("name"));
         request.withContentOrSourceParamParserOrNull(parser -> {
-            Map<String, Object> body = parser.map();
-            String timeStampFieldName = (String) body.get(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName());
-            if (timeStampFieldName != null) {
-                putDataStreamRequest.setTimestampFieldName(timeStampFieldName);
+            if (parser != null) {
+                Map<String, Object> body = parser.map();
+                String timeStampFieldName = (String) body.get(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName());
+                if (timeStampFieldName != null) {
+                    putDataStreamRequest.setTimestampFieldName(timeStampFieldName);
+                }
             }
         });
         return channel -> client.admin().indices().createDataStream(putDataStreamRequest, new RestToXContentListener<>(channel));

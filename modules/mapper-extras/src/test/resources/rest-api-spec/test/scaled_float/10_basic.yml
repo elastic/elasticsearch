@@ -97,8 +97,28 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size" : 1, "sort" : { "number" : { "order" : "asc" } } }
+        body:
+          size: 1
+          sort:
+            number:
+              order: asc
 
-  - match: { hits.total: 4 }
+  - match: { hits.total.value: 4 }
   - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.sort.0: -2.1 }
+
+---
+"Sort with numeric_type":
+
+  - do:
+      search:
+        body:
+          size: 1
+          sort:
+            number:
+              order: asc
+              numeric_type: long
+
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.sort.0: -2 }

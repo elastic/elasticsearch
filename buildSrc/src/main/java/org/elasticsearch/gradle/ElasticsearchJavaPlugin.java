@@ -209,7 +209,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
                 repositoryName,
                 projectPath,
-                url);
+                url
+            );
             throw new GradleException(message);
         }
     }

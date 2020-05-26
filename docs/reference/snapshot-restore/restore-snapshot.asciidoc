@@ -49,7 +49,8 @@ POST /_snapshot/my_backup/snapshot_1/_restore
   "ignore_unavailable": true,
   "include_global_state": false,              <1>
   "rename_pattern": "index_(.+)",
-  "rename_replacement": "restored_index_$1"
+  "rename_replacement": "restored_index_$1",
+  "include_aliases": false
 }
 -----------------------------------
 // TEST[continued]

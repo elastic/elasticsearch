@@ -133,7 +133,7 @@ class BuildPlugin implements Plugin<Project> {
 
         }
     }
-    
+
     private static class TestFailureReportingPlugin implements Plugin<Project> {
         @Override
         void apply(Project project) {

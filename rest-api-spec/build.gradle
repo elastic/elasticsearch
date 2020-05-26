@@ -10,8 +10,3 @@ artifacts {
   restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
   restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
 }
-
-validateRestSpec {
-   ignore "cat.thread_pool.json"
-   ignore "indices.put_mapping.json"
-}

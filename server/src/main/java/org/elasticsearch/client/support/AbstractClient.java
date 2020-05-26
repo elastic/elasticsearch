@@ -31,7 +31,7 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -1682,13 +1682,13 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void getDataStreams(GetDataStreamsAction.Request request, ActionListener<GetDataStreamsAction.Response> listener) {
-            execute(GetDataStreamsAction.INSTANCE, request, listener);
+        public void getDataStreams(GetDataStreamAction.Request request, ActionListener<GetDataStreamAction.Response> listener) {
+            execute(GetDataStreamAction.INSTANCE, request, listener);
         }
 
         @Override
-        public ActionFuture<GetDataStreamsAction.Response> getDataStreams(GetDataStreamsAction.Request request) {
-            return execute(GetDataStreamsAction.INSTANCE, request);
+        public ActionFuture<GetDataStreamAction.Response> getDataStreams(GetDataStreamAction.Request request) {
+            return execute(GetDataStreamAction.INSTANCE, request);
         }
     }
 

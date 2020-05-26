@@ -275,9 +275,4 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         return builder;
     }
 
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // nothing to do
-    }
-
 }

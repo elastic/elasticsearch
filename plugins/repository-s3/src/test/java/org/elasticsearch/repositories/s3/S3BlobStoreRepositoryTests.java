@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.s3.S3HttpHandler;
@@ -118,6 +119,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
+    protected List<String> requestTypesTracked() {
+        return List.of("GET", "LIST", "PUT", "POST");
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
@@ -150,8 +156,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        final RepositoryData repositoryData =
-            PlainActionFuture.get(f -> repository.threadPool().generic().execute(() -> repository.getRepositoryData(f)));
+        final RepositoryData repositoryData = getRepositoryData(repository);
         final RepositoryData modifiedRepositoryData = repositoryData.withVersions(Collections.singletonMap(fakeOldSnapshot,
             SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
         final BytesReference serialized =
@@ -279,12 +284,22 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        public void maybeTrack(final String request) {
+        public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
                 trackRequest("LIST");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
                 trackRequest("GET");
+            } else if (isMultiPartUpload(request)) {
+                trackRequest("POST");
+            } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                trackRequest("PUT");
             }
+        }
+
+        private boolean isMultiPartUpload(String request) {
+            return Regex.simpleMatch("POST /*/*?uploads", request) ||
+                Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||
+                Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
         }
     }
 }

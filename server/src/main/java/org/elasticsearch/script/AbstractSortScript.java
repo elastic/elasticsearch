@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -49,7 +50,9 @@ abstract class AbstractSortScript implements ScorerAware {
                         "Accessing variable [doc] via [params._doc] from within an sort-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
-            });
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     /**
      * The generic runtime parameters for the script.

@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
@@ -103,9 +103,9 @@ public class RestTemplatesAction extends AbstractCatAction {
             }
         }
 
-        for (Map.Entry<String, IndexTemplateV2> entry : metadata.templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             String name = entry.getKey();
-            IndexTemplateV2 template = entry.getValue();
+            ComposableIndexTemplate template = entry.getValue();
             if (patternString == null || Regex.simpleMatch(patternString, name)) {
                 table.startRow();
                 table.addCell(name);

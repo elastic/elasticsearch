@@ -42,7 +42,7 @@ import java.util.Objects;
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  */
-public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implements ToXContentObject {
+public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -51,8 +51,9 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
     private static final ParseField METADATA = new ParseField("_meta");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<IndexTemplateV2, Void> PARSER = new ConstructingObjectParser<>("index_template", false,
-        a -> new IndexTemplateV2((List<String>) a[0],
+    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
+        false,
+        a -> new ComposableIndexTemplate((List<String>) a[0],
             (Template) a[1],
             (List<String>) a[2],
             (Long) a[3],
@@ -80,16 +81,16 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
     @Nullable
     private final Map<String, Object> metadata;
 
-    static Diff<IndexTemplateV2> readITV2DiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(IndexTemplateV2::new, in);
+    static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
+        return AbstractDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
     }
 
-    public static IndexTemplateV2 parse(XContentParser parser) throws IOException {
+    public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public IndexTemplateV2(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
-                           @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
+    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
+                                   @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
         this.indexPatterns = indexPatterns;
         this.template = template;
         this.componentTemplates = componentTemplates;
@@ -98,7 +99,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         this.metadata = metadata;
     }
 
-    public IndexTemplateV2(StreamInput in) throws IOException {
+    public ComposableIndexTemplate(StreamInput in) throws IOException {
         this.indexPatterns = in.readStringList();
         if (in.readBoolean()) {
             this.template = new Template(in);
@@ -197,7 +198,7 @@ public class IndexTemplateV2 extends AbstractDiffable<IndexTemplateV2> implement
         if (getClass() != obj.getClass()) {
             return false;
         }
-        IndexTemplateV2 other = (IndexTemplateV2) obj;
+        ComposableIndexTemplate other = (ComposableIndexTemplate) obj;
         return Objects.equals(this.indexPatterns, other.indexPatterns) &&
             Objects.equals(this.template, other.template) &&
             Objects.equals(this.componentTemplates, other.componentTemplates) &&

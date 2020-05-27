@@ -49,22 +49,22 @@ import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
-import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
+import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
-import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.indices.IndexTemplateV2ExistRequest;
+import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -1305,7 +1305,7 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse putIndexTemplate(PutIndexTemplateV2Request putIndexTemplateRequest, RequestOptions options)
+    public AcknowledgedResponse putIndexTemplate(PutComposableIndexTemplateRequest putIndexTemplateRequest, RequestOptions options)
         throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
             options, AcknowledgedResponse::fromXContent, emptySet());
@@ -1320,7 +1320,7 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putIndexTemplateAsync(PutIndexTemplateV2Request putIndexTemplateRequest,
+    public Cancellable putIndexTemplateAsync(PutComposableIndexTemplateRequest putIndexTemplateRequest,
                                              RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
@@ -1424,10 +1424,10 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetIndexTemplatesV2Response getIndexTemplate(GetIndexTemplateV2Request getIndexTemplatesRequest,
-                                                        RequestOptions options) throws IOException {
+    public GetComposableIndexTemplatesResponse getIndexTemplate(GetComposableIndexTemplateRequest getIndexTemplatesRequest,
+                                                                RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest, IndicesRequestConverters::getIndexTemplates,
-            options, GetIndexTemplatesV2Response::fromXContent, emptySet());
+            options, GetComposableIndexTemplatesResponse::fromXContent, emptySet());
     }
 
     /**
@@ -1439,10 +1439,10 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getIndexTemplateAsync(GetIndexTemplateV2Request getIndexTemplatesRequest, RequestOptions options,
-                                             ActionListener<GetIndexTemplatesV2Response> listener) {
+    public Cancellable getIndexTemplateAsync(GetComposableIndexTemplateRequest getIndexTemplatesRequest, RequestOptions options,
+                                             ActionListener<GetComposableIndexTemplatesResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
-            IndicesRequestConverters::getIndexTemplates, options, GetIndexTemplatesV2Response::fromXContent, listener, emptySet());
+            IndicesRequestConverters::getIndexTemplates, options, GetComposableIndexTemplatesResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -1538,7 +1538,7 @@ public final class IndicesClient {
      * @return true if any index templates in the request exist, false otherwise
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public boolean existsIndexTemplate(IndexTemplateV2ExistRequest indexTemplatesRequest,
+    public boolean existsIndexTemplate(ComposableIndexTemplateExistRequest indexTemplatesRequest,
                                        RequestOptions options) throws IOException {
         return restHighLevelClient.performRequest(indexTemplatesRequest,
             IndicesRequestConverters::templatesExist, options,
@@ -1552,7 +1552,7 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable existsIndexTemplateAsync(IndexTemplateV2ExistRequest indexTemplatesExistRequest,
+    public Cancellable existsIndexTemplateAsync(ComposableIndexTemplateExistRequest indexTemplatesExistRequest,
                                                 RequestOptions options,
                                                 ActionListener<Boolean> listener) {
 
@@ -1676,7 +1676,8 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deleteIndexTemplate(DeleteIndexTemplateV2Request request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse deleteIndexTemplate(DeleteComposableIndexTemplateRequest request,
+                                                    RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
             options, AcknowledgedResponse::fromXContent, emptySet());
     }
@@ -1690,7 +1691,7 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteIndexTemplateAsync(DeleteIndexTemplateV2Request request, RequestOptions options,
+    public Cancellable deleteIndexTemplateAsync(DeleteComposableIndexTemplateRequest request, RequestOptions options,
                                                 ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());

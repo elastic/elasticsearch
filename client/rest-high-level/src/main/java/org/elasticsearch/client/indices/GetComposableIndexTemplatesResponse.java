@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,33 +32,33 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 
-public class GetIndexTemplatesV2Response {
+public class GetComposableIndexTemplatesResponse {
 
     public static final ParseField NAME = new ParseField("name");
     public static final ParseField INDEX_TEMPLATES = new ParseField("index_templates");
     public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Map<String, IndexTemplateV2>, Void> PARSER =
+    private static final ConstructingObjectParser<Map<String, ComposableIndexTemplate>, Void> PARSER =
         new ConstructingObjectParser<>("index_templates", false,
             a -> ((List<NamedIndexTemplate>) a[0]).stream().collect(Collectors.toMap(n -> n.name, n -> n.indexTemplate,
                 (n1, n2) -> n1, LinkedHashMap::new)));
 
     private static final ConstructingObjectParser<NamedIndexTemplate, Void> INNER_PARSER =
         new ConstructingObjectParser<>("named_index_template", false,
-            a -> new NamedIndexTemplate((String) a[0], (IndexTemplateV2) a[1]));
+            a -> new NamedIndexTemplate((String) a[0], (ComposableIndexTemplate) a[1]));
 
     static {
         INNER_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        INNER_PARSER.declareObject(ConstructingObjectParser.constructorArg(), IndexTemplateV2.PARSER, INDEX_TEMPLATE);
+        INNER_PARSER.declareObject(ConstructingObjectParser.constructorArg(), ComposableIndexTemplate.PARSER, INDEX_TEMPLATE);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), INNER_PARSER, INDEX_TEMPLATES);
     }
 
     private static class NamedIndexTemplate {
         String name;
-        IndexTemplateV2 indexTemplate;
+        ComposableIndexTemplate indexTemplate;
 
-        private NamedIndexTemplate(String name, IndexTemplateV2 indexTemplate) {
+        private NamedIndexTemplate(String name, ComposableIndexTemplate indexTemplate) {
             this.name = name;
             this.indexTemplate = indexTemplate;
         }
@@ -69,19 +69,19 @@ public class GetIndexTemplatesV2Response {
         return "GetIndexTemplatesResponse [indexTemplates=" + indexTemplates + "]";
     }
 
-    private final Map<String, IndexTemplateV2> indexTemplates;
+    private final Map<String, ComposableIndexTemplate> indexTemplates;
 
-    GetIndexTemplatesV2Response(Map<String, IndexTemplateV2> indexTemplates) {
+    GetComposableIndexTemplatesResponse(Map<String, ComposableIndexTemplate> indexTemplates) {
         this.indexTemplates = Collections.unmodifiableMap(new LinkedHashMap<>(indexTemplates));
     }
 
-    public Map<String, IndexTemplateV2> getIndexTemplates() {
+    public Map<String, ComposableIndexTemplate> getIndexTemplates() {
         return indexTemplates;
     }
 
 
-    public static GetIndexTemplatesV2Response fromXContent(XContentParser parser) throws IOException {
-        return new GetIndexTemplatesV2Response(PARSER.apply(parser, null));
+    public static GetComposableIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
+        return new GetComposableIndexTemplatesResponse(PARSER.apply(parser, null));
     }
 
     @Override
@@ -100,7 +100,7 @@ public class GetIndexTemplatesV2Response {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        GetIndexTemplatesV2Response other = (GetIndexTemplatesV2Response) obj;
+        GetComposableIndexTemplatesResponse other = (GetComposableIndexTemplatesResponse) obj;
         return Objects.equals(indexTemplates, other.indexTemplates);
     }
 

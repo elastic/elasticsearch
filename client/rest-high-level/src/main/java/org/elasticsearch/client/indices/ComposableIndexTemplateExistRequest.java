@@ -24,14 +24,14 @@ import org.elasticsearch.common.Strings;
 /**
  * A request to check for the existence of index templates
  */
-public class IndexTemplateV2ExistRequest extends GetComponentTemplatesRequest {
+public class ComposableIndexTemplateExistRequest extends GetComponentTemplatesRequest {
 
     /**
      * Create a request to check for the existence of index template. Name must be provided
      *
      * @param name the name of template to check for the existence of
      */
-    public IndexTemplateV2ExistRequest(String name) {
+    public ComposableIndexTemplateExistRequest(String name) {
         super(name);
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("must provide index template name");

@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -134,13 +134,20 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         }
 
         for (SearchHit hit : hits.getHits()) {
-            String expiryTime = stringFieldValueOrNull(hit, ForecastRequestStats.EXPIRY_TIME.getPreferredName());
-            if (expiryTime == null) {
+            DocumentField docField = hit.field(ForecastRequestStats.EXPIRY_TIME.getPreferredName());
+            if (docField == null) {
                 LOGGER.warn("Forecast request stats document [{}] has a null [{}] field", hit.getId(),
                     ForecastRequestStats.EXPIRY_TIME.getPreferredName());
                 continue;
             }
-            long expiryMs = TimeUtils.parseToEpochMs(expiryTime);
+
+            Long expiryMs = parseDateField(docField.getValue());
+            if (expiryMs ==  null) {
+                LOGGER.warn("Forecast request stats document [{}] date field [{}] cannot be parsed", hit.getId(),
+                    ForecastRequestStats.EXPIRY_TIME.getPreferredName());
+                continue;
+            }
+
             if (expiryMs < cutoffEpochMs) {
                 JobForecastId idPair = new JobForecastId(
                     stringFieldValueOrNull(hit, Job.ID.getPreferredName()),
@@ -176,6 +183,16 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
         return request;
+    }
+
+    static Long parseDateField(Object value) {
+        if (value instanceof String) { // doc_value field with the epoch_millis format
+            return Long.parseLong((String)value);
+        } else if (value instanceof Long) { // pre-6.0 field
+            return (Long)value;
+        } else {
+            return null;
+        }
     }
 
     private static class JobForecastId {

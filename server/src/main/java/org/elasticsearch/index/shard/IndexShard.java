@@ -1418,8 +1418,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             maybeCheckIndex(); // check index here and won't do it again if ops-based recovery occurs
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             if (safeCommit.isPresent() == false) {
-                assert globalCheckpoint == UNASSIGNED_SEQ_NO || indexSettings.getIndexVersionCreated().before(Version.V_6_2_0) :
-                    "global checkpoint [" + globalCheckpoint + "] [ created version [" + indexSettings.getIndexVersionCreated() + "]";
                 logger.trace("skip local recovery as no safe commit found");
                 return UNASSIGNED_SEQ_NO;
             }

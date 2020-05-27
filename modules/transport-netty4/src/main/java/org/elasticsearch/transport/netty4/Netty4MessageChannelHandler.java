@@ -206,6 +206,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 buf = Netty4Utils.toByteBuf(context.get());
                 context = null;
             }
+            assert context == null;
             return buf;
         }
     }

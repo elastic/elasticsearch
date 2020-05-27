@@ -179,21 +179,7 @@ public class AutodetectResultProcessor {
             }
         } finally {
             flushListener.clear();
-            try {
-                if (runningForecasts.isEmpty() == false) {
-                    LOGGER.warn("[{}] still had forecasts {} executing. Attempting to set them to failed.",
-                        jobId,
-                        runningForecasts.keySet());
-                    for (ForecastRequestStats forecastRequestStats : runningForecasts.values()) {
-                        forecastRequestStats.setStatus(ForecastRequestStats.ForecastRequestStatus.FAILED);
-                        forecastRequestStats.setMessages(List.of(JOB_FORECAST_NATIVE_PROCESS_KILLED));
-                        bulkResultsPersister.persistForecastRequestStats(forecastRequestStats);
-                    }
-                    bulkResultsPersister.executeRequest();
-                }
-            } catch (Exception ex) {
-                LOGGER.warn(new ParameterizedMessage("[{}] failure setting running forecasts to failed.", jobId), ex);
-            }
+            handleOpenForecasts();
             completionLatch.countDown();
         }
     }
@@ -224,6 +210,25 @@ public class AutodetectResultProcessor {
     public void setProcessKilled() {
         processKilled = true;
         renormalizer.shutdown();
+    }
+
+    void handleOpenForecasts() {
+        try {
+            if (runningForecasts.isEmpty() == false) {
+                LOGGER.warn("[{}] still had forecasts {} executing. Attempting to set them to failed.",
+                    jobId,
+                    runningForecasts.keySet());
+                for (ForecastRequestStats forecastRequestStats : runningForecasts.values()) {
+                    ForecastRequestStats failedStats = new ForecastRequestStats(forecastRequestStats);
+                    failedStats.setStatus(ForecastRequestStats.ForecastRequestStatus.FAILED);
+                    failedStats.setMessages(List.of(JOB_FORECAST_NATIVE_PROCESS_KILLED));
+                    bulkResultsPersister.persistForecastRequestStats(failedStats);
+                }
+                bulkResultsPersister.executeRequest();
+            }
+        } catch (Exception ex) {
+            LOGGER.warn(new ParameterizedMessage("[{}] failure setting running forecasts to failed.", jobId), ex);
+        }
     }
 
     void processResult(AutodetectResult result) {

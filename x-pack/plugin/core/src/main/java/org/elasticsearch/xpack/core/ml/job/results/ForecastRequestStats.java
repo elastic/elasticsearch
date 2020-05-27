@@ -129,6 +129,22 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.forecastId = Objects.requireNonNull(forecastId);
     }
 
+    public ForecastRequestStats(ForecastRequestStats forecastRequestStats) {
+        this.jobId = forecastRequestStats.jobId;
+        this.forecastId = forecastRequestStats.forecastId;
+        this.recordCount = forecastRequestStats.recordCount;
+        this.messages = forecastRequestStats.messages;
+        this.timestamp = forecastRequestStats.timestamp;
+        this.startTime = forecastRequestStats.startTime;
+        this.endTime = forecastRequestStats.endTime;
+        this.createTime = forecastRequestStats.createTime;
+        this.expiryTime = forecastRequestStats.expiryTime;
+        this.progress = forecastRequestStats.progress;
+        this.processingTime = forecastRequestStats.processingTime;
+        this.memoryUsage = forecastRequestStats.memoryUsage;
+        this.status = forecastRequestStats.status;
+    }
+
     public ForecastRequestStats(StreamInput in) throws IOException {
         jobId = in.readString();
         forecastId = in.readString();

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -61,14 +60,12 @@ public class TransportCloseJobActionTests extends ESTestCase {
     private ClusterService clusterService;
     private JobConfigProvider jobConfigProvider;
     private DatafeedConfigProvider datafeedConfigProvider;
-    private JobResultsProvider jobResultsProvider;
 
     @Before
     private void setupMocks() {
         clusterService = mock(ClusterService.class);
         jobConfigProvider = mock(JobConfigProvider.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
-        jobResultsProvider = mock(JobResultsProvider.class);
     }
 
     public void testAddJobAccordingToState() {
@@ -279,7 +276,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
     private TransportCloseJobAction createAction() {
         return new TransportCloseJobAction(mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
                 clusterService, mock(AnomalyDetectionAuditor.class), mock(PersistentTasksService.class),
-                jobConfigProvider, datafeedConfigProvider, jobResultsProvider);
+                jobConfigProvider, datafeedConfigProvider);
     }
 
     @SuppressWarnings("unchecked")

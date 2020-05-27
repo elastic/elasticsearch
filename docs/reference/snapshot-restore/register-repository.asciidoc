@@ -159,8 +159,7 @@ repository.
 To reduce this risk, you can use URL repositories (`"type": "url"`) to give one
 or more clusters read-only access to a shared file system repository. As URL
 repositories are always read-only, they are a safer and more convenient
-alternative to registering a read-only shared filesystem repository for the
-cluster.
+alternative to registering a read-only shared filesystem repository.
 
 The URL specified in the `url` parameter should point to the root of the shared
 filesystem repository.

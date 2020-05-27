@@ -46,6 +46,7 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
             if (logoutResponse == null) {
                 throw samlException("Cannot convert element {} into LogoutResponse object", root);
             }
+            // For HTTP-Redirect, we validate the signature while parsing the object from the query string
             if (httpRedirect == false && logoutResponse.getSignature() == null) {
                 throw samlException("LogoutResponse is not signed, but a signature is required for HTTP-Post binding");
             } else if (httpRedirect == false) {

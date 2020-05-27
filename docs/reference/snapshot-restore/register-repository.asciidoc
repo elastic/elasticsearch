@@ -167,7 +167,7 @@ filesystem repository.
 
 [source,console]
 ----
-PUT /_snapshot/my_read_only_url_backup
+PUT /_snapshot/my_read_only_url_repository
 {
   "type": "url",
   "settings": {

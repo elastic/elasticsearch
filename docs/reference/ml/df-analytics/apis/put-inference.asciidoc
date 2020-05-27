@@ -44,7 +44,7 @@ is not created by {dfanalytics}.
 include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
-role="child_attributes"]
+[role="child_attributes"]
 [[ml-put-inference-request-body]]
 ==== {api-request-body-title}
 

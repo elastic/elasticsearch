@@ -582,7 +582,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         @Override
         public void apply(Project project) {
             if (project != project.getRootProject()) {
-                throw new IllegalStateException(this.getClass().getName() +" can only be applied to the root project.");
+                throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
             }
 
             project.getGradle().addListener(new TaskActionListener() {

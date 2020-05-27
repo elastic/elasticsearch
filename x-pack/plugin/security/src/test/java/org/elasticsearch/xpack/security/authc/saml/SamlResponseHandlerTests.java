@@ -14,8 +14,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
+import org.opensaml.saml.common.SignableSAMLObject;
+import org.opensaml.security.credential.BasicCredential;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
+import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -24,7 +30,6 @@ import org.xml.sax.SAXException;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.security.KeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
@@ -53,7 +58,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import static java.util.Collections.singletonList;
-import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE;
 import static javax.xml.crypto.dsig.Transform.ENVELOPED;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML20_NS;
 
@@ -118,12 +122,6 @@ public class SamlResponseHandlerTests extends SamlTestCase {
         supportedAesTransformations = null;
     }
 
-    private static KeyInfo getKeyInfo(XMLSignatureFactory factory, X509Certificate certificate) throws KeyException {
-        KeyInfoFactory kif = factory.getKeyInfoFactory();
-        javax.xml.crypto.dsig.keyinfo.X509Data data = kif.newX509Data(Collections.singletonList(certificate));
-        return kif.newKeyInfo(singletonList(data));
-    }
-
     protected SpConfiguration getSpConfiguration(List<String> reqAuthnCtxClassRef) {
         final SigningConfiguration signingConfiguration = new SigningConfiguration(
             Collections.singleton("*"),
@@ -140,24 +138,6 @@ public class SamlResponseHandlerTests extends SamlTestCase {
 
     protected String randomId() {
         return SamlUtils.generateSecureNCName(randomIntBetween(12, 36));
-    }
-
-    protected String signDoc(String xml) throws Exception {
-        return signDoc(xml, EXCLUSIVE, SamlResponseHandlerTests.idpSigningCertificatePair);
-    }
-
-    protected String signDoc(String xml, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
-        return signDoc(xml, EXCLUSIVE, keyPair);
-    }
-
-    protected String signDoc(String xml, String c14nMethod) throws Exception {
-        return signDoc(xml, c14nMethod, SamlResponseHandlerTests.idpSigningCertificatePair);
-    }
-
-    private String signDoc(String xml, String c14nMethod, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
-        final Document doc = parseDocument(xml);
-        signElement(doc.getDocumentElement(), keyPair, c14nMethod);
-        return SamlUtils.toString(doc.getDocumentElement());
     }
 
     protected Document parseDocument(String xml) throws ParserConfigurationException, SAXException, IOException {
@@ -196,12 +176,12 @@ public class SamlResponseHandlerTests extends SamlTestCase {
         return algoUri;
     }
 
-    protected void signElement(Element parent, Tuple<X509Certificate, PrivateKey> keyPair, String c14nMethod) throws Exception {
+    protected void signElement(Element parent, String c14nMethod) throws Exception {
         //We need to explicitly set the Id attribute, "ID" is just our convention
         parent.setIdAttribute("ID", true);
         final String refID = "#" + parent.getAttribute("ID");
-        final X509Certificate certificate = keyPair.v1();
-        final PrivateKey privateKey = keyPair.v2();
+        final X509Certificate certificate = idpSigningCertificatePair.v1();
+        final PrivateKey privateKey = idpSigningCertificatePair.v2();
         final XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
         final DigestMethod digestMethod = fac.newDigestMethod(randomFrom(DigestMethod.SHA256, DigestMethod.SHA512), null);
         final Transform transform = fac.newTransform(ENVELOPED, (TransformParameterSpec) null);
@@ -212,8 +192,9 @@ public class SamlResponseHandlerTests extends SamlTestCase {
         final CanonicalizationMethod canonicalizationMethod = fac.newCanonicalizationMethod(c14nMethod, (C14NMethodParameterSpec) null);
 
         final SignedInfo signedInfo = fac.newSignedInfo(canonicalizationMethod, signatureMethod, singletonList(reference));
-
-        final KeyInfo keyInfo = SamlResponseHandlerTests.getKeyInfo(fac, certificate);
+        KeyInfoFactory kif = fac.getKeyInfoFactory();
+        javax.xml.crypto.dsig.keyinfo.X509Data data = kif.newX509Data(Collections.singletonList(certificate));
+        final KeyInfo keyInfo = kif.newKeyInfo(singletonList(data));
 
         final DOMSignContext dsc = new DOMSignContext(privateKey, parent);
         dsc.setDefaultNamespacePrefix("ds");
@@ -227,5 +208,22 @@ public class SamlResponseHandlerTests extends SamlTestCase {
 
         final XMLSignature signature = fac.newXMLSignature(signedInfo, keyInfo);
         signature.sign(dsc);
+    }
+
+    protected void signSignableObject(
+        SignableSAMLObject signableObject, String c14nMethod, Tuple<X509Certificate, PrivateKey> keyPair)
+        throws Exception {
+        final Signature signature = SamlUtils.buildObject(Signature.class, Signature.DEFAULT_ELEMENT_NAME);
+        final Credential credential = new BasicCredential(keyPair.v1().getPublicKey(), keyPair.v2());
+        final org.opensaml.xmlsec.signature.KeyInfo kf = SamlUtils.buildObject(org.opensaml.xmlsec.signature.KeyInfo.class,
+            org.opensaml.xmlsec.signature.KeyInfo.DEFAULT_ELEMENT_NAME);
+        KeyInfoSupport.addCertificate(kf, keyPair.v1());
+        signature.setSigningCredential(credential);
+        signature.setSignatureAlgorithm(getSignatureAlgorithmURI(keyPair.v2()));
+        signature.setCanonicalizationAlgorithm(c14nMethod);
+        signature.setKeyInfo(kf);
+        signableObject.setSignature(signature);
+        XMLObjectProviderRegistrySupport.getMarshallerFactory().getMarshaller(signableObject).marshall(signableObject);
+        Signer.signObject(signature);
     }
 }

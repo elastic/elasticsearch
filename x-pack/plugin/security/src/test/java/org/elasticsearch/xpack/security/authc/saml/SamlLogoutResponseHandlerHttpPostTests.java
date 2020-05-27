@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.Before;
+import org.opensaml.saml.saml2.core.LogoutResponse;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +23,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE;
 import static org.hamcrest.Matchers.containsString;
 
 public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerTests {
@@ -80,10 +82,17 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
         replacements.putIfAbsent("requestId", requestId);
         replacements.putIfAbsent("SP_LOGOUT_URL", SP_LOGOUT_URL);
         replacements.putIfAbsent("status", "urn:oasis:names:tc:SAML:2.0:status:Success");
-        final String xml = shouldSign
-            ? signDoc(NamedFormatter.format(template, replacements)) : NamedFormatter.format(template, replacements);
-        String encoded = URLEncoder.encode(Base64.getEncoder().encodeToString(xml.getBytes(StandardCharsets.UTF_8)),
+        final String xml = NamedFormatter.format(template, replacements);
+        final String signed = shouldSign ? signLogoutResponseString(xml) : xml;
+        String encoded = URLEncoder.encode(Base64.getEncoder().encodeToString(signed.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.US_ASCII.name());
         return String.format(Locale.ROOT, "SAMLResponse=%s", encoded);
+    }
+
+    private String signLogoutResponseString(String xml) throws Exception {
+        final LogoutResponse logoutResponse =
+            samlLogoutResponseHandler.buildXmlObject(parseDocument(xml).getDocumentElement(), LogoutResponse.class);
+        signSignableObject(logoutResponse, EXCLUSIVE, idpSigningCertificatePair);
+        return SamlUtils.getXmlContent(logoutResponse, false);
     }
 }

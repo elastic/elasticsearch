@@ -32,9 +32,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<IndexTemplateV2> {
+public class ComposableIndexTemplateTests extends AbstractDiffableSerializationTestCase<ComposableIndexTemplate> {
     @Override
-    protected IndexTemplateV2 makeTestChanges(IndexTemplateV2 testInstance) {
+    protected ComposableIndexTemplate makeTestChanges(ComposableIndexTemplate testInstance) {
         try {
             return mutateInstance(testInstance);
         } catch (IOException e) {
@@ -45,26 +45,26 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
     }
 
     @Override
-    protected Writeable.Reader<Diff<IndexTemplateV2>> diffReader() {
-        return IndexTemplateV2::readITV2DiffFrom;
+    protected Writeable.Reader<Diff<ComposableIndexTemplate>> diffReader() {
+        return ComposableIndexTemplate::readITV2DiffFrom;
     }
 
     @Override
-    protected IndexTemplateV2 doParseInstance(XContentParser parser) throws IOException {
-        return IndexTemplateV2.parse(parser);
+    protected ComposableIndexTemplate doParseInstance(XContentParser parser) throws IOException {
+        return ComposableIndexTemplate.parse(parser);
     }
 
     @Override
-    protected Writeable.Reader<IndexTemplateV2> instanceReader() {
-        return IndexTemplateV2::new;
+    protected Writeable.Reader<ComposableIndexTemplate> instanceReader() {
+        return ComposableIndexTemplate::new;
     }
 
     @Override
-    protected IndexTemplateV2 createTestInstance() {
+    protected ComposableIndexTemplate createTestInstance() {
         return randomInstance();
     }
 
-    public static IndexTemplateV2 randomInstance() {
+    public static ComposableIndexTemplate randomInstance() {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -87,11 +87,11 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
             meta = randomMeta();
         }
 
-        IndexTemplateV2.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
+        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
 
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
         List<String> componentTemplates = randomList(0, 10, () -> randomAlphaOfLength(5));
-        return new IndexTemplateV2(indexPatterns,
+        return new ComposableIndexTemplate(indexPatterns,
             template,
             componentTemplates,
             randomBoolean() ? null : randomNonNegativeLong(),
@@ -140,28 +140,28 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
         }
     }
 
-    private static IndexTemplateV2.DataStreamTemplate randomDataStreamTemplate() {
+    private static ComposableIndexTemplate.DataStreamTemplate randomDataStreamTemplate() {
         if (randomBoolean()) {
             return null;
         } else {
-            return new IndexTemplateV2.DataStreamTemplate(randomAlphaOfLength(8));
+            return new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8));
         }
     }
 
     @Override
-    protected IndexTemplateV2 mutateInstance(IndexTemplateV2 orig) throws IOException {
+    protected ComposableIndexTemplate mutateInstance(ComposableIndexTemplate orig) throws IOException {
         return mutateTemplate(orig);
     }
 
-    public static IndexTemplateV2 mutateTemplate(IndexTemplateV2 orig) {
+    public static ComposableIndexTemplate mutateTemplate(ComposableIndexTemplate orig) {
         switch (randomIntBetween(0, 6)) {
             case 0:
                 List<String> newIndexPatterns = randomValueOtherThan(orig.indexPatterns(),
                     () -> randomList(1, 4, () -> randomAlphaOfLength(4)));
-                return new IndexTemplateV2(newIndexPatterns, orig.template(), orig.composedOf(),
+                return new ComposableIndexTemplate(newIndexPatterns, orig.template(), orig.composedOf(),
                     orig.priority(), orig.version(), orig.metadata(), orig.getDataStreamTemplate());
             case 1:
-                return new IndexTemplateV2(orig.indexPatterns(),
+                return new ComposableIndexTemplate(orig.indexPatterns(),
                     randomValueOtherThan(orig.template(), () -> new Template(randomSettings(), randomMappings(), randomAliases())),
                     orig.composedOf(),
                     orig.priority(),
@@ -171,7 +171,7 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
             case 2:
                 List<String> newComposedOf = randomValueOtherThan(orig.composedOf(),
                     () -> randomList(0, 10, () -> randomAlphaOfLength(5)));
-                return new IndexTemplateV2(orig.indexPatterns(),
+                return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
                     newComposedOf,
                     orig.priority(),
@@ -179,7 +179,7 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
                     orig.metadata(),
                     orig.getDataStreamTemplate());
             case 3:
-                return new IndexTemplateV2(orig.indexPatterns(),
+                return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
                     randomValueOtherThan(orig.priority(), ESTestCase::randomNonNegativeLong),
@@ -187,7 +187,7 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
                     orig.metadata(),
                     orig.getDataStreamTemplate());
             case 4:
-                return new IndexTemplateV2(orig.indexPatterns(),
+                return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
                     orig.priority(),
@@ -195,21 +195,21 @@ public class IndexTemplateV2Tests extends AbstractDiffableSerializationTestCase<
                     orig.metadata(),
                     orig.getDataStreamTemplate());
             case 5:
-                return new IndexTemplateV2(orig.indexPatterns(),
+                return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
                     orig.priority(),
                     orig.version(),
-                    randomValueOtherThan(orig.metadata(), IndexTemplateV2Tests::randomMeta),
+                    randomValueOtherThan(orig.metadata(), ComposableIndexTemplateTests::randomMeta),
                     orig.getDataStreamTemplate());
             case 6:
-                return new IndexTemplateV2(orig.indexPatterns(),
+                return new ComposableIndexTemplate(orig.indexPatterns(),
                     orig.template(),
                     orig.composedOf(),
                     orig.priority(),
                     orig.version(),
                     orig.metadata(),
-                    randomValueOtherThan(orig.getDataStreamTemplate(), IndexTemplateV2Tests::randomDataStreamTemplate));
+                    randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate));
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }

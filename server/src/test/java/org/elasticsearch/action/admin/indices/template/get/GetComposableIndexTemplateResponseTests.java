@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2Tests;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -29,26 +29,27 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class GetIndexTemplateV2ResponseTests extends AbstractWireSerializingTestCase<GetIndexTemplateV2Action.Response> {
+public class GetComposableIndexTemplateResponseTests extends AbstractWireSerializingTestCase<GetComposableIndexTemplateAction.Response> {
     @Override
-    protected Writeable.Reader<GetIndexTemplateV2Action.Response> instanceReader() {
-        return GetIndexTemplateV2Action.Response::new;
+    protected Writeable.Reader<GetComposableIndexTemplateAction.Response> instanceReader() {
+        return GetComposableIndexTemplateAction.Response::new;
     }
 
     @Override
-    protected GetIndexTemplateV2Action.Response createTestInstance() {
+    protected GetComposableIndexTemplateAction.Response createTestInstance() {
         if (randomBoolean()) {
-            return new GetIndexTemplateV2Action.Response(Collections.emptyMap());
+            return new GetComposableIndexTemplateAction.Response(Collections.emptyMap());
         }
-        Map<String, IndexTemplateV2> templates = new HashMap<>();
+        Map<String, ComposableIndexTemplate> templates = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
-            templates.put(randomAlphaOfLength(4), IndexTemplateV2Tests.randomInstance());
+            templates.put(randomAlphaOfLength(4), ComposableIndexTemplateTests.randomInstance());
         }
-        return new GetIndexTemplateV2Action.Response(templates);
+        return new GetComposableIndexTemplateAction.Response(templates);
     }
 
     @Override
-    protected GetIndexTemplateV2Action.Response mutateInstance(GetIndexTemplateV2Action.Response instance) throws IOException {
+    protected GetComposableIndexTemplateAction.Response mutateInstance(GetComposableIndexTemplateAction.Response instance)
+        throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

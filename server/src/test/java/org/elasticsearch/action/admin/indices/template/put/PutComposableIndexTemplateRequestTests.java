@@ -21,8 +21,8 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2Tests;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -35,31 +35,32 @@ import java.util.List;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class PutIndexTemplateV2RequestTests extends AbstractWireSerializingTestCase<PutIndexTemplateV2Action.Request> {
+public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<PutComposableIndexTemplateAction.Request> {
     @Override
-    protected Writeable.Reader<PutIndexTemplateV2Action.Request> instanceReader() {
-        return PutIndexTemplateV2Action.Request::new;
+    protected Writeable.Reader<PutComposableIndexTemplateAction.Request> instanceReader() {
+        return PutComposableIndexTemplateAction.Request::new;
     }
 
     @Override
-    protected PutIndexTemplateV2Action.Request createTestInstance() {
-        PutIndexTemplateV2Action.Request req = new PutIndexTemplateV2Action.Request(randomAlphaOfLength(4));
+    protected PutComposableIndexTemplateAction.Request createTestInstance() {
+        PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request(randomAlphaOfLength(4));
         req.cause(randomAlphaOfLength(4));
         req.create(randomBoolean());
-        req.indexTemplate(IndexTemplateV2Tests.randomInstance());
+        req.indexTemplate(ComposableIndexTemplateTests.randomInstance());
         return req;
     }
 
     @Override
-    protected PutIndexTemplateV2Action.Request mutateInstance(PutIndexTemplateV2Action.Request instance) throws IOException {
+    protected PutComposableIndexTemplateAction.Request mutateInstance(PutComposableIndexTemplateAction.Request instance)
+        throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        IndexTemplateV2 globalTemplate = new IndexTemplateV2(List.of("*"), template, null, null, null, null, null);
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), template, null, null, null, null, null);
 
-        PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request("test");
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
 
         ActionRequestValidationException validationException = request.validate();
@@ -67,11 +68,11 @@ public class PutIndexTemplateV2RequestTests extends AbstractWireSerializingTestC
         List<String> validationErrors = validationException.validationErrors();
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
-        assertThat(error, is("global V2 templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
+        assertThat(error, is("global composable templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
     }
 
     public void testPutIndexTemplateV2RequestMustContainTemplate() {
-        PutIndexTemplateV2Action.Request requestWithoutTemplate = new PutIndexTemplateV2Action.Request("test");
+        PutComposableIndexTemplateAction.Request requestWithoutTemplate = new PutComposableIndexTemplateAction.Request("test");
 
         ActionRequestValidationException validationException = requestWithoutTemplate.validate();
         assertThat(validationException, is(notNullValue()));
@@ -82,8 +83,8 @@ public class PutIndexTemplateV2RequestTests extends AbstractWireSerializingTestC
     }
 
     public void testValidationOfPriority() {
-        PutIndexTemplateV2Action.Request req = new PutIndexTemplateV2Action.Request("test");
-        req.indexTemplate(new IndexTemplateV2(Arrays.asList("foo", "bar"), null, null, -5L, null, null, null));
+        PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
+        req.indexTemplate(new ComposableIndexTemplate(Arrays.asList("foo", "bar"), null, null, -5L, null, null, null));
         ActionRequestValidationException validationException = req.validate();
         assertThat(validationException, is(notNullValue()));
         List<String> validationErrors = validationException.validationErrors();

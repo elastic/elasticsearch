@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,12 +38,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
+public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
-    public static final PutIndexTemplateV2Action INSTANCE = new PutIndexTemplateV2Action();
+    public static final PutComposableIndexTemplateAction INSTANCE = new PutComposableIndexTemplateAction();
     public static final String NAME = "indices:admin/index_template/put";
 
-    private PutIndexTemplateV2Action() {
+    private PutComposableIndexTemplateAction() {
         super(NAME, AcknowledgedResponse::new);
     }
 
@@ -55,14 +55,14 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
         @Nullable
         private String cause;
         private boolean create;
-        private IndexTemplateV2 indexTemplate;
+        private ComposableIndexTemplate indexTemplate;
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
             this.cause = in.readOptionalString();
             this.create = in.readBoolean();
-            this.indexTemplate = new IndexTemplateV2(in);
+            this.indexTemplate = new ComposableIndexTemplate(in);
         }
 
         /**
@@ -97,7 +97,7 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
             } else {
                 if (indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
                     if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
-                        validationException = addValidationError("global V2 templates may not specify the setting "
+                        validationException = addValidationError("global composable templates may not specify the setting "
                                 + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
                             validationException
                         );
@@ -146,12 +146,12 @@ public class PutIndexTemplateV2Action extends ActionType<AcknowledgedResponse> {
         /**
          * The index template that will be inserted into the cluster state
          */
-        public Request indexTemplate(IndexTemplateV2 template) {
+        public Request indexTemplate(ComposableIndexTemplate template) {
             this.indexTemplate = template;
             return this;
         }
 
-        public IndexTemplateV2 indexTemplate() {
+        public ComposableIndexTemplate indexTemplate() {
             return this.indexTemplate;
         }
 

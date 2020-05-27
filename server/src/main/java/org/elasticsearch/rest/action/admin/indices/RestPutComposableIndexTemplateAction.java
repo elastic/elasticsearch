@@ -19,8 +19,9 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -28,26 +29,32 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestDeleteIndexTemplateV2Action extends BaseRestHandler {
+public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(DELETE, "/_index_template/{name}"));
+        return List.of(
+            new Route(POST, "/_index_template/{name}"),
+            new Route(PUT, "/_index_template/{name}"));
     }
 
     @Override
     public String getName() {
-        return "delete_index_template_v2_action";
+        return "put_composable_index_template_action";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
-        DeleteIndexTemplateV2Action.Request deleteReq = new DeleteIndexTemplateV2Action.Request(request.param("name"));
-        deleteReq.masterNodeTimeout(request.paramAsTime("master_timeout", deleteReq.masterNodeTimeout()));
+        PutComposableIndexTemplateAction.Request putRequest = new PutComposableIndexTemplateAction.Request(request.param("name"));
+        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
+        putRequest.create(request.paramAsBoolean("create", false));
+        putRequest.cause(request.param("cause", "api"));
+        putRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
 
-        return channel -> client.execute(DeleteIndexTemplateV2Action.INSTANCE, deleteReq, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutComposableIndexTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -21,11 +21,11 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
 
-public class DeleteIndexTemplateV2Request extends TimedRequest {
+public class DeleteComposableIndexTemplateRequest extends TimedRequest {
 
     private final String name;
 
-    public DeleteIndexTemplateV2Request(String name) {
+    public DeleteComposableIndexTemplateRequest(String name) {
         this.name = name;
     }
 

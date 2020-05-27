@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -38,17 +38,17 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportPutIndexTemplateV2Action
-    extends TransportMasterNodeAction<PutIndexTemplateV2Action.Request, AcknowledgedResponse> {
+public class TransportPutComposableIndexTemplateAction
+    extends TransportMasterNodeAction<PutComposableIndexTemplateAction.Request, AcknowledgedResponse> {
 
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportPutIndexTemplateV2Action(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutIndexTemplateV2Action.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutIndexTemplateV2Action.Request::new, indexNameExpressionResolver);
+    public TransportPutComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
+                                                     ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
+                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(PutComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PutComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -64,14 +64,14 @@ public class TransportPutIndexTemplateV2Action
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutIndexTemplateV2Action.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutComposableIndexTemplateAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void masterOperation(Task task, final PutIndexTemplateV2Action.Request request, final ClusterState state,
+    protected void masterOperation(Task task, final PutComposableIndexTemplateAction.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        IndexTemplateV2 indexTemplate = request.indexTemplate();
+        ComposableIndexTemplate indexTemplate = request.indexTemplate();
         indexTemplateService.putIndexTemplateV2(request.cause(), request.create(), request.name(), request.masterNodeTimeout(),
             indexTemplate, listener);
     }

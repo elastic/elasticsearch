@@ -26,7 +26,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -40,15 +40,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetIndexTemplateV2Action
-    extends TransportMasterNodeReadAction<GetIndexTemplateV2Action.Request, GetIndexTemplateV2Action.Response> {
+public class TransportGetComposableIndexTemplateAction
+    extends TransportMasterNodeReadAction<GetComposableIndexTemplateAction.Request, GetComposableIndexTemplateAction.Response> {
 
     @Inject
-    public TransportGetIndexTemplateV2Action(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetIndexTemplateV2Action.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetIndexTemplateV2Action.Request::new, indexNameExpressionResolver);
+    public TransportGetComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
+                                                     ThreadPool threadPool, ActionFilters actionFilters,
+                                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(GetComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            GetComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -57,30 +57,30 @@ public class TransportGetIndexTemplateV2Action
     }
 
     @Override
-    protected GetIndexTemplateV2Action.Response read(StreamInput in) throws IOException {
-        return new GetIndexTemplateV2Action.Response(in);
+    protected GetComposableIndexTemplateAction.Response read(StreamInput in) throws IOException {
+        return new GetComposableIndexTemplateAction.Response(in);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetIndexTemplateV2Action.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetComposableIndexTemplateAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected void masterOperation(Task task, GetIndexTemplateV2Action.Request request, ClusterState state,
-                                   ActionListener<GetIndexTemplateV2Action.Response> listener) {
-        Map<String, IndexTemplateV2> allTemplates = state.metadata().templatesV2();
+    protected void masterOperation(Task task, GetComposableIndexTemplateAction.Request request, ClusterState state,
+                                   ActionListener<GetComposableIndexTemplateAction.Response> listener) {
+        Map<String, ComposableIndexTemplate> allTemplates = state.metadata().templatesV2();
 
         // If we did not ask for a specific name, then we return all templates
         if (request.name() == null) {
-            listener.onResponse(new GetIndexTemplateV2Action.Response(allTemplates));
+            listener.onResponse(new GetComposableIndexTemplateAction.Response(allTemplates));
             return;
         }
 
-        final Map<String, IndexTemplateV2> results = new HashMap<>();
+        final Map<String, ComposableIndexTemplate> results = new HashMap<>();
         String name = request.name();
         if (Regex.isSimpleMatchPattern(name)) {
-            for (Map.Entry<String, IndexTemplateV2> entry : allTemplates.entrySet()) {
+            for (Map.Entry<String, ComposableIndexTemplate> entry : allTemplates.entrySet()) {
                 if (Regex.simpleMatch(name, entry.getKey())) {
                     results.put(entry.getKey(), entry.getValue());
                 }
@@ -91,6 +91,6 @@ public class TransportGetIndexTemplateV2Action
             throw new ResourceNotFoundException("index template matching [" + request.name() + "] not found");
         }
 
-        listener.onResponse(new GetIndexTemplateV2Action.Response(results));
+        listener.onResponse(new GetComposableIndexTemplateAction.Response(results));
     }
 }

@@ -547,12 +547,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory);
                     IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
-                /*
-                 * Only allow the randomized testing to wrap the reader if
-                 * the test didn't explicitly wrap the reader.
-                 */
-                boolean maybeWrap = unwrapped == indexReader;
-                IndexSearcher indexSearcher = newSearcher(indexReader, maybeWrap, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);

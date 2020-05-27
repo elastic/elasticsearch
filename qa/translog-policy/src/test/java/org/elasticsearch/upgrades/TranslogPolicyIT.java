@@ -21,7 +21,7 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -88,8 +88,8 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
     public void testEmptyIndex() throws Exception {
         if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
             final Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(0, 1));
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1));
             if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
@@ -106,8 +106,8 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
         int numDocs = 100;
         if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
             final Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
             if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }

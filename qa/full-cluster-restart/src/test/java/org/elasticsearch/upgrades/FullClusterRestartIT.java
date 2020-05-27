@@ -1421,8 +1421,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testRecoveryWithTranslogRetentionDisabled() throws Exception {
         if (isRunningAgainstOldCluster()) {
             final Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
             if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }

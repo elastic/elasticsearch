@@ -38,7 +38,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -247,7 +247,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
     }
 
     /**
-     * {@link LongTermsAggregator} is the first complex bucking aggregation
+     * {@link NumericTermsAggregator} is the first complex bucking aggregation
      * that stopped wrapping itself in {@link AggregatorFactory#asMultiBucketAggregator}
      * so this tests that nested works properly inside of it.
      */

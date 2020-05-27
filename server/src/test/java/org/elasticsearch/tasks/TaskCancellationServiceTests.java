@@ -82,18 +82,10 @@ public class TaskCancellationServiceTests extends ESTestCase {
         receivedHeartbeats.clear();
 
         if (randomBoolean()) {
-            sendingTask.unregister(Collections.singletonList(new NodeAndClusterAlias(node1, null)));
             taskQueue.advanceTime();
-            taskQueue.runRandomTask();
-        } else if (randomBoolean()) {
-            taskQueue.advanceTime();
-            sendingTask.unregister(Collections.singletonList(new NodeAndClusterAlias(node1, null)));
-            taskQueue.runRandomTask();
-        } else {
-            sendingTask.unregister(Collections.singletonList(new NodeAndClusterAlias(node1, null)));
         }
-        assertFalse(taskQueue.hasRunnableTasks());
-        assertFalse(taskQueue.hasDeferredTasks());
+        sendingTask.unregister(Collections.singletonList(new NodeAndClusterAlias(node1, null)));
+        taskQueue.runAllTasks();
         assertThat(receivedHeartbeats, empty());
     }
 }

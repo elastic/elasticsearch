@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class IndexingSlowLogTests extends ESTestCase {
     static MockAppender appender;
-    static Logger testLogger1 = LogManager.getLogger(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_PREFIX + ".index" );
+    static Logger testLogger1 = LogManager.getLogger(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
@@ -71,13 +71,13 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void cleanup(){
+    public static void cleanup() {
         appender.stop();
         Loggers.removeAppender(testLogger1, appender);
     }
 
 
-    public void testLevelPrecedence()  {
+    public void testLevelPrecedence() {
         String uuid = UUIDs.randomBase64UUID();
         IndexMetadata metadata = createIndexMetadata(SlowLogLevel.WARN, "index-precedence", uuid);
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
@@ -366,9 +366,9 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "120ms")
-            .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "220ms")
-            .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING.getKey(), "320ms")
-            .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING.getKey(), "420ms").build()));
+                .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "220ms")
+                .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING.getKey(), "320ms")
+                .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING.getKey(), "420ms").build()));
 
 
         assertEquals(TimeValue.timeValueMillis(120).nanos(), log.getIndexTraceThreshold());
@@ -436,7 +436,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         final String causeExpected =
-                "failed to parse setting [" + key + "] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized";
+            "failed to parse setting [" + key + "] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized";
         assertThat(cause, hasToString(containsString(causeExpected)));
     }
 

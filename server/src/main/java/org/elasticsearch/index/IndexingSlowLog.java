@@ -152,7 +152,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
-            // when logger level is more specific then WARN AND event is within threshold it should be logged
+            // when logger level is more specific than WARN AND event is within threshold it should be logged
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
                 indexLogger.warn( new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {

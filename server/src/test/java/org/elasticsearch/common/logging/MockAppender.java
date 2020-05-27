@@ -32,7 +32,7 @@ public class MockAppender extends AbstractAppender {
     }
 
     @Override
-    public void append(LogEvent event) {//4010
+    public void append(LogEvent event) {
         lastEvent = event.toImmutable();
     }
 
@@ -40,7 +40,7 @@ public class MockAppender extends AbstractAppender {
         return (ParameterizedMessage) lastEvent.getMessage();
     }
 
-    public LogEvent getLastEventAndReset(){
+    public LogEvent getLastEventAndReset() {
         LogEvent toReturn = lastEvent;
         lastEvent = null;
         return toReturn;

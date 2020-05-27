@@ -21,16 +21,23 @@ package org.elasticsearch.index;
 import java.util.Locale;
 
 public enum SlowLogLevel {
-    WARN, //most specific - little logging
-    INFO,
-    DEBUG,
-    TRACE; //least specific - lots of logging
+    WARN(0), //most specific - little logging
+    INFO(1),
+    DEBUG(2),
+    TRACE(3); //least specific - lots of logging
+
+    private final int precedence;
+
+    SlowLogLevel(int precedence) {
+        this.precedence = precedence;
+    }
+
     public static SlowLogLevel parse(String level) {
         return valueOf(level.toUpperCase(Locale.ROOT));
     }
 
     boolean isLevelEnabledFor(SlowLogLevel levelToBeUsed) {
         // info is less specific then warn
-        return this.ordinal() >= levelToBeUsed.ordinal();
+        return this.precedence >= levelToBeUsed.precedence;
     }
 }

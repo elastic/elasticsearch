@@ -53,16 +53,12 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.external.javadoc.CoreJavadocOptions;
-import org.gradle.internal.jvm.Jvm;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;

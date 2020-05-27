@@ -36,14 +36,17 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -69,6 +72,7 @@ public enum RangeType {
             InetAddress address = InetAddresses.forString(parser.text());
             return included ? address : nextDown(address);
         }
+
         @Override
         public InetAddress parseValue(Object value, boolean coerce, @Nullable DateMathParser dateMathParser) {
             if (value instanceof InetAddress) {
@@ -80,6 +84,12 @@ public enum RangeType {
                 return InetAddresses.forString(value.toString());
             }
         }
+
+        @Override
+        public Object formatValue(Object value, DateFormatter dateFormatter) {
+            return InetAddresses.toAddrString((InetAddress) value);
+        }
+
         @Override
         public InetAddress minValue() {
             return InetAddressPoint.MIN_VALUE;
@@ -189,6 +199,13 @@ public enum RangeType {
             return dateMathParser.parse(dateStr.toString(), () -> {
                 throw new IllegalArgumentException("now is not used at indexing time");
             }).toEpochMilli();
+        }
+
+        @Override
+        public Object formatValue(Object value, DateFormatter dateFormatter) {
+            long timestamp = (long) value;
+            ZonedDateTime dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC);
+            return dateFormatter.format(dateTime);
         }
 
         @Override
@@ -607,6 +624,10 @@ public enum RangeType {
 
     public Object parseValue(Object value, boolean coerce, @Nullable DateMathParser dateMathParser) {
         return numberType.parse(value, coerce);
+    }
+
+    public Object formatValue(Object value, DateFormatter formatter) {
+        return value;
     }
 
     /** parses from value. rounds according to included flag */

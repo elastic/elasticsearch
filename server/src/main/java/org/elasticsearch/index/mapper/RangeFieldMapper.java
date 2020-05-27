@@ -50,10 +50,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -409,22 +407,18 @@ public class RangeFieldMapper extends FieldMapper {
     @SuppressWarnings("unchecked")
     protected Object parseSourceValue(Object value) {
         RangeType rangeType = fieldType().rangeType();
-        if (rangeType == RangeType.IP) {
-            return value;
+        if (!(value instanceof Map)) {
+            assert rangeType == RangeType.IP;
+            Tuple<InetAddress, Integer> ipRange = InetAddresses.parseCidr(value.toString());
+            return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
         }
 
         Map<String, Object> range = (Map<String, Object>) value;
         Map<String, Object> parsedRange = new HashMap<>();
         for (Map.Entry<String, Object> entry : range.entrySet()) {
             Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
-
-            if (rangeType == RangeType.DATE) {
-                long timestamp = (long) parsedValue;
-                ZonedDateTime dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC);
-                parsedValue = fieldType().dateTimeFormatter().format(dateTime);
-            }
-
-            parsedRange.put(entry.getKey(), parsedValue);
+            Object formattedValue = rangeType.formatValue(parsedValue, fieldType().dateTimeFormatter);
+            parsedRange.put(entry.getKey(), formattedValue);
         }
         return parsedRange;
     }

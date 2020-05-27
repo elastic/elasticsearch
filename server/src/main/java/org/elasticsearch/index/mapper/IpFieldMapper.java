@@ -398,8 +398,9 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
-        return value;
+    protected String parseSourceValue(Object value) {
+        InetAddress address = InetAddresses.forString(value.toString());
+        return InetAddresses.toAddrString(address);
     }
 
     @Override

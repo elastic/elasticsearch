@@ -250,7 +250,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     protected void doClose() {
-        collectionStrategy.close();;
+        Releasables.close(collectionStrategy);
     }
 
     /**
@@ -512,7 +512,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     consumer.accept(globalOrd, bucketOrd, bucketDocCount(bucketOrd));
                 }
             } else {
-                for (long bucketOrd = 0; bucketOrd < valueCount; bucketOrd++) {
+                for (long bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {
                     long globalOrd = bucketOrds.get(bucketOrd);
                     if (false == acceptedGlobalOrdinals.test(globalOrd)) {
                         continue;

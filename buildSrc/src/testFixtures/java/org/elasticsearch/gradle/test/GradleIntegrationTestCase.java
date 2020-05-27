@@ -143,6 +143,10 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         }
     }
 
+    protected void assertNoDeprecationWarning(BuildResult result) {
+        assertOutputDoesNotContain(result.getOutput(), "Deprecated Gradle features were used in this build");
+    }
+
     protected void assertBuildFileExists(BuildResult result, String projectName, String path) {
         Path absPath = getBuildDir(projectName).toPath().resolve(path);
         assertTrue(

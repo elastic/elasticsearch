@@ -127,6 +127,6 @@ body of a restore snapshot request, but the `settings` value was ignored. The
 restore snapshot API now rejects requests that include a `settings` value.
 
 *Impact* +
-Discontinue use of the `settings` and `index_settings` parameters in restore
+Discontinue use of the `settings` parameter in restore
 snapshot request. Requests that include these parameters will return an error.
 ====

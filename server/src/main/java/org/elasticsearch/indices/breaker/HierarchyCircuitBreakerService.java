@@ -30,7 +30,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -40,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING;
@@ -104,7 +107,16 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
+    private final DoubleCheckStrategy doubleCheckStrategy;
+
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
+        this(settings, customBreakers, clusterSettings,
+            // hardcode interval, do not want any tuning of it outside code changes.
+            createDoubleCheckStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage, System::currentTimeMillis, 5000));
+    }
+
+    HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings,
+                                   DoubleCheckStrategy doubleCheckStrategy) {
         super();
         HashMap<String, CircuitBreaker> childCircuitBreakers = new HashMap<>();
         childCircuitBreakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
@@ -168,6 +180,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CIRCUIT_BREAKER_OVERHEAD_SETTING,
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {});
+
+        this.doubleCheckStrategy = doubleCheckStrategy;
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -231,7 +245,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             breaker.getTrippedCount());
     }
 
-    private static class MemoryUsage {
+    static class MemoryUsage {
         final long baseUsage;
         final long totalUsage;
         final long transientChildUsage;
@@ -268,6 +282,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     //package private to allow overriding it in tests
     long currentMemoryUsage() {
+        return realMemoryUsage();
+    }
+
+    static long realMemoryUsage() {
         try {
             return MEMORY_MX_BEAN.getHeapMemoryUsage().getUsed();
         } catch (IllegalArgumentException ex) {
@@ -290,7 +308,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
         final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
-        if (memoryUsed.totalUsage > parentLimit) {
+        if (memoryUsed.totalUsage > parentLimit && doubleCheckMemoryUsed(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
             final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
                     " would be [" + memoryUsed.totalUsage + "/" + new ByteSizeValue(memoryUsed.totalUsage) + "]" +
@@ -324,6 +342,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
+    MemoryUsage doubleCheckMemoryUsed(MemoryUsage memoryUsed) {
+        if (this.trackRealMemoryUsage) {
+            return doubleCheckStrategy.doubleCheck(memoryUsed);
+        } else {
+            return memoryUsed;
+        }
+    }
+
     private CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] {breakerSettings});
@@ -333,5 +359,114 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                 this,
                 breakerSettings.getName());
+    }
+
+    private static DoubleCheckStrategy createDoubleCheckStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
+                                                                 LongSupplier timeSupplier, long minimumInterval) {
+        if (jvmInfo.useG1GC().equals("true")
+            // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
+            && Boolean.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled", "true"))) {
+            return new G1DoubleCheckStrategy(jvmInfo, currentMemoryUsageSupplier, timeSupplier, minimumInterval);
+        } else {
+            return memoryUsed -> memoryUsed;
+        }
+    }
+
+    interface DoubleCheckStrategy {
+        MemoryUsage doubleCheck(MemoryUsage memoryUsed);
+    }
+
+    static class G1DoubleCheckStrategy implements DoubleCheckStrategy {
+        private final long g1RegionSize;
+        private final LongSupplier currentMemoryUsageSupplier;
+        private final LongSupplier timeSupplier;
+
+        private long lastCheckTime = Long.MIN_VALUE;
+        private final long minimumInterval;
+
+        private long blackHole;
+        private final Object lock = new Object();
+
+        G1DoubleCheckStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
+                                     LongSupplier timeSupplier, long minimumInterval) {
+            assert minimumInterval > 0;
+            this.currentMemoryUsageSupplier = currentMemoryUsageSupplier;
+            this.timeSupplier = timeSupplier;
+            this.minimumInterval = minimumInterval;
+            long g1RegionSize = jvmInfo.getG1RegionSize();
+            if (g1RegionSize <= 0) {
+
+                this.g1RegionSize = fallbackRegionSize(jvmInfo);
+            } else {
+                this.g1RegionSize = g1RegionSize;
+            }
+        }
+
+        static long fallbackRegionSize(JvmInfo jvmInfo) {
+            // mimick JDK calculation
+            long averageHeapSize =
+                (jvmInfo.getMem().getHeapMax().getBytes() + JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()) / 2;
+            long regionSize = Long.highestOneBit(averageHeapSize / 2048);
+            if (regionSize < ByteSizeUnit.MB.toBytes(1)) {
+                regionSize = ByteSizeUnit.MB.toBytes(1);
+            } else if (regionSize > ByteSizeUnit.MB.toBytes(32)) {
+                regionSize = ByteSizeUnit.MB.toBytes(32);
+            }
+            return regionSize;
+        }
+
+        @Override
+        public MemoryUsage doubleCheck(MemoryUsage memoryUsed) {
+            long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+            boolean leader;
+            synchronized (lock) {
+                leader = timeSupplier.getAsLong() >= lastCheckTime + minimumInterval;
+                doubleCheckingRealMemoryUsed(leader);
+                if (leader) {
+                    logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
+                    long localBlackHole = 0;
+                    // number of allocations, corresponding to (approximately) number of free regions + 1
+                    long allocationCount = (maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1;
+                    // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
+                    int allocationSize = (int) (g1RegionSize >> 1);
+                    long maxUsageObserved = memoryUsed.baseUsage;
+                    for (long i = 0; i < allocationCount; ++i) {
+                        long current = currentMemoryUsageSupplier.getAsLong();
+                        if (current >= maxUsageObserved) {
+                            maxUsageObserved = current;
+                        } else {
+                            // we observed a memory drop, so some GC must have occurred
+                            break;
+                        }
+                        localBlackHole += new byte[allocationSize].hashCode();
+                    }
+
+                    blackHole += localBlackHole;
+                    logger.trace("black hole [{}]", blackHole);
+                    long now = timeSupplier.getAsLong();
+                    assert now > this.lastCheckTime;
+                    this.lastCheckTime = now;
+                }
+            }
+
+            final long current = currentMemoryUsageSupplier.getAsLong();
+            if (current < memoryUsed.baseUsage) {
+                if (leader) {
+                    logger.info("GC did bring memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                }
+                return new MemoryUsage(current, memoryUsed.totalUsage - memoryUsed.baseUsage + current,
+                    memoryUsed.transientChildUsage, memoryUsed.permanentChildUsage);
+            } else {
+                if (leader) {
+                    logger.info("GC did not bring memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                }
+                // prefer original measurement when reporting if heap usage was not brought down.
+                return memoryUsed;
+            }
+        }
+
+        void doubleCheckingRealMemoryUsed(boolean leader) {
+            // for tests to override.
+        }
     }
 }

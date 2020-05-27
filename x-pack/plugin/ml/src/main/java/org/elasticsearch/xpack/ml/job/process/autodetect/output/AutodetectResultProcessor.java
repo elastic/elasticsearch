@@ -218,6 +218,8 @@ public class AutodetectResultProcessor {
                 LOGGER.warn("[{}] still had forecasts {} executing. Attempting to set them to failed.",
                     jobId,
                     runningForecasts.keySet());
+                // There may be many docs in the results persistence queue. But we only want to bother updating the running forecasts
+                bulkResultsPersister.clearBulkRequest();
                 for (ForecastRequestStats forecastRequestStats : runningForecasts.values()) {
                     ForecastRequestStats failedStats = new ForecastRequestStats(forecastRequestStats);
                     failedStats.setStatus(ForecastRequestStats.ForecastRequestStatus.FAILED);

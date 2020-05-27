@@ -151,8 +151,19 @@ unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited c
 [[snapshots-read-only-repository]]
 === Read-only URL repository
 
-The URL repository (`"type": "url"`) can be used as an alternative read-only way to access data created by the shared file
-system repository. The URL specified in the `url` parameter should point to the root of the shared filesystem repository.
+If you register the same snapshot repository with multiple clusters, only one
+cluster should have write access to the repository. Having multiple clusters
+write to the repository at the same time risks corrupting the contents of the
+repository.
+
+To reduce this risk, you can use URL repositories (`"type": "url"`) to give one
+or more clusters read-only access to a shared file system repository. As URL
+repositories are always read-only, they are a safer and more convenient
+alternative to registering a read-only shared filesystem repository for the
+cluster.
+
+The URL specified in the `url` parameter should point to the root of the shared
+filesystem repository.
 
 [source,console]
 ----
@@ -165,7 +176,6 @@ PUT /_snapshot/my_read_only_url_backup
 }
 ----
 // TEST[skip:no access to url file path]
-
 
 The `url` parameter supports the following protocols:
 

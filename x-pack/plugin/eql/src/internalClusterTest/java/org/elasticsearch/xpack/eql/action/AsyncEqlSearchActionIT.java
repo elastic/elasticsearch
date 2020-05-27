@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -24,7 +25,9 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -90,6 +93,50 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         indexRandom(true, builders);
     }
 
+    public void testBasicAsyncExecution() throws Exception {
+        prepareIndex();
+
+        boolean success = randomBoolean();
+        String query = success ? "my_event where i=1" : "my_event where 10/i=1";
+        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+
+        List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
+
+        logger.trace("Starting async search");
+        EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.isRunning(), is(true));
+        assertThat(response.isPartial(), is(true));
+        assertThat(response.id(), notNullValue());
+
+        logger.trace("Waiting for block to be established");
+        awaitForBlockedSearches(plugins, "test");
+        logger.trace("Block is established");
+
+        if (randomBoolean()) {
+            // let's timeout first
+            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
+                .setWaitForCompletion(TimeValue.timeValueMillis(10));
+            EqlSearchResponse responseWithTimeout = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest).get();
+            assertThat(responseWithTimeout.isRunning(), is(true));
+            assertThat(responseWithTimeout.isPartial(), is(true));
+            assertThat(responseWithTimeout.id(), equalTo(response.id()));
+        }
+
+        // Now we wait
+        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
+            .setWaitForCompletion(TimeValue.timeValueSeconds(10));
+        ActionFuture<EqlSearchResponse> future = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+        disableBlocks(plugins);
+        if (success) {
+            response = future.get();
+            assertThat(response, notNullValue());
+            assertThat(response.hits().events().size(), equalTo(1));
+        } else {
+            Exception ex = expectThrows(Exception.class, future::actionGet);
+            assertThat(ex.getCause().getMessage(), containsString("by zero"));
+        }
+    }
 
     public void testGoingAsync() throws Exception {
         prepareIndex();
@@ -169,13 +216,16 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 assertThat(doc.getResponse(), notNullValue());
                 assertThat(doc.getResponse().hits().events().size(), equalTo(1));
             }
+            if (keepOnCompletion) {
+                EqlSearchResponse storedResponse = client().execute(EqlAsyncGetResultAction.INSTANCE,
+                    new GetAsyncResultRequest(response.id())).actionGet();
+                assertThat(storedResponse, equalTo(response));
+            }
         } else {
             Exception ex = expectThrows(Exception.class,
                 () -> client().execute(EqlSearchAction.INSTANCE, request).get());
             assertThat(ex.getMessage(), containsString("by zero"));
         }
-
-
     }
 
     public StoredAsyncResponse<EqlSearchResponse> getStoredRecord(String id) throws Exception {
@@ -190,10 +240,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                     }
                 }
             }
+            return null;
         } catch (IndexNotFoundException | NoShardAvailableActionException ex) {
             return null;
         }
-        return null;
     }
 
     public static org.hamcrest.Matcher<EqlSearchResponse> eqlSearchResponseMatcherEqualTo(EqlSearchResponse eqlSearchResponse) {

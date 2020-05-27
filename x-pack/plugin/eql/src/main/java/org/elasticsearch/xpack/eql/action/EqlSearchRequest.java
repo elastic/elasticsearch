@@ -385,7 +385,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new EqlSearchTask(id, type, action, getDescription(), parentTaskId, headers, null, null);
+        return new EqlSearchTask(id, type, action, getDescription(), parentTaskId, headers, null, null, keepAlive);
     }
 
     @Override

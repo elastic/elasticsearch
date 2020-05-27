@@ -63,6 +63,6 @@ public final class EqlTestUtils {
 
     public static EqlSearchTask randomTask() {
         return new EqlSearchTask(randomLong(), "transport", EqlSearchAction.NAME, "", null, Collections.emptyMap(), Collections.emptyMap(),
-            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)));
+            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)), TimeValue.timeValueDays(5));
     }
 }

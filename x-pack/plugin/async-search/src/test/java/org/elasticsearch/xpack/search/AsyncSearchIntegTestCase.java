@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -132,11 +133,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     protected AsyncSearchResponse getAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncSearchAction.Request(id)).get();
+        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id)).get();
     }
 
     protected AsyncSearchResponse getAsyncSearch(String id, TimeValue keepAlive) throws ExecutionException, InterruptedException {
-        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncSearchAction.Request(id).setKeepAlive(keepAlive)).get();
+        return client().execute(GetAsyncSearchAction.INSTANCE, new GetAsyncResultRequest(id).setKeepAlive(keepAlive)).get();
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
@@ -236,7 +237,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 }
                 queryLatch.countDownAndReset();
                 AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
-                    new GetAsyncSearchAction.Request(response.getId())
+                    new GetAsyncResultRequest(response.getId())
                         .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
 
                 if (newResponse.isRunning()) {

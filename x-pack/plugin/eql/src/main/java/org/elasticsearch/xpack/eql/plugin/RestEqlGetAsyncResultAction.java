@@ -3,33 +3,27 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.eql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
-import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 import java.util.List;
-import java.util.Set;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.search.RestSubmitAsyncSearchAction.RESPONSE_PARAMS;
 
-public class RestGetAsyncSearchAction extends BaseRestHandler  {
+public class RestEqlGetAsyncResultAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_async_search/{id}")));
+        return List.of(new Route(GET, "/_eql/search/{id}"));
     }
-
 
     @Override
     public String getName() {
-        return "async_search_get_action";
+        return "eql_get_async_result";
     }
 
     @Override
@@ -41,11 +35,6 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
         if (request.hasParam("keep_alive")) {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
         }
-        return channel -> client.execute(GetAsyncSearchAction.INSTANCE, get, new RestStatusToXContentListener<>(channel));
-    }
-
-    @Override
-    protected Set<String> responseParams() {
-        return RESPONSE_PARAMS;
+        return channel -> client.execute(EqlAsyncGetResultAction.INSTANCE, get, new RestToXContentListener<>(channel));
     }
 }

@@ -6,9 +6,12 @@
 
 package org.elasticsearch.xpack.eql.async;
 
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncResponse;
 
 import java.io.IOException;
@@ -17,7 +20,8 @@ import java.util.Objects;
 /**
  * Internal class for temporary storage of eql search results
  */
-public class StoredAsyncResponse<R extends Writeable> implements AsyncResponse<StoredAsyncResponse<R>> {
+public class StoredAsyncResponse<R extends Writeable> extends ActionResponse
+    implements AsyncResponse<StoredAsyncResponse<R>>, ToXContentObject {
     private final R response;
     private final Exception exception;
     private final long expirationTimeMillis;
@@ -90,5 +94,10 @@ public class StoredAsyncResponse<R extends Writeable> implements AsyncResponse<S
     public int hashCode() {
         return Objects.hash(response, exception == null ? null : exception.getClass(),
             exception == null ? null : exception.getMessage(), expirationTimeMillis);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return null;
     }
 }

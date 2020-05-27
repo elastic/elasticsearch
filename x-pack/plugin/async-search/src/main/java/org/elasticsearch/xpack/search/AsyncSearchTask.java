@@ -127,6 +127,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     /**
      * Update the expiration time of the (partial) response.
      */
+    @Override
     public void setExpirationTime(long expirationTimeMillis) {
         this.expirationTimeMillis = expirationTimeMillis;
     }

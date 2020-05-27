@@ -70,10 +70,9 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     private long indexInfoThreshold;
     private long indexDebugThreshold;
     private long indexTraceThreshold;
-    /**
-     * How much of the source to log in the slowlog - 0 means log none and
-     * anything greater than 0 means log at least that many <em>characters</em>
-     * of the source.
+    /*
+     * How much of the source to log in the slowlog - 0 means log none and anything greater than 0 means log at least that many
+     * <em>characters</em> of the source.
      */
     private int maxSourceCharsToLog;
     private SlowLogLevel level;

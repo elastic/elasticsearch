@@ -21,10 +21,10 @@ package org.elasticsearch.index;
 import java.util.Locale;
 
 public enum SlowLogLevel {
-    WARN(3), //most specific - little logging
+    WARN(3), // most specific - little logging
     INFO(2),
     DEBUG(1),
-    TRACE(0); //least specific - lots of logging
+    TRACE(0); // least specific - lots of logging
 
     private final int specificity;
 

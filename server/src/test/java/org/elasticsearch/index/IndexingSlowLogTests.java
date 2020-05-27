@@ -166,7 +166,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         }
     }
 
-    public void testMultipleSlowLoggersUseSingleLog4jLogger(){
+    public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
         IndexSettings index1Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index1", UUIDs.randomBase64UUID()),

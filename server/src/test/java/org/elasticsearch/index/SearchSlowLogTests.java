@@ -58,8 +58,8 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
     static MockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query"  );
-    static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch"  );
+    static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+    static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
@@ -70,7 +70,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     }
 
     @AfterClass
-    public static void cleanup(){
+    public static void cleanup() {
         appender.stop();
         Loggers.removeAppender(queryLog, appender);
         Loggers.removeAppender(fetchLog, appender);
@@ -78,10 +78,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
     @Override
     protected SearchContext createSearchContext(IndexService indexService) {
-       return createSearchContext(indexService, new String[]{});
+        return createSearchContext(indexService, new String[]{});
     }
 
-    protected SearchContext createSearchContext(IndexService indexService, String ... groupStats) {
+    protected SearchContext createSearchContext(IndexService indexService, String... groupStats) {
         BigArrays bigArrays = indexService.getBigArrays();
         final ShardSearchRequest request =
             new ShardSearchRequest(new ShardId(indexService.index(), 0), new String[0], 0L, null);
@@ -103,7 +103,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         };
     }
 
-    public void testLevelPrecedence()  {
+    public void testLevelPrecedence() {
         SearchContext ctx = searchContextWithSourceAndTask(createIndex("index"));
         String uuid = UUIDs.randomBase64UUID();
         IndexSettings settings =
@@ -112,56 +112,56 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         {
             //level set to WARN, should only log when WARN limit is breached
-            log.onQueryPhase(ctx,40L);
+            log.onQueryPhase(ctx, 40L);
             assertNull(appender.getLastEventAndReset());
-            log.onQueryPhase(ctx,41L);
+            log.onQueryPhase(ctx, 41L);
             assertNotNull(appender.getLastEventAndReset());
 
-            log.onFetchPhase(ctx,40L);
+            log.onFetchPhase(ctx, 40L);
             assertNull(appender.getLastEventAndReset());
-            log.onFetchPhase(ctx,41L);
+            log.onFetchPhase(ctx, 41L);
             assertNotNull(appender.getLastEventAndReset());
         }
 
         {
             // level set INFO, should log when INFO level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
-            log.onQueryPhase(ctx,30L);
+            log.onQueryPhase(ctx, 30L);
             assertNull(appender.getLastEventAndReset());
-            log.onQueryPhase(ctx,31L);
+            log.onQueryPhase(ctx, 31L);
             assertNotNull(appender.getLastEventAndReset());
 
-            log.onFetchPhase(ctx,30L);
+            log.onFetchPhase(ctx, 30L);
             assertNull(appender.getLastEventAndReset());
-            log.onFetchPhase(ctx,31L);
+            log.onFetchPhase(ctx, 31L);
             assertNotNull(appender.getLastEventAndReset());
         }
 
         {
             // level set DEBUG, should log when DEBUG level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
-            log.onQueryPhase(ctx,20L);
+            log.onQueryPhase(ctx, 20L);
             assertNull(appender.getLastEventAndReset());
-            log.onQueryPhase(ctx,21L);
+            log.onQueryPhase(ctx, 21L);
             assertNotNull(appender.getLastEventAndReset());
 
-            log.onFetchPhase(ctx,20L);
+            log.onFetchPhase(ctx, 20L);
             assertNull(appender.getLastEventAndReset());
-            log.onFetchPhase(ctx,21L);
+            log.onFetchPhase(ctx, 21L);
             assertNotNull(appender.getLastEventAndReset());
         }
 
         {
             // level set TRACE, should log when TRACE level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
-            log.onQueryPhase(ctx,10L);
+            log.onQueryPhase(ctx, 10L);
             assertNull(appender.getLastEventAndReset());
-            log.onQueryPhase(ctx,11L);
+            log.onQueryPhase(ctx, 11L);
             assertNotNull(appender.getLastEventAndReset());
 
-            log.onFetchPhase(ctx,10L);
+            log.onFetchPhase(ctx, 10L);
             assertNull(appender.getLastEventAndReset());
-            log.onFetchPhase(ctx,11L);
+            log.onFetchPhase(ctx, 11L);
             assertNotNull(appender.getLastEventAndReset());
         }
     }
@@ -252,7 +252,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\", \\\"type2\\\"]"));
 
         searchContext.getQueryShardContext().setTypes("type1");
-         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+        p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\"]"));
 
         searchContext.getQueryShardContext().setTypes();
@@ -262,7 +262,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
     public void testSlowLogsWithStats() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index,"group1");
+        SearchContext searchContext = createSearchContext(index, "group1");
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
         searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
@@ -372,9 +372,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "120ms")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "220ms")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "320ms")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "420ms").build()));
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "220ms")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "320ms")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "420ms").build()));
 
 
         assertEquals(TimeValue.timeValueMillis(120).nanos(), log.getQueryTraceThreshold());
@@ -452,9 +452,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "120ms")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "220ms")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "320ms")
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "420ms").build()));
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "220ms")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "320ms")
+                .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "420ms").build()));
 
 
         assertEquals(TimeValue.timeValueMillis(120).nanos(), log.getFetchTraceThreshold());
@@ -522,7 +522,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         final String causeExpected =
-                "failed to parse setting [" + key + "] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized";
+            "failed to parse setting [" + key + "] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized";
         assertThat(cause, hasToString(containsString(causeExpected)));
     }
 

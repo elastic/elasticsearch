@@ -39,9 +39,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -56,8 +59,21 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TopHitsAggregatorTests extends AggregatorTestCase {
+
+    @Override
+    protected MapperService mapperServiceMock() {
+        MapperService mapperService = mock(MapperService.class);
+        DocumentMapper mapper = mock(DocumentMapper.class);
+        when(mapper.typeText()).thenReturn(new Text("type"));
+        when(mapper.type()).thenReturn("type");
+        when(mapperService.documentMapper()).thenReturn(mapper);
+        return mapperService;
+    }
+
     public void testTopLevel() throws Exception {
         Aggregation result;
         if (randomBoolean()) {

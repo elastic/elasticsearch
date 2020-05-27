@@ -23,17 +23,26 @@ package org.elasticsearch.indices.breaker;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -259,6 +268,71 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         memoryUsage.set(100);
         requestBreaker.addEstimateBytesAndMaybeBreak(reservationInBytes, "request");
         assertEquals(0, requestBreaker.getTrippedCount());
+    }
+
+    public void testParentTriggersG1GCBeforeBreaking() throws InterruptedException, TimeoutException, BrokenBarrierException {
+        assumeTrue("Only G1GC can utilize the double check hack", JvmInfo.jvmInfo().useG1GC().equals("true"));
+        assumeTrue("Must have region size", JvmInfo.jvmInfo().getG1RegionSize() > 0);
+
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "95%")
+            .build();
+
+        AtomicReference<Consumer<Boolean>> onDoubleCheck = new AtomicReference<>(leader -> {});
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
+
+            @Override
+            void doubleCheckingRealMemoryUsed(boolean leader) {
+                onDoubleCheck.get().accept(leader);
+            }
+        };
+
+        // First setup a host of large byte[]'s, must be Humongous objects since those are cleaned during a young phase (no concurrent cycle
+        // necessary, which is hard to control in the test).
+        List<byte[]> data = new ArrayList<>();
+        try {
+            // total 256GB so must run out.
+            for (int i = 0; i < 1024*1024; ++i) {
+                data.add(new byte[(int) (JvmInfo.jvmInfo().getG1RegionSize() / 2)]);
+                service.checkParentLimit(0, "test");
+            }
+            fail("must exceed memory limit");
+        } catch (CircuitBreakingException e) {
+            // OK
+        }
+
+        onDoubleCheck.set(leader -> {
+            if (leader) {
+                data.clear();
+            }
+        });
+
+        int threadCount = randomIntBetween(1, 10);
+        CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
+        List<Thread> threads = new ArrayList<>(threadCount);
+        for (int i = 0; i < threadCount; ++i) {
+            threads.add(
+                new Thread(() -> {
+                    try {
+                        barrier.await(10, TimeUnit.SECONDS);
+                        service.checkParentLimit(0, "test-thread");
+                    } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                        throw new AssertionError(e);
+                    }
+                }));
+        }
+
+        threads.forEach(Thread::start);
+        barrier.await(20, TimeUnit.SECONDS);
+
+        for (Thread thread : threads) {
+            thread.join(10000);
+        }
+        threads.forEach(thread -> assertFalse(thread.isAlive()));
+
+        assertTrue("Must have triggered leader once", data.isEmpty());
     }
 
     public void testTrippedCircuitBreakerDurability() {

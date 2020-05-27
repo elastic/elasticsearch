@@ -29,7 +29,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
@@ -103,6 +105,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
+    private volatile long realMemmoryCircuitBreakerBlackHole;
+    private volatile long maybeTripCounter;
+    private final Object realMemmoryCircuitBreakerLock = new Object();
+    private final boolean doubleCheckRealMemoryUsedEnabled =
+        Boolean.getBoolean("es.real_memory_circuit_breaker.double_check_disabled") == false;
+    private final long g1RegionSize;
+
     public HierarchyCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
         super();
         this.fielddataSettings = new BreakerSettings(CircuitBreaker.FIELDDATA,
@@ -158,6 +167,23 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             this::setRequestBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             this::setAccountingBreakerLimit);
+
+        long g1RegionSize = JvmInfo.jvmInfo().getG1RegionSize();
+        if (g1RegionSize <= 0 && JvmInfo.jvmInfo().useG1GC().equals("true")) {
+            // mimick JDK calculation
+            long averageHeapSize =
+                (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() + JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()) / 2;
+            long regionSize = Long.highestOneBit(averageHeapSize / 2048);
+            if (regionSize < ByteSizeUnit.MB.toBytes(1)) {
+                regionSize = ByteSizeUnit.MB.toBytes(1);
+            } else if (regionSize > ByteSizeUnit.MB.toBytes(32)) {
+                regionSize = ByteSizeUnit.MB.toBytes(32);
+            }
+
+            g1RegionSize = regionSize;
+        }
+
+        this.g1RegionSize = g1RegionSize;
     }
 
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
@@ -312,7 +338,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
         final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
-        if (memoryUsed.totalUsage > parentLimit) {
+        if (memoryUsed.totalUsage > parentLimit && doubleCheckRealMemoryUsed(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
             final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
                     " would be [" + memoryUsed.totalUsage + "/" + new ByteSizeValue(memoryUsed.totalUsage) + "]" +
@@ -346,6 +372,61 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             logger.debug("{}", message);
             throw new CircuitBreakingException(message.toString(), memoryUsed.totalUsage, parentLimit, durability);
         }
+    }
+
+    MemoryUsage doubleCheckRealMemoryUsed(MemoryUsage memoryUsed) {
+        if (this.trackRealMemoryUsage && this.doubleCheckRealMemoryUsedEnabled) {
+            long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+            long maybeTripCounter = this.maybeTripCounter;
+            boolean leader;
+            synchronized (realMemmoryCircuitBreakerLock) {
+                leader = maybeTripCounter == this.maybeTripCounter;
+                doubleCheckingRealMemoryUsed(leader);
+                if (leader) {
+                    // so far assume region count is kept at default.
+                    logger.info("attempting to trigger G1GC due to high heap [{}]", memoryUsed.baseUsage);
+                    long count = (maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1;
+                    long blackHoleSum = 0;
+                    int halfRegionSize = (int) (g1RegionSize >> 1);
+                    long maxSeen = memoryUsed.baseUsage;
+                    for (long i = 0; i < count; ++i) {
+                        long current = currentMemoryUsage();
+                        if (current >= maxSeen) {
+                            maxSeen = current;
+                        } else {
+                            // we observed a memory drop, so some GC must have occurred
+                            break;
+                        }
+                        blackHoleSum += new byte[halfRegionSize].hashCode();
+                    }
+
+                    realMemmoryCircuitBreakerBlackHole += blackHoleSum;
+                    logger.trace("black hole [{}]", realMemmoryCircuitBreakerBlackHole);
+                    ++this.maybeTripCounter;
+                }
+            }
+
+            final long current = currentMemoryUsage();
+            if (current < memoryUsed.baseUsage) {
+                if (leader) {
+                    logger.info("GC did bring memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                }
+                return new MemoryUsage(current, memoryUsed.totalUsage - memoryUsed.baseUsage + current, memoryUsed.transientChildUsage,
+                    memoryUsed.permanentChildUsage);
+            } else {
+                if (leader) {
+                    logger.info("GC did not bring memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                }
+                // prefer original measurement when reporting if heap usage was not brought down.
+                return memoryUsed;
+            }
+        } else {
+            return memoryUsed;
+        }
+    }
+
+    void doubleCheckingRealMemoryUsed(boolean leader) {
+        // for tests to override.
     }
 
     /**

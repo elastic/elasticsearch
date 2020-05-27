@@ -88,7 +88,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                 .mustNot(activeSnapshotFilter)
                 .mustNot(retainFilter);
 
-        searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE).sort(ElasticsearchMappings.ES_DOC));
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(query);
+        source.size(MODEL_SNAPSHOT_SEARCH_SIZE);
+        source.sort(ElasticsearchMappings.ES_DOC);
+        source.fetchSource(false);
+        source.docValueField(Job.ID.getPreferredName(), null);
+        source.docValueField(ModelSnapshotField.SNAPSHOT_ID.getPreferredName(), null);
+        searchRequest.source(source);
 
         getClient().execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), listener), false));
@@ -99,11 +106,18 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             @Override
             public void onResponse(SearchResponse searchResponse) {
                 try {
-                    List<ModelSnapshot> modelSnapshots = new ArrayList<>();
+                    List<JobSnapshotId> snapshotIds = new ArrayList<>();
                     for (SearchHit hit : searchResponse.getHits()) {
-                        modelSnapshots.add(ModelSnapshot.fromJson(hit.getSourceRef()));
+                        JobSnapshotId idPair = new JobSnapshotId(
+                            stringFieldValueOrNull(hit, Job.ID.getPreferredName()),
+                            stringFieldValueOrNull(hit, ModelSnapshotField.SNAPSHOT_ID.getPreferredName()));
+
+                        if (idPair.hasNullValue() == false) {
+                            snapshotIds.add(idPair);
+                        }
                     }
-                    deleteModelSnapshots(new VolatileCursorIterator<>(modelSnapshots), listener);
+
+                    deleteModelSnapshots(new VolatileCursorIterator<>(snapshotIds), listener);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -116,14 +130,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         };
     }
 
-    private void deleteModelSnapshots(Iterator<ModelSnapshot> modelSnapshotIterator, ActionListener<Boolean> listener) {
+    private void deleteModelSnapshots(Iterator<JobSnapshotId> modelSnapshotIterator, ActionListener<Boolean> listener) {
         if (modelSnapshotIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
         }
-        ModelSnapshot modelSnapshot = modelSnapshotIterator.next();
-        DeleteModelSnapshotAction.Request deleteSnapshotRequest = new DeleteModelSnapshotAction.Request(
-                modelSnapshot.getJobId(), modelSnapshot.getSnapshotId());
+        JobSnapshotId idPair = modelSnapshotIterator.next();
+        DeleteModelSnapshotAction.Request deleteSnapshotRequest =
+            new DeleteModelSnapshotAction.Request(idPair.jobId, idPair.snapshotId);
         getClient().execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
@@ -136,9 +150,23 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(new ElasticsearchException("[" + modelSnapshot.getJobId() +  "] Failed to delete snapshot ["
-                            + modelSnapshot.getSnapshotId() + "]", e));
+                    listener.onFailure(new ElasticsearchException("[" + idPair.jobId +  "] Failed to delete snapshot ["
+                            + idPair.snapshotId + "]", e));
                 }
             });
+    }
+
+    static class JobSnapshotId {
+        private final String jobId;
+        private final String snapshotId;
+
+        JobSnapshotId(String jobId, String snapshotId) {
+            this.jobId = jobId;
+            this.snapshotId = snapshotId;
+        }
+
+        boolean hasNullValue() {
+            return jobId == null || snapshotId == null;
+        }
     }
 }

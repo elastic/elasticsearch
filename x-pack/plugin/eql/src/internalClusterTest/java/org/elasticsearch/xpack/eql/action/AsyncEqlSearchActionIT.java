@@ -6,11 +6,13 @@
 
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -25,8 +27,10 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.eql.plugin.EqlAsyncDeleteResultAction;
 import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.hamcrest.BaseMatcher;
@@ -48,6 +52,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -136,6 +141,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             Exception ex = expectThrows(Exception.class, future::actionGet);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
+
+        AcknowledgedResponse deleteResponse =
+            client().execute(EqlAsyncDeleteResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id())).actionGet();
+        assertThat(deleteResponse.isAcknowledged(), equalTo(true));
     }
 
     public void testGoingAsync() throws Exception {
@@ -191,6 +200,44 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         }
     }
 
+    public void testAsyncCancellation() throws Exception {
+        prepareIndex();
+
+        boolean success = randomBoolean();
+        String query = success ? "my_event where i=1" : "my_event where 10/i=1";
+        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+
+        boolean customKeepAlive = randomBoolean();
+        final TimeValue keepAliveValue;
+        if (customKeepAlive) {
+            keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+            request.keepAlive(keepAliveValue);
+        }
+
+        List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
+
+        String opaqueId = randomAlphaOfLength(10);
+        logger.trace("Starting async search");
+        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+            .execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.isRunning(), is(true));
+        assertThat(response.isPartial(), is(true));
+        assertThat(response.id(), notNullValue());
+
+        logger.trace("Waiting for block to be established");
+        awaitForBlockedSearches(plugins, "test");
+        logger.trace("Block is established");
+
+        ActionFuture<AcknowledgedResponse> deleteResponse =
+            client().execute(EqlAsyncDeleteResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id()));
+        disableBlocks(plugins);
+        assertThat(deleteResponse.actionGet().isAcknowledged(), equalTo(true));
+
+        deleteResponse = client().execute(EqlAsyncDeleteResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id()));
+        assertFutureThrows(deleteResponse, ResourceNotFoundException.class);
+    }
+
     public void testFinishingBeforeTimeout() throws Exception {
         prepareIndex();
 
@@ -215,11 +262,13 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 assertThat(doc.getException(), nullValue());
                 assertThat(doc.getResponse(), notNullValue());
                 assertThat(doc.getResponse().hits().events().size(), equalTo(1));
-            }
-            if (keepOnCompletion) {
                 EqlSearchResponse storedResponse = client().execute(EqlAsyncGetResultAction.INSTANCE,
                     new GetAsyncResultRequest(response.id())).actionGet();
                 assertThat(storedResponse, equalTo(response));
+
+                AcknowledgedResponse deleteResponse =
+                    client().execute(EqlAsyncDeleteResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id())).actionGet();
+                assertThat(deleteResponse.isAcknowledged(), equalTo(true));
             }
         } else {
             Exception ex = expectThrows(Exception.class,

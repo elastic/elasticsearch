@@ -3,38 +3,32 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.eql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
 
-
-import java.io.IOException;
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestDeleteAsyncSearchAction extends BaseRestHandler  {
+public class RestEqlDeleteAsyncResultAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(DELETE, "/_async_search/{id}")));
+        return List.of(new Route(DELETE, "/_eql/search/{id}"));
     }
 
     @Override
     public String getName() {
-        return "async_search_delete_action";
+        return "eql_delete_async_result";
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         DeleteAsyncResultRequest delete = new DeleteAsyncResultRequest(request.param("id"));
-        return channel -> client.execute(DeleteAsyncSearchAction.INSTANCE, delete, new RestToXContentListener<>(channel));
+        return channel -> client.execute(EqlAsyncDeleteResultAction.INSTANCE, delete, new RestToXContentListener<>(channel));
     }
 }

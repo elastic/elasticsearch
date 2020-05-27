@@ -39,10 +39,18 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                                          ThreadPool threadPool) {
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new);
         this.transportService = transportService;
+        this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool);
+    }
+
+    static AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> createResultsService(TransportService transportService,
+                                                                                          ClusterService clusterService,
+                                                                                          NamedWriteableRegistry registry,
+                                                                                          Client client,
+                                                                                          ThreadPool threadPool) {
         AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService,
             threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
-        resultsService = new AsyncResultsService<>(store, true, AsyncSearchTask.class, AsyncSearchTask::addCompletionListener,
-            transportService.getTaskManager(), clusterService);
+        return new AsyncResultsService<>(store, true, AsyncSearchTask.class, AsyncSearchTask::addCompletionListener,
+            (task, listener) -> task.cancelTask(() -> listener.onResponse(null)), transportService.getTaskManager(), clusterService);
     }
 
     @Override

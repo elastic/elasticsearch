@@ -9,6 +9,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
@@ -123,14 +124,17 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     }
 
     private AsyncResultsService<TestTask, TestAsyncResponse> createResultsService(boolean updateInitialResultsInStore) {
-        return new AsyncResultsService<>(indexService, updateInitialResultsInStore, TestTask.class,
-            TestTask::addListener, taskManager, clusterService);
+        return new AsyncResultsService<>(indexService, updateInitialResultsInStore, TestTask.class, TestTask::addListener,
+            (task, listener) ->taskManager.cancelTaskAndDescendants(task, "deletion", true, listener), taskManager, clusterService);
     }
 
     public void testRecordNotFound() {
         AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(randomBoolean());
         PlainActionFuture<TestAsyncResponse> listener = new PlainActionFuture<>();
         service.retrieveResult(new GetAsyncResultRequest(randomAsyncId().getEncoded()), listener);
+        assertFutureThrows(listener, ResourceNotFoundException.class);
+        PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
+        service.deleteResult(new DeleteAsyncResultRequest(randomAsyncId().getEncoded()), deleteListener);
         assertFutureThrows(listener, ResourceNotFoundException.class);
     }
 
@@ -250,5 +254,12 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestAsyncResponse response = listener.actionGet(TimeValue.timeValueSeconds(10));
         assertThat(response.test, equalTo("final_response"));
 
+        PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
+        service.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
+        assertThat(deleteListener.actionGet().isAcknowledged(), equalTo(true));
+
+        deleteListener = new PlainActionFuture<>();
+        service.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
+        assertFutureThrows(deleteListener, ResourceNotFoundException.class);
     }
 }

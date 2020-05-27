@@ -133,6 +133,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                 in -> new StoredAsyncResponse<>(TestResponse::new, in), writableRegistry());
         results = new AsyncResultsService<>(store, true, TestTask.class,
             (task, listener, timeout) -> addCompletionListener(transportService.getThreadPool(), task, listener, timeout),
+            (task, listener) -> transportService.getTaskManager().cancelTaskAndDescendants(task, "deletion", true, listener),
             transportService.getTaskManager(), clusterService);
     }
 

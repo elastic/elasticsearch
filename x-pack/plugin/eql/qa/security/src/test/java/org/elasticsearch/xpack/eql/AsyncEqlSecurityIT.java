@@ -79,8 +79,7 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
 
             // other cannot delete the result
             exc = expectThrows(ResponseException.class, () -> deleteAsyncEqlSearch(id, other));
-            // TODO: This is not implemented yet, should return 404 when it is done
-            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(405));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other and user cannot access the result from direct get calls
             AsyncExecutionId searchId = AsyncExecutionId.decode(id);
@@ -89,9 +88,9 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
                 assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                 assertThat(exc.getMessage(), containsString("unauthorized"));
             }
-            // TODO: Deletion is not implemented yet
-            // Response delResp = deleteAsyncEqlSearch(id, user);
-            // assertOK(delResp);
+
+             Response delResp = deleteAsyncEqlSearch(id, user);
+             assertOK(delResp);
         }
         ResponseException exc = expectThrows(ResponseException.class,
             () -> submitAsyncEqlSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));

@@ -52,3 +52,12 @@ setup:
   - match: {hits.total.relation: "eq"}
   - match: {hits.events.0._source.user: "SYSTEM"}
 
+  - do:
+      eql.delete:
+        id: $id
+  - match: {acknowledged: true}
+
+  - do:
+      catch: missing
+      eql.delete:
+        id: $id

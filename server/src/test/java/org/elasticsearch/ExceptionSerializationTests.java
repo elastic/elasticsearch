@@ -828,7 +828,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(156, RetentionLeaseInvalidRetainingSeqNoException.class);
         ids.put(157, IngestProcessorException.class);
         ids.put(158, PeerRecoveryNotFound.class);
-        ids.put(158, NodeHealthCheckFailureException.class);
+        ids.put(159, NodeHealthCheckFailureException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

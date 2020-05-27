@@ -53,7 +53,13 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
             ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
-        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> ValueType.lenientParse(p.text()),
+        objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
+                ValueType type = ValueType.lenientParse(p.text());
+                if (type == null) {
+                    throw new IllegalArgumentException("Unknown value type [" + p.text() + "]");
+                }
+                return type;
+            },
             ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {
@@ -65,6 +71,10 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
                     (parser, context) -> Script.parse(parser),
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+            String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(), Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+            objectParser.declareRequiredFieldSet(fields);
+        } else {
+            objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
         }
 
         if (timezoneAware) {
@@ -85,8 +95,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-            super(clone, factoriesBuilder, metaData);
+        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                     + getType() + "] cannot accept sub-aggregations");
@@ -125,8 +135,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<AB> clone,
-                                             Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                             Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.field = clone.field;
         this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;
@@ -339,6 +349,15 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected abstract ValuesSourceType defaultValueSourceType();
 
+    /**
+     * Aggregations should override this if they need non-standard logic for resolving where to get values from.  For example, join
+     * aggregations (like Parent and Child) ask the user to specify one side of the join and then look up the other field to read values
+     * from.
+     *
+     * The default implementation just uses the field and/or script the user provided.
+     *
+     * @return A {@link ValuesSourceConfig} configured based on the parsed field and/or script.
+     */
     protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
         return ValuesSourceConfig.resolve(queryShardContext,
                 this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType(), this.getType());

@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,7 +43,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -346,8 +346,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
             .build();
-        IndexMetaData indexMetaData = buildIndexMetaData(between(0, 1), settings, indexMapping);
-        try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(between(0, 1), settings, indexMapping);
+        try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return new FollowingEngineFactory();
@@ -440,8 +440,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
                      new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
                 .build();
-        IndexMetaData indexMetaData = buildIndexMetaData(replicas, settings, indexMapping);
-        return new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(replicas, settings, indexMapping);
+        return new ReplicationGroup(indexMetadata) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return new FollowingEngineFactory();
@@ -464,7 +464,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             Lucene.cleanLuceneIndex(primary.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
                                 Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
-                                for (StoreFileMetaData md : sourceSnapshot) {
+                                for (StoreFileMetadata md : sourceSnapshot) {
                                     primary.store().directory().copyFrom(
                                         leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }

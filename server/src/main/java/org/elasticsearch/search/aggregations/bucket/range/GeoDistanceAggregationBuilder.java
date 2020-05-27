@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -215,6 +216,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         }
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoDistanceRangeAggregatorFactory.registerAggregators(builder);
+    }
+
     private GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
     private DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -256,8 +261,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         this(name, null, InternalGeoDistance.FACTORY);
     }
 
-    protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.origin = clone.origin;
         this.distanceType = clone.distanceType;
         this.unit = clone.unit;
@@ -267,14 +272,12 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably not be BYTES, but we're not failing tests with BYTES, so needs more tests?
-        // TODO: this should set defaultValuesSourceType to GEOPOINT
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.GEOPOINT;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     GeoDistanceAggregationBuilder origin(GeoPoint origin) {
@@ -433,7 +436,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
         return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, distanceType, keyed, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+                subFactoriesBuilder, metadata);
     }
 
     @Override

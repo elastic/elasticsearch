@@ -62,7 +62,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     ex -> true);
                 request.getObjectsToInfer().forEach(stringObjectMap ->
                     typedChainTaskExecutor.add(chainedTask ->
-                        model.infer(stringObjectMap, request.getConfig(), chainedTask)));
+                        model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
                     inferenceResultsInterfaces ->
@@ -73,7 +73,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             listener::onFailure
         );
 
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             responseBuilder.setLicensed(true);
             this.modelLoadingService.getModel(request.getModelId(), getModelListener);
         } else {

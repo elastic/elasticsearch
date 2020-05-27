@@ -121,6 +121,11 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
             }
 
             @Override
+            public void validateHasParent(String type, String name) {
+                addValidationError(type + " aggregation [" + name + "] must be declared inside of another aggregation");
+            }
+
+            @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
                 addValidationError(type + " aggregation [" + name
                         + "] must have a histogram, date_histogram or auto_date_histogram as parent but doesn't have a parent");
@@ -143,6 +148,11 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
             @Override
             public Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations() {
                 return parent.getPipelineAggregations();
+            }
+
+            @Override
+            public void validateHasParent(String type, String name) {
+                // There is a parent inside the tree.
             }
 
             @Override
@@ -196,6 +206,11 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
         }
 
         /**
+         * Validates that there <strong>is</strong> a parent aggregation.
+         */
+        public abstract void validateHasParent(String type, String name);
+
+        /**
          * Validates that the parent is sequentially ordered.
          */
         public abstract void validateParentAggSequentiallyOrdered(String type, String name);
@@ -219,7 +234,7 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
 
     /** Associate metadata with this {@link PipelineAggregationBuilder}. */
     @Override
-    public abstract PipelineAggregationBuilder setMetaData(Map<String, Object> metaData);
+    public abstract PipelineAggregationBuilder setMetadata(Map<String, Object> metadata);
 
     @Override
     public PipelineAggregationBuilder subAggregations(Builder subFactories) {

@@ -27,9 +27,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -45,12 +45,12 @@ import java.io.IOException;
 public class TransportPutComponentTemplateAction
     extends TransportMasterNodeAction<PutComponentTemplateAction.Request, AcknowledgedResponse> {
 
-    private final MetaDataIndexTemplateService indexTemplateService;
+    private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
     public TransportPutComponentTemplateAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
+                                               ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                IndexScopedSettings indexScopedSettings) {
         super(PutComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
@@ -82,7 +82,7 @@ public class TransportPutComponentTemplateAction
         Template template = componentTemplate.template();
         // Normalize the index settings if necessary
         if (template.settings() != null) {
-            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             Settings settings = builder.build();
             indexScopedSettings.validate(settings, true);
             template = new Template(settings, template.mappings(), template.aliases());

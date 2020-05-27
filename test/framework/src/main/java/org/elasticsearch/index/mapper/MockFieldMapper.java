@@ -24,7 +24,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -33,7 +33,7 @@ import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
-    static Settings dummySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+    static Settings dummySettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
 
     public MockFieldMapper(String fullName) {
         this(fullName, new FakeFieldType());
@@ -88,6 +88,11 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List list) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 }

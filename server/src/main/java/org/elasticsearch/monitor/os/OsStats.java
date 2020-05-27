@@ -19,6 +19,8 @@
 
 package org.elasticsearch.monitor.os;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -224,6 +226,8 @@ public class OsStats implements Writeable, ToXContentFragment {
 
     public static class Mem implements Writeable, ToXContentFragment {
 
+        private static final Logger logger = LogManager.getLogger(Mem.class);
+
         private final long total;
         private final long free;
 
@@ -252,6 +256,16 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getUsed() {
+            if (total == 0) {
+                // The work in https://github.com/elastic/elasticsearch/pull/42725 established that total memory
+                // can be reported as negative in some cases. In those cases, we force it to zero in which case
+                // we can no longer correctly report the used memory as (total-free) and should report it as zero.
+                //
+                // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
+                // cases where (free > total) which would be a different bug.
+                logger.warn("cannot compute used memory when total memory is 0 and free memory is " + free);
+                return new ByteSizeValue(0);
+            }
             return new ByteSizeValue(total - free);
         }
 

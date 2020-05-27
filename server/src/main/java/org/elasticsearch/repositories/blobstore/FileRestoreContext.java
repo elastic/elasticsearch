@@ -29,7 +29,7 @@ import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -95,22 +95,22 @@ public abstract class FileRestoreContext {
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
             }
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
-            final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
+            final Map<String, StoreFileMetadata> snapshotMetadata = new HashMap<>();
             final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new HashMap<>();
             for (final BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
-                snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
+                snapshotMetadata.put(fileInfo.metadata().name(), fileInfo.metadata());
                 fileInfos.put(fileInfo.metadata().name(), fileInfo);
             }
 
-            final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetaData), emptyMap(), 0);
+            final Store.MetadataSnapshot sourceMetadata = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetadata), emptyMap(), 0);
 
-            final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
+            final StoreFileMetadata restoredSegmentsFile = sourceMetadata.getSegmentsFile();
             if (restoredSegmentsFile == null) {
                 throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
             }
 
-            final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
-            for (StoreFileMetaData md : diff.identical) {
+            final Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(recoveryTargetMetadata);
+            for (StoreFileMetadata md : diff.identical) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                 if (logger.isTraceEnabled()) {
@@ -119,7 +119,7 @@ public abstract class FileRestoreContext {
                 }
             }
 
-            for (StoreFileMetaData md : concat(diff)) {
+            for (StoreFileMetadata md : concat(diff)) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 filesToRecover.add(fileInfo);
                 recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), false);
@@ -171,7 +171,7 @@ public abstract class FileRestoreContext {
         }
     }
 
-    private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetaData restoredSegmentsFile) {
+    private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetadata restoredSegmentsFile) {
         // read the snapshot data persisted
         try {
             Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
@@ -207,7 +207,7 @@ public abstract class FileRestoreContext {
                                          ActionListener<Void> listener);
 
     @SuppressWarnings("unchecked")
-    private static Iterable<StoreFileMetaData> concat(Store.RecoveryDiff diff) {
+    private static Iterable<StoreFileMetadata> concat(Store.RecoveryDiff diff) {
         return Iterables.concat(diff.different, diff.missing);
     }
 }

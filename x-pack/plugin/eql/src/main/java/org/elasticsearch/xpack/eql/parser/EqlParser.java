@@ -30,6 +30,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
 public class EqlParser {
 
@@ -41,7 +42,7 @@ public class EqlParser {
      * Parses an EQL statement into execution plan
      */
     public LogicalPlan createStatement(String eql) {
-        return createStatement(eql, new ParserParams());
+        return createStatement(eql, new ParserParams(UTC));
     }
 
     public LogicalPlan createStatement(String eql, ParserParams params) {
@@ -52,7 +53,7 @@ public class EqlParser {
     }
 
     public Expression createExpression(String expression) {
-        return createExpression(expression, new ParserParams());
+        return createExpression(expression, new ParserParams(UTC));
     }
 
     public Expression createExpression(String expression, ParserParams params) {
@@ -134,16 +135,6 @@ public class EqlParser {
         }
 
         @Override
-        public void exitJoin(EqlBaseParser.JoinContext context) {
-            Token token = context.JOIN().getSymbol();
-            throw new ParsingException(
-                "Join is not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
-        @Override
         public void exitPipe(EqlBaseParser.PipeContext context) {
             Token token = context.PIPE().getSymbol();
             throw new ParsingException(
@@ -158,16 +149,6 @@ public class EqlParser {
             Token token = context.relationship;
             throw new ParsingException(
                 "Process relationships are not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
-        }
-
-        @Override
-        public void exitSequence(EqlBaseParser.SequenceContext context) {
-            Token token = context.SEQUENCE().getSymbol();
-            throw new ParsingException(
-                "Sequence is not supported",
                 null,
                 token.getLine(),
                 token.getCharPositionInLine());

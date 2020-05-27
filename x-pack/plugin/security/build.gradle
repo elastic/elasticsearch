@@ -1,7 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
@@ -53,7 +53,7 @@ dependencies {
     compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-    compile 'com.google.guava:guava:19.0'
+    runtimeOnly 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
   compile "com.nimbusds:oauth2-oidc-sdk:7.0.2"
@@ -170,7 +170,7 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 

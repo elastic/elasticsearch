@@ -46,6 +46,8 @@ setup() {
     sameVersion="false"
     if [ "$(cat $BATS_UPGRADE/upgrade_from_version)" == "$(cat version)" ]; then
         sameVersion="true"
+    else
+        echo "BWC test version: $(cat $BATS_UPGRADE/upgrade_from_version)"
     fi
     # TODO: this needs to conditionally change based on version > 6.3.0
     if [ -f $BATS_UPGRADE/upgrade_is_oss ]; then

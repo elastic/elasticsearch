@@ -23,21 +23,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
             B extends InternalMultiBucketAggregation.InternalBucket>
         extends InternalAggregation implements MultiBucketsAggregation {
 
-    public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
+        super(name, metadata);
     }
 
     /**
@@ -145,15 +145,19 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     /**
-     * Amulti-bucket agg needs to first reduce the buckets and *their* pipelines
+     * A multi-bucket agg needs to first reduce the buckets and *their* pipelines
      * before allowing sibling pipelines to materialize.
      */
     @Override
     public final InternalAggregation reducePipelines(
             InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
         assert reduceContext.isFinalReduce();
-        List<B> materializedBuckets = reducePipelineBuckets(reduceContext, pipelineTree);
-        return super.reducePipelines(create(materializedBuckets), reduceContext, pipelineTree);
+        InternalAggregation reduced = this;
+        if (pipelineTree.hasSubTrees()) {
+            List<B> materializedBuckets = reducePipelineBuckets(reduceContext, pipelineTree);
+            reduced = create(materializedBuckets);
+        }
+        return super.reducePipelines(reduced, reduceContext, pipelineTree);
     }
 
     @Override
@@ -171,6 +175,13 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             newBuckets.add(newBucket);
         }
         return modified ? create(newBuckets) : this;
+    }
+
+    @Override
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {
+        for (B bucket : getBuckets()) {
+            consumer.accept((InternalAggregations) bucket.getAggregations());
+        }
     }
 
     private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {

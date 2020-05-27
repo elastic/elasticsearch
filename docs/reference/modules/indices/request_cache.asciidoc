@@ -1,5 +1,5 @@
 [[shard-request-cache]]
-=== Shard request cache
+=== Shard request cache settings
 
 When a search request is run against an index or against many indices, each
 involved shard executes the search locally and returns its local results to

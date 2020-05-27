@@ -250,33 +250,37 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                         "received other request", traceLoggerName, Level.TRACE,
                         "\\[\\d+\\]\\[" + opaqueId + "\\]\\[OPTIONS\\]\\[/internal/testNotSeen\\] received request from \\[.*"));
 
+                final Exception inboundException;
+                if (badRequest) {
+                    inboundException = new RuntimeException();
+                } else {
+                    inboundException = null;
+                }
+
                 final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
                     .withPath("/internal/test")
                     .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withInboundException(inboundException)
                     .build();
 
-                if (badRequest) {
-                    transport.incomingRequestError(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel(),
-                        new RuntimeException());
+                transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+
+                final Exception inboundExceptionExcludedPath;
+                if (randomBoolean()) {
+                    inboundExceptionExcludedPath = new RuntimeException();
                 } else {
-                    transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+                    inboundExceptionExcludedPath = null;
                 }
 
                 final FakeRestRequest fakeRestRequestExcludedPath = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withMethod(RestRequest.Method.OPTIONS)
                     .withPath("/internal/testNotSeen")
                     .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .withInboundException(inboundExceptionExcludedPath)
                     .build();
 
-                if (randomBoolean()) {
-                    transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
-                } else {
-                    transport.incomingRequestError(
-                        fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel(),
-                        new RuntimeException());
-                }
-
+                transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), fakeRestRequestExcludedPath.getHttpChannel());
                 appender.assertAllExpectationsMatched();
             } finally {
                 Loggers.removeAppender(LogManager.getLogger(traceLoggerName), appender);

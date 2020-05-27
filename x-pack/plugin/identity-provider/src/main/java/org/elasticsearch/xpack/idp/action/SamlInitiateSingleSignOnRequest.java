@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.idp.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
@@ -41,15 +40,6 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
         }
         if (Strings.isNullOrEmpty(assertionConsumerService)) {
             validationException = addValidationError("acs is missing", validationException);
-        }
-        if (samlAuthenticationState != null) {
-            final ValidationException authnStateException = samlAuthenticationState.validate();
-            if (authnStateException != null && authnStateException.validationErrors().isEmpty() == false) {
-                if (validationException == null) {
-                    validationException = new ActionRequestValidationException();
-                }
-                validationException.addValidationErrors(authnStateException.validationErrors());
-            }
         }
         return validationException;
     }

@@ -30,6 +30,12 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Set;
 
+/**
+ * @deprecated We are in the process of replacing this class with {@link ValuesSourceType}, so new uses or entries to the enum are
+ * discouraged.  There is currently no migration path for existing uses, notably parsing user value type hints and Composite aggregation,
+ * should continue to use this for now. Most importantly DO NOT ADD NEW PLACES WE SERIALIZE THIS ENUM!
+ */
+@Deprecated
 public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES,
@@ -42,7 +48,6 @@ public enum ValueType implements Writeable {
         new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
                 DateFieldMapper.Resolution.MILLISECONDS)),
     IP((byte) 6, "ip", "ip", CoreValuesSourceType.IP, DocValueFormat.IP),
-    // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),
     GEOPOINT((byte) 8, "geo_point", "geo_point", CoreValuesSourceType.GEOPOINT, DocValueFormat.GEOHASH),
     BOOLEAN((byte) 9, "boolean", "boolean", CoreValuesSourceType.BOOLEAN, DocValueFormat.BOOLEAN),
@@ -108,6 +113,8 @@ public enum ValueType implements Writeable {
             case "string":  return STRING;
             case "double":
             case "float":   return DOUBLE;
+            case "number":
+            case "numeric":
             case "long":
             case "integer":
             case "short":

@@ -19,7 +19,7 @@ applicable to your cluster.
 certificate and enable TLS on the transport layer. You can also optionally
 enable TLS on the HTTP layer. See
 <<tls-transport>> and
-<<tls-http>>. 
+<<tls-http>>.
 
 . Configure the {monitor-features} to use encrypted connections. See <<secure-monitoring>>.
 
@@ -31,7 +31,7 @@ the {kib} server and to connect to {es} via HTTPS. See
 {logstash-ref}/ls-security.html[Configuring security in {ls}].
 
 . Configure Beats to use encrypted connections. For example, see
-{filebeat-ref}/securing-beats.html[Configure {filebeat} to use {security-features}].
+{filebeat-ref}/securing-filebeat.html[Configure {filebeat} to use {security-features}].
 
 . Configure {es} for Apache Hadoop to use secured transport. See
 {hadoop-ref}/security.html[{es} for Apache Hadoop Security].

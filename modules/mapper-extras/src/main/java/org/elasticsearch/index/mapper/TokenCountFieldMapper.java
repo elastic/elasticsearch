@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -33,8 +32,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
@@ -49,7 +48,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, TokenCountFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private NamedAnalyzer analyzer;
         private boolean enablePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
@@ -86,7 +85,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -126,7 +125,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -148,7 +147,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
-        fields.addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, indexed, docValued, stored));
+        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, indexed, docValued, stored));
     }
 
     /**
@@ -202,10 +201,9 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
-        this.enablePositionIncrements = ((TokenCountFieldMapper) mergeWith).enablePositionIncrements;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        this.analyzer = ((TokenCountFieldMapper) other).analyzer;
+        this.enablePositionIncrements = ((TokenCountFieldMapper) other).enablePositionIncrements;
     }
 
     @Override

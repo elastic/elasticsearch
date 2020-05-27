@@ -114,15 +114,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     protected AdjacencyMatrixAggregationBuilder(AdjacencyMatrixAggregationBuilder clone,
-                                                Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                                Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.filters = new ArrayList<>(clone.filters);
         this.separator = clone.separator;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AdjacencyMatrixAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AdjacencyMatrixAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -211,7 +211,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
 
         return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+                subFactoriesBuilder, metadata);
     }
 
     @Override

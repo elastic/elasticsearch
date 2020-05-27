@@ -22,7 +22,6 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -34,10 +33,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -68,7 +66,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, ParentIdFieldMapper> {
+    static class Builder extends FieldMapper.Builder<Builder> {
         private final String parent;
         private final Set<String> children;
 
@@ -117,7 +115,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
         }
 
         @Override
@@ -188,22 +186,20 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (context.externalValueSet() == false) {
             throw new IllegalStateException("external value not set");
         }
         String refId = (String) context.externalValue();
         BytesRef binaryValue = new BytesRef(refId);
         Field field = new Field(fieldType().name(), binaryValue, fieldType());
-        fields.add(field);
-        fields.add(new SortedDocValuesField(fieldType().name(), binaryValue));
+        context.doc().add(field);
+        context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
     }
 
-
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) other;
         this.children = parentMergeWith.children;
     }
 

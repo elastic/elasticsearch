@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.ql.util.DateUtils.SECONDS_PER_MINUTE;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 
-public class DateTrunc extends BinaryDateTimeFunction {
+public class DateTrunc extends BinaryDateTimeDatePartFunction {
 
     public enum Part implements DateTimeField {
 

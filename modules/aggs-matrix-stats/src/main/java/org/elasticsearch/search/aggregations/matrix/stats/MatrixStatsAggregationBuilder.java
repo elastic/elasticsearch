@@ -44,14 +44,14 @@ public class MatrixStatsAggregationBuilder
     }
 
     protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.multiValueMode = clone.multiValueMode;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -80,7 +80,7 @@ public class MatrixStatsAggregationBuilder
                                                         Map<String, ValuesSourceConfig> configs,
                                                         AggregatorFactory parent,
                                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

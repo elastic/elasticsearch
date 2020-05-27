@@ -34,14 +34,14 @@ public class IndexAbstractionTests extends ESTestCase {
 
     public void testHiddenAliasValidation() {
         final String hiddenAliasName = "hidden_alias";
-        AliasMetaData hiddenAliasMetadata = new AliasMetaData.Builder(hiddenAliasName).isHidden(true).build();
+        AliasMetadata hiddenAliasMetadata = new AliasMetadata.Builder(hiddenAliasName).isHidden(true).build();
 
-        IndexMetaData hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true);
-        IndexMetaData hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true);
-        IndexMetaData hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true);
+        IndexMetadata hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true);
+        IndexMetadata hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true);
+        IndexMetadata hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true);
 
-        IndexMetaData indexWithNonHiddenAlias = buildIndexWithAlias("nonhidden1", hiddenAliasName, false);
-        IndexMetaData indexWithUnspecifiedAlias = buildIndexWithAlias("nonhidden2", hiddenAliasName, null);
+        IndexMetadata indexWithNonHiddenAlias = buildIndexWithAlias("nonhidden1", hiddenAliasName, false);
+        IndexMetadata indexWithUnspecifiedAlias = buildIndexWithAlias("nonhidden2", hiddenAliasName, null);
 
         {
             IndexAbstraction.Alias allHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, hidden1);
@@ -104,7 +104,7 @@ public class IndexAbstractionTests extends ESTestCase {
                 mostlyVisibleOneHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, indexWithUnspecifiedAlias);
                 mostlyVisibleOneHidden.addIndex(indexWithNonHiddenAlias);
             }
-            final IndexMetaData hiddenIndex = randomFrom(hidden1, hidden2, hidden3);
+            final IndexMetadata hiddenIndex = randomFrom(hidden1, hidden2, hidden3);
             mostlyVisibleOneHidden.addIndex(hiddenIndex);
             IllegalStateException exception = expectThrows(IllegalStateException.class,
                 () -> mostlyVisibleOneHidden.computeAndValidateAliasProperties());
@@ -116,16 +116,16 @@ public class IndexAbstractionTests extends ESTestCase {
         }
     }
 
-    private IndexMetaData buildIndexWithAlias(String indexName, String aliasName, @Nullable Boolean aliasIsHidden) {
-        final AliasMetaData.Builder aliasMetaData = new AliasMetaData.Builder(aliasName);
+    private IndexMetadata buildIndexWithAlias(String indexName, String aliasName, @Nullable Boolean aliasIsHidden) {
+        final AliasMetadata.Builder aliasMetadata = new AliasMetadata.Builder(aliasName);
         if (Objects.nonNull(aliasIsHidden) || randomBoolean()) {
-            aliasMetaData.isHidden(aliasIsHidden);
+            aliasMetadata.isHidden(aliasIsHidden);
         }
-        return new IndexMetaData.Builder(indexName)
+        return new IndexMetadata.Builder(indexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putAlias(aliasMetaData)
+            .putAlias(aliasMetadata)
             .build();
     }
 

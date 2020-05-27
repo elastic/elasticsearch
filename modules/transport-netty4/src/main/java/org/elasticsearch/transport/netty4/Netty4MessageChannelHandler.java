@@ -31,9 +31,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.OutboundHandler;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -53,7 +57,10 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     Netty4MessageChannelHandler(PageCacheRecycler recycler, Netty4Transport transport) {
         this.transport = transport;
-        this.pipeline = new InboundPipeline(transport.getVersion(), recycler, transport::inboundMessage, transport::inboundDecodeException);
+        final ThreadPool threadPool = transport.getThreadPool();
+        final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
+        this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
+            transport.getInflightBreaker(), requestHandlers::getHandler, transport::inboundMessage);
     }
 
     @Override
@@ -83,9 +90,10 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        assert msg instanceof ByteBuf;
-        final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws IOException {
+        assert msg instanceof OutboundHandler.SendContext;
+        final boolean queued = queuedWrites.offer(
+            new WriteOperation(Netty4Utils.toByteBuf(((OutboundHandler.SendContext) msg).get()), promise));
         assert queued;
     }
 

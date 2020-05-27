@@ -49,11 +49,7 @@ requires enough resources to support both the composite aggregation search and
 the indexing of its results. 
 
 TIP: If the cluster experiences unsuitable performance degradation due to the
-{transform}, stop the {transform}. Consider whether you can apply a
-source query to the {transform} to reduce the scope of data it
-processes. Also consider whether the cluster has sufficient resources in place
-to support both the composite aggregation search and the indexing of its
-results.
+{transform}, stop the {transform} and refer to <<transform-performance>>.
 
 [discrete]
 [[ml-transform-checkpoint-errors]]

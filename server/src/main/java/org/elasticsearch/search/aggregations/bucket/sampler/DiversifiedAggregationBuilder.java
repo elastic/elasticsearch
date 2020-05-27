@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -51,6 +52,10 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
         PARSER.declareString(DiversifiedAggregationBuilder::executionHint, SamplerAggregator.EXECUTION_HINT_FIELD);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        DiversifiedAggregatorFactory.registerAggregators(builder);
+    }
+
     private int shardSize = SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE;
     private int maxDocsPerValue = MAX_DOCS_PER_VALUE_DEFAULT;
     private String executionHint = null;
@@ -59,8 +64,8 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
         super(name);
     }
 
-    protected DiversifiedAggregationBuilder(DiversifiedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected DiversifiedAggregationBuilder(DiversifiedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.shardSize = clone.shardSize;
         this.maxDocsPerValue = clone.maxDocsPerValue;
         this.executionHint = clone.executionHint;
@@ -72,8 +77,8 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new DiversifiedAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new DiversifiedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -157,7 +162,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
         return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+                subFactoriesBuilder, metadata);
     }
 
     @Override

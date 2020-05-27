@@ -51,7 +51,7 @@ Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://[[http|https]://]*[host[:port]]*/[prefix]*<[?[option=value]&]*
+jdbc:es://[[http|https]://]?[host[:port]]?/[prefix]?[\?[option=value]&]*
 ----
 `jdbc:es://`:: Prefix. Mandatory.
 
@@ -72,7 +72,7 @@ The driver recognized the following properties:
 [[jdbc-cfg]]
 [float]
 ===== Essential
-
+[[jdbc-cfg-timezone]]
 `timezone` (default JVM timezone)::
 Timezone used by the driver _per connection_ indicated by its `ID`. 
 *Highly* recommended to set it (to, say, `UTC`) as the JVM timezone can vary, is global for the entire JVM and can't be changed easily when running under a security manager.

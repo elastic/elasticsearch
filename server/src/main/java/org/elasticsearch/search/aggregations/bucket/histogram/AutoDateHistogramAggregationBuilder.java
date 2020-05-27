@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -71,6 +72,10 @@ public class AutoDateHistogramAggregationBuilder
         entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
         entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        AutoDateHistogramAggregatorFactory.registerAggregators(builder);
+    }
 
     /**
      *
@@ -133,21 +138,20 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
-            Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+            Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.numBuckets = clone.numBuckets;
         this.minimumIntervalExpression = clone.minimumIntervalExpression;
     }
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably be DATE, but we're not failing tests with BYTES, so needs more tests?
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.DATE;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -203,7 +207,7 @@ public class AutoDateHistogramAggregationBuilder
         }
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, queryShardContext, parent,
             subFactoriesBuilder,
-            metaData);
+            metadata);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {
@@ -304,6 +308,11 @@ public class AutoDateHistogramAggregationBuilder
                 && Objects.deepEquals(innerIntervals, other.innerIntervals)
                 && Objects.equals(dateTimeUnit, other.dateTimeUnit)
                 ;
+        }
+
+        @Override
+        public String toString() {
+            return "RoundingInfo[" + rounding + " " + Arrays.toString(innerIntervals) + "]";
         }
     }
 }

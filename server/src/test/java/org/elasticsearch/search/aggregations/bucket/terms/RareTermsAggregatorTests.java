@@ -38,7 +38,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -69,7 +69,6 @@ import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -239,15 +238,13 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
 
-        // Note: the search and reduce test will generate no segments (due to no docs)
-        // and so will return a null agg because the aggs aren't run/reduced
         testSearchAndReduceCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
-            Assert::assertNull, ValueType.NUMERIC
+            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.NUMERIC
         );
         testSearchAndReduceCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
-            Assert::assertNull, ValueType.STRING
+            agg -> assertEquals(0, agg.getBuckets().size()), ValueType.STRING
         );
     }
 
@@ -279,7 +276,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
                         aggregator.postCollection();
-                        RareTerms result = (RareTerms) aggregator.buildAggregation(0L);
+                        RareTerms result = (RareTerms) aggregator.buildTopLevel();
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
                     }
@@ -434,7 +431,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                 fieldType.setHasDocValues(true);
                 fieldType.setName("nested_value");
-                try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     InternalNested result = searchAndReduce(newIndexSearcher(indexReader),
                         // match root document only
                         new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
@@ -473,7 +470,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
                     fieldType.setHasDocValues(true);
                     fieldType.setName("nested_value");
-                    try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                    try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
 
                         if (withScore) {
 
@@ -552,7 +549,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         Settings nodeSettings = Settings.builder()
             .put("search.max_buckets", 100000).build();
         return new IndexSettings(
-            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            IndexMetadata.builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(System.currentTimeMillis())

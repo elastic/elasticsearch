@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.process;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -59,7 +58,7 @@ public class ProcessResultsParserTests extends ESTestCase {
     public void testParseResults() throws IOException {
         String input = "[{\"field_1\": \"a\", \"field_2\": 1.0}, {\"field_1\": \"b\", \"field_2\": 2.0},"
                 + " {\"field_1\": \"c\", \"field_2\": 3.0}]";
-        try (InputStream inputStream = new ByteArrayInputStream(input.getBytes(Charsets.UTF_8))) {
+        try (InputStream inputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
 
             ProcessResultsParser<TestResult> parser = new ProcessResultsParser<>(TestResult.PARSER, NamedXContentRegistry.EMPTY);
             Iterator<TestResult> testResultIterator = parser.parseResults(inputStream);

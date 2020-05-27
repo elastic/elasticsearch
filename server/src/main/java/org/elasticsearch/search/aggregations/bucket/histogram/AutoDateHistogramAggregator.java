@@ -37,42 +37,43 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
- * An aggregator for date values. Every date is rounded down using a configured
- * {@link Rounding}.
- *
- * @see Rounding
+ * An aggregator for date values that attempts to return a specific number of
+ * buckets, reconfiguring how it rounds dates to buckets on the fly as new
+ * data arrives. 
  */
 class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
     private final RoundingInfo[] roundingInfos;
+    private final Function<Rounding, Rounding.Prepared> roundingPreparer;
     private int roundingIdx = 0;
+    private Rounding.Prepared preparedRounding;
 
     private LongHash bucketOrds;
     private int targetBuckets;
     private MergingBucketsDeferringCollector deferringCollector;
 
     AutoDateHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, RoundingInfo[] roundingInfos,
-            @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        Function<Rounding, Rounding.Prepared> roundingPreparer, @Nullable ValuesSource valuesSource, DocValueFormat formatter,
+        SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = numBuckets;
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.formatter = formatter;
         this.roundingInfos = roundingInfos;
+        this.roundingPreparer = roundingPreparer;
+        preparedRounding = roundingPreparer.apply(roundingInfos[roundingIdx].rounding);
 
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
 
@@ -114,7 +115,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     long previousRounded = Long.MIN_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
-                        long rounded = roundingInfos[roundingIdx].rounding.round(value);
+                        long rounded = preparedRounding.round(value);
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
@@ -139,10 +140,10 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 try (LongHash oldBucketOrds = bucketOrds) {
                     LongHash newBucketOrds = new LongHash(1, context.bigArrays());
                     long[] mergeMap = new long[(int) oldBucketOrds.size()];
-                    Rounding newRounding = roundingInfos[++roundingIdx].rounding;
+                    preparedRounding = roundingPreparer.apply(roundingInfos[++roundingIdx].rounding);
                     for (int i = 0; i < oldBucketOrds.size(); i++) {
                         long oldKey = oldBucketOrds.get(i);
-                        long newKey = newRounding.round(oldKey);
+                        long newKey = preparedRounding.round(oldKey);
                         long newBucketOrd = newBucketOrds.add(newKey);
                         if (newBucketOrd >= 0) {
                             mergeMap[i] = newBucketOrd;
@@ -161,40 +162,28 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
+                (bucketValue, docCount, subAggregationResults) ->
+                    new InternalAutoDateHistogram.Bucket(bucketValue, docCount, formatter, subAggregationResults),
+                buckets -> {
+                    // the contract of the histogram aggregation is that shards must return
+                    // buckets ordered by key in ascending order
+                    CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-        long[] bucketOrdArray = new long[(int) bucketOrds.size()];
-        for (int i = 0; i < bucketOrds.size(); i++) {
-            bucketOrdArray[i] = i;
-        }
+                    // value source will be null for unmapped fields
+                    InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos,
+                            roundingIdx, buildEmptySubAggregations());
 
-        runDeferredCollections(bucketOrdArray);
-
-        List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            buckets.add(new InternalAutoDateHistogram.Bucket(bucketOrds.get(i), bucketDocCount(i), formatter, bucketAggregations(i)));
-        }
-
-        // the contract of the histogram aggregation is that shards must return
-        // buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-        // value source will be null for unmapped fields
-        InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
-                buildEmptySubAggregations());
-
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo,
-            formatter, pipelineAggregators(), metaData(), 1);
+                    return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, metadata(), 1);
+                });
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
                 buildEmptySubAggregations());
-        return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, emptyBucketInfo, formatter,
-                pipelineAggregators(), metaData(), 1);
+        return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, emptyBucketInfo, formatter, metadata(), 1);
     }
 
     @Override

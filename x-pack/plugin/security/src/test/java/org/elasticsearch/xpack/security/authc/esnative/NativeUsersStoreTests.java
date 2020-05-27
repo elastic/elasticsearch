@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -51,6 +52,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -85,8 +87,8 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testPasswordUpsertWhenSetEnabledOnReservedUser() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         nativeUsersStore.setEnabled(user, true, WriteRequest.RefreshPolicy.IMMEDIATE, future);
@@ -104,8 +106,8 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testBlankPasswordInIndexImpliesDefaultPassword() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-            BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         final Map<String, Object> values = new HashMap<>();
         values.put(ENABLED_FIELD, Boolean.TRUE);
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
@@ -153,6 +155,21 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     public void testVerifyUserWithIncorrectPassword() throws Exception {
+        final NativeUsersStore nativeUsersStore = startNativeUsersStore();
+        final String username = randomAlphaOfLengthBetween(4, 12);
+        final SecureString password = new SecureString(randomAlphaOfLengthBetween(12, 16).toCharArray());
+        final List<String> roles = randomList(1, 4, () -> randomAlphaOfLength(12));
+        roles.add(randomIntBetween(0, roles.size()), roles.get(0));
+
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        nativeUsersStore.verifyPassword(username, password, future);
+        respondToGetUserRequest(username, password, roles.toArray(new String[0]));
+
+        final AuthenticationResult result = future.get();
+        assertThat(result.getUser().roles(), arrayContainingInAnyOrder(roles.stream().distinct().toArray()));
+    }
+
+    public void testDeduplicateUserRoles() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
         final String username = randomAlphaOfLengthBetween(4, 12);
         final SecureString correctPassword = new SecureString(randomAlphaOfLengthBetween(12, 16).toCharArray());

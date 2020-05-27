@@ -175,6 +175,78 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("E(){r}#"));
     }
 
+    public void testLocalExecWithCount() {
+        PhysicalPlan p = plan("SELECT COUNT(10), COUNT(DISTINCT 20)" + randomOrderByAndLimit(2));
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(10){r}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("COUNT(DISTINCT 20){r}#"));
+    }
+
+    public void testLocalExecWithCountAndWhereFalseFilter() {
+        PhysicalPlan p = plan("SELECT COUNT(10), COUNT(DISTINCT 20) WHERE 1 = 2" + randomOrderByAndLimit(2));
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(10){r}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("COUNT(DISTINCT 20){r}#"));
+    }
+
+    public void testLocalExecWithCountAndWhereTrueFilter() {
+        PhysicalPlan p = plan("SELECT COUNT(10), COUNT(DISTINCT 20) WHERE 1 = 1" + randomOrderByAndLimit(2));
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(2, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("COUNT(10){r}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("COUNT(DISTINCT 20){r}#"));
+    }
+
+    public void testLocalExecWithAggs() {
+        PhysicalPlan p = plan("SELECT MIN(10), MAX(123), SUM(20), AVG(30)" + randomOrderByAndLimit(4));
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(4, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("MIN(10){r}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("MAX(123){r}#"));
+        assertThat(ee.output().get(2).toString(), startsWith("SUM(20){r}#"));
+        assertThat(ee.output().get(3).toString(), startsWith("AVG(30){r}#"));
+    }
+
+    public void testLocalExecWithAggsAndWhereFalseFilter() {
+        PhysicalPlan p = plan("SELECT MIN(10), MAX(123), SUM(20), AVG(30) WHERE 2 > 3" + randomOrderByAndLimit(4));
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(4, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("MIN(10){r}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("MAX(123){r}#"));
+        assertThat(ee.output().get(2).toString(), startsWith("SUM(20){r}#"));
+        assertThat(ee.output().get(3).toString(), startsWith("AVG(30){r}#"));
+    }
+
+    public void testLocalExecWithAggsAndWhereTrueFilter() {
+        PhysicalPlan p = plan("SELECT MIN(10), MAX(123), SUM(20), AVG(30) WHERE 1 = 1" + randomOrderByAndLimit(4));
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
+        assertEquals(4, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("MIN(10){r}#"));
+        assertThat(ee.output().get(1).toString(), startsWith("MAX(123){r}#"));
+        assertThat(ee.output().get(2).toString(), startsWith("SUM(20){r}#"));
+        assertThat(ee.output().get(3).toString(), startsWith("AVG(30){r}#"));
+    }
+
     public void testFoldingOfIsNull() {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE (keyword IS NOT NULL) IS NULL");
         assertEquals(LocalExec.class, p.getClass());
@@ -430,5 +502,9 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(a, containsString("\"terms\":{\"field\":\"bool\""));
         assertThat(a, containsString("\"terms\":{\"field\":\"keyword\""));
         assertThat(a, containsString("{\"avg\":{\"field\":\"int\"}"));
+    }
+
+    private static String randomOrderByAndLimit(int noOfSelectArgs) {
+        return SqlTestUtils.randomOrderByAndLimit(noOfSelectArgs, random());
     }
 }

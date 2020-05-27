@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -61,22 +61,22 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     public void testMarkFloodStageIndicesReadOnly() {
         AllocationService allocation = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)
                 .put("index.routing.allocation.require._id", "node2")).numberOfShards(1).numberOfReplicas(0))
-            .put(IndexMetaData.builder("test_1").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)
                 .put("index.routing.allocation.require._id", "node1")).numberOfShards(1).numberOfReplicas(0))
-            .put(IndexMetaData.builder("test_2").settings(settings(Version.CURRENT)
+            .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)
                 .put("index.routing.allocation.require._id", "node1")).numberOfShards(1).numberOfReplicas(0))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test"))
-            .addAsNew(metaData.index("test_1"))
-            .addAsNew(metaData.index("test_2"))
+            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.index("test_1"))
+            .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData).routingTable(routingTable)
+                .metadata(metadata).routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build(), allocation);
         AtomicBoolean reroute = new AtomicBoolean(false);
         AtomicReference<Set<String>> indices = new AtomicReference<>();
@@ -112,17 +112,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         monitor.onNewInfo(new ClusterInfo(builder.build(), null, null, null));
         assertTrue(reroute.get());
         assertEquals(new HashSet<>(Arrays.asList("test_1", "test_2")), indices.get());
-        IndexMetaData indexMetaData = IndexMetaData.builder(clusterState.metaData().index("test_2")).settings(Settings.builder()
-            .put(clusterState.metaData()
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2")).settings(Settings.builder()
+            .put(clusterState.metadata()
             .index("test_2").getSettings())
-            .put(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
+            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
 
         // now we mark one index as read-only and assert that we don't mark it as such again
-        final ClusterState anotherFinalClusterState = ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
-            .put(clusterState.metaData().index("test"), false)
-            .put(clusterState.metaData().index("test_1"), false)
-            .put(indexMetaData, true).build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetaData).build()).build();
+        final ClusterState anotherFinalClusterState = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
+            .put(clusterState.metadata().index("test"), false)
+            .put(clusterState.metadata().index("test_1"), false)
+            .put(indexMetadata, true).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build()).build();
         assertTrue(anotherFinalClusterState.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
 
         monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> anotherFinalClusterState,
@@ -239,17 +239,17 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
         AllocationService allocation = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-            .put(IndexMetaData.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_2").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test_1"))
-            .addAsNew(metaData.index("test_2"))
+            .addAsNew(metadata.index("test_1"))
+            .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
             ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData).routingTable(routingTable)
+                .metadata(metadata).routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build(), allocation);
         assertThat(clusterState.getRoutingTable().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(8));
 
@@ -280,14 +280,14 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNull(indicesToRelease.get());
 
         // Change cluster state so that "test_2" index is blocked (read only)
-        IndexMetaData indexMetaData = IndexMetaData.builder(clusterState.metaData().index("test_2")).settings(Settings.builder()
-            .put(clusterState.metaData()
+        IndexMetadata indexMetadata = IndexMetadata.builder(clusterState.metadata().index("test_2")).settings(Settings.builder()
+            .put(clusterState.metadata()
                 .index("test_2").getSettings())
-            .put(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
+            .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)).build();
 
-        ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState).metaData(MetaData.builder(clusterState.metaData())
-            .put(indexMetaData, true).build())
-            .blocks(ClusterBlocks.builder().addBlocks(indexMetaData).build()).build();
+        ClusterState clusterStateWithBlocks = ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata())
+            .put(indexMetadata, true).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build()).build();
 
         assertTrue(clusterStateWithBlocks.blocks().indexBlocked(ClusterBlockLevel.WRITE, "test_2"));
         monitor = new DiskThresholdMonitor(Settings.EMPTY, () -> clusterStateWithBlocks,

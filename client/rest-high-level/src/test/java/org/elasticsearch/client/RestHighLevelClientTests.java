@@ -75,6 +75,8 @@ import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
+import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
@@ -699,7 +701,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(62, namedXContents.size());
+        assertEquals(64, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -709,7 +711,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 13, categories.size());
+        assertEquals("Had: " + categories, 14, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -783,6 +785,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals(Integer.valueOf(3),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
         assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME));
+        assertEquals(Integer.valueOf(2),
+            categories.get(org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig.class));
+        assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
     }
 
     public void testApiNamingConventions() throws Exception {
@@ -797,14 +802,10 @@ public class RestHighLevelClientTests extends ESTestCase {
             "reindex.get",
             "render_search_template",
             "scripts_painless_execute",
-            "cluster.put_component_template",
-            "cluster.get_component_template",
-            "cluster.delete_component_template",
             "indices.create_data_stream",
-            "indices.get_data_streams",
+            "indices.get_data_stream",
             "indices.delete_data_stream",
-            "indices.put_index_template",
-            "indices.delete_index_template"
+            "indices.simulate_template"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -813,6 +814,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.reroute",
             "cluster.state",
             "cluster.stats",
+            "cluster.post_voting_config_exclusions",
+            "cluster.delete_voting_config_exclusions",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",

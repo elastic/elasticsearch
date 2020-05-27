@@ -6,6 +6,11 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
+import org.elasticsearch.xpack.eql.plan.logical.Join;
+import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
@@ -14,18 +19,20 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanEqualsSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 
 import java.util.Arrays;
@@ -38,11 +45,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
+        Batch substitutions = new Batch("Operator Replacement", Limiter.ONCE,
+                new ReplaceSurrogateFunction());
+                
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
+                new BooleanEqualsSimplification(),
                 // needs to occur before BinaryComparison combinations
                 new ReplaceWildcards(),
                 new ReplaceNullChecks(),
@@ -53,12 +64,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneLiteralsInOrderBy()
                 );
 
+        Batch local = new Batch("Skip Elasticsearch",
+                new SkipEmptyFilter(),
+                new SkipEmptyJoin());
+
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(operators, label);
+        return Arrays.asList(substitutions, operators, local, label);
     }
-
 
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
@@ -70,18 +84,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return false;
         }
 
-        private static LikePattern toLikePattern(String s) {
-            // pick a character that is guaranteed not to be in the string, because it isn't allowed to escape itself
-            char escape = 1;
-
-            // replace wildcards with % and escape special characters
-            String likeString = s.replace("%", escape + "%")
-                .replace("_", escape + "_")
-                .replace("*", "%");
-
-            return new LikePattern(likeString, escape);
-        }
-
         @Override
         protected LogicalPlan rule(Filter filter) {
             return filter.transformExpressionsUp(e -> {
@@ -91,7 +93,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                     if (isWildcard(cmp.right())) {
                         String wcString = cmp.right().fold().toString();
-                        Expression like = new Like(e.source(), cmp.left(), toLikePattern(wcString));
+                        Expression like = new Like(e.source(), cmp.left(), StringUtils.toLikePattern(wcString));
 
                         if (e instanceof NotEquals) {
                             like = new Not(e.source(), like);
@@ -127,6 +129,43 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 return e;
             });
+        }
+    }
+
+    static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {
+
+        @Override
+        protected LogicalPlan nonMatchingFilter(Filter filter) {
+            return new LocalRelation(filter.source(), filter.output());
+        }
+    }
+
+    static class SkipEmptyFilter extends OptimizerRule<UnaryPlan> {
+
+        SkipEmptyFilter() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if ((plan instanceof KeyedFilter) == false && plan.child() instanceof LocalRelation) {
+                return new LocalRelation(plan.source(), plan.output(), Results.Type.SEARCH_HIT);
+            }
+            return plan;
+        }
+    }
+    
+    static class SkipEmptyJoin extends OptimizerRule<Join> {
+
+        @Override
+        protected LogicalPlan rule(Join plan) {
+            // check for empty filters
+            for (KeyedFilter filter : plan.queries()) {
+                if (filter.child() instanceof LocalRelation) {
+                    return new LocalRelation(plan.source(), plan.output(), Results.Type.SEQUENCE);
+                }
+            }
+            return plan;
         }
     }
 }

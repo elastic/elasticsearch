@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,8 +43,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     private final double sigma;
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-                                 DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
+                                 DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, count, sum, min, max, formatter, metadata);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
     }
@@ -160,7 +159,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
         final InternalStats stats = super.reduce(aggregations, reduceContext);
         return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-            format, pipelineAggregators(), getMetaData());
+            format, getMetadata());
     }
 
     static class Fields {

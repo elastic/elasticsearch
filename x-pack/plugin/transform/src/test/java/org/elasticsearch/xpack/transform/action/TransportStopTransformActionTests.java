@@ -11,8 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -31,30 +31,30 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransportStopTransformActionTests extends ESTestCase {
 
-    private MetaData.Builder buildMetadata(PersistentTasksCustomMetaData ptasks) {
-        return MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, ptasks);
+    private Metadata.Builder buildMetadata(PersistentTasksCustomMetadata ptasks) {
+        return Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, ptasks);
     }
 
     public void testTaskStateValidationWithNoTasks() {
-        MetaData.Builder metaData = MetaData.builder();
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metaData(metaData);
+        Metadata.Builder metadata = Metadata.builder();
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(metadata);
         TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
 
-        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder();
-        csBuilder = ClusterState.builder(new ClusterName("_name")).metaData(buildMetadata(pTasksBuilder.build()));
+        PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder();
+        csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
     }
 
     public void testTaskStateValidationWithTransformTasks() {
         // Test with the task state being null
-        PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
+        PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder()
             .addTask(
                 "non-failed-task",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", Version.CURRENT, null, false),
-                new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", "")
+                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
             );
-        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metaData(buildMetadata(pTasksBuilder.build()));
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
         TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
 
@@ -63,7 +63,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
             "non-failed-task",
             new TransformState(TransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null, null)
         );
-        csBuilder = ClusterState.builder(new ClusterName("_name")).metaData(buildMetadata(pTasksBuilder.build()));
+        csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
         TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
 
@@ -71,19 +71,19 @@ public class TransportStopTransformActionTests extends ESTestCase {
             "failed-task",
             TransformTaskParams.NAME,
             new TransformTaskParams("transform-task-1", Version.CURRENT, null, false),
-            new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", "")
+            new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
         )
             .updateTaskState(
                 "failed-task",
                 new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0L, "task has failed", null)
             );
-        csBuilder = ClusterState.builder(new ClusterName("_name")).metaData(buildMetadata(pTasksBuilder.build()));
+        csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
         TransportStopTransformAction.validateTaskState(csBuilder.build(), Arrays.asList("non-failed-task", "failed-task"), true);
 
         TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
 
-        ClusterState.Builder csBuilderFinal = ClusterState.builder(new ClusterName("_name")).metaData(buildMetadata(pTasksBuilder.build()));
+        ClusterState.Builder csBuilderFinal = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
             () -> TransportStopTransformAction.validateTaskState(csBuilderFinal.build(), Collections.singletonList("failed-task"), false)

@@ -23,12 +23,12 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -47,7 +47,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetaData;
+import org.elasticsearch.test.TestCustomMetadata;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -61,7 +61,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -119,7 +119,7 @@ public class ClusterStateTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API)));
+        clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
         builder.endObject();
 
         assertEquals("{\n" +
@@ -297,7 +297,7 @@ public class ClusterStateTests extends ESTestCase {
         Map<String, String> mapParams = new HashMap<>(){{
             put("flat_settings", "true");
             put("reduce_mappings", "false");
-            put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API);
+            put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
         }};
 
         final ClusterState clusterState = buildClusterState();
@@ -478,7 +478,7 @@ public class ClusterStateTests extends ESTestCase {
         Map<String, String> mapParams = new HashMap<>(){{
             put("flat_settings", "false");
             put("reduce_mappings", "true");
-            put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_API);
+            put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
         }};
 
         final ClusterState clusterState = buildClusterState();
@@ -665,15 +665,15 @@ public class ClusterStateTests extends ESTestCase {
     public void testToXContentSameTypeName() throws IOException {
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                                                     .stateUUID("stateUUID")
-                                                    .metaData(MetaData.builder()
+                                                    .metadata(Metadata.builder()
                                                         .clusterUUID("clusterUUID")
-                                                        .coordinationMetaData(CoordinationMetaData.builder()
+                                                        .coordinationMetadata(CoordinationMetadata.builder()
                                                             .build())
-                                                        .put(IndexMetaData.builder("index")
-                                                            .state(IndexMetaData.State.OPEN)
+                                                        .put(IndexMetadata.builder("index")
+                                                            .state(IndexMetadata.State.OPEN)
                                                             .settings(Settings.builder()
                                                                 .put(SETTING_VERSION_CREATED, Version.CURRENT.id))
-                                                            .putMapping(new MappingMetaData("type",
+                                                            .putMapping(new MappingMetadata("type",
                                                                 // the type name is the root value,
                                                                 // the original logic in ClusterState.toXContent will reduce
                                                                 new HashMap<>(){{
@@ -755,17 +755,17 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     private ClusterState buildClusterState() throws IOException {
-        IndexMetaData indexMetaData = IndexMetaData.builder("index")
-            .state(IndexMetaData.State.OPEN)
+        IndexMetadata indexMetadata = IndexMetadata.builder("index")
+            .state(IndexMetadata.State.OPEN)
             .settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED, Version.CURRENT.id))
-            .putMapping(new MappingMetaData("type",
+            .putMapping(new MappingMetadata("type",
                 new HashMap<>() {{
                     put("type1", new HashMap<String, Object>(){{
                         put("key", "value");
                     }});
                 }}))
-            .putAlias(AliasMetaData.builder("alias")
+            .putAlias(AliasMetadata.builder("alias")
                 .indexRouting("indexRouting")
                 .build())
             .numberOfShards(1)
@@ -787,28 +787,28 @@ public class ClusterStateTests extends ESTestCase {
             .blocks(ClusterBlocks.builder()
                 .addGlobalBlock(
                     new ClusterBlock(1, "description", true, true, true, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class))))
-                .addBlocks(indexMetaData)
+                .addBlocks(indexMetadata)
                 .addIndexBlock("index",
                     new ClusterBlock(2, "description2", false, false, false, RestStatus.ACCEPTED, EnumSet.allOf((ClusterBlockLevel.class))))
                 .build())
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .clusterUUID("clusterUUID")
-                .coordinationMetaData(CoordinationMetaData.builder()
+                .coordinationMetadata(CoordinationMetadata.builder()
                     .term(1)
-                    .lastCommittedConfiguration(new CoordinationMetaData.VotingConfiguration(new HashSet<>(){{
+                    .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>(){{
                         add("commitedConfigurationNodeId");
                     }}))
-                    .lastAcceptedConfiguration(new CoordinationMetaData.VotingConfiguration(new HashSet<>(){{
+                    .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>(){{
                         add("acceptedConfigurationNodeId");
                     }}))
-                    .addVotingConfigExclusion(new CoordinationMetaData.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
+                    .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
                     .build())
                 .persistentSettings(Settings.builder()
                     .put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
                 .transientSettings(Settings.builder()
                     .put(SETTING_VERSION_CREATED, Version.CURRENT.id).build())
-                .put(indexMetaData, false)
-                .put(IndexTemplateMetaData.builder("template")
+                .put(indexMetadata, false)
+                .put(IndexTemplateMetadata.builder("template")
                     .patterns(List.of("pattern1", "pattern2"))
                     .order(0)
                     .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT.id))
@@ -825,10 +825,10 @@ public class ClusterStateTests extends ESTestCase {
             .build();
     }
 
-    public static class CustomMetaData extends TestCustomMetaData {
+    public static class CustomMetadata extends TestCustomMetadata {
         public static final String TYPE = "custom_md";
 
-        CustomMetaData(String data) {
+        CustomMetadata(String data) {
             super(data);
         }
 
@@ -843,8 +843,8 @@ public class ClusterStateTests extends ESTestCase {
         }
 
         @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
+        public EnumSet<Metadata.XContentContext> context() {
+            return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
         }
     }
 }

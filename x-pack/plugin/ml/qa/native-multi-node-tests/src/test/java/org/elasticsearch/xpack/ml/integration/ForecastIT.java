@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -401,28 +402,31 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
         openJob(job.getId());
 
-        String forecastId = "failed-forecast";
-
-        ForecastRequestStats runningForecastStats = new ForecastRequestStats(jobId, forecastId);
-        runningForecastStats.setStatus(ForecastRequestStats.ForecastRequestStatus.STARTED);
-
-        IndexRequest runningForecast = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
-            .source(XContentHelper.toXContent(runningForecastStats, XContentType.JSON, false), XContentType.JSON)
-            .id(ForecastRequestStats.documentId(jobId, forecastId));
-        client().index(runningForecast).get();
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
-
-        {
-            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
-            assertNotNull(forecastStats);
-            assertThat(forecastStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.STARTED));
+        long now = Instant.now().getEpochSecond();
+        long timestamp = now - 50 * bucketSpan.seconds();
+        List<String> data = new ArrayList<>();
+        while (timestamp < now) {
+            data.add(createJsonRecord(createRecord(timestamp, 10.0)));
+            data.add(createJsonRecord(createRecord(timestamp, 30.0)));
+            timestamp += bucketSpan.seconds();
         }
 
-        {
-            closeJob(jobId, true);
-            ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
-            assertNotNull(forecastStats);
-            assertThat(forecastStats.getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FAILED));
+        postData(job.getId(), data.stream().collect(Collectors.joining()));
+        flushJob(job.getId(), false);
+
+        String forecastId = forecast(jobId, TimeValue.timeValueDays(1000), TimeValue.ZERO);
+        waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.values());
+
+        closeJob(jobId, true);
+        // On force close job, it should always be at least failed or finished
+        waitForecastStatus(jobId,
+            forecastId,
+            ForecastRequestStats.ForecastRequestStatus.FAILED,
+            ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
+        assertNotNull(forecastStats);
+        if (forecastStats.getStatus().equals(ForecastRequestStats.ForecastRequestStatus.FAILED)) {
+            assertThat(forecastStats.getMessages().get(0), equalTo(JOB_FORECAST_NATIVE_PROCESS_KILLED));
         }
     }
 

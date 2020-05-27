@@ -66,6 +66,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
+        GradleVersion minimumGradleVersion = GradleVersion.version(Util.getResourceContents("/minimumGradleVersion"));
+        if (GradleVersion.current().compareTo(minimumGradleVersion) < 0) {
+            throw new GradleException("Gradle " + minimumGradleVersion.getVersion() + "+ is required");
+        }
 
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumRuntimeVersion"));

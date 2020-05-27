@@ -157,6 +157,7 @@ plugins:
   repositories
 --
 
+[[put-snapshot-repo-api-settings-param]]
 `settings`::
 +
 --

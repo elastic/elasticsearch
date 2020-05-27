@@ -262,7 +262,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testSuccessfullyParseContentFromEncryptedAttribute() throws Exception {
-        final CryptoTransform signer = randomBoolean() ? this::signResponse : this::signResponse;
+        final CryptoTransform signer = randomBoolean() ? this::signResponse : this::signAssertions;
         final Instant now = clock.instant();
         String xml = getSimpleResponseAsString(now);
         /**

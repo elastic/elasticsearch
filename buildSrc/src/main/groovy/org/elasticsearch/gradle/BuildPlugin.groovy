@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle
 
-
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
@@ -44,7 +43,6 @@ import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.testing.Test
-import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
@@ -87,7 +85,6 @@ class BuildPlugin implements Plugin<Project> {
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
 
-        configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         PrecommitTasks.create(project, true)
         configureFips140(project)
@@ -136,123 +133,6 @@ class BuildPlugin implements Plugin<Project> {
 
         }
     }
-
-    /**
-     * Makes dependencies non-transitive.
-     *
-     * Gradle allows setting all dependencies as non-transitive very easily.
-     * Sadly this mechanism does not translate into maven pom generation. In order
-     * to effectively make the pom act as if it has no transitive dependencies,
-     * we must exclude each transitive dependency of each direct dependency.
-     *
-     * Determining the transitive deps of a dependency which has been resolved as
-     * non-transitive is difficult because the process of resolving removes the
-     * transitive deps. To sidestep this issue, we create a configuration per
-     * direct dependency version. This specially named and unique configuration
-     * will contain all of the transitive dependencies of this particular
-     * dependency. We can then use this configuration during pom generation
-     * to iterate the transitive dependencies and add excludes.
-     */
-    static void configureConfigurations(Project project) {
-        // we want to test compileOnly deps!
-        project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).extendsFrom(project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME))
-
-        // we are not shipping these jars, we act like dumb consumers of these things
-        if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
-            return
-        }
-        // fail on any conflicting dependency versions
-        project.configurations.all({ Configuration configuration ->
-            if (configuration.name.endsWith('Fixture')) {
-                // just a self contained test-fixture configuration, likely transitive and hellacious
-                return
-            }
-            configuration.resolutionStrategy {
-                failOnVersionConflict()
-            }
-        })
-
-        // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        Closure disableTransitiveDeps = { Dependency dep ->
-            if (dep instanceof ModuleDependency && !(dep instanceof ProjectDependency)
-                    && dep.group.startsWith('org.elasticsearch') == false) {
-                dep.transitive = false
-            }
-        }
-
-        project.configurations.getByName(JavaPlugin.COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-        project.configurations.getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-        project.configurations.getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-        project.configurations.getByName(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).dependencies.all(disableTransitiveDeps)
-    }
-
-    /** Adds repositories used by ES dependencies */
-    static void configureRepositories(Project project) {
-        project.getRepositories().all { repository ->
-            if (repository instanceof MavenArtifactRepository) {
-                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
-                assertRepositoryURIIsSecure(maven.name, project.path, maven.getUrl())
-                repository.getArtifactUrls().each { uri -> assertRepositoryURIIsSecure(maven.name, project.path, uri) }
-            } else if (repository instanceof IvyArtifactRepository) {
-                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
-                assertRepositoryURIIsSecure(ivy.name, project.path, ivy.getUrl())
-            }
-        }
-        RepositoryHandler repos = project.repositories
-        if (System.getProperty('repos.mavenLocal') != null) {
-            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
-            // useful for development ie. bwc tests where we install stuff in the local repository
-            // such that we don't have to pass hardcoded files to gradle
-            repos.mavenLocal()
-        }
-        repos.jcenter()
-        repos.ivy { IvyArtifactRepository repo ->
-            repo.name = 'elasticsearch'
-            repo.url = 'https://artifacts.elastic.co/downloads'
-            repo.patternLayout { IvyPatternRepositoryLayout layout ->
-                layout.artifact 'elasticsearch/[module]-[revision](-[classifier]).[ext]'
-            }
-            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            repo.credentials(HttpHeaderCredentials, { HttpHeaderCredentials creds ->
-                creds.name = 'X-Elastic-No-KPI'
-                creds.value = '1'
-            } as Action<HttpHeaderCredentials>)
-            repo.authentication.create('header', HttpHeaderAuthentication)
-        }
-        repos.maven { MavenArtifactRepository repo ->
-            repo.name = 'elastic'
-            repo.url = 'https://artifacts.elastic.co/maven'
-        }
-        String luceneVersion = VersionProperties.lucene
-        if (luceneVersion.contains('-snapshot')) {
-            // extract the revision number from the version with a regex matcher
-            List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
-            String revision = matches.get(1)
-            MavenArtifactRepository luceneRepo = repos.maven { MavenArtifactRepository repo ->
-                repo.name = 'lucene-snapshots'
-                repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
-            }
-            repos.exclusiveContent { ExclusiveContentRepository exclusiveRepo ->
-                exclusiveRepo.filter {
-                    it.includeVersionByRegex(/org\.apache\.lucene/, '.*', ".*-snapshot-${revision}")
-                }
-                exclusiveRepo.forRepositories(luceneRepo)
-            }
-        }
-    }
-
-    static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && ["file", "https", "s3"].contains(uri.getScheme()) == false) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
-                    repositoryName,
-                    projectPath,
-                    uri.toURL())
-            throw new GradleException(message)
-        }
-    }
-
 
     private static class TestFailureReportingPlugin implements Plugin<Project> {
         @Override

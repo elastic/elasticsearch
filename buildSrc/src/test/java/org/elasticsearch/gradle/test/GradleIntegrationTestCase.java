@@ -18,6 +18,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.containsString;
+
 public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     @Rule
@@ -71,7 +73,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
     }
 
     protected void assertOutputContains(String output, String line) {
-        assertTrue("Expected the following line in output:\n\n" + line + "\n\nOutput is:\n" + output, output.contains(line));
+        assertThat("Expected the following line in output:\n\n" + line + "\n\nOutput is:\n" + output, output, containsString(line));
     }
 
     protected void assertOutputDoesNotContain(String output, String line) {

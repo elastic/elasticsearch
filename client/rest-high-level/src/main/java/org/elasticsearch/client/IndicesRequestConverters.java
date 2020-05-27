@@ -137,6 +137,7 @@ final class IndicesRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(putMappingRequest.timeout());
         parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(putMappingRequest.indicesOptions());
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(putMappingRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;

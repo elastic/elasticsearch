@@ -90,6 +90,9 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, between(0, 1));
+            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
             if (randomBoolean()) {
                 settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1");
             }
@@ -105,6 +108,9 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1);
+            if (getOldClusterVersion().onOrAfter(Version.V_6_5_0)) {
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
+            }
             if (randomBoolean()) {
                 settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1");
             }

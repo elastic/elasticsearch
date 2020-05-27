@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,34 +33,34 @@ import static org.elasticsearch.client.indices.GetComponentTemplatesResponseTest
 import static org.elasticsearch.client.indices.GetComponentTemplatesResponseTests.randomTemplate;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetIndexTemplatesV2ResponseTests extends ESTestCase {
+public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
 
     public void testFromXContent() throws Exception {
         xContentTester(
             this::createParser,
-            GetIndexTemplatesV2ResponseTests::createTestInstance,
-            GetIndexTemplatesV2ResponseTests::toXContent,
-            GetIndexTemplatesV2Response::fromXContent)
+            GetComposableIndexTemplatesResponseTests::createTestInstance,
+            GetComposableIndexTemplatesResponseTests::toXContent,
+            GetComposableIndexTemplatesResponse::fromXContent)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(a -> true)
             .test();
     }
 
-    private static GetIndexTemplatesV2Response createTestInstance() {
-        Map<String, IndexTemplateV2> templates = new HashMap<>();
+    private static GetComposableIndexTemplatesResponse createTestInstance() {
+        Map<String, ComposableIndexTemplate> templates = new HashMap<>();
         if (randomBoolean()) {
             int count = randomInt(10);
             for (int i = 0; i < count; i++) {
                 templates.put(randomAlphaOfLength(10), randomIndexTemplate());
             }
         }
-        return new GetIndexTemplatesV2Response(templates);
+        return new GetComposableIndexTemplatesResponse(templates);
     }
 
-    private static void toXContent(GetIndexTemplatesV2Response response, XContentBuilder builder) throws IOException {
+    private static void toXContent(GetComposableIndexTemplatesResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.startArray("index_templates");
-        for (Map.Entry<String, IndexTemplateV2> e : response.getIndexTemplates().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> e : response.getIndexTemplates().entrySet()) {
             builder.startObject();
             builder.field("name", e.getKey());
             builder.field("index_template");
@@ -71,11 +71,11 @@ public class GetIndexTemplatesV2ResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-    private static IndexTemplateV2 randomIndexTemplate() {
+    private static ComposableIndexTemplate randomIndexTemplate() {
         List<String> patterns = Arrays.asList(generateRandomStringArray(10, 10, false, false));
         List<String> composedOf = null;
         Map<String, Object> meta = null;
-        IndexTemplateV2.DataStreamTemplate dataStreamTemplate = null;
+        ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = null;
         if (randomBoolean()) {
             composedOf = Arrays.asList(generateRandomStringArray(10, 10, false, false));
         }
@@ -86,8 +86,8 @@ public class GetIndexTemplatesV2ResponseTests extends ESTestCase {
         Long priority = randomBoolean() ? null : randomNonNegativeLong();
         Long version = randomBoolean() ? null : randomNonNegativeLong();
         if (randomBoolean()) {
-            dataStreamTemplate = new IndexTemplateV2.DataStreamTemplate(randomAlphaOfLength(8));
+            dataStreamTemplate = new ComposableIndexTemplate.DataStreamTemplate(randomAlphaOfLength(8));
         }
-        return new IndexTemplateV2(patterns, randomTemplate(), composedOf, priority, version, meta, dataStreamTemplate);
+        return new ComposableIndexTemplate(patterns, randomTemplate(), composedOf, priority, version, meta, dataStreamTemplate);
     }
 }

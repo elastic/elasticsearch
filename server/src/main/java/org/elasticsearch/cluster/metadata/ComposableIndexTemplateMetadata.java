@@ -38,42 +38,42 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The {@link IndexTemplateV2Metadata} class is a custom {@link Metadata.Custom} implementation that
- * stores a map of ids to {@link IndexTemplateV2} templates.
+ * The {@link ComposableIndexTemplateMetadata} class is a custom {@link Metadata.Custom} implementation that
+ * stores a map of ids to {@link ComposableIndexTemplate} templates.
  */
-public class IndexTemplateV2Metadata implements Metadata.Custom {
+public class ComposableIndexTemplateMetadata implements Metadata.Custom {
     public static final String TYPE = "index_template";
     private static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<IndexTemplateV2Metadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false,
-        a -> new IndexTemplateV2Metadata((Map<String, IndexTemplateV2>) a[0]));
+    private static final ConstructingObjectParser<ComposableIndexTemplateMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE,
+        false, a -> new ComposableIndexTemplateMetadata((Map<String, ComposableIndexTemplate>) a[0]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, IndexTemplateV2> templates = new HashMap<>();
+            Map<String, ComposableIndexTemplate> templates = new HashMap<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 String name = p.currentName();
-                templates.put(name, IndexTemplateV2.parse(p));
+                templates.put(name, ComposableIndexTemplate.parse(p));
             }
             return templates;
         }, INDEX_TEMPLATE);
     }
 
-    private final Map<String, IndexTemplateV2> indexTemplates;
+    private final Map<String, ComposableIndexTemplate> indexTemplates;
 
-    public IndexTemplateV2Metadata(Map<String, IndexTemplateV2> templates) {
+    public ComposableIndexTemplateMetadata(Map<String, ComposableIndexTemplate> templates) {
         this.indexTemplates = templates;
     }
 
-    public IndexTemplateV2Metadata(StreamInput in) throws IOException {
-        this.indexTemplates = in.readMap(StreamInput::readString, IndexTemplateV2::new);
+    public ComposableIndexTemplateMetadata(StreamInput in) throws IOException {
+        this.indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
     }
 
-    public static IndexTemplateV2Metadata fromXContent(XContentParser parser) throws IOException {
+    public static ComposableIndexTemplateMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public Map<String, IndexTemplateV2> indexTemplates() {
+    public Map<String, ComposableIndexTemplate> indexTemplates() {
         return indexTemplates;
     }
 
@@ -84,11 +84,11 @@ public class IndexTemplateV2Metadata implements Metadata.Custom {
 
     @Override
     public Diff<Metadata.Custom> diff(Metadata.Custom before) {
-        return new IndexTemplateV2MetadataDiff((IndexTemplateV2Metadata) before, this);
+        return new ComposableIndexTemplateMetadataDiff((ComposableIndexTemplateMetadata) before, this);
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return new IndexTemplateV2MetadataDiff(in);
+        return new ComposableIndexTemplateMetadataDiff(in);
     }
 
     @Override
@@ -109,7 +109,7 @@ public class IndexTemplateV2Metadata implements Metadata.Custom {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(INDEX_TEMPLATE.getPreferredName());
-        for (Map.Entry<String, IndexTemplateV2> template : indexTemplates.entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> template : indexTemplates.entrySet()) {
             builder.field(template.getKey(), template.getValue());
         }
         builder.endObject();
@@ -129,7 +129,7 @@ public class IndexTemplateV2Metadata implements Metadata.Custom {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        IndexTemplateV2Metadata other = (IndexTemplateV2Metadata) obj;
+        ComposableIndexTemplateMetadata other = (ComposableIndexTemplateMetadata) obj;
         return Objects.equals(this.indexTemplates, other.indexTemplates);
     }
 
@@ -138,23 +138,23 @@ public class IndexTemplateV2Metadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
-    static class IndexTemplateV2MetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class ComposableIndexTemplateMetadataDiff implements NamedDiff<Metadata.Custom> {
 
-        final Diff<Map<String, IndexTemplateV2>> indexTemplateDiff;
+        final Diff<Map<String, ComposableIndexTemplate>> indexTemplateDiff;
 
-        IndexTemplateV2MetadataDiff(IndexTemplateV2Metadata before, IndexTemplateV2Metadata after) {
+        ComposableIndexTemplateMetadataDiff(ComposableIndexTemplateMetadata before, ComposableIndexTemplateMetadata after) {
             this.indexTemplateDiff = DiffableUtils.diff(before.indexTemplates, after.indexTemplates,
                 DiffableUtils.getStringKeySerializer());
         }
 
-        IndexTemplateV2MetadataDiff(StreamInput in) throws IOException {
+        ComposableIndexTemplateMetadataDiff(StreamInput in) throws IOException {
             this.indexTemplateDiff = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                IndexTemplateV2::new, IndexTemplateV2::readITV2DiffFrom);
+                ComposableIndexTemplate::new, ComposableIndexTemplate::readITV2DiffFrom);
         }
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            return new IndexTemplateV2Metadata(indexTemplateDiff.apply(((IndexTemplateV2Metadata) part).indexTemplates));
+            return new ComposableIndexTemplateMetadata(indexTemplateDiff.apply(((ComposableIndexTemplateMetadata) part).indexTemplates));
         }
 
         @Override

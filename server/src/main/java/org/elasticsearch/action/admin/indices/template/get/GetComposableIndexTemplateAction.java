@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,13 +36,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Action.Response> {
+public class GetComposableIndexTemplateAction extends ActionType<GetComposableIndexTemplateAction.Response> {
 
-    public static final GetIndexTemplateV2Action INSTANCE = new GetIndexTemplateV2Action();
+    public static final GetComposableIndexTemplateAction INSTANCE = new GetComposableIndexTemplateAction();
     public static final String NAME = "indices:admin/index_template/get";
 
-    private GetIndexTemplateV2Action() {
-        super(NAME, GetIndexTemplateV2Action.Response::new);
+    private GetComposableIndexTemplateAction() {
+        super(NAME, GetComposableIndexTemplateAction.Response::new);
     }
 
     /**
@@ -113,29 +113,29 @@ public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Actio
         public static final ParseField INDEX_TEMPLATES = new ParseField("index_templates");
         public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
 
-        private final Map<String, IndexTemplateV2> indexTemplates;
+        private final Map<String, ComposableIndexTemplate> indexTemplates;
 
         public Response(StreamInput in) throws IOException {
             super(in);
             int size = in.readVInt();
             indexTemplates = new HashMap<>();
             for (int i = 0 ; i < size ; i++) {
-                indexTemplates.put(in.readString(), new IndexTemplateV2(in));
+                indexTemplates.put(in.readString(), new ComposableIndexTemplate(in));
             }
         }
 
-        public Response(Map<String, IndexTemplateV2> indexTemplates) {
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
             this.indexTemplates = indexTemplates;
         }
 
-        public Map<String, IndexTemplateV2> indexTemplates() {
+        public Map<String, ComposableIndexTemplate> indexTemplates() {
             return indexTemplates;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(indexTemplates.size());
-            for (Map.Entry<String, IndexTemplateV2> indexTemplate : indexTemplates.entrySet()) {
+            for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : indexTemplates.entrySet()) {
                 out.writeString(indexTemplate.getKey());
                 indexTemplate.getValue().writeTo(out);
             }
@@ -145,7 +145,7 @@ public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Actio
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            GetIndexTemplateV2Action.Response that = (GetIndexTemplateV2Action.Response) o;
+            GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
             return Objects.equals(indexTemplates, that.indexTemplates);
         }
 
@@ -158,7 +158,7 @@ public class GetIndexTemplateV2Action extends ActionType<GetIndexTemplateV2Actio
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.startArray(INDEX_TEMPLATES.getPreferredName());
-            for (Map.Entry<String, IndexTemplateV2> indexTemplate : this.indexTemplates.entrySet()) {
+            for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName(), indexTemplate.getValue());

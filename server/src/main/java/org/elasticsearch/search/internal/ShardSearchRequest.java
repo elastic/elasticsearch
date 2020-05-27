@@ -382,13 +382,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     /**
-     * Returns <code>true</code> if the request needs to create a long-lived context.
-     */
-    public boolean shouldCreatePersistentReader() {
-        return scroll != null  || (keepAlive != null && readerId == null);
-    }
-
-    /**
      * Returns a non-null value if this request should execute using a specific point-in-time reader;
      * otherwise, using the most up to date point-in-time reader.
      */

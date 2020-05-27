@@ -623,7 +623,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.
         // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
-        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.shouldCreatePersistentReader() == false);
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasShardResponse.get() && shardRequest.scroll() == null);
         return shardRequest;
     }
 

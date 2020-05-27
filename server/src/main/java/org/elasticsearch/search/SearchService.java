@@ -381,7 +381,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final Releasable releasable = readerContext.markAsUsed();
                 try {
                     if (orig.canReturnNullResponseIfMatchNoDocs()) {
-                        assert orig.shouldCreatePersistentReader() == false;
+                        assert orig.scroll() == null;
                         // we clone the shard request and perform a quick rewrite using a lightweight
                         // searcher since we are outside of the search thread pool.
                         // If the request rewrites to "match none" we can shortcut the query phase

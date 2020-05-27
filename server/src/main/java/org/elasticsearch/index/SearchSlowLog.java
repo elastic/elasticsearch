@@ -33,7 +33,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;

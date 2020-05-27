@@ -169,6 +169,8 @@ public class Case extends ConditionalFunction {
             ScriptTemplate scriptTemplate = templates.get(i);
             if (i < templates.size() - 1) {
                 if (i % 2 == 0) {
+                    // painless ? : operator expects primitive boolean, thus we use nullSafeFilter
+                    // to convert object Boolean to primitive boolean (null => false)
                     sb.append(Scripts.nullSafeFilter(scriptTemplate).template()).append(" ? ");
                 } else {
                     sb.append(scriptTemplate.template()).append(" : ");

@@ -42,7 +42,7 @@ dependencies {
   testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
@@ -58,7 +58,7 @@ tasks.dependenciesInfo.enabled = false
 tasks.thirdPartyAudit.ignoreMissingClasses()
 
 tasks.register('destructivePackagingTest') {
-  dependsOn 'destructiveDistroTest' 
+  dependsOn 'destructiveDistroTest', 'destructiveBatsTest.plugins', 'destructiveBatsTest.upgrade'
 }
 
 processTestResources {
@@ -67,7 +67,7 @@ processTestResources {
 
 subprojects { Project platformProject ->
   tasks.register('packagingTest') {
-    dependsOn 'distroTest'
+    dependsOn 'distroTest', 'batsTest.plugins', 'batsTest.upgrade'
   }
 
   vagrant {

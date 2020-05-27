@@ -10,10 +10,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -73,12 +73,12 @@ public class TransportCloseJobActionTests extends ESTestCase {
         List<String> closingJobIds = new ArrayList<>();
         List<String> failedJobIds = new ArrayList<>();
 
-        PersistentTasksCustomMetaData.Builder taskBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder taskBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask("open-job", null, JobState.OPENED, taskBuilder);
         addJobTask("failed-job", null, JobState.FAILED, taskBuilder);
         addJobTask("closing-job", null, JobState.CLOSING, taskBuilder);
         addJobTask("opening-job", null, JobState.OPENING, taskBuilder);
-        PersistentTasksCustomMetaData tasks = taskBuilder.build();
+        PersistentTasksCustomMetadata tasks = taskBuilder.build();
 
         for (String id : new String [] {"open-job", "closing-job", "opening-job", "failed-job"}) {
             TransportCloseJobAction.addJobAccordingToState(id, tasks, openJobIds, closingJobIds, failedJobIds);
@@ -89,7 +89,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     public void testValidate_datafeedState() {
-        final PersistentTasksCustomMetaData.Builder startDataFeedTaskBuilder =  PersistentTasksCustomMetaData.builder();
+        final PersistentTasksCustomMetadata.Builder startDataFeedTaskBuilder =  PersistentTasksCustomMetadata.builder();
         String jobId = "job-with-started-df";
         String datafeedId = "df1";
         addJobTask(jobId, null, JobState.OPENED, startDataFeedTaskBuilder);
@@ -115,7 +115,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         assertEquals(RestStatus.CONFLICT, esException.status());
         assertEquals("cannot close job datafeed [df1] hasn't been stopped", esException.getMessage());
 
-        final PersistentTasksCustomMetaData.Builder dataFeedNotStartedTaskBuilder =  PersistentTasksCustomMetaData.builder();
+        final PersistentTasksCustomMetadata.Builder dataFeedNotStartedTaskBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask(jobId, null, JobState.OPENED, dataFeedNotStartedTaskBuilder);
         if (randomBoolean()) {
             addTask(datafeedId, 0L, null, DatafeedState.STOPPED, dataFeedNotStartedTaskBuilder);
@@ -130,7 +130,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     public void testValidate_givenFailedJob() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         addJobTask("job_id_failed", null, JobState.FAILED, tasksBuilder);
 
         mockDatafeedConfigFindDatafeeds(Collections.emptySet());
@@ -163,11 +163,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     public void testValidate_withSpecificJobIds() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask("job_id_closing", null, JobState.CLOSING, tasksBuilder);
         addJobTask("job_id_open-1", null, JobState.OPENED, tasksBuilder);
         addJobTask("job_id_open-2", null, JobState.OPENED, tasksBuilder);
-        PersistentTasksCustomMetaData tasks = tasksBuilder.build();
+        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
 
         mockDatafeedConfigFindDatafeeds(Collections.emptySet());
 
@@ -208,11 +208,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("foo").build(new Date()), false);
 
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask("foo", null, JobState.CLOSED, tasksBuilder);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE,  tasksBuilder.build()))
+                .metadata(new Metadata.Builder().putCustom(PersistentTasksCustomMetadata.TYPE,  tasksBuilder.build()))
                 .build();
 
         TransportCloseJobAction transportAction = createAction();
@@ -248,7 +248,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         List<String> openJobIds = Arrays.asList("openjob1", "openjob2");
         List<String> closingJobIds = Collections.singletonList("closingjob1");
 
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask("openjob1", null, JobState.OPENED, tasksBuilder);
         addJobTask("openjob2", null, JobState.OPENED, tasksBuilder);
         addJobTask("closingjob1", null, JobState.CLOSING, tasksBuilder);
@@ -267,7 +267,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     public static void addTask(String datafeedId, long startTime, String nodeId, DatafeedState state,
-                               PersistentTasksCustomMetaData.Builder tasks) {
+                               PersistentTasksCustomMetadata.Builder tasks) {
         tasks.addTask(MlTasks.datafeedTaskId(datafeedId), MlTasks.DATAFEED_TASK_NAME,
                 new StartDatafeedAction.DatafeedParams(datafeedId, startTime), new Assignment(nodeId, "test assignment"));
         tasks.updateTaskState(MlTasks.datafeedTaskId(datafeedId), state);

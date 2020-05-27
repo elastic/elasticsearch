@@ -18,17 +18,21 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 public abstract class AggregationScript implements ScorerAware {
 
@@ -36,13 +40,23 @@ public abstract class AggregationScript implements ScorerAware {
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
-    private static final Map<String, String> DEPRECATIONS = Map.of(
-            "doc",
-            "Accessing variable [doc] via [params.doc] from within an aggregation-script "
-                    + "is deprecated in favor of directly accessing [doc].",
-            "_doc",
-            "Accessing variable [doc] via [params._doc] from within an aggregation-script "
-                    + "is deprecated in favor of directly accessing [doc].");
+    private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
+            "doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("aggregation-script_doc",
+                        "Accessing variable [doc] via [params.doc] from within an aggregation-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_doc", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("aggregation-script__doc",
+                        "Accessing variable [doc] via [params._doc] from within an aggregation-script "
+                                + "is deprecated in favor of directly accessing [doc].");
+                return value;
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     /**
      * The generic runtime parameters for the script.
@@ -62,7 +76,7 @@ public abstract class AggregationScript implements ScorerAware {
     private Object value;
 
     public AggregationScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
-        this.params = new DeprecationMap(new HashMap<>(params), DEPRECATIONS, "aggregation-script");
+        this.params = new DynamicMap(new HashMap<>(params), PARAMS_FUNCTIONS);
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         this.params.putAll(leafLookup.asMap());
     }

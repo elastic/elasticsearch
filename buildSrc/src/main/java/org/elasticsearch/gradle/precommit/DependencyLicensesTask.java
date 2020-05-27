@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.codec.binary.Hex;
+import org.elasticsearch.gradle.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
@@ -53,13 +54,13 @@ import java.util.stream.Collectors;
 
 /**
  * A task to check licenses for dependencies.
- *
+ * <p>
  * There are two parts to the check:
  * <ul>
- *   <li>LICENSE and NOTICE files</li>
+ *   <li>LICENSE, NOTICE and SOURCES files</li>
  *   <li>SHA checksums for each dependency jar</li>
  * </ul>
- *
+ * <p>
  * The directory to find the license and sha files in defaults to the dir @{code licenses}
  * in the project directory for this task. You can override this directory:
  * <pre>
@@ -67,7 +68,7 @@ import java.util.stream.Collectors;
  *     licensesDir = getProject().file("mybetterlicensedir")
  *   }
  * </pre>
- *
+ * <p>
  * The jar files to check default to the dependencies from the default configuration. You
  * can override this, for example, to only check compile dependencies:
  * <pre>
@@ -75,12 +76,12 @@ import java.util.stream.Collectors;
  *     dependencies = getProject().configurations.compile
  *   }
  * </pre>
- *
+ * <p>
  * Every jar must have a {@code .sha1} file in the licenses dir. These can be managed
  * automatically using the {@code updateShas} helper task that is created along
  * with this task. It will add {@code .sha1} files for new jars that are in dependencies
  * and remove old {@code .sha1} files that are no longer needed.
- *
+ * <p>
  * Every jar must also have a LICENSE and NOTICE file. However, multiple jars can share
  * LICENSE and NOTICE files by mapping a pattern to the same name.
  * <pre>
@@ -88,6 +89,10 @@ import java.util.stream.Collectors;
  *     mapping from: &#47;lucene-.*&#47;, to: "lucene"
  *   }
  * </pre>
+ * Dependencies using licenses with stricter distribution requirements (such as LGPL)
+ * require a SOURCES file as well. The file should include a URL to a source distribution
+ * for the dependency. This artifact will be redistributed by us with the release to
+ * comply with the license terms.
  */
 public class DependencyLicensesTask extends DefaultTask {
 
@@ -99,16 +104,24 @@ public class DependencyLicensesTask extends DefaultTask {
 
     // TODO: we should be able to default this to eg compile deps, but we need to move the licenses
     // check from distribution to core (ie this should only be run on java projects)
-    /** A collection of jar files that should be checked. */
+    /**
+     * A collection of jar files that should be checked.
+     */
     private FileCollection dependencies;
 
-    /** The directory to find the license and sha files in. */
+    /**
+     * The directory to find the license and sha files in.
+     */
     private File licensesDir = new File(getProject().getProjectDir(), "licenses");
 
-    /** A map of patterns to prefix, used to find the LICENSE and NOTICE file. */
+    /**
+     * A map of patterns to prefix, used to find the LICENSE and NOTICE file.
+     */
     private Map<String, String> mappings = new LinkedHashMap<>();
 
-    /** Names of dependencies whose shas should not exist. */
+    /**
+     * Names of dependencies whose shas should not exist.
+     */
     private Set<String> ignoreShas = new HashSet<>();
 
     /**
@@ -173,11 +186,16 @@ public class DependencyLicensesTask extends DefaultTask {
             }
             return; // no dependencies to check
         } else if (licensesDir.exists() == false) {
-            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies");
+            String deps = "";
+            for (File file : dependencies) {
+                deps += file.getName() + "\n";
+            }
+            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies: " + deps);
         }
 
         Map<String, Boolean> licenses = new HashMap<>();
         Map<String, Boolean> notices = new HashMap<>();
+        Map<String, Boolean> sources = new HashMap<>();
         Set<File> shaFiles = new HashSet<>();
 
         for (File file : licensesDir.listFiles()) {
@@ -189,14 +207,18 @@ public class DependencyLicensesTask extends DefaultTask {
                 licenses.put(name, false);
             } else if (name.contains("-NOTICE") || name.contains("-NOTICE.txt")) {
                 notices.put(name, false);
+            } else if (name.contains("-SOURCES") || name.contains("-SOURCES.txt")) {
+                sources.put(name, false);
             }
         }
 
-        checkDependencies(licenses, notices, shaFiles);
+        checkDependencies(licenses, notices, sources, shaFiles);
 
         licenses.forEach((item, exists) -> failIfAnyMissing(item, exists, "license"));
 
         notices.forEach((item, exists) -> failIfAnyMissing(item, exists, "notice"));
+
+        sources.forEach((item, exists) -> failIfAnyMissing(item, exists, "sources"));
 
         if (shaFiles.isEmpty() == false) {
             throw new GradleException("Unused sha files found: \n" + joinFilenames(shaFiles));
@@ -209,9 +231,12 @@ public class DependencyLicensesTask extends DefaultTask {
         }
     }
 
-    private void checkDependencies(Map<String, Boolean> licenses, Map<String, Boolean> notices, Set<File> shaFiles)
-        throws NoSuchAlgorithmException,
-        IOException {
+    private void checkDependencies(
+        Map<String, Boolean> licenses,
+        Map<String, Boolean> notices,
+        Map<String, Boolean> sources,
+        Set<File> shaFiles
+    ) throws NoSuchAlgorithmException, IOException {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");
@@ -222,6 +247,12 @@ public class DependencyLicensesTask extends DefaultTask {
             logger.info("mapped dependency name {} to {} for license/notice check", depName, dependencyName);
             checkFile(dependencyName, jarName, licenses, "LICENSE");
             checkFile(dependencyName, jarName, notices, "NOTICE");
+
+            File licenseFile = new File(licensesDir, getFileName(dependencyName, licenses, "LICENSE"));
+            LicenseInfo licenseInfo = LicenseAnalyzer.licenseType(licenseFile);
+            if (licenseInfo.isSourceRedistributionRequired()) {
+                checkFile(dependencyName, jarName, sources, "SOURCES");
+            }
         }
     }
 

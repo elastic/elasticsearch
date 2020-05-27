@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.info;
 
+import org.elasticsearch.gradle.BwcVersions;
 import org.gradle.api.JavaVersion;
 
 import java.io.File;
@@ -23,12 +24,14 @@ public class BuildParams {
     private static JavaVersion runtimeJavaVersion;
     private static Boolean inFipsJvm;
     private static String gitRevision;
+    private static String gitOrigin;
     private static ZonedDateTime buildDate;
     private static String testSeed;
     private static Boolean isCi;
     private static Boolean isInternal;
     private static Integer defaultParallel;
     private static Boolean isSnapshotBuild;
+    private static BwcVersions bwcVersions;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -86,8 +89,16 @@ public class BuildParams {
         return value(gitRevision);
     }
 
+    public static String getGitOrigin() {
+        return value(gitOrigin);
+    }
+
     public static ZonedDateTime getBuildDate() {
         return value(buildDate);
+    }
+
+    public static BwcVersions getBwcVersions() {
+        return value(bwcVersions);
     }
 
     public static String getTestSeed() {
@@ -195,6 +206,10 @@ public class BuildParams {
             BuildParams.gitRevision = requireNonNull(gitRevision);
         }
 
+        public void setGitOrigin(String gitOrigin) {
+            BuildParams.gitOrigin = requireNonNull(gitOrigin);
+        }
+
         public void setBuildDate(ZonedDateTime buildDate) {
             BuildParams.buildDate = requireNonNull(buildDate);
         }
@@ -219,5 +234,8 @@ public class BuildParams {
             BuildParams.isSnapshotBuild = isSnapshotBuild;
         }
 
+        public void setBwcVersions(BwcVersions bwcVersions) {
+            BuildParams.bwcVersions = requireNonNull(bwcVersions);
+        }
     }
 }

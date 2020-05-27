@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.info.BuildParams
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-eql'
   description 'The Elasticsearch plugin that powers EQL for Elasticsearch'
@@ -19,6 +20,12 @@ archivesBaseName = 'x-pack-eql'
 
 // All integration tests live in qa modules
 integTest.enabled = false
+
+tasks.named('internalClusterTest').configure {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.eql_feature_flag_registered', 'true'
+  }
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')

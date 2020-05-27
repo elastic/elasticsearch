@@ -40,7 +40,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -165,12 +165,12 @@ public class StoreRecoveryTests extends ESTestCase {
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
         int numShards =  randomIntBetween(2, 10);
         int targetShardId = randomIntBetween(0, numShards-1);
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
             .numberOfReplicas(0).build();
-        storeRecovery.addIndices(indexStats, target, indexSort, new Directory[] {dir}, maxSeqNo, maxUnsafeAutoIdTimestamp, metaData,
+        storeRecovery.addIndices(indexStats, target, indexSort, new Directory[] {dir}, maxSeqNo, maxUnsafeAutoIdTimestamp, metadata,
             targetShardId, true, false);
 
 
@@ -206,11 +206,11 @@ public class StoreRecoveryTests extends ESTestCase {
             BytesRef ref;
             while((ref = iterator.next()) != null) {
                 String value = ref.utf8ToString();
-                assertEquals("value has wrong shards: " + value, targetShardId, OperationRouting.generateShardId(metaData, value, null));
+                assertEquals("value has wrong shards: " + value, targetShardId, OperationRouting.generateShardId(metadata, value, null));
             }
             for (int i = 0; i < numDocs; i++) {
                 ref = new BytesRef(Integer.toString(i));
-                int shardId = OperationRouting.generateShardId(metaData, ref.utf8ToString(), null);
+                int shardId = OperationRouting.generateShardId(metadata, ref.utf8ToString(), null);
                 if (shardId == targetShardId) {
                     assertTrue(ref.utf8ToString() + " is missing", terms.iterator().seekExact(ref));
                 } else {

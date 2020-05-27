@@ -33,13 +33,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -55,10 +53,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
             IncludeExclude.StringFilter includeExclude, SearchContext context,
             Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
-                pipelineAggregators, metaData);
+        super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(1, context.bigArrays());
@@ -111,8 +108,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
 
         if (bucketCountThresholds.getMinDocCount() == 0
             && (InternalOrder.isCountDesc(order) == false
@@ -158,26 +155,20 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         // Get the top buckets
         final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
-        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final StringTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
-        }
-        // replay any deferred collections
-        runDeferredCollections(survivingBucketOrds);
-
-        // Now build the aggs
-        for (final StringTerms.Bucket bucket : list) {
-            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            bucket.termBytes = BytesRef.deepCopyOf(list[i].termBytes);
             bucket.docCountError = 0;
         }
 
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                Arrays.asList(list), 0);
+        buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
+        return new InternalAggregation[] {
+            new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
+                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
+                Arrays.asList(list), 0)
+        };
     }
 
     @Override

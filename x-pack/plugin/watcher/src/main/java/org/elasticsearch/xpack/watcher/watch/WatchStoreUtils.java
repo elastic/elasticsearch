@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexNotFoundException;
 
 public class WatchStoreUtils {
@@ -16,13 +16,13 @@ public class WatchStoreUtils {
      * Method to get indexmetadata of a index, that potentially is behind an alias.
      *
      * @param name Name of the index or the alias
-     * @param metaData Metadata to search for the name
-     * @return IndexMetaData of the concrete index
+     * @param metadata Metadata to search for the name
+     * @return IndexMetadata of the concrete index
      * @throws IllegalStateException If an alias points to two indices
      * @throws IndexNotFoundException If no index exists
      */
-    public static IndexMetaData getConcreteIndex(String name, MetaData metaData) {
-        IndexAbstraction indexAbstraction = metaData.getIndicesLookup().get(name);
+    public static IndexMetadata getConcreteIndex(String name, Metadata metadata) {
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(name);
         if (indexAbstraction == null) {
             return null;
         }

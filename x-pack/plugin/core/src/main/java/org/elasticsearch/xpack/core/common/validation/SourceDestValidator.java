@@ -34,7 +34,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.validateIndexOrAliasName;
 
 /**
  * Validation of source indexes and destination index.
@@ -163,8 +163,8 @@ public final class SourceDestValidator {
                         state,
                         IndicesOptions.lenientExpandOpen(),
                         dest,
-                        true
-                    );
+                        true,
+                        false);
 
                     resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : dest;
                 } catch (IllegalArgumentException e) {

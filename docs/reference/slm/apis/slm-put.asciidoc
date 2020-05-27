@@ -1,5 +1,3 @@
-[role="xpack"]
-[testenv="basic"]
 [[slm-api-put-policy]]
 === Put snapshot lifecycle policy API
 ++++
@@ -45,102 +43,73 @@ you want to create or update.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
+[role="child_attributes"]
 [[slm-api-put-request-body]]
 ==== {api-request-body-title}
 
-`schedule`::
-(Required, <<schedule-cron,Cron scheduler configuration>>)
-Periodic or absolute schedule
-at which the policy creates snapshots
-and deletes expired snapshots.
-+
-Schedule changes to existing policies
-are applied immediately.
-
-`name`::
-+
---
-(Required, string)
-Name automatically assigned to each snapshot
-created by the policy.
-
-This value supports the same <<date-math-index-names,date math>>
-supported in index names.
-
-To prevent conflicting snapshot names,
-a UUID is automatically appended to each snapshot name.
---
-
-`repository`::
-+
---
-(Required, string)
-Repository used to store snapshots
-created by this policy.
-
-This repository must exist prior to the policy's creation.
-You can create a repository
-using the <<modules-snapshots,snapshot repository API>>.
---
-
 `config`::
-+
---
 (Required, object)
-Configuration for each snapshot
-created by the policy.
-
-Parameters include:
-
-`indices`::
-(Optional, array of strings)
-Array of index names or wildcard pattern of index names
-included in snapshots.
-
+Configuration for each snapshot created by the policy.
++
+.Properties of `config`
+[%collapsible%open]
+====
 `ignore_unavailable`::
 (Optional, boolean)
-If `true`,
-missing indices do *not* cause snapshot creation to fail
-and return an error.
-Defaults to `false`.
+If `true`, missing indices do *not* cause snapshot creation to fail and return
+an error. Defaults to `false`.
 
 `include_global_state`::
 (Optional, boolean)
-If `true`,
-cluster states are included in snapshots.
-Defaults to `false`.
---
+If `true`, cluster states are included in snapshots. Defaults to `false`.
 
+`indices`::
+(Optional, array of strings)
+Array of index names or wildcard pattern of index names included in snapshots. It
+supports <<date-math-index-names,date math>> expressions.
+====
+
+`name`::
+(Required, string)
+Name automatically assigned to each snapshot created by the policy. This value
+supports the same <<date-math-index-names,date math>> supported in index names.
+To prevent conflicting snapshot names, a UUID is automatically appended to each 
+snapshot name.
+
+`repository`::
+(Required, string)
+Repository used to store snapshots created by this policy. This repository must 
+exist prior to the policy's creation. You can create a repository using the 
+<<modules-snapshots,snapshot repository API>>.
+
+[[slm-api-put-retention]]
 `retention`::
-+
---
 (Optional, object)
-Retention rules used to retain
-and delete snapshots
-created by the policy.
-
-Parameters include:
-
+Retention rules used to retain and delete snapshots created by the policy.
++
+.Properties of `retention`
+[%collapsible%open]
+====
 `expire_after`::
 (Optional, <<time-units, time units>>)
-Time period after which
-a snapshot is considered expired
-and eligible for deletion.
+Time period after which a snapshot is considered expired and eligible for
+deletion.
 
 `max_count`::
 (Optional, integer)
-Maximum number of snapshots to retain,
-even if the snapshots have not yet expired.
-+
-If the number of snapshots in the repository exceeds this limit,
-the policy retains the most recent snapshots
-and deletes older snapshots.
+Maximum number of snapshots to retain, even if the snapshots have not yet
+expired. If the number of snapshots in the repository exceeds this limit, the 
+policy retains the most recent snapshots and deletes older snapshots.
 
 `min_count`::
 (Optional, integer)
-Minimum number of snapshots to retain,
-even if the snapshots have expired.
---
+Minimum number of snapshots to retain, even if the snapshots have expired.
+====
+
+`schedule`::
+(Required, <<cron-expressions,Cron syntax>>)
+Periodic or absolute schedule at which the policy creates snapshots and deletes 
+expired snapshots. Schedule changes to existing policies are applied immediately.
 
 [[slm-api-put-example]]
 ==== {api-examples-title}

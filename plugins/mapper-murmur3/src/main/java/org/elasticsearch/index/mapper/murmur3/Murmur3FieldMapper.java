@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.murmur3;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -57,7 +56,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, Murmur3FieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -83,7 +82,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new Builder(name);
 
@@ -123,7 +122,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(NumericType.LONG);
         }
 
         @Override
@@ -153,7 +152,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields)
+    protected void parseCreateField(ParseContext context)
             throws IOException {
         final Object value;
         if (context.externalValueSet()) {
@@ -164,11 +163,16 @@ public class Murmur3FieldMapper extends FieldMapper {
         if (value != null) {
             final BytesRef bytes = new BytesRef(value.toString());
             final long hash = MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
-            fields.add(new SortedNumericDocValuesField(fieldType().name(), hash));
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), hash));
             if (fieldType().stored()) {
-                fields.add(new StoredField(name(), hash));
+                context.doc().add(new StoredField(name(), hash));
             }
         }
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
 }

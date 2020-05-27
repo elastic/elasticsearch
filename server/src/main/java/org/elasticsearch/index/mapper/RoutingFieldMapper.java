@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
@@ -60,7 +58,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public static final boolean REQUIRED = false;
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, RoutingFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         private boolean required = Defaults.REQUIRED;
 
@@ -81,7 +79,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fieldType(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -160,12 +158,12 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         String routing = context.sourceToParse().routing();
         if (routing != null) {
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                fields.add(new Field(fieldType().name(), routing, fieldType()));
-                createFieldNamesField(context, fields);
+                context.doc().add(new Field(fieldType().name(), routing, fieldType()));
+                createFieldNamesField(context);
             }
         }
     }
@@ -189,10 +187,5 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // do nothing here, no merging, but also no exception
     }
 }

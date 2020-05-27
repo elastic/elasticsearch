@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
@@ -1041,7 +1041,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.ingest.IngestProcessorException.class,
                 org.elasticsearch.ingest.IngestProcessorException::new,
                 157,
-                Version.V_7_5_0);
+                Version.V_7_5_0),
+        // TODO: Version after backport
+        PEER_RECOVERY_NOT_FOUND_EXCEPTION(
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
+                158,
+                Version.V_8_0_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

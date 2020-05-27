@@ -66,13 +66,13 @@ class TransformClusterStateListener implements ClusterStateListener {
     private static void createAuditAliasForDataFrameBWC(ClusterState state, Client client, final ActionListener<Boolean> finalListener) {
 
         // check if old audit index exists, no need to create the alias if it does not
-        if (state.getMetaData().getIndicesLookup().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED) == false) {
+        if (state.getMetadata().getIndicesLookup().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED) == false) {
             finalListener.onResponse(false);
             return;
         }
 
-        if (state.getMetaData().getIndicesLookup().get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED).getIndices().stream()
-                .anyMatch(metaData -> metaData.getAliases().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))) {
+        if (state.getMetadata().getIndicesLookup().get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED).getIndices().stream()
+                .anyMatch(metadata -> metadata.getAliases().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))) {
             finalListener.onResponse(false);
             return;
         }

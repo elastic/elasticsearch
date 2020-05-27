@@ -35,6 +35,9 @@ Rolling upgrades are supported:
 * {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
 * {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
 * From {prev-major-version} to {version}
+ifeval::[ "{version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
 
 Upgrading directly to {version} from 6.6 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
@@ -145,8 +148,8 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 GET _cat/health?v
 --------------------------------------------------
 
-Wait for the `status` column to switch from `yellow` to `green`. Once the
-node is `green`, all primary and replica shards have been allocated.
+Wait for the `status` column to switch to `green`. Once the node is `green`, all
+primary and replica shards have been allocated.
 
 [IMPORTANT]
 ====================================================

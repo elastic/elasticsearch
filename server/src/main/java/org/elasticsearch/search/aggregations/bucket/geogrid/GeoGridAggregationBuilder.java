@@ -80,8 +80,8 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
         super(name);
     }
 
-    protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.precision = clone.precision;
         this.requiredSize = clone.requiredSize;
         this.shardSize = clone.shardSize;
@@ -129,7 +129,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
     protected abstract ValuesSourceAggregatorFactory createFactory(
         String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
         GeoBoundingBox geoBoundingBox, QueryShardContext queryShardContext, AggregatorFactory parent,
-        Builder subFactoriesBuilder, Map<String, Object> metaData
+        Builder subFactoriesBuilder, Map<String, Object> metadata
     ) throws IOException;
 
     public int precision() {
@@ -201,7 +201,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
             shardSize = requiredSize;
         }
         return createFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox, queryShardContext, parent,
-                subFactoriesBuilder, metaData);
+                subFactoriesBuilder, metadata);
     }
 
     @Override

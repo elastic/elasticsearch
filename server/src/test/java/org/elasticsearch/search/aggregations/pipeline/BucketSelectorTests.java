@@ -27,6 +27,10 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.CoreMatchers.equalTo;
+
 public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregationBuilder> {
 
     @Override
@@ -56,4 +60,8 @@ public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketS
         return factory;
     }
 
+    public void testNoParent() {
+        assertThat(validate(emptyList(), new BucketSelectorPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))), 
+            equalTo("Validation Failed: 1: bucket_selector aggregation [foo] must be declared inside of another aggregation;"));
+    }
 }

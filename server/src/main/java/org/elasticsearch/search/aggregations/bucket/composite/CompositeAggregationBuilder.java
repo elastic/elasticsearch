@@ -72,16 +72,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     protected CompositeAggregationBuilder(CompositeAggregationBuilder clone,
-                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.sources = new ArrayList<>(clone.sources);
         this.after = clone.after;
         this.size = clone.size;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new CompositeAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new CompositeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
@@ -235,7 +235,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else {
             afterKey = null;
         }
-        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData, size,
+        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metadata, size,
             configs, afterKey);
     }
 

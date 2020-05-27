@@ -158,9 +158,11 @@ import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
 import org.elasticsearch.client.ml.inference.TrainedModelStats;
+import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
+import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
@@ -1324,6 +1326,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setMaxTrees(10)
                 .setFeatureBagFraction(0.5)
                 .setNumTopFeatureImportanceValues(3)
+                .setLossFunction(org.elasticsearch.client.ml.dataframe.Regression.LossFunction.MSLE)
+                .setLossFunctionParameter(1.0)
                 .build())
             .setDescription("this is a regression")
             .build();
@@ -1530,7 +1534,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(progress.size(), equalTo(4));
         assertThat(progress.get(0), equalTo(new PhaseProgress("reindexing", 0)));
         assertThat(progress.get(1), equalTo(new PhaseProgress("loading_data", 0)));
-        assertThat(progress.get(2), equalTo(new PhaseProgress("analyzing", 0)));
+        assertThat(progress.get(2), equalTo(new PhaseProgress("computing_outliers", 0)));
         assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
         assertThat(stats.getMemoryUsage().getPeakUsageBytes(), equalTo(0L));
         assertThat(stats.getDataCounts(), equalTo(new DataCounts(0, 0, 0)));
@@ -2242,6 +2246,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
+            .setInferenceConfig(new RegressionConfig())
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();
@@ -2255,6 +2260,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         trainedModelConfig = TrainedModelConfig.builder()
             .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition))
             .setModelId(modelIdCompressed)
+            .setInferenceConfig(new RegressionConfig())
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();
@@ -2513,10 +2519,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setFunction("count")
             .setDetectorDescription(randomAlphaOfLength(10))
             .build();
-        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
+        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Collections.singletonList(detector));
         //should not be random, see:https://github.com/elastic/ml-cpp/issues/208
         configBuilder.setBucketSpan(new TimeValue(1, TimeUnit.HOURS));
         builder.setAnalysisConfig(configBuilder);
+        builder.setModelSnapshotRetentionDays(1L);
+        builder.setDailyModelSnapshotRetentionAfterDays(1L);
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
@@ -2539,6 +2547,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         //should not be random, see:https://github.com/elastic/ml-cpp/issues/208
         configBuilder.setBucketSpan(new TimeValue(5, TimeUnit.SECONDS));
         builder.setAnalysisConfig(configBuilder);
+        builder.setAnalysisLimits(new AnalysisLimits(512L, 4L));
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
@@ -2561,6 +2570,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         TrainedModelConfig trainedModelConfig = TrainedModelConfig.builder()
             .setDefinition(definition)
             .setModelId(modelId)
+            .setInferenceConfig(new RegressionConfig())
             .setInput(new TrainedModelInput(Arrays.asList("col1", "col2", "col3", "col4")))
             .setDescription("test model")
             .build();

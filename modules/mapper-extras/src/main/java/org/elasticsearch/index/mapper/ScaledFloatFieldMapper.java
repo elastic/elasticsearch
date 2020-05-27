@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -43,18 +43,18 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -64,8 +64,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -84,7 +82,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
 
-    public static class Builder extends FieldMapper.Builder<Builder, ScaledFloatFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private boolean scalingFactorSet = false;
         private Boolean ignoreMalformed;
@@ -151,7 +149,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -216,14 +214,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
-                conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
-            }
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
@@ -277,7 +267,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
                 hi = Math.round(Math.floor(dValue));
             }
-            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues());
+            Query query = NumberFieldMapper.NumberType.LONG.rangeQuery(name(), lo, hi, true, true, hasDocValues(), context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
             }
@@ -291,8 +281,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    final IndexNumericFieldData scaledValues = (IndexNumericFieldData) new DocValuesIndexFieldData.Builder()
-                            .numericType(IndexNumericFieldData.NumericType.LONG)
+                    final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
+                        IndexNumericFieldData.NumericType.LONG
+                    )
                             .build(indexSettings, fieldType, cache, breakerService, mapperService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
                 }
@@ -390,7 +381,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
 
         XContentParser parser = context.parser();
         Object value;
@@ -442,21 +433,26 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType().stored();
-        fields.addAll(NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored));
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored);
+        context.doc().addAll(fields);
+
         if (docValued == false && (indexed || stored)) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ScaledFloatFieldMapper mergeWith = (ScaledFloatFieldMapper) other;
+        ScaledFloatFieldType ft = (ScaledFloatFieldType) other.fieldType();
+        if (fieldType().scalingFactor != ft.getScalingFactor()) {
+            conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
         }
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+        if (mergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = mergeWith.ignoreMalformed;
+        }
+        if (mergeWith.coerce.explicit()) {
+            this.coerce = mergeWith.coerce;
         }
     }
 

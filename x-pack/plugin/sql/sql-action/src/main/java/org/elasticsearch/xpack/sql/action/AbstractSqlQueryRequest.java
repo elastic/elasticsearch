@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -37,6 +38,17 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
 
 /**
  * Base class for requests that contain sql queries (Query and Translate)
@@ -52,18 +64,17 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     private QueryBuilder filter = null;
     private List<SqlTypedParamValue> params = Collections.emptyList();
 
-    // TODO: define all REST request object field names in a protocol class as unique source
-    static final ParseField QUERY = new ParseField("query");
-    static final ParseField CURSOR = new ParseField("cursor");
-    static final ParseField PARAMS = new ParseField("params");
-    static final ParseField TIME_ZONE = new ParseField("time_zone");
-    static final ParseField FETCH_SIZE = new ParseField("fetch_size");
-    static final ParseField REQUEST_TIMEOUT = new ParseField("request_timeout");
-    static final ParseField PAGE_TIMEOUT = new ParseField("page_timeout");
-    static final ParseField FILTER = new ParseField("filter");
-    static final ParseField MODE = new ParseField("mode");
-    static final ParseField CLIENT_ID = new ParseField("client_id");
-    static final ParseField CLIENT_VERSION = new ParseField("version");
+    static final ParseField QUERY = new ParseField(QUERY_NAME);
+    static final ParseField CURSOR = new ParseField(CURSOR_NAME);
+    static final ParseField PARAMS = new ParseField(PARAMS_NAME);
+    static final ParseField TIME_ZONE = new ParseField(TIME_ZONE_NAME);
+    static final ParseField FETCH_SIZE = new ParseField(FETCH_SIZE_NAME);
+    static final ParseField REQUEST_TIMEOUT = new ParseField(REQUEST_TIMEOUT_NAME);
+    static final ParseField PAGE_TIMEOUT = new ParseField(PAGE_TIMEOUT_NAME);
+    static final ParseField FILTER = new ParseField(FILTER_NAME);
+    static final ParseField MODE = new ParseField(MODE_NAME);
+    static final ParseField CLIENT_ID = new ParseField(CLIENT_ID_NAME);
+    static final ParseField VERSION = new ParseField(VERSION_NAME);
 
     public AbstractSqlQueryRequest() {
         super();
@@ -88,14 +99,14 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         parser.declareString(AbstractSqlQueryRequest::query, QUERY);
         parser.declareString((request, mode) -> request.mode(Mode.fromString(mode)), MODE);
         parser.declareString(AbstractSqlRequest::clientId, CLIENT_ID);
-        parser.declareString(AbstractSqlRequest::version, CLIENT_VERSION);
+        parser.declareString(AbstractSqlRequest::version, VERSION);
         parser.declareField(AbstractSqlQueryRequest::params, AbstractSqlQueryRequest::parseParams, PARAMS, ValueType.VALUE_ARRAY);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE);
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, FETCH_SIZE);
         parser.declareString((request, timeout) -> request.requestTimeout(TimeValue.parseTimeValue(timeout, Protocol.REQUEST_TIMEOUT,
-                "request_timeout")), REQUEST_TIMEOUT);
+            REQUEST_TIMEOUT_NAME)), REQUEST_TIMEOUT);
         parser.declareString(
-                (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, "page_timeout")),
+                (request, timeout) -> request.pageTimeout(TimeValue.parseTimeValue(timeout, Protocol.PAGE_TIMEOUT, PAGE_TIMEOUT_NAME)),
                 PAGE_TIMEOUT);
         parser.declareObject(AbstractSqlQueryRequest::filter,
                 (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
@@ -218,13 +229,13 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         ActionRequestValidationException validationException = null;
         // the version field is mandatory for drivers and CLI
         Mode mode = requestInfo().mode();
-        if (mode != null && (Mode.isDedicatedClient(mode))) {
+        if (Mode.isDedicatedClient(mode)) {
             if (requestInfo().version() == null) {
                 if (Strings.hasText(query())) {
                     validationException = addValidationError("[version] is required for the [" + mode.toString() + "] client",
                         validationException);
                 }
-            } else if (requestInfo().version().equals(Version.CURRENT.toString()) == false) {
+            } else if (SqlVersion.isClientCompatible(requestInfo().version()) == false) {
                 validationException = addValidationError("The [" + requestInfo().version() + "] version of the [" +
                         mode.toString() + "] " + "client is not compatible with Elasticsearch version [" + Version.CURRENT + "]",
                     validationException);

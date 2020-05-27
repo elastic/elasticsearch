@@ -8,7 +8,7 @@ package org.elasticsearch.license;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -392,7 +392,7 @@ public class TestUtils {
         }
     }
 
-    public static void putLicense(MetaData.Builder builder, License license) {
-        builder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null));
+    public static void putLicense(Metadata.Builder builder, License license) {
+        builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
     }
 }

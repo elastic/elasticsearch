@@ -43,8 +43,6 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
     private static final Pattern NUM_CONFIGS_LOGLINE = Pattern.compile("NUM CONFIGS: (.*)");
 
-    protected abstract String oldJdkVersion();
-
     protected abstract String jdkVersion();
 
     protected abstract String jdkVendor();
@@ -61,18 +59,6 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
         assertExtraction("getWindowsJdk", "windows", "bin/java", jdkVendor(), jdkVersion());
     }
 
-    public final void testLinuxExtractionOldVersion() throws IOException {
-        assertExtraction("getLinuxJdk", "linux", "bin/java", jdkVendor(), oldJdkVersion());
-    }
-
-    public final void testDarwinExtractionOldVersion() throws IOException {
-        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", jdkVendor(), oldJdkVersion());
-    }
-
-    public final void testWindowsExtractionOldVersion() throws IOException {
-        assertExtraction("getWindowsJdk", "windows", "bin/java", jdkVendor(), oldJdkVersion());
-    }
-
     public final void testCrossProjectReuse() throws IOException {
         runBuild("numConfigurations", "linux", result -> {
             Matcher matcher = NUM_CONFIGS_LOGLINE.matcher(result.getOutput());
@@ -81,7 +67,7 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
         }, jdkVendor(), jdkVersion());
     }
 
-    private void assertExtraction(String taskname, String platform, String javaBin, String vendor, String version) throws IOException {
+    protected void assertExtraction(String taskname, String platform, String javaBin, String vendor, String version) throws IOException {
         runBuild(taskname, platform, result -> {
             Matcher matcher = JDK_HOME_LOGLINE.matcher(result.getOutput());
             assertTrue("could not find jdk home in output: " + result.getOutput(), matcher.find());
@@ -91,7 +77,7 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
         }, vendor, version);
     }
 
-    protected abstract String urlPath(boolean isOld, String platform, String extension);
+    protected abstract String urlPath(String version, String platform, String extension);
 
     protected abstract byte[] filebytes(String platform, String extension) throws IOException;
 
@@ -100,11 +86,10 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             String extension = platform.equals("windows") ? "zip" : "tar.gz";
-            boolean isOld = version.equals(oldJdkVersion());
 
-            wireMock.stubFor(head(urlEqualTo(urlPath(isOld, platform, extension))).willReturn(aResponse().withStatus(200)));
+            wireMock.stubFor(head(urlEqualTo(urlPath(version, platform, extension))).willReturn(aResponse().withStatus(200)));
             wireMock.stubFor(
-                get(urlEqualTo(urlPath(isOld, platform, extension))).willReturn(
+                get(urlEqualTo(urlPath(version, platform, extension))).willReturn(
                     aResponse().withStatus(200).withBody(filebytes(platform, extension))
                 )
             );

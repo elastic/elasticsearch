@@ -68,8 +68,7 @@ RLIKE constant_exp <2>
 *Description*: This operator is similar to `LIKE`, but the user is not limited to search for a string based on a fixed pattern with the percent sign (`%`)
 and underscore (`_`); the pattern in this case is a regular expression which allows the construction of more flexible patterns.
 
-For more details about the regular expressions syntax, https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html[Java's Pattern class javadoc]
-is a good starting point.
+For supported syntax, see <<regexp-syntax>>.
 
 [source, sql]
 ----

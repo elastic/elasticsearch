@@ -19,14 +19,12 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -51,9 +49,8 @@ public class StringStatsAggregator extends MetricsAggregator {
     Map<Character, LongArray> charOccurrences;
 
     StringStatsAggregator(String name, boolean showDistribution, ValuesSource.Bytes valuesSource, DocValueFormat format,
-                          SearchContext context, Aggregator parent,
-                          List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                          SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.showDistribution = showDistribution;
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -154,15 +151,14 @@ public class StringStatsAggregator extends MetricsAggregator {
 
         return new InternalStringStats(name, count.get(bucket), totalLength.get(bucket),
             minLength.get(bucket), maxLength.get(bucket), occurrences, showDistribution,
-            format, pipelineAggregators(), metaData());
+            format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalStringStats(name,
             0, 0, Integer.MAX_VALUE, Integer.MIN_VALUE,
-            Collections.emptyMap(), showDistribution, format,
-            pipelineAggregators(), metaData());
+            Collections.emptyMap(), showDistribution, format, metadata());
     }
 
     @Override

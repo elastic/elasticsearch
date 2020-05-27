@@ -57,6 +57,8 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
+
 public class TransportPutDataFrameAnalyticsAction
     extends TransportMasterNodeAction<PutDataFrameAnalyticsAction.Request, PutDataFrameAnalyticsAction.Response> {
 
@@ -139,28 +141,30 @@ public class TransportPutDataFrameAnalyticsAction
                 .setVersion(Version.CURRENT)
                 .build();
 
-        if (licenseState.isAuthAllowed()) {
-            final String username = securityContext.getUser().principal();
-            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(preparedForPutConfig.getSource().getIndex())
-                .privileges("read")
-                .build();
-            RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(preparedForPutConfig.getDest().getIndex())
-                .privileges("read", "index", "create_index")
-                .build();
+        if (licenseState.isSecurityEnabled()) {
+            useSecondaryAuthIfAvailable(securityContext, () -> {
+                final String username = securityContext.getUser().principal();
+                RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(preparedForPutConfig.getSource().getIndex())
+                    .privileges("read")
+                    .build();
+                RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(preparedForPutConfig.getDest().getIndex())
+                    .privileges("read", "index", "create_index")
+                    .build();
 
-            HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
-            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-            privRequest.username(username);
-            privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-            privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
+                HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+                privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+                privRequest.username(username);
+                privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
+                privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
 
-            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, preparedForPutConfig, r, listener),
-                listener::onFailure);
+                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                    r -> handlePrivsResponse(username, preparedForPutConfig, r, listener),
+                    listener::onFailure);
 
-            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+            });
         } else {
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
@@ -227,7 +231,7 @@ public class TransportPutDataFrameAnalyticsAction
     @Override
     protected void doExecute(Task task, PutDataFrameAnalyticsAction.Request request,
                              ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

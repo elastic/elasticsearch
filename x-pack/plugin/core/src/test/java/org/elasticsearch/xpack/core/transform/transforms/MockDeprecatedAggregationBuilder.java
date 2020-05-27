@@ -34,8 +34,8 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
             LogManager.getLogger(MockDeprecatedAggregationBuilder.class));
 
     protected MockDeprecatedAggregationBuilder(MockDeprecatedAggregationBuilder clone, Builder factoriesBuilder,
-            Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+            Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
@@ -44,8 +44,8 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MockDeprecatedAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MockDeprecatedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     public MockDeprecatedAggregationBuilder() {

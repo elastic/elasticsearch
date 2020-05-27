@@ -25,7 +25,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -37,15 +36,15 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
@@ -58,34 +57,40 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final ValuesSource.Range valuesSource;
     private final DocValueFormat formatter;
     private final Rounding rounding;
-    private final Rounding shardRounding;
+    /**
+     * The rounding prepared for rewriting the data in the shard.
+     */
+    private final Rounding.Prepared preparedRounding;
     private final BucketOrder order;
     private final boolean keyed;
 
     private final long minDocCount;
     private final ExtendedBounds extendedBounds;
 
-    private final LongHash bucketOrds;
+    private final LongKeyedBucketOrds bucketOrds;
 
-    DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding shardRounding,
+    DateRangeHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
                                  BucketOrder order, boolean keyed,
-                                 long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Range valuesSource,
+                                 long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource valuesSource,
                                  DocValueFormat formatter, SearchContext aggregationContext,
-                                 Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                 Map<String, Object> metaData) throws IOException {
+                                 Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
-        this.shardRounding = shardRounding;
+        this.preparedRounding = preparedRounding;
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Range) valuesSource;
         this.formatter = formatter;
+        if (this.valuesSource.rangeType() != RangeType.DATE) {
+            throw new IllegalArgumentException("Expected date range type but found range type [" + this.valuesSource.rangeType().name
+                + "]");
+        }
 
-        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
     }
 
     @Override
@@ -97,21 +102,19 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        final RangeType rangeType = valuesSource.rangeType();
+        SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
-            public void collect(int doc, long bucket) throws IOException {
-                assert bucket == 0;
+            public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     // Is it possible for valuesCount to be > 1 here? Multiple ranges are encoded into the same BytesRef in the binary doc
                     // values, so it isn't clear what we'd be iterating over.
-                    final int valuesCount = values.docValueCount();
+                    int valuesCount = values.docValueCount();
                     assert valuesCount == 1 : "Value count for ranges should always be 1";
                     long previousKey = Long.MIN_VALUE;
 
@@ -120,19 +123,19 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                         List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
                         long previousFrom = Long.MIN_VALUE;
                         for (RangeFieldMapper.Range range : ranges) {
-                            final Long from = (Long) range.getFrom();
+                            Long from = (Long) range.getFrom();
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
-                            final long startKey = shardRounding.round(from);
-                            final long endKey = shardRounding.round(to);
+                            final long startKey = preparedRounding.round(from);
+                            final long endKey = preparedRounding.round(to);
                             for (long  key = startKey > previousKey ? startKey : previousKey; key <= endKey;
-                                 key = shardRounding.nextRoundingValue(key)) {
+                                 key = preparedRounding.nextRoundingValue(key)) {
                                 if (key == previousKey) {
                                     continue;
                                 }
                                 // Bucket collection identical to NumericHistogramAggregator, could be refactored
-                                long bucketOrd = bucketOrds.add(key);
+                                long bucketOrd = bucketOrds.add(owningBucketOrd, key);
                                 if (bucketOrd < 0) { // already seen
                                     bucketOrd = -1 - bucketOrd;
                                     collectExistingBucket(sub, doc, bucketOrd);
@@ -152,25 +155,22 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
+            (bucketValue, docCount, subAggregationResults) ->
+                new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults),
+            buckets -> {
+                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
+                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
 
-        List<InternalDateHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            buckets.add(new InternalDateHistogram.Bucket(bucketOrds.get(i), bucketDocCount(i), keyed, formatter, bucketAggregations(i)));
-        }
-
-        // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-        CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-        // value source will be null for unmapped fields
-        // Important: use `rounding` here, not `shardRounding`
-        InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
-                : null;
-        return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+                // value source will be null for unmapped fields
+                // Important: use `rounding` here, not `shardRounding`
+                InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
+                        ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
+                        : null;
+                return new InternalDateHistogram(name, buckets, order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
+                        keyed, metadata());
+            });
     }
 
     @Override
@@ -179,11 +179,16 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
-                keyed, pipelineAggregators(), metaData());
+                keyed, metadata());
     }
 
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        add.accept("total_buckets", bucketOrds.size());
     }
 }

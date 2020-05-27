@@ -174,7 +174,7 @@ public class Exporters extends AbstractLifecycleComponent {
 
         // wait until we have a usable cluster state
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) ||
-            ClusterState.UNKNOWN_UUID.equals(state.metaData().clusterUUID()) ||
+            ClusterState.UNKNOWN_UUID.equals(state.metadata().clusterUUID()) ||
             state.version() == ClusterState.UNKNOWN_VERSION) {
             logger.trace("skipping exporters because the cluster state is not loaded");
 
@@ -243,7 +243,12 @@ public class Exporters extends AbstractLifecycleComponent {
                 } else {
                     listener.onFailure(exceptionRef.get());
                 }
-            }, listener::onFailure));
+            }, (exception) -> {
+                if (exceptionRef.get() != null) {
+                    exception.addSuppressed(exceptionRef.get());
+                }
+                listener.onFailure(exception);
+            }));
         }
     }
 
@@ -254,6 +259,7 @@ public class Exporters extends AbstractLifecycleComponent {
         List<Setting.AffixSetting<?>> settings = new ArrayList<>();
         settings.addAll(Exporter.getSettings());
         settings.addAll(HttpExporter.getSettings());
+        settings.addAll(LocalExporter.getSettings());
         return settings;
     }
 

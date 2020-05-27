@@ -22,8 +22,8 @@ package org.elasticsearch.action.admin.indices.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,17 +45,19 @@ import java.util.Objects;
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
-    private ImmutableOpenMap<String, MappingMetaData> mappings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
+    private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
     private String[] indices;
 
     public GetIndexResponse(String[] indices,
-                     ImmutableOpenMap<String, MappingMetaData> mappings,
-                     ImmutableOpenMap<String, List<AliasMetaData>> aliases,
+                     ImmutableOpenMap<String, MappingMetadata> mappings,
+                     ImmutableOpenMap<String, List<AliasMetadata>> aliases,
                      ImmutableOpenMap<String, Settings> settings,
-                     ImmutableOpenMap<String, Settings> defaultSettings) {
+                     ImmutableOpenMap<String, Settings> defaultSettings,
+                     ImmutableOpenMap<String, String> dataStreams) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -71,6 +73,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         if (defaultSettings != null) {
             this.defaultSettings = defaultSettings;
         }
+        if (dataStreams != null) {
+            this.dataStreams = dataStreams;
+        }
     }
 
     GetIndexResponse(StreamInput in) throws IOException {
@@ -78,7 +83,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         this.indices = in.readStringArray();
 
         int mappingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappingsMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappingsMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < mappingsSize; i++) {
             String index = in.readString();
             if (in.getVersion().before(Version.V_8_0_0)) {
@@ -87,26 +92,26 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 if (numMappings == 1) {
                     String type = in.readString();
                     assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
-                    mappingsMapBuilder.put(index, new MappingMetaData(in));
+                    mappingsMapBuilder.put(index, new MappingMetadata(in));
                 }
                 else {
-                    mappingsMapBuilder.put(index, MappingMetaData.EMPTY_MAPPINGS);
+                    mappingsMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
                 }
             } else {
                 boolean hasMapping = in.readBoolean();
-                mappingsMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : MappingMetaData.EMPTY_MAPPINGS);
+                mappingsMapBuilder.put(index, hasMapping ? new MappingMetadata(in) : MappingMetadata.EMPTY_MAPPINGS);
             }
         }
         mappings = mappingsMapBuilder.build();
 
         int aliasesSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliasesMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < aliasesSize; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            List<AliasMetaData> aliasEntryBuilder = new ArrayList<>(valueSize);
+            List<AliasMetadata> aliasEntryBuilder = new ArrayList<>(valueSize);
             for (int j = 0; j < valueSize; j++) {
-                aliasEntryBuilder.add(new AliasMetaData(in));
+                aliasEntryBuilder.add(new AliasMetadata(in));
             }
             aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
         }
@@ -126,6 +131,15 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
         }
         defaultSettings = defaultSettingsMapBuilder.build();
+
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
+            int dataStreamsSize = in.readVInt();
+            for (int i = 0; i < dataStreamsSize; i++) {
+                dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
+            }
+            dataStreams = dataStreamsMapBuilder.build();
+        }
     }
 
     public String[] indices() {
@@ -136,24 +150,32 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return indices();
     }
 
-    public ImmutableOpenMap<String, MappingMetaData> mappings() {
+    public ImmutableOpenMap<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetaData> getMappings() {
+    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
-    public ImmutableOpenMap<String, List<AliasMetaData>> aliases() {
+    public ImmutableOpenMap<String, List<AliasMetadata>> aliases() {
         return aliases;
     }
 
-    public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
+    public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
         return aliases();
     }
 
     public ImmutableOpenMap<String, Settings> settings() {
         return settings;
+    }
+
+    public ImmutableOpenMap<String, String> dataStreams() {
+        return dataStreams;
+    }
+
+    public ImmutableOpenMap<String, String> getDataStreams() {
+        return dataStreams();
     }
 
     /**
@@ -200,26 +222,26 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetaData> indexEntry : mappings) {
+        for (ObjectObjectCursor<String, MappingMetadata> indexEntry : mappings) {
             out.writeString(indexEntry.key);
             if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(indexEntry.value == MappingMetaData.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
+                out.writeVInt(indexEntry.value == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
+                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
                     indexEntry.value.writeTo(out);
                 }
             } else {
-                out.writeBoolean(indexEntry.value != MappingMetaData.EMPTY_MAPPINGS);
-                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
+                out.writeBoolean(indexEntry.value != MappingMetadata.EMPTY_MAPPINGS);
+                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
                     indexEntry.value.writeTo(out);
                 }
             }
         }
         out.writeVInt(aliases.size());
-        for (ObjectObjectCursor<String, List<AliasMetaData>> indexEntry : aliases) {
+        for (ObjectObjectCursor<String, List<AliasMetadata>> indexEntry : aliases) {
             out.writeString(indexEntry.key);
             out.writeVInt(indexEntry.value.size());
-            for (AliasMetaData aliasEntry : indexEntry.value) {
+            for (AliasMetadata aliasEntry : indexEntry.value) {
                 aliasEntry.writeTo(out);
             }
         }
@@ -233,6 +255,13 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.key);
             Settings.writeSettingsToStream(indexEntry.value, out);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeVInt(dataStreams.size());
+            for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
+                out.writeString(indexEntry.key);
+                out.writeOptionalString(indexEntry.value);
+            }
+        }
     }
 
     @Override
@@ -243,15 +272,15 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 builder.startObject(index);
                 {
                     builder.startObject("aliases");
-                    List<AliasMetaData> indexAliases = aliases.get(index);
+                    List<AliasMetadata> indexAliases = aliases.get(index);
                     if (indexAliases != null) {
-                        for (final AliasMetaData alias : indexAliases) {
-                            AliasMetaData.Builder.toXContent(alias, builder, params);
+                        for (final AliasMetadata alias : indexAliases) {
+                            AliasMetadata.Builder.toXContent(alias, builder, params);
                         }
                     }
                     builder.endObject();
 
-                    MappingMetaData indexMappings = mappings.get(index);
+                    MappingMetadata indexMappings = mappings.get(index);
                     if (indexMappings == null) {
                         builder.startObject("mappings").endObject();
                     } else {
@@ -270,6 +299,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                         builder.startObject("defaults");
                         defaultIndexSettings.toXContent(builder, params);
                         builder.endObject();
+                    }
+
+                    String dataStream = dataStreams.get(index);
+                    if (dataStream != null) {
+                        builder.field("data_stream", dataStream);
                     }
                 }
                 builder.endObject();
@@ -293,7 +327,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             Objects.equals(aliases, that.aliases) &&
             Objects.equals(mappings, that.mappings) &&
             Objects.equals(settings, that.settings) &&
-            Objects.equals(defaultSettings, that.defaultSettings);
+            Objects.equals(defaultSettings, that.defaultSettings) &&
+            Objects.equals(dataStreams, that.dataStreams);
     }
 
     @Override
@@ -304,7 +339,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 aliases,
                 mappings,
                 settings,
-                defaultSettings
+                defaultSettings,
+                dataStreams
             );
     }
 }

@@ -7,16 +7,22 @@
 package org.elasticsearch.test.eql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.EqlClient;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.eql.EqlSearchRequest;
 import org.elasticsearch.client.eql.EqlSearchResponse;
+import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
+import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -30,7 +36,9 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class CommonEqlActionTestCase extends ESRestTestCase {
@@ -54,6 +62,12 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         if (isSetUp) {
             return;
         }
+
+        CreateIndexRequest request = new CreateIndexRequest(testIndexName)
+                .mapping(Streams.readFully(CommonEqlActionTestCase.class.getResourceAsStream("/mapping-default.json")),
+                        XContentType.JSON);
+
+        tc.highLevelClient().indices().create(request, RequestOptions.DEFAULT);
 
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -113,13 +127,15 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readTestSpecs() throws Exception {
-        List<Object[]> testSpecs = new ArrayList<>();
 
         // Load EQL validation specs
         List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true);
+        specs.addAll(EqlSpecLoader.load("/test_queries_supported.toml", true));
         List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false);
 
         // Validate only currently supported specs
+        List<EqlSpec> filteredSpecs = new ArrayList<>();
+
         for (EqlSpec spec : specs) {
             boolean supported = true;
             // Check if spec is supported, simple iteration, cause the list is short.
@@ -131,18 +147,25 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
             }
 
             if (supported) {
-                String name = spec.description();
-                if (Strings.isNullOrEmpty(name)) {
-                    name = spec.note();
-                }
-                if (Strings.isNullOrEmpty(name)) {
-                    name = spec.query();
-                }
-
-                testSpecs.add(new Object[]{++counter, name, spec});
+                filteredSpecs.add(spec);
             }
         }
-        return testSpecs;
+        counter = specs.size();
+        return asArray(filteredSpecs);
+    }
+
+    public static List<Object[]> asArray(List<EqlSpec> specs) {
+        AtomicInteger counter = new AtomicInteger();
+        return specs.stream().map(spec -> {
+            String name = spec.description();
+            if (Strings.isNullOrEmpty(name)) {
+                name = spec.note();
+            }
+            if (Strings.isNullOrEmpty(name)) {
+                name = spec.query();
+            }
+            return new Object[] { counter.incrementAndGet(), name, spec };
+        }).collect(toList());
     }
 
     private final int num;
@@ -156,9 +179,29 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     public void test() throws Exception {
-        EqlSearchRequest request = new EqlSearchRequest(testIndexName, spec.query());
-        EqlSearchResponse response = highLevelClient().eql().search(request, RequestOptions.DEFAULT);
-        assertSpec(response.hits().events());
+        assertResponse(runQuery(testIndexName, spec.query()));
+    }
+
+    protected void assertResponse(EqlSearchResponse response) {
+        Hits hits = response.hits();
+        if (hits.events() != null) {
+            assertSearchHits(hits.events());
+        }
+        else if (hits.sequences() != null) {
+            assertSequences(hits.sequences());
+        }
+        else {
+            fail("No events or sequences found");
+        }
+    }
+
+    protected EqlSearchResponse runQuery(String index, String query) throws Exception {
+        EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
+        return eqlClient().search(request, RequestOptions.DEFAULT);
+    }
+
+    protected EqlClient eqlClient() {
+        return highLevelClient().eql();
     }
 
     private static long[] extractIds(List<SearchHit> events) {
@@ -170,9 +213,16 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         return ids;
     }
 
-    private void assertSpec(List<SearchHit> events) {
+    protected void assertSearchHits(List<SearchHit> events) {
         assertNotNull(events);
         assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]", spec.expectedEventIds(), extractIds(events));
+    }
+
+    protected void assertSequences(List<Sequence> sequences) {
+        List<SearchHit> events = sequences.stream()
+                .flatMap(s -> s.events().stream())
+                .collect(toList());
+        assertSearchHits(events);
     }
 
     private RestHighLevelClient highLevelClient() {

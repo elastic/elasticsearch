@@ -13,7 +13,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -78,7 +78,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Waits for Machine Learning and Transform templates to be created by the {@link MetaDataUpgrader}
+     * Waits for Machine Learning and Transform templates to be created by the {@link MetadataUpgrader}
      */
     private void waitForTemplates() throws Exception {
         if (installTemplates()) {

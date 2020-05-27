@@ -10,7 +10,11 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  testImplementation 'com.google.jimfs:jimfs:1.1'
+  testImplementation('com.google.jimfs:jimfs:1.1') {
+    // this is provided by the runtime classpath, from the security project
+    exclude group: 'com.google.guava', module: 'guava'
+  }
+  testRuntimeOnly 'com.google.guava:guava:19.0'
   testCompile project(":test:framework")
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
@@ -38,7 +42,7 @@ if (BuildParams.inFipsJvm) {
   testingConventions.enabled = false
   // Forbiden APIs non-portable checks fail because bouncy castle classes being used from the FIPS JDK since those are
   // not part of the Java specification - all of this is as designed, so we have to relax this check for FIPS.
-  tasks.withType(CheckForbiddenApis) {
+  tasks.withType(CheckForbiddenApis).configureEach {
     bundledSignatures -= "jdk-non-portable"
   }
 }

@@ -177,6 +177,10 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
         if (threshold == null) {
             throw new IllegalArgumentException("missing gc_threshold for [" + getThresholdName(key, level) + "]");
+        } else if (threshold.nanos() < 0) {
+            final String settingValue = settings.get(level);
+            throw new IllegalArgumentException("invalid gc_threshold [" + getThresholdName(key, level) + "] value [" +
+                settingValue + "]: value cannot be negative");
         }
 
         return threshold;

@@ -651,8 +651,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             });
                         failLatch.await();
                         assertNotNull(ex.get());
-                        if (ex.get() instanceof  IllegalStateException) {
-                            assertThat(ex.get().getMessage(), equalTo("no seed node left"));
+                        if (ex.get() instanceof IllegalStateException) {
+                            assertThat(ex.get().getMessage(), either(equalTo("no seed node left"))
+                                .or(equalTo("Unable to open any connections to remote cluster [cluster_2]")));
                         } else {
                             assertThat(ex.get(),
                                 either(instanceOf(TransportException.class)).or(instanceOf(NoSuchRemoteClusterException.class)));

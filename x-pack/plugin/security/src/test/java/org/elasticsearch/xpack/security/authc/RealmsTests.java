@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -73,25 +74,25 @@ public class RealmsTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowAllRealms();
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
         when(reservedRealm.name()).thenReturn("reserved");
     }
 
     private void allowAllRealms() {
-        when(licenseState.areAllRealmsAllowed()).thenReturn(true);
-        when(licenseState.areStandardRealmsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
     }
 
     private void allowOnlyStandardRealms() {
-        when(licenseState.areAllRealmsAllowed()).thenReturn(false);
-        when(licenseState.areStandardRealmsAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
     }
 
     private void allowOnlyNativeRealms() {
-        when(licenseState.areAllRealmsAllowed()).thenReturn(false);
-        when(licenseState.areStandardRealmsAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
+        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(false);
     }
 
     public void testWithSettings() throws Exception {
@@ -526,7 +527,7 @@ public class RealmsTests extends ESTestCase {
 
         assertThat(realms.iterator().hasNext(), is(true));
 
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         assertThat(realms.iterator().hasNext(), is(false));
     }
 
@@ -566,7 +567,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         // check standard realms include native
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowOnlyStandardRealms();
         future = new PlainActionFuture<>();
         realms.usageStats(future);

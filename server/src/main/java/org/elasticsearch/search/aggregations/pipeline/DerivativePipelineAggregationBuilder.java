@@ -125,7 +125,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
         DocValueFormat formatter;
         if (format != null) {
             formatter = new DocValueFormat.Decimal(format);
@@ -144,7 +144,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                 }
             }
         }
-        return new DerivativePipelineAggregator(name, bucketsPaths, formatter, gapPolicy, xAxisUnits, metaData);
+        return new DerivativePipelineAggregator(name, bucketsPaths, formatter, gapPolicy, xAxisUnits, metadata);
     }
 
     @Override

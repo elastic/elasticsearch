@@ -1,38 +1,47 @@
 [role="xpack"]
 [[ilm-settings]]
-=== {ilm-cap} settings
+=== {ilm-cap} settings in {es}
+[subs="attributes"]
+++++
+<titleabbrev>{ilm-cap} settings</titleabbrev>
+++++
 
-These are the settings available for configuring Index Lifecycle Management
+These are the settings available for configuring <<index-lifecycle-management, {ilm}>> ({ilm-init}).
 
 ==== Cluster level settings
 
 `xpack.ilm.enabled`::
-Whether ILM is enabled or disabled, setting this to `false` disables any
-ILM REST API endpoints and functionality. Defaults to `true`.
-
-`indices.lifecycle.poll_interval`::
-(<<time-units, time units>>) How often {ilm} checks for indices that meet policy
-criteria. Defaults to `10m`.
+(boolean)
+deprecated:[7.8.0,Basic License features are always enabled] +
+This deprecated setting has no effect and will be removed in Elasticsearch 8.0.
 
 `indices.lifecycle.history_index_enabled`::
+(boolean)
 Whether ILM's history index is enabled. If enabled, ILM will record the
 history of actions taken as part of ILM policies to the `ilm-history-*`
 indices. Defaults to `true`.
+
+`indices.lifecycle.poll_interval`::
+(<<cluster-update-settings,Dynamic>>, <<time-units, time unit value>>) 
+How often {ilm} checks for indices that meet policy criteria. Defaults to `10m`.
 
 ==== Index level settings
 These index-level {ilm-init} settings are typically configured through index
 templates. For more information, see <<ilm-gs-create-policy>>.
 
 `index.lifecycle.name`::
+(<<indices-update-settings, Dynamic>>, string) 
 The name of the policy to use to manage the index.
 
 `index.lifecycle.rollover_alias`::
+(<<indices-update-settings,Dynamic>>, string) 
 The index alias to update when the index rolls over. Specify when using a
 policy that contains a rollover action. When the index rolls over, the alias is
 updated to reflect that the index is no longer the write index. For more
 information about rollover, see <<using-policies-rollover>>.
 
 `index.lifecycle.parse_origination_date`::
+(<<indices-update-settings,Dynamic>>, boolean) 
 When configured to `true` the origination date will be parsed from the index
 name. The index format must match the pattern `^.*-{date_format}-\\d+`, where
 the `date_format` is `yyyy.MM.dd` and the trailing digits are optional (an
@@ -41,6 +50,8 @@ index that was rolled over would normally match the full format eg.
 the index creation will fail.
 
 `index.lifecycle.origination_date`::
+(<<indices-update-settings,Dynamic>>, long) 
 The timestamp that will be used to calculate the index age for its phase
 transitions. This allows the users to create an index containing old data and
-use the original creation date of the old data to calculate the index age.  Must be a long (Unix epoch) value.
+use the original creation date of the old data to calculate the index age.  
+Must be a long (Unix epoch) value.

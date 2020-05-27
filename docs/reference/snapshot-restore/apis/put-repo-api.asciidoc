@@ -70,7 +70,7 @@ data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.
 +
 You can manually perform this verification using the
-<<snapshots-repository-verification,verify snapshot repository API>>.
+<<verify-snapshot-repo-api,verify snapshot repository API>>.
 +
 IMPORTANT: You can also specify this value using the `verify` request body
 parameter. If both parameters are specified, only the query parameter is used.

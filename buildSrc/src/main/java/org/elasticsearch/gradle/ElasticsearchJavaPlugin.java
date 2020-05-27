@@ -53,16 +53,12 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.external.javadoc.CoreJavadocOptions;
-import org.gradle.internal.jvm.Jvm;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -231,24 +227,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 throw new GradleException("Failed to get canonical path for " + file, e);
             }
         };
-        // common options to both java and groovy
-        Consumer<CompileOptions> configureFork = compileOptions -> {
-            // we only fork if the Gradle JDK is not the same as the compiler JDK
-            String compilerJavaHome = canonicalPath.apply(BuildParams.getCompilerJavaHome());
-            String currentJavaHome = canonicalPath.apply(Jvm.current().getJavaHome());
-            if (compilerJavaHome.equals(currentJavaHome)) {
-                compileOptions.setFork(false);
-            } else {
-                compileOptions.setFork(true);
-                compileOptions.getForkOptions().setJavaHome(BuildParams.getCompilerJavaHome());
-            }
-        };
 
         project.afterEvaluate(p -> {
             project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
                 CompileOptions compileOptions = compileTask.getOptions();
-
-                configureFork.accept(compileOptions);
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
@@ -279,7 +261,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             });
             // also apply release flag to groovy, which is used in build-tools
             project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
-                configureFork.accept(compileTask.getOptions());
 
                 // TODO: this probably shouldn't apply to groovy at all?
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
@@ -416,7 +397,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
-            nonInputProperties.systemProperty("compiler.java", BuildParams.getCompilerJavaVersion().getMajorVersion());
             nonInputProperties.systemProperty("runtime.java", BuildParams.getRuntimeJavaVersion().getMajorVersion());
 
             // TODO: remove setting logging level via system property
@@ -493,7 +473,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                                         "Build-Date",
                                         BuildParams.getBuildDate(),
                                         "Build-Java-Version",
-                                        BuildParams.getCompilerJavaVersion()
+                                        BuildParams.getGradleJavaVersion()
                                     )
                                 );
                         }
@@ -544,18 +524,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     private static void configureJavadoc(Project project) {
         project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
-            // only explicitly set javadoc executable if compiler JDK is different from Gradle
-            // this ensures better cacheability as setting ths input to an absolute path breaks portability
-            Path compilerJvm = BuildParams.getCompilerJavaHome().toPath();
-            Path gradleJvm = Jvm.current().getJavaHome().toPath();
-            try {
-                if (Files.isSameFile(compilerJvm, gradleJvm) == false) {
-                    javadoc.setExecutable(compilerJvm.resolve("bin/javadoc").toString());
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
             /*
              * Generate docs using html5 to suppress a warning from `javadoc`
              * that the default will change to html5 in the future.

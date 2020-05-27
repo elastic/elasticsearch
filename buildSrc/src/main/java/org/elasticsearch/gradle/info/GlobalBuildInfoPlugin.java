@@ -70,8 +70,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumRuntimeVersion"));
 
-        File compilerJavaHome = findCompilerJavaHome();
-        File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
+        File runtimeJavaHome = findRuntimeJavaHome();
 
         File rootDir = project.getRootDir();
         GitInfo gitInfo = gitInfo(rootDir);
@@ -81,11 +80,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
 
             params.reset();
-            params.setCompilerJavaHome(compilerJavaHome);
             params.setRuntimeJavaHome(runtimeJavaHome);
-            params.setCompilerJavaVersion(determineJavaVersion("compiler java.home", compilerJavaHome, minimumCompilerVersion));
             params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
-            params.setIsRutimeJavaHomeSet(compilerJavaHome.equals(runtimeJavaHome) == false);
+            params.setIsRutimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
             params.setJavaVersions(getAvailableJavaVersions(minimumCompilerVersion));
             params.setMinimumCompilerVersion(minimumCompilerVersion);
             params.setMinimumRuntimeVersion(minimumRuntimeVersion);
@@ -132,12 +129,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
-        if (Jvm.current().getJavaVersion().equals(BuildParams.getCompilerJavaVersion()) == false || BuildParams.getIsRuntimeJavaHomeSet()) {
-            String compilerJvmDetails = getJavaInstallation(BuildParams.getCompilerJavaHome()).getImplementationName();
+        if (BuildParams.getIsRuntimeJavaHomeSet()) {
             String runtimeJvmDetails = getJavaInstallation(BuildParams.getRuntimeJavaHome()).getImplementationName();
-
-            LOGGER.quiet("  Compiler JDK Version  : " + BuildParams.getCompilerJavaVersion() + " (" + compilerJvmDetails + ")");
-            LOGGER.quiet("  Compiler java.home    : " + BuildParams.getCompilerJavaHome());
             LOGGER.quiet("  Runtime JDK Version   : " + BuildParams.getRuntimeJavaVersion() + " (" + runtimeJvmDetails + ")");
             LOGGER.quiet("  Runtime java.home     : " + BuildParams.getRuntimeJavaHome());
             LOGGER.quiet("  Gradle JDK Version    : " + gradleJvm.getJavaVersion() + " (" + gradleJvmDetails + ")");
@@ -233,26 +226,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         throw new GradleException(message);
     }
 
-    private static File findCompilerJavaHome() {
-        String compilerJavaHome = System.getenv("JAVA_HOME");
-        String compilerJavaProperty = System.getProperty("compiler.java");
-
-        if (compilerJavaProperty != null) {
-            compilerJavaHome = findJavaHome(compilerJavaProperty);
-        }
-
-        // if JAVA_HOME is not set,so we use the JDK that Gradle was run with.
-        return compilerJavaHome == null ? Jvm.current().getJavaHome() : new File(compilerJavaHome);
-    }
-
-    private static File findRuntimeJavaHome(final File compilerJavaHome) {
+    private static File findRuntimeJavaHome() {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
             return new File(findJavaHome(runtimeJavaProperty));
         }
 
-        return System.getenv("RUNTIME_JAVA_HOME") == null ? compilerJavaHome : new File(System.getenv("RUNTIME_JAVA_HOME"));
+        return System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"));
     }
 
     private static String findJavaHome(String version) {

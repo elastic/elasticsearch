@@ -45,6 +45,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -96,12 +97,12 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     /**
      * Makes dependencies non-transitive.
-     *
+     * <p>
      * Gradle allows setting all dependencies as non-transitive very easily.
      * Sadly this mechanism does not translate into maven pom generation. In order
      * to effectively make the pom act as if it has no transitive dependencies,
      * we must exclude each transitive dependency of each direct dependency.
-     *
+     * <p>
      * Determining the transitive deps of a dependency which has been resolved as
      * non-transitive is difficult because the process of resolving removes the
      * transitive deps. To sidestep this issue, we create a configuration per
@@ -555,9 +556,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 throw new UncheckedIOException(e);
             }
 
-            // remove compiled classes from the Javadoc classpath:
-            // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-            javadoc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath());
             /*
              * Generate docs using html5 to suppress a warning from `javadoc`
              * that the default will change to html5 in the future.
@@ -565,9 +563,14 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
             javadocOptions.addBooleanOption("html5", true);
         });
+
+        TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
+        javadoc.configure(doc ->
+        // remove compiled classes from the Javadoc classpath:
+        // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+
         // ensure javadoc task is run with 'check'
-        project.getTasks()
-            .named(LifecycleBasePlugin.CHECK_TASK_NAME)
-            .configure(t -> t.dependsOn(project.getTasks().withType(Javadoc.class)));
+        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
     }
 }

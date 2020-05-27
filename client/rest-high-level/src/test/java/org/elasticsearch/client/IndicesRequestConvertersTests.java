@@ -166,6 +166,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(putMappingRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomIndicesOptions(putMappingRequest::indicesOptions,
+            putMappingRequest::indicesOptions, expectedParams);
 
         Request request = IndicesRequestConverters.putMapping(putMappingRequest);
 

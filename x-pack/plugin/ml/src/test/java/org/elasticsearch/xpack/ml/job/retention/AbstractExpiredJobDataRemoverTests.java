@@ -93,6 +93,14 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         return createSearchResponse(toXContents, toXContents.size());
     }
 
+    static SearchResponse createSearchResponseFromHits(List<SearchHit> hits) {
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[] {}),
+            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        return searchResponse;
+    }
+
     @SuppressWarnings("unchecked")
     static void givenJobs(Client client, List<Job> jobs) throws IOException {
         SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);

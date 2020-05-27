@@ -253,7 +253,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
-        assertEquals("Line 1:43: Comparisons against variables are not (currently) supported; offender [int] in [>]", ex.getMessage());
+        assertEquals("Line 1:43: Comparisons against fields are not (currently) supported; offender [int] in [>]", ex.getMessage());
     }
 
     public void testDateRange() {

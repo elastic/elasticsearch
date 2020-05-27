@@ -33,18 +33,11 @@ setup:
       reason: waiting for backport
 
   - do:
+      catch:      /\[from\] parameter cannot be negative but was \[-1\]/
       search:
         rest_total_hits_as_int: true
         index: test_1
-        # value of -1 should be accepted as unset value
         from: -1
-
-  - do:
-      catch:      /\[from\] parameter cannot be negative but was \[-2\]/
-      search:
-        rest_total_hits_as_int: true
-        index: test_1
-        from: -2
 
 ---
 "Request with negative from value in body":
@@ -54,20 +47,12 @@ setup:
       reason: waiting for backport
 
   - do:
+      catch:      /\[from\] parameter cannot be negative but was \[-1\]/
       search:
         rest_total_hits_as_int: true
         index: test_1
-        # value of -1 should be accepted as unset value
         body:
           from: -1
-
-  - do:
-      catch:      /\[from\] parameter cannot be negative but was \[-2\]/
-      search:
-        rest_total_hits_as_int: true
-        index: test_1
-        body:
-          from: -2
 
 ---
 "Request window limits with scroll":

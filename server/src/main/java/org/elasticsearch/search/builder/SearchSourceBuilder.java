@@ -336,12 +336,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * From index to start the search from. Defaults to {@code 0}.
-     * A value of -1 is interpreted as an unset value equivalent to 0.
-     * Any other negative value is forbidden.
+     * Must be a positive value or 0.
      */
     public SearchSourceBuilder from(int from) {
-        // accept -1 as the default unset value without error
-        if (from < -1) {
+        if (from < 0) {
             throw new IllegalArgumentException("[from] parameter cannot be negative but was [" + from + "]");
         }
         this.from = from;

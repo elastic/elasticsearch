@@ -431,12 +431,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeFromErrors() {
-        int from = randomIntBetween(-10, -2);
+        int from = randomIntBetween(-10, -1);
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(from));
         assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
-        
-        // we tolerate -1 though
-        new SearchSourceBuilder().from(-1);
     }
 
     public void testNegativeSizeErrors() {

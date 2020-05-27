@@ -186,7 +186,11 @@ public class DependencyLicensesTask extends DefaultTask {
             }
             return; // no dependencies to check
         } else if (licensesDir.exists() == false) {
-            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies");
+            String deps = "";
+            for (File file : dependencies) {
+                deps += file.getName() + "\n";
+            }
+            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies: " + deps);
         }
 
         Map<String, Boolean> licenses = new HashMap<>();

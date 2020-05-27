@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -108,7 +107,6 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -666,10 +664,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
         Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
-        final RepositoryData repositoryData = PlainActionFuture.get(f ->
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(f, repository::getRepositoryData)));
+        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
             assertThat(indexRecoveryStates.getKey(), equalTo(INDEX_NAME));
@@ -733,7 +729,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     public void testTransientErrorsDuringRecoveryAreRetried() throws Exception {
         final String indexName = "test";
         final Settings nodeSettings = Settings.builder()
-            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "360s")
+            .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
+            .put(NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.getKey(), "500ms")
             .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "10s")
             .build();
         // start a master node
@@ -804,7 +801,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             validator.accept(action, request);
             connection.sendRequest(requestId, action, request, options);
         });
-        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted);
+        Runnable connectionBreaker = () -> {
+            // Always break connection from source to remote to ensure that actions are retried
+            blueTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+            if (randomBoolean()) {
+                // Sometimes break connection from remote to source to ensure that recovery is re-established
+                redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
+            }
+        };
+        TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted, connectionBreaker);
         redTransportService.addRequestHandlingBehavior(recoveryActionToBlock, handlingBehavior);
 
         try {
@@ -828,11 +833,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         private final String actionName;
         private final AtomicBoolean recoveryStarted;
+        private final Runnable connectionBreaker;
         private final AtomicInteger blocksRemaining;
 
-        private TransientReceiveRejected(String actionName, AtomicBoolean recoveryStarted) {
+        private TransientReceiveRejected(String actionName, AtomicBoolean recoveryStarted, Runnable connectionBreaker) {
             this.actionName = actionName;
             this.recoveryStarted = recoveryStarted;
+            this.connectionBreaker = connectionBreaker;
             this.blocksRemaining = new AtomicInteger(randomIntBetween(1, 3));
         }
 
@@ -841,11 +848,21 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                                     Task task) throws Exception {
             recoveryStarted.set(true);
             if (blocksRemaining.getAndUpdate(i -> i == 0 ? 0 : i - 1) != 0) {
-                logger.info("--> preventing {} response by throwing exception", actionName);
-                if (randomBoolean()) {
+                String rejected = "rejected";
+                String circuit = "circuit";
+                String network = "network";
+                String reason = randomFrom(rejected, circuit, network);
+                if (reason.equals(rejected)) {
+                    logger.info("--> preventing {} response by throwing exception", actionName);
                     throw new EsRejectedExecutionException();
-                } else {
+                } else if (reason.equals(circuit)) {
+                    logger.info("--> preventing {} response by throwing exception", actionName);
                     throw new CircuitBreakingException("Broken", CircuitBreaker.Durability.PERMANENT);
+                } else if (reason.equals(network)) {
+                    logger.info("--> preventing {} response by breaking connection", actionName);
+                    connectionBreaker.run();
+                } else {
+                    throw new AssertionError("Unknown failure reason: " + reason);
                 }
             }
             handler.messageReceived(request, channel, task);

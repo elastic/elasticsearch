@@ -258,12 +258,19 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected String forecast(String jobId, TimeValue duration, TimeValue expiresIn) {
+        return forecast(jobId, duration, expiresIn, null);
+    }
+
+    protected String forecast(String jobId, TimeValue duration, TimeValue expiresIn, Long maxMemory) {
         ForecastJobAction.Request request = new ForecastJobAction.Request(jobId);
         if (duration != null) {
             request.setDuration(duration.getStringRep());
         }
         if (expiresIn != null) {
             request.setExpiresIn(expiresIn.getStringRep());
+        }
+        if (maxMemory != null) {
+            request.setMaxModelMemory(maxMemory);
         }
         return client().execute(ForecastJobAction.INSTANCE, request).actionGet().getForecastId();
     }

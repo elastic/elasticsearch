@@ -34,6 +34,9 @@ public class ForecastJobActionRequestTests extends AbstractSerializingTestCase<R
         if (randomBoolean()) {
             request.setExpiresIn(TimeValue.timeValueSeconds(randomIntBetween(0, 1_000_000)).getStringRep());
         }
+        if (randomBoolean()) {
+            request.setMaxModelMemory(randomLongBetween(1, 10000));
+        }
         return request;
     }
 

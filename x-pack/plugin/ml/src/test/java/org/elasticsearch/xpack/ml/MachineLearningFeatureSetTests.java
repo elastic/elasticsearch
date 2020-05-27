@@ -351,10 +351,11 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L, 0);
         givenJobs(Arrays.asList(opened1, closed1), Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
 
-        var usageAction = newUsageAction(settings.build());
-        PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
+            clusterService, client, licenseState, jobManagerHolder);
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage usage = future.get();
 
         XContentSource source;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

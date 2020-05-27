@@ -119,6 +119,7 @@ public class TranslogPolicyIT extends AbstractFullClusterRestartTestCase {
                     flush(index, randomBoolean());
                 }
             }
+            client().performRequest(new Request("POST", "/" + index + "/_refresh"));
             if (randomBoolean()) {
                 ensurePeerRecoveryRetentionLeasesRenewedAndSynced(index);
             }

@@ -31,7 +31,6 @@ import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
-import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 
 public class Cleanup {
 

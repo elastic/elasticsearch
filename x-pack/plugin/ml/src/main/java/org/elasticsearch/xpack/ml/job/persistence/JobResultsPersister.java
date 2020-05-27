@@ -90,7 +90,7 @@ public class JobResultsPersister {
     }
 
     public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
-        return new Builder(jobId, resultsPersisterService, shouldRetry);
+        return new Builder(jobId, shouldRetry);
     }
 
     public class Builder {
@@ -98,14 +98,12 @@ public class JobResultsPersister {
         private final String jobId;
         private final String indexName;
         private final Supplier<Boolean> shouldRetry;
-        private final ResultsPersisterService resultsPersisterService;
 
-        private Builder(String jobId, ResultsPersisterService resultsPersisterService, Supplier<Boolean> shouldRetry) {
+        private Builder(String jobId, Supplier<Boolean> shouldRetry) {
+            this.bulkRequest = new BulkRequest();
             this.jobId = Objects.requireNonNull(jobId);
-            indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-            bulkRequest = new BulkRequest();
+            this.indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
             this.shouldRetry = shouldRetry;
-            this.resultsPersisterService = resultsPersisterService;
         }
 
         /**

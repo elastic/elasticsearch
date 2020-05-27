@@ -29,7 +29,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -48,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;

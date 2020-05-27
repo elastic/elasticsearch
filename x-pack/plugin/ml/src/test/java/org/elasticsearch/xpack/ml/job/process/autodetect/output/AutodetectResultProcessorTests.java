@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -382,8 +382,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).persistModelSnapshot(eq(modelSnapshot), eq(WriteRequest.RefreshPolicy.IMMEDIATE), any());
 
         ArgumentCaptor<Annotation> annotationCaptor = ArgumentCaptor.forClass(Annotation.class);
-        verify(annotationPersister).persistAnnotation(
-            eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture(), any());
+        verify(annotationPersister).persistAnnotation(eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture());
         Annotation annotation = annotationCaptor.getValue();
         Annotation expectedAnnotation =
             new Annotation.Builder()

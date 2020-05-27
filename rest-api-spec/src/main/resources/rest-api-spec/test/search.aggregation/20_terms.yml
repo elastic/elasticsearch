@@ -726,7 +726,7 @@ setup:
 ---
 "profiler":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.8.99"
       reason: debug information added in 7.9.0
   - do:
       bulk:

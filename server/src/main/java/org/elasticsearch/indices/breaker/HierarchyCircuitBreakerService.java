@@ -109,7 +109,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private volatile long maybeTripCounter;
     private final Object realMemmoryCircuitBreakerLock = new Object();
     private final boolean doubleCheckRealMemoryUsedEnabled =
-        Boolean.getBoolean("es.real_memory_circuit_breaker.double_check_disabled") == false;
+        Boolean.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.double_check_enable", "true"));
     private final long g1RegionSize;
 
     public HierarchyCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {

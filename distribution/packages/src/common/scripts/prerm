@@ -53,7 +53,7 @@ esac
 if [ "$STOP_REQUIRED" = "true" ]; then
     echo -n "Stopping elasticsearch service..."
     if command -v systemctl >/dev/null; then
-        systemctl --no-reload stop elasticsearch.service
+        systemctl --no-reload stop elasticsearch.service || true
     fi
     echo " OK"
 fi

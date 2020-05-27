@@ -84,7 +84,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             DateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof DateHistogramAggregationSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected DateHistogramAggregationSupplier, found [" +

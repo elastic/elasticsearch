@@ -337,6 +337,8 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     protected final ValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                           Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig config = resolveConfig(queryShardContext);
+        // TODO: We should pass the supplier in from here.  Right now this just checks that the VST is valid
+        AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config, getType());
         ValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }

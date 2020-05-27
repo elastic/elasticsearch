@@ -17,10 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.template.delete;
+package org.elasticsearch.action.admin.indices.template.put;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -29,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -38,19 +37,17 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportDeleteIndexTemplateV2Action
-    extends TransportMasterNodeAction<DeleteIndexTemplateV2Action.Request, AcknowledgedResponse> {
-
-    private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateV2Action.class);
+public class TransportPutComposableIndexTemplateAction
+    extends TransportMasterNodeAction<PutComposableIndexTemplateAction.Request, AcknowledgedResponse> {
 
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteIndexTemplateV2Action(TransportService transportService, ClusterService clusterService,
-                                                  ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteIndexTemplateV2Action.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteIndexTemplateV2Action.Request::new, indexNameExpressionResolver);
+    public TransportPutComposableIndexTemplateAction(TransportService transportService, ClusterService clusterService,
+                                                     ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
+                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(PutComposableIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PutComposableIndexTemplateAction.Request::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -66,13 +63,15 @@ public class TransportDeleteIndexTemplateV2Action
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteIndexTemplateV2Action.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutComposableIndexTemplateAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateV2Action.Request request, final ClusterState state,
+    protected void masterOperation(final PutComposableIndexTemplateAction.Request request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        indexTemplateService.removeIndexTemplateV2(request.name(), request.masterNodeTimeout(), listener);
+        ComposableIndexTemplate indexTemplate = request.indexTemplate();
+        indexTemplateService.putIndexTemplateV2(request.cause(), request.create(), request.name(), request.masterNodeTimeout(),
+            indexTemplate, listener);
     }
 }

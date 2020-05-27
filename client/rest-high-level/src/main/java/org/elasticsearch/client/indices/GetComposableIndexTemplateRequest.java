@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 /**
  * A request to read the content of index templates
  */
-public class GetIndexTemplateV2Request implements Validatable {
+public class GetComposableIndexTemplateRequest implements Validatable {
 
     private final String name;
 
@@ -40,7 +40,7 @@ public class GetIndexTemplateV2Request implements Validatable {
      *
      * @param name the name of template to read
      */
-    public GetIndexTemplateV2Request(String name) {
+    public GetComposableIndexTemplateRequest(String name) {
         this.name = name;
     }
 

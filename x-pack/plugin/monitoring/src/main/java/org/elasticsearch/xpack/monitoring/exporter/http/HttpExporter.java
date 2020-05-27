@@ -21,7 +21,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.client.sniff.Sniffer;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,7 +39,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState.Feature;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -365,7 +364,7 @@ public class HttpExporter extends Exporter {
     private static final ConcurrentHashMap<String, SecureString> SECURE_AUTH_PASSWORDS = new ConcurrentHashMap<>();
     private final ThreadContext threadContext;
     private final DateFormatter dateTimeFormatter;
-
+    private final ClusterStateListener onLocalMasterListener;
     /**
      * Create an {@link HttpExporter}.
      *
@@ -428,22 +427,12 @@ public class HttpExporter extends Exporter {
         listener.setResource(resource);
 
         //for a mixed cluster upgrade, ensure that if master changes and this is the master, allow the resources to re-publish
-        config.clusterService().addLocalNodeMasterListener(new LocalNodeMasterListener() {
-            @Override
-            public void onMaster() {
+        onLocalMasterListener = clusterChangedEvent -> {
+            if (clusterChangedEvent.nodesDelta().masterNodeChanged() && clusterChangedEvent.localNodeMaster()) {
                 resource.markDirty();
             }
-
-            @Override
-            public void offMaster() {
-                //do nothing
-            }
-
-            @Override
-            public String executorName() {
-                return ThreadPool.Names.SAME;
-            }
-        });
+        };
+        config.clusterService().addListener(onLocalMasterListener);
     }
 
     /**
@@ -878,9 +867,11 @@ public class HttpExporter extends Exporter {
     @Override
     public void doClose() {
         try {
+            config.clusterService().removeListener(onLocalMasterListener);
             if (sniffer != null) {
                 sniffer.close();
             }
+
         } catch (Exception e) {
             logger.error("an error occurred while closing the internal client sniffer", e);
         } finally {

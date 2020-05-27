@@ -53,7 +53,7 @@ these settings. Either all values are set to percentage values, or all are set t
 values. This enforcement is so that Elasticsearch can validate that the settings are internally
 consistent, ensuring that the low disk threshold is less than the high disk
 threshold, and the high disk threshold is less than the flood stage
-threshold. Therefore, you typically do not need to modify this setting.
+threshold.
 
 An example of resetting the read-only index block on the `twitter` index:
 

@@ -125,7 +125,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         {
             // level set INFO, should log when INFO level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
+            settings.updateIndexMetaData(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
             log.onQueryPhase(ctx, 30L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx, 31L);
@@ -139,7 +139,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         {
             // level set DEBUG, should log when DEBUG level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
+            settings.updateIndexMetaData(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
             log.onQueryPhase(ctx, 20L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx, 21L);
@@ -153,7 +153,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
         {
             // level set TRACE, should log when TRACE level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
+            settings.updateIndexMetaData(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
             log.onQueryPhase(ctx, 10L);
             assertNull(appender.getLastEventAndReset());
             log.onQueryPhase(ctx, 11L);
@@ -210,10 +210,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
     }
 
-    private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {
+    private IndexMetaData createIndexMetadata(SlowLogLevel level, String index, String uuid) {
         return newIndexMeta(index, Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, uuid)
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level)
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "10nanos")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "20nanos")

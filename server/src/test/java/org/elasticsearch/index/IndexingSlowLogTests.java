@@ -80,7 +80,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
     public void testLevelPrecedence() {
         String uuid = UUIDs.randomBase64UUID();
-        IndexMetadata metadata = createIndexMetadata(SlowLogLevel.WARN, "index-precedence", uuid);
+        IndexMetaData metadata = createIndexMetadata(SlowLogLevel.WARN, "index-precedence", uuid);
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         IndexingSlowLog log = new IndexingSlowLog(settings);
 
@@ -104,7 +104,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         {
             // level set INFO, should log when INFO level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
+            settings.updateIndexMetaData(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
             Mockito.when(result.getTook()).thenReturn(30L);
             log.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
@@ -116,7 +116,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         {
             // level set DEBUG, should log when DEBUG level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
+            settings.updateIndexMetaData(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
             Mockito.when(result.getTook()).thenReturn(20L);
             log.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
@@ -128,7 +128,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         {
             // level set TRACE, should log when TRACE level is breached
-            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
+            settings.updateIndexMetaData(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
             Mockito.when(result.getTook()).thenReturn(10L);
             log.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
@@ -185,10 +185,10 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
     }
 
-    private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {
+    private IndexMetaData createIndexMetadata(SlowLogLevel level, String index, String uuid) {
         return newIndexMeta(index, Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, uuid)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "10nanos")
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "20nanos")

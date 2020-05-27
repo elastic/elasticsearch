@@ -32,19 +32,21 @@ import java.util.stream.Collectors;
 abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
     private final OriginSettingClient client;
+    private final List<Job> jobs;
 
-    AbstractExpiredJobDataRemover(OriginSettingClient client) {
+    AbstractExpiredJobDataRemover(OriginSettingClient client, List<Job> jobs) {
         this.client = client;
+        this.jobs = jobs;
     }
 
     @Override
     public void remove(float requestsPerSecond,
                        ActionListener<Boolean> listener,
                        Supplier<Boolean> isTimedOutSupplier) {
-        removeData(newJobIterator(), requestsPerSecond, listener, isTimedOutSupplier);
+        removeData(jobs.iterator(), requestsPerSecond, listener, isTimedOutSupplier);
     }
 
-    private void removeData(WrappedBatchedJobsIterator jobIterator,
+    private void removeData(Iterator<Job> jobIterator,
                             float requestsPerSecond,
                             ActionListener<Boolean> listener,
                             Supplier<Boolean> isTimedOutSupplier) {
@@ -82,11 +84,6 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
                 },
                 listener::onFailure
         ));
-    }
-
-    private WrappedBatchedJobsIterator newJobIterator() {
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
-        return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
     abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener);

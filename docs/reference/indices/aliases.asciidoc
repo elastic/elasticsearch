@@ -258,7 +258,9 @@ indices that match this pattern are added/removed.
 
 It is an error to index to an alias which points to more than one index.
 
-It is also possible to swap an index with an alias in one operation:
+It is also possible to swap an index with an alias in one, atomic operation.
+This means there will be no period of downtime where the alias points to no
+index.
 
 [source,console]
 --------------------------------------------------

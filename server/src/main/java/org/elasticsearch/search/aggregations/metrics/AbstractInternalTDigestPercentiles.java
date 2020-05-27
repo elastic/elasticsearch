@@ -72,7 +72,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     public abstract double value(double key);
 
-    DocValueFormat formatter() {
+    public DocValueFormat formatter() {
         return format;
     }
 
@@ -80,8 +80,25 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return state.byteSize();
     }
 
-    TDigestState getState() {
+    /**
+     * Return the internal {@link TDigestState} sketch for this metric.
+     */
+    public TDigestState getState() {
         return state;
+    }
+
+    /**
+     * Return the keys (percentiles) requested.
+     */
+    public double[] getKeys() {
+        return keys;
+    }
+
+    /**
+     * Should the output be keyed.
+     */
+    public boolean keyed() {
+        return keyed;
     }
 
     @Override

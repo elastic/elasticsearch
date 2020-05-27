@@ -62,66 +62,151 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 error("process where between(process_name, \"s\", \"e\", false, 2)"));
     }
 
-    public void testCIDRMatchNonIPField() {
+    public void testCIDRMatchAgainstField() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where cidrMatch(hostname, \"10.0.0.0/8\")"));
+            () -> plan("process where cidrMatch(source_address, hostname)"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-                "line 1:15: first argument of [cidrMatch(hostname, \"10.0.0.0/8\")] must be [ip], found value [hostname] type [text]", msg);
+            "line 1:15: second argument of [cidrMatch(source_address, hostname)] must be a constant, received [hostname]", msg);
     }
 
     public void testCIDRMatchMissingValue() {
         ParsingException e = expectThrows(ParsingException.class,
-                () -> plan("process where cidrMatch(source_address)"));
+            () -> plan("process where cidrMatch(source_address)"));
         String msg = e.getMessage();
         assertEquals("line 1:16: error building [cidrmatch]: expects at least two arguments", msg);
     }
 
-    public void testCIDRMatchAgainstField() {
+    public void testCIDRMatchNonIPField() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where cidrMatch(source_address, hostname)"));
+            () -> plan("process where cidrMatch(hostname, \"10.0.0.0/8\")"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-                "line 1:15: second argument of [cidrMatch(source_address, hostname)] must be a constant, received [hostname]", msg);
+            "line 1:15: first argument of [cidrMatch(hostname, \"10.0.0.0/8\")] must be [ip], found value [hostname] type [text]", msg);
     }
 
     public void testCIDRMatchNonString() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where cidrMatch(source_address, 12345)"));
+            () -> plan("process where cidrMatch(source_address, 12345)"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
-                "line 1:15: argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
+            "line 1:15: second argument of [cidrMatch(source_address, 12345)] must be [string], found value [12345] type [integer]", msg);
+    }
+
+    public void testConcatWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where concat(plain_text)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [concat(plain_text)] cannot operate on field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
     public void testEndsWithFunctionWithInexact() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where endsWith(plain_text, \"foo\") == true"));
+            () -> plan("process where endsWith(plain_text, \"foo\") == true"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: [endsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
-                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testIndexOfFunctionWithInexact() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where indexOf(plain_text, \"foo\") == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [indexOf(plain_text, \"foo\")] cannot operate on first argument field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+
+        e = expectThrows(VerificationException.class,
+            () -> plan("process where indexOf(\"bla\", plain_text) == 1"));
+        msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [indexOf(\"bla\", plain_text)] cannot operate on second argument field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
     public void testLengthFunctionWithInexact() {
         VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where length(plain_text) > 0"));
+            () -> plan("process where length(plain_text) > 0"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: [length(plain_text)] cannot operate on field of data type [text]: No keyword/multi-field "
-                + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+            + "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testMatchWithText() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where match(plain_text, 'foo.*')"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: [match(plain_text, 'foo.*')] cannot operate on first argument field of data type [text]: No keyword/multi-field " +
+            "defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+    }
+
+    public void testMatchWithNonString() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where match(process_name, parent_process_name)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: second argument of [match(process_name, parent_process_name)] " +
+            "must be a constant, received [parent_process_name]", msg);
+    }
+
+    public void testMatchWithNonRegex() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where match(process_name, 1)"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\n" +
+            "line 1:15: second argument of [match(process_name, 1)] " +
+            "must be [string], found value [1] type [integer]", msg);
+    }
+
+    public void testNumberFunctionAlreadyNumber() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(pid) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: first argument of [number(pid)] must be [string], "
+            + "found value [pid] type [long]", msg);
+    }
+
+    public void testNumberFunctionFloatBase() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(process_name, 1.0) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: second argument of [number(process_name, 1.0)] must be [integer], "
+            + "found value [1.0] type [double]", msg);
+
+    }
+
+    public void testNumberFunctionNonString() {
+        VerificationException e = expectThrows(VerificationException.class,
+            () -> plan("process where number(plain_text) == 1"));
+        String msg = e.getMessage();
+        assertEquals("Found 1 problem\nline 1:15: [number(plain_text)] cannot operate on first argument field of data type "
+            + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
+
     }
 
     public void testPropertyEquationFilterUnsupported() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
                 () -> plan("process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid)"));
         String msg = e.getMessage();
-        assertEquals("Line 1:74: Comparisons against variables are not (currently) supported; offender [pid] in [==]", msg);
+        assertEquals("Line 1:74: Comparisons against fields are not (currently) supported; offender [pid] in [==]", msg);
     }
 
     public void testPropertyEquationInClauseFilterUnsupported() {
         VerificationException e = expectThrows(VerificationException.class,
                 () -> plan("process where opcode in (1,3) and process_name in (parent_process_name, \"SYSTEM\")"));
         String msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:35: Comparisons against variables are not (currently) supported; " +
+        assertEquals("Found 1 problem\nline 1:35: Comparisons against fields are not (currently) supported; " +
                 "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
+    }
+
+    public void testSequenceWithBeforeBy() {
+        String msg = errorParsing("sequence with maxspan=1s by key [a where true] [b where true]");
+        assertEquals("1:2: Please specify sequence [by] before [with] not after", msg);
+    }
+
+    public void testSequenceWithNoTimeUnit() {
+        String msg = errorParsing("sequence with maxspan=30 [a where true] [b where true]");
+        assertEquals("1:24: No time unit specified, did you mean [s] as in [30s]?", msg);
     }
 
     public void testStartsWithFunctionWithInexact() {
@@ -129,20 +214,6 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
                 () -> plan("process where startsWith(plain_text, \"foo\") == true"));
         String msg = e.getMessage();
         assertEquals("Found 1 problem\nline 1:15: [startsWith(plain_text, \"foo\")] cannot operate on first argument field of data type "
-                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
-    }
-
-    public void testIndexOfFunctionWithInexact() {
-        VerificationException e = expectThrows(VerificationException.class,
-                () -> plan("process where indexOf(plain_text, \"foo\") == 1"));
-        String msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:15: [indexOf(plain_text, \"foo\")] cannot operate on first argument field of data type "
-                + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
-        
-        e = expectThrows(VerificationException.class,
-                () -> plan("process where indexOf(\"bla\", plain_text) == 1"));
-        msg = e.getMessage();
-        assertEquals("Found 1 problem\nline 1:15: [indexOf(\"bla\", plain_text)] cannot operate on second argument field of data type "
                 + "[text]: No keyword/multi-field defined exact matches for [plain_text]; define one or use MATCH/QUERY instead", msg);
     }
 
@@ -186,15 +257,5 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
         String msg = e.getMessage();
         assertEquals("Found 1 problem\n" +
                 "line 1:15: first argument of [wildcard(pid, '*.exe')] must be [string], found value [pid] type [long]", msg);
-    }
-    
-    public void testSequenceWithBeforeBy() {
-        String msg = errorParsing("sequence with maxspan=1s by key [a where true] [b where true]");
-        assertEquals("1:2: Please specify sequence [by] before [with] not after", msg);
-    }
-
-    public void testSequenceWithNoTimeUnit() {
-        String msg = errorParsing("sequence with maxspan=30 [a where true] [b where true]");
-        assertEquals("1:24: No time unit specified, did you mean [s] as in [30s]?", msg);
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BraceNode;
@@ -28,6 +29,7 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.ListSubShortcutNode;
 import org.elasticsearch.painless.ir.MapSubShortcutNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
@@ -43,11 +45,13 @@ import java.util.Objects;
  */
 public class EBrace extends AExpression {
 
+    protected final AExpression prefix;
     protected final AExpression index;
 
     public EBrace(Location location, AExpression prefix, AExpression index) {
-        super(location, prefix);
+        super(location);
 
+        this.prefix = Objects.requireNonNull(prefix);
         this.index = Objects.requireNonNull(index);
     }
 
@@ -57,7 +61,7 @@ public class EBrace extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
-        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, new Input());
+        Output prefixOutput = analyze(prefix, classNode, scriptRoot, scope, new Input());
 
         ExpressionNode expressionNode;
         Output output = new Output();
@@ -65,19 +69,20 @@ public class EBrace extends AExpression {
         if (prefixOutput.actual.isArray()) {
             Input indexInput = new Input();
             indexInput.expected = int.class;
-            Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
-            index.cast(indexInput, indexOutput);
+            Output indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
+            PainlessCast indexCast = AnalyzerCaster.getLegalCast(index.location,
+                    indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
             output.actual = prefixOutput.actual.getComponentType();
 
             BraceSubNode braceSubNode = new BraceSubNode();
-            braceSubNode.setChildNode(index.cast(indexOutput));
+            braceSubNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             braceSubNode.setLocation(location);
             braceSubNode.setExpressionType(output.actual);
             expressionNode = braceSubNode;
         } else if (prefixOutput.actual == def.class) {
             Input indexInput = new Input();
-            Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+            Output indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
 
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
@@ -109,12 +114,14 @@ public class EBrace extends AExpression {
             }
 
             Output indexOutput;
+            PainlessCast indexCast;
 
             if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
-                index.cast(indexInput, indexOutput);
+                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
+                indexCast = AnalyzerCaster.getLegalCast(index.location,
+                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
@@ -122,7 +129,7 @@ public class EBrace extends AExpression {
             }
 
             MapSubShortcutNode mapSubShortcutNode = new MapSubShortcutNode();
-            mapSubShortcutNode.setChildNode(index.cast(indexOutput));
+            mapSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             mapSubShortcutNode.setLocation(location);
             mapSubShortcutNode.setExpressionType(output.actual);
             mapSubShortcutNode.setGetter(getter);
@@ -150,12 +157,14 @@ public class EBrace extends AExpression {
             }
 
             Output indexOutput;
+            PainlessCast indexCast;
 
             if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = int.class;
-                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
-                index.cast(indexInput, indexOutput);
+                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
+                indexCast = AnalyzerCaster.getLegalCast(index.location,
+                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
@@ -163,7 +172,7 @@ public class EBrace extends AExpression {
             }
 
             ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
-            listSubShortcutNode.setChildNode(index.cast(indexOutput));
+            listSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             listSubShortcutNode.setLocation(location);
             listSubShortcutNode.setExpressionType(output.actual);
             listSubShortcutNode.setGetter(getter);

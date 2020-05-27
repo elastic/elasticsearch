@@ -1042,10 +1042,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.ingest.IngestProcessorException::new,
                 157,
                 Version.V_7_5_0),
+        // TODO: Version after backport
+        PEER_RECOVERY_NOT_FOUND_EXCEPTION(
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
+                org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
+                158,
+                Version.V_8_0_0),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
                 org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
                 org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException::new,
-                158,
+                159,
                 Version.V_8_0_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;

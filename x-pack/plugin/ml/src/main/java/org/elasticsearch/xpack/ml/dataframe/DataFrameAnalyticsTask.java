@@ -38,6 +38,7 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -67,6 +68,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private final StartDataFrameAnalyticsAction.TaskParams taskParams;
     @Nullable
     private volatile Long reindexingTaskId;
+    private volatile boolean isReindexingFinished;
     private volatile boolean isStopping;
     private volatile boolean isMarkAsCompletedCalled;
     private final StatsHolder statsHolder;
@@ -92,6 +94,10 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         this.reindexingTaskId = reindexingTaskId;
     }
 
+    public void setReindexingFinished() {
+        isReindexingFinished = true;
+    }
+
     public boolean isStopping() {
         return isStopping;
     }
@@ -102,7 +108,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     @Override
     protected void onCancelled() {
-        stop(getReasonCancelled(), TimeValue.ZERO);
+        stop(getReasonCancelled(), StopDataFrameAnalyticsAction.DEFAULT_TIMEOUT);
         markAsCompleted();
     }
 
@@ -228,7 +234,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private void getReindexTaskProgress(ActionListener<Integer> listener) {
         TaskId reindexTaskId = getReindexTaskId();
         if (reindexTaskId == null) {
-            listener.onResponse(statsHolder.getProgressTracker().getReindexingProgressPercent());
+            listener.onResponse(isReindexingFinished ? 100 : 0);
             return;
         }
 
@@ -244,7 +250,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             error -> {
                 if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
-                    listener.onResponse(statsHolder.getProgressTracker().getReindexingProgressPercent());
+                    listener.onResponse(isReindexingFinished ? 100 : 0);
                 } else {
                     listener.onFailure(error);
                 }

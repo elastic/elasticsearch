@@ -13,10 +13,10 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
 
@@ -32,7 +32,7 @@ public final class AnalysisUtils {
     }
 
     static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList, boolean allowCompound) {
-        List<Attribute> matches = new ArrayList<>();
+        Set<Attribute> matches = new LinkedHashSet<>();
 
         // first take into account the qualified version
         boolean qualified = u.qualifier() != null;
@@ -57,7 +57,7 @@ public final class AnalysisUtils {
         }
 
         if (matches.size() == 1) {
-            return handleSpecialFields(u, matches.get(0), allowCompound);
+            return handleSpecialFields(u, matches.iterator().next(), allowCompound);
         }
 
         return u.withUnresolvedMessage(
@@ -86,10 +86,20 @@ public final class AnalysisUtils {
                             "Cannot use field [" + fa.name() + "] with unsupported type [" + unsupportedField.getOriginalType() + "]");
                 }
             }
-            // compound fields
-            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false) {
+            // compound fields that are not of "nested" type
+            else if (allowCompound == false && DataTypes.isPrimitive(fa.dataType()) == false && fa.dataType() != DataTypes.NESTED) {
                 named = u.withUnresolvedMessage(
                         "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] only its subfields");
+            }
+            // "nested" fields
+            else if (fa.dataType() == DataTypes.NESTED) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] "
+                    + "due to nested fields not being supported yet");
+            }
+            // fields having nested parents
+            else if (fa.isNested()) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName() + "] "
+                    + "with unsupported nested type in hierarchy (field [" + fa.nestedParent().name() +"])");
             }
         }
         return named;

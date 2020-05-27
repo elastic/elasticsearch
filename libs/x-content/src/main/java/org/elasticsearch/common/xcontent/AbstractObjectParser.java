@@ -183,6 +183,14 @@ public abstract class AbstractObjectParser<Value, Context> {
         declareField(consumer, p -> p.floatValue(), field, ValueType.FLOAT);
     }
 
+    /**
+     * Declare a float field that parses explicit {@code null}s in the json to a default value.
+     */
+    public void declareFloatOrNull(BiConsumer<Value, Float> consumer, float nullValue, ParseField field) {
+        declareField(consumer, p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? nullValue : p.floatValue(),
+                field, ValueType.FLOAT_OR_NULL);
+    }
+
     public void declareDouble(BiConsumer<Value, Double> consumer, ParseField field) {
         // Using a method reference here angers some compilers
         declareField(consumer, p -> p.doubleValue(), field, ValueType.DOUBLE);
@@ -230,6 +238,24 @@ public abstract class AbstractObjectParser<Value, Context> {
 
     public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> objectParser, ParseField field) {
         declareFieldArray(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT_ARRAY);
+    }
+
+    /**
+     * like {@link #declareObjectArray(BiConsumer, ContextParser, ParseField)}, but can also handle single null values,
+     * in which case the consumer isn't called
+     */
+    public <
+        T> void declareObjectArrayOrNull(
+        BiConsumer<Value, List<T>> consumer,
+        ContextParser<Context, T> objectParser,
+        ParseField field
+    ) {
+        declareField(
+            (value, list) -> { if (list != null) consumer.accept(value, list); },
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : parseArray(p, () -> objectParser.parse(p, c)),
+            field,
+            ValueType.OBJECT_ARRAY_OR_NULL
+        );
     }
 
     public void declareStringArray(BiConsumer<Value, List<String>> consumer, ParseField field) {

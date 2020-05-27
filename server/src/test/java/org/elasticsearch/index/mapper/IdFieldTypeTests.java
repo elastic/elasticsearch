@@ -28,7 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.mockito.Mockito;
 
-public class IdFieldTypeTests extends FieldTypeTestCase {
+public class IdFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new IdFieldMapper.IdFieldType();

@@ -368,7 +368,7 @@ public class FunctionRegistry {
         return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
     }
 
-    protected interface FunctionBuilder {
+    public interface FunctionBuilder {
         Function build(Source source, List<Expression> children, boolean distinct, Configuration cfg);
     }
 
@@ -482,5 +482,27 @@ public class FunctionRegistry {
 
     protected interface TwoParametersVariadicBuilder<T> {
         T build(Source source, Expression src, List<Expression> remaining);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that is case sensitive aware.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+        ScalarBiFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), cfg);
+        };
+        return def(function, builder, true, names);
+    }
+
+    protected interface ScalarBiFunctionConfigurationAwareBuilder<T> {
+        T build(Source source, Expression e1, Expression e2, Configuration configuration);
     }
 }

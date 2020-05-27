@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
@@ -27,13 +26,10 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
 
 import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +38,7 @@ import java.util.Objects;
 /**
  * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
  */
-public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper {
+public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
 
     public static class Names extends AbstractGeometryFieldMapper.Names {
         public static final ParseField ORIENTATION = new ParseField("orientation");
@@ -54,29 +50,8 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
     }
 
-    /**
-     * Interface representing an preprocessor in geo-shape indexing pipeline
-     */
-    public interface Indexer<Parsed, Processed> {
-
-        Processed prepareForIndexing(Parsed geometry);
-
-        Class<Processed> processedClass();
-
-        List<IndexableField> indexShape(ParseContext context, Processed shape);
-    }
-
-    /**
-     * interface representing parser in geo shape indexing pipeline
-     */
-    public interface Parser<Parsed> {
-
-        Parsed parse(XContentParser parser, AbstractShapeGeometryFieldMapper mapper) throws IOException, ParseException;
-
-    }
-
-    public abstract static class Builder<T extends Builder, Y extends AbstractShapeGeometryFieldMapper>
-            extends AbstractGeometryFieldMapper.Builder<T, Y> {
+    public abstract static class Builder<T extends Builder,
+            FT extends AbstractShapeGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
         protected Boolean coerce;
         protected Orientation orientation;
 
@@ -107,6 +82,13 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
             return Defaults.COERCE;
         }
 
+        protected Explicit<Boolean> coerce() {
+            if (coerce != null) {
+                return new Explicit<>(coerce, true);
+            }
+            return Defaults.COERCE;
+        }
+
         public Builder orientation(Orientation orientation) {
             this.orientation = orientation;
             return this;
@@ -125,12 +107,13 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         }
 
         @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-
-            AbstractShapeGeometryFieldType ft = (AbstractShapeGeometryFieldType)fieldType();
+        protected void setGeometryParser() {
+            AbstractShapeGeometryFieldType ft = fieldType();
             ft.setOrientation(orientation().value());
+            setGeometryParser(fieldType());
         }
+
+        protected abstract void setGeometryParser(FT fieldType);
     }
 
     protected static final String DEPRECATED_PARAMETERS_KEY = "deprecated_parameters";
@@ -185,12 +168,8 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
-    public abstract static class AbstractShapeGeometryFieldType<Parsed, Processed> extends AbstractGeometryFieldType {
+    public abstract static class AbstractShapeGeometryFieldType<Parsed, Processed> extends AbstractGeometryFieldType<Parsed, Processed> {
         protected Orientation orientation = Defaults.ORIENTATION.value();
-
-        protected Indexer<Parsed, Processed> geometryIndexer;
-
-        protected Parser<Parsed> geometryParser;
 
         protected AbstractShapeGeometryFieldType() {
             super();
@@ -219,22 +198,6 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
             checkIfFrozen();
             this.orientation = orientation;
         }
-
-        public void setGeometryIndexer(Indexer<Parsed, Processed> geometryIndexer) {
-            this.geometryIndexer = geometryIndexer;
-        }
-
-        protected Indexer<Parsed, Processed> geometryIndexer() {
-            return geometryIndexer;
-        }
-
-        public void setGeometryParser(Parser<Parsed> geometryParser)  {
-            this.geometryParser = geometryParser;
-        }
-
-        protected Parser<Parsed> geometryParser() {
-            return geometryParser;
-        }
     }
 
     protected Explicit<Boolean> coerce;
@@ -250,16 +213,18 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)mergeWith;
+    protected final void mergeOptions(FieldMapper other, List<String> conflicts) {
+        AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)other;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;
         }
         if (gsfm.orientation.explicit()) {
             this.orientation = gsfm.orientation;
         }
+        mergeGeoOptions(gsfm, conflicts);
     }
+
+    protected abstract void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts);
 
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
@@ -280,37 +245,4 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     public Orientation orientation() {
         return ((AbstractShapeGeometryFieldType)fieldType).orientation();
     }
-
-    /** parsing logic for geometry indexing */
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        AbstractShapeGeometryFieldType fieldType = (AbstractShapeGeometryFieldType)fieldType();
-
-        @SuppressWarnings("unchecked") Indexer<Parsed, Processed> geometryIndexer = fieldType.geometryIndexer();
-        @SuppressWarnings("unchecked") Parser<Parsed> geometryParser = fieldType.geometryParser();
-        try {
-            Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
-            if (shape == null) {
-                Parsed geometry = geometryParser.parse(context.parser(), this);
-                if (geometry == null) {
-                    return;
-                }
-                shape = geometryIndexer.prepareForIndexing(geometry);
-            }
-
-            List<IndexableField> fields = new ArrayList<>();
-            fields.addAll(geometryIndexer.indexShape(context, shape));
-            createFieldNamesField(context, fields);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
-            }
-        } catch (Exception e) {
-            if (ignoreMalformed.value() == false) {
-                throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
-                    fieldType().typeName());
-            }
-            context.addIgnoredField(fieldType().name());
-        }
-    }
-
 }

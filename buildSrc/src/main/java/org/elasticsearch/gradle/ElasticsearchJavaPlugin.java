@@ -36,13 +36,16 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.artifacts.dsl.RepositoryHandler;
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -56,12 +59,18 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 import static org.elasticsearch.gradle.util.Util.toStringable;
@@ -77,6 +86,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         project.getPluginManager().apply(JavaPlugin.class);
         configureConfigurations(project);
+        configureRepositories(project);
         configureCompile(project);
         configureInputNormalization(project);
         configureTestTasks(project);
@@ -87,12 +97,12 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     /**
      * Makes dependencies non-transitive.
-     *
+     * <p>
      * Gradle allows setting all dependencies as non-transitive very easily.
      * Sadly this mechanism does not translate into maven pom generation. In order
      * to effectively make the pom act as if it has no transitive dependencies,
      * we must exclude each transitive dependency of each direct dependency.
-     *
+     * <p>
      * Determining the transitive deps of a dependency which has been resolved as
      * non-transitive is difficult because the process of resolving removes the
      * transitive deps. To sidestep this issue, we create a configuration per
@@ -135,6 +145,75 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         disableTransitiveDeps.accept(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
+    }
+
+    private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
+
+    /** Adds repositories used by ES dependencies */
+    public static void configureRepositories(Project project) {
+        // ensure all repositories use secure urls
+        // TODO: remove this with gradle 7.0, which no longer allows insecure urls
+        project.getRepositories().all(repository -> {
+            if (repository instanceof MavenArtifactRepository) {
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository;
+                assertRepositoryURIIsSecure(maven.getName(), project.getPath(), maven.getUrl());
+                for (URI uri : maven.getArtifactUrls()) {
+                    assertRepositoryURIIsSecure(maven.getName(), project.getPath(), uri);
+                }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository;
+                assertRepositoryURIIsSecure(ivy.getName(), project.getPath(), ivy.getUrl());
+            }
+        });
+        RepositoryHandler repos = project.getRepositories();
+        if (System.getProperty("repos.mavenLocal") != null) {
+            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
+            // useful for development ie. bwc tests where we install stuff in the local repository
+            // such that we don't have to pass hardcoded files to gradle
+            repos.mavenLocal();
+        }
+        repos.jcenter();
+
+        String luceneVersion = VersionProperties.getLucene();
+        if (luceneVersion.contains("-snapshot")) {
+            // extract the revision number from the version with a regex matcher
+            Matcher matcher = LUCENE_SNAPSHOT_REGEX.matcher(luceneVersion);
+            if (matcher.find() == false) {
+                throw new GradleException("Malformed lucene snapshot version: " + luceneVersion);
+            }
+            String revision = matcher.group(1);
+            MavenArtifactRepository luceneRepo = repos.maven(repo -> {
+                repo.setName("lucene-snapshots");
+                repo.setUrl("https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + revision);
+            });
+            repos.exclusiveContent(exclusiveRepo -> {
+                exclusiveRepo.filter(
+                    descriptor -> descriptor.includeVersionByRegex("org\\.apache\\.lucene", ".*", ".*-snapshot-" + revision)
+                );
+                exclusiveRepo.forRepositories(luceneRepo);
+            });
+        }
+    }
+
+    private static final List<String> SECURE_URL_SCHEMES = Arrays.asList("file", "https", "s3");
+
+    private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
+        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false) {
+            String url;
+            try {
+                url = uri.toURL().toString();
+            } catch (MalformedURLException e) {
+                throw new IllegalStateException(e);
+            }
+            final String message = String.format(
+                Locale.ROOT,
+                "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
+                repositoryName,
+                projectPath,
+                url
+            );
+            throw new GradleException(message);
+        }
     }
 
     /** Adds compiler settings to the project */
@@ -393,11 +472,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
     }
 
-    /** Adds additional manifest info to jars */
+    /**
+     * Adds additional manifest info to jars
+     */
     static void configureJars(Project project) {
-        ExtraPropertiesExtension ext = project.getExtensions().getExtraProperties();
-        ext.set("licenseFile", null);
-        ext.set("noticeFile", null);
         project.getTasks()
             .withType(Jar.class)
             .configureEach(
@@ -422,25 +500,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                     );
                 }
             );
-        // add license/notice files
-        project.afterEvaluate(p -> project.getTasks().withType(Jar.class).configureEach(jarTask -> {
-            File licenseFile = (File) ext.get("licenseFile");
-            File noticeFile = (File) ext.get("noticeFile");
-            if (licenseFile == null || noticeFile == null) {
-                throw new GradleException("Must specify license and notice file for project");
-            }
-
-            jarTask.metaInf(spec -> {
-                spec.from(licenseFile.getParent(), from -> {
-                    from.include(licenseFile.getName());
-                    from.rename(s -> "LICENSE.txt");
-                });
-                spec.from(noticeFile.getParent(), from -> {
-                    from.include(noticeFile.getName());
-                    from.rename(s -> "NOTICE.txt");
-                });
-            });
-        }));
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
             project.getTasks()
                 .withType(ShadowJar.class)
@@ -497,9 +556,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 throw new UncheckedIOException(e);
             }
 
-            // remove compiled classes from the Javadoc classpath:
-            // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-            javadoc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath());
             /*
              * Generate docs using html5 to suppress a warning from `javadoc`
              * that the default will change to html5 in the future.
@@ -507,9 +563,14 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
             javadocOptions.addBooleanOption("html5", true);
         });
+
+        TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
+        javadoc.configure(doc ->
+        // remove compiled classes from the Javadoc classpath:
+        // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+
         // ensure javadoc task is run with 'check'
-        project.getTasks()
-            .named(LifecycleBasePlugin.CHECK_TASK_NAME)
-            .configure(t -> t.dependsOn(project.getTasks().withType(Javadoc.class)));
+        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
     }
 }

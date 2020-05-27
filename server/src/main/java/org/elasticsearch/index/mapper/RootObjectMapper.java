@@ -309,11 +309,6 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        return (RootObjectMapper) super.updateFieldType(fullNameToFieldType);
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 

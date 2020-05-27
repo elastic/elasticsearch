@@ -578,7 +578,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
     }
 
-    private static class TestFailureReportingPlugin implements Plugin<Project> {
+    static class TestFailureReportingPlugin implements Plugin<Project> {
         @Override
         public void apply(Project project) {
             if (project != project.getRootProject()) {

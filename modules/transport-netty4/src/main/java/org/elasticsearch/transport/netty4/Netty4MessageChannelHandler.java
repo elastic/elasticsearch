@@ -32,10 +32,12 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.InboundHandler;
 import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.OutboundHandler;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transports;
 
+import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -56,9 +58,9 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     Netty4MessageChannelHandler(PageCacheRecycler recycler, Netty4Transport transport) {
         this.transport = transport;
         final ThreadPool threadPool = transport.getThreadPool();
-        final InboundHandler inboundHandler = transport.getInboundHandler();
+        final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            transport.getInflightBreaker(), inboundHandler::getRequestHandler, transport::inboundMessage);
+            transport.getInflightBreaker(), requestHandlers::getHandler, transport::inboundMessage);
     }
 
     @Override
@@ -89,13 +91,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
-        assert msg instanceof ByteBuf;
-        final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+        assert msg instanceof OutboundHandler.SendContext;
+        final boolean queued = queuedWrites.offer(new WriteOperation((OutboundHandler.SendContext) msg, promise));
         assert queued;
     }
 
     @Override
-    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws IOException {
         if (ctx.channel().isWritable()) {
             doFlush(ctx);
         }
@@ -103,7 +105,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void flush(ChannelHandlerContext ctx) {
+    public void flush(ChannelHandlerContext ctx) throws IOException {
         Channel channel = ctx.channel();
         if (channel.isWritable() || channel.isActive() == false) {
             doFlush(ctx);
@@ -117,7 +119,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         super.channelInactive(ctx);
     }
 
-    private void doFlush(ChannelHandlerContext ctx) {
+    private void doFlush(ChannelHandlerContext ctx) throws IOException {
         assert ctx.executor().inEventLoop();
         final Channel channel = ctx.channel();
         if (channel.isActive() == false) {
@@ -135,24 +137,25 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
                 break;
             }
             final WriteOperation write = currentWrite;
-            if (write.buf.readableBytes() == 0) {
+            final ByteBuf currentBuffer = write.buffer();
+            if (currentBuffer.readableBytes() == 0) {
                 write.promise.trySuccess();
                 currentWrite = null;
                 continue;
             }
-            final int readableBytes = write.buf.readableBytes();
+            final int readableBytes = currentBuffer.readableBytes();
             final int bufferSize = Math.min(readableBytes, 1 << 18);
-            final int readerIndex = write.buf.readerIndex();
+            final int readerIndex = currentBuffer.readerIndex();
             final boolean sliced = readableBytes != bufferSize;
             final ByteBuf writeBuffer;
             if (sliced) {
-                writeBuffer = write.buf.retainedSlice(readerIndex, bufferSize);
-                write.buf.readerIndex(readerIndex + bufferSize);
+                writeBuffer = currentBuffer.retainedSlice(readerIndex, bufferSize);
+                currentBuffer.readerIndex(readerIndex + bufferSize);
             } else {
-                writeBuffer = write.buf;
+                writeBuffer = currentBuffer;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            if (sliced == false || write.buf.readableBytes() == 0) {
+            if (sliced == false || currentBuffer.readableBytes() == 0) {
                 currentWrite = null;
                 writeFuture.addListener(future -> {
                     assert ctx.executor().inEventLoop();
@@ -187,13 +190,24 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private static final class WriteOperation {
 
-        private final ByteBuf buf;
+        private ByteBuf buf;
+
+        private OutboundHandler.SendContext context;
 
         private final ChannelPromise promise;
 
-        WriteOperation(ByteBuf buf, ChannelPromise promise) {
-            this.buf = buf;
+        WriteOperation(OutboundHandler.SendContext context, ChannelPromise promise) {
+            this.context = context;
             this.promise = promise;
+        }
+
+        ByteBuf buffer() throws IOException {
+            if (buf == null) {
+                buf = Netty4Utils.toByteBuf(context.get());
+                context = null;
+            }
+            assert context == null;
+            return buf;
         }
     }
 }

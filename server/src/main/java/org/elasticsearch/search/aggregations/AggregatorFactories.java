@@ -57,6 +57,9 @@ import java.util.regex.Pattern;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
+/**
+ * An immutable collection of {@link AggregatorFactories}.
+ */
 public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
@@ -155,26 +158,16 @@ public class AggregatorFactories {
         return factories;
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0], new ArrayList<>());
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0]);
 
     private AggregatorFactory[] factories;
-    private List<PipelineAggregationBuilder> pipelineAggregatorFactories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories, List<PipelineAggregationBuilder> pipelineAggregators) {
+    private AggregatorFactories(AggregatorFactory[] factories) {
         this.factories = factories;
-        this.pipelineAggregatorFactories = pipelineAggregators;
-    }
-
-    public List<PipelineAggregator> createPipelineAggregators() {
-        List<PipelineAggregator> pipelineAggregators = new ArrayList<>(this.pipelineAggregatorFactories.size());
-        for (PipelineAggregationBuilder factory : this.pipelineAggregatorFactories) {
-            pipelineAggregators.add(factory.create());
-        }
-        return pipelineAggregators;
     }
 
     /**
@@ -216,13 +209,16 @@ public class AggregatorFactories {
     }
 
     /**
-     * @return the number of sub-aggregator factories not including pipeline
-     *         aggregator factories
+     * @return the number of sub-aggregator factories
      */
     public int countAggregators() {
         return factories.length;
     }
 
+    /**
+     * A mutable collection of {@link AggregationBuilder}s and
+     * {@link PipelineAggregationBuilder}s.
+     */
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
@@ -333,16 +329,13 @@ public class AggregatorFactories {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;
             }
-            List<PipelineAggregationBuilder> orderedPipelineAggregators =
-                    resolvePipelineAggregatorOrder(pipelineAggregatorBuilders, aggregationBuilders);
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
-
             int i = 0;
             for (AggregationBuilder agg : aggregationBuilders) {
                 aggFactories[i] = agg.build(queryShardContext, parent);
                 ++i;
             }
-            return new AggregatorFactories(aggFactories, orderedPipelineAggregators);
+            return new AggregatorFactories(aggFactories);
         }
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(

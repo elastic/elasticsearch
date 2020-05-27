@@ -179,7 +179,7 @@ if (useFixture) {
     keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
     keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
     setting 's3.client.integration_test_permanent.endpoint', minioAddress, IGNORE_VALUE
-    plugin file(tasks.bundlePlugin.archiveFile)
+    plugin tasks.bundlePlugin.archiveFile
   }
 
   integTest.runner {
@@ -269,7 +269,7 @@ if (useFixture) {
 
   testClusters.integTestECS {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture-with-ecs')}" }, IGNORE_VALUE
-    plugin file(tasks.bundlePlugin.archiveFile)
+    plugin tasks.bundlePlugin.archiveFile
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture-with-ecs')}/ecs_credentials_endpoint" }, IGNORE_VALUE
   }
 

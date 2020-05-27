@@ -163,8 +163,8 @@ public final class SourceDestValidator {
                         state,
                         IndicesOptions.lenientExpandOpen(),
                         dest,
-                        true
-                    );
+                        true,
+                        false);
 
                     resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : dest;
                 } catch (IllegalArgumentException e) {

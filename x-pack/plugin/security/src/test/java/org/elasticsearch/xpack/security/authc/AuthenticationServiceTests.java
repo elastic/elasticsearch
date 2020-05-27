@@ -46,6 +46,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -54,7 +55,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -73,8 +74,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -107,11 +111,12 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -143,7 +148,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private static final String FIRST_REALM_NAME = "file_realm";
     private static final String FIRST_REALM_TYPE = "file";
     private AuthenticationService service;
-    private TransportMessage message;
+    private TransportRequest transportRequest;
     private RestRequest restRequest;
     private Realms realms;
     private Realm firstRealm;
@@ -169,9 +174,9 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         token = mock(AuthenticationToken.class);
         when(token.principal()).thenReturn(randomAlphaOfLength(5));
-        message = new InternalMessage();
+        transportRequest = new InternalRequest();
         remoteAddress = new InetSocketAddress(InetAddress.getLocalHost(), 100);
-        message.remoteAddress(new TransportAddress(remoteAddress));
+        transportRequest.remoteAddress(new TransportAddress(remoteAddress));
         restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress).build();
         threadContext = new ThreadContext(Settings.EMPTY);
 
@@ -188,12 +193,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.areAllRealmsAllowed()).thenReturn(true);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAuditingAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
@@ -259,7 +264,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
 
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        Authenticator authenticator = service.createAuthenticator("_action", message, true, future);
+        Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
         authenticator.extractToken((result) -> {
             assertThat(result, notNullValue());
             assertThat(result, is(token));
@@ -270,7 +275,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testTokenMissing() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        Authenticator authenticator = service.createAuthenticator("_action", message, true, future);
+        Authenticator authenticator = service.createAuthenticator("_action", transportRequest, true, future);
         authenticator.extractToken((token) -> {
             assertThat(token, nullValue());
             authenticator.handleNullToken();
@@ -278,7 +283,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> future.actionGet());
         assertThat(e.getMessage(), containsString("missing authentication credentials"));
-        verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
+        verify(auditTrail).anonymousAccessDenied(reqId, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -296,7 +301,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -306,7 +311,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
         assertTrue(completed.get());
-        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
         verify(realms).asList();
         verifyNoMoreInteractions(realms);
     }
@@ -322,7 +327,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // Authenticate against the normal chain. 1st Realm will be checked (and not pass) then 2nd realm will successfully authc
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -338,7 +343,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // Authenticate against the smart chain.
         // "SecondRealm" will be at the top of the list and will successfully authc.
         // "FirstRealm" will not be used
-        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -349,8 +354,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
-        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
-        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", transportRequest);
         verify(firstRealm, times(2)).name(); // used above one time
         verify(secondRealm, times(3)).name(); // used above one time
         verify(secondRealm, times(2)).type(); // used to create realm ref
@@ -370,7 +375,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         // This will authenticate against the smart chain.
         // "SecondRealm" will be at the top of the list but will no longer authenticate the user.
         // Then "FirstRealm" will be checked.
-        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -381,8 +386,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
-        verify(auditTrail, times(1)).authenticationFailed(reqId, SECOND_REALM_NAME, token, "_action", message);
-        verify(auditTrail, times(1)).authenticationSuccess(reqId, FIRST_REALM_NAME, user, "_action", message);
+        verify(auditTrail, times(1)).authenticationFailed(reqId, SECOND_REALM_NAME, token, "_action", transportRequest);
+        verify(auditTrail, times(1)).authenticationSuccess(reqId, FIRST_REALM_NAME, user, "_action", transportRequest);
         verify(secondRealm, times(3)).authenticate(eq(token), any(ActionListener.class)); // 2 from above + 1 more
         verify(firstRealm, times(2)).authenticate(eq(token), any(ActionListener.class)); // 1 from above + 1 more
     }
@@ -439,7 +444,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -450,7 +455,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.get());
 
         completed.set(false);
-        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -458,8 +463,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThreadContextContainsAuthentication(result);
             setCompletedToTrue(completed);
         }, this::logAndFail));
-        verify(auditTrail, times(2)).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
-        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
+        verify(auditTrail, times(2)).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", transportRequest);
         verify(firstRealm, times(3)).name(); // used above one time
         verify(secondRealm, times(3)).name(); // used above one time
         verify(secondRealm, times(2)).type(); // used to create realm ref
@@ -481,14 +486,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+        service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(result);
             setCompletedToTrue(completed);
         }, this::logAndFail));
-        verify(auditTrail).authenticationSuccess(reqId, secondRealm.name(), user, "_action", message);
+        verify(auditTrail).authenticationSuccess(reqId, secondRealm.name(), user, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class));
         assertTrue(completed.get());
@@ -498,7 +503,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final Authentication authentication = new Authentication(new User("_username", "r1"), new RealmRef("test", "cached", "foo"), null);
         authentication.writeToContext(threadContext);
 
-        Authentication result = authenticateBlocking("_action", message, null);
+        Authentication result = authenticateBlocking("_action", transportRequest, null);
 
         assertThat(result, notNullValue());
         assertThat(result, is(authentication));
@@ -535,7 +540,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, user);
 
-        Authentication result = authenticateBlocking("_action", message, null);
+        Authentication result = authenticateBlocking("_action", transportRequest, null);
 
         assertThat(result, notNullValue());
         assertThat(result.getUser(), is(user));
@@ -554,13 +559,13 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(null);
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         try {
-            authenticateBlocking("_action", message, null);
+            authenticateBlocking("_action", transportRequest, null);
             fail("expected an authentication exception when trying to authenticate an anonymous message");
         } catch (ElasticsearchSecurityException e) {
             // expected
             assertAuthenticationException(e);
         }
-        verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
+        verify(auditTrail).anonymousAccessDenied(reqId, "_action", transportRequest);
     }
 
     public void testAuthenticateRestAnonymous()  throws Exception {
@@ -582,7 +587,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(null);
         User user1 = new User("username", "r1", "r2");
 
-        Authentication result = authenticateBlocking("_action", message, user1);
+        Authentication result = authenticateBlocking("_action", transportRequest, user1);
         assertThat(result, notNullValue());
         assertThat(result.getUser(), sameInstance(user1));
         assertThat(result.getAuthenticationType(), is(AuthenticationType.INTERNAL));
@@ -598,8 +603,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(firstRealm, token, user);
 
         ElasticsearchSecurityException e =
-                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, fallback));
-        verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, fallback));
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
@@ -623,9 +628,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         final User user = new User("username", "r1", "r2");
         final Consumer<ActionListener<Authentication>> authenticate;
         if (randomBoolean()) {
-            authenticate = listener -> service.authenticate("_action", message, SystemUser.INSTANCE, listener);
+            authenticate = listener -> service.authenticate("_action", transportRequest, SystemUser.INSTANCE, listener);
         } else {
-            authenticate = listener -> service.authenticate("_action", message, true, listener);
+            authenticate = listener -> service.authenticate("_action", transportRequest, true, listener);
         }
         when(firstRealm.token(threadContext)).thenReturn(token);
         when(firstRealm.supports(token)).thenReturn(true);
@@ -640,7 +645,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
-        verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user, "_action", message);
+        verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
@@ -674,7 +679,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final SetOnce<Authentication> authRef = new SetOnce<>();
         final SetOnce<String> authHeaderRef = new SetOnce<>();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            service.authenticate("_action", message, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
+            service.authenticate("_action", transportRequest, SystemUser.INSTANCE, ActionListener.wrap(authentication -> {
                     assertThat(authentication, notNullValue());
                     assertThat(authentication.getUser(), sameInstance(user1));
                     assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
@@ -688,7 +693,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         reset(firstRealm);
 
         // checking authentication from the context
-        InternalMessage message1 = new InternalMessage();
+        InternalRequest message1 = new InternalRequest();
         ThreadPool threadPool1 = new TestThreadPool("testAutheticateTransportContextAndHeader1");
         try {
             ThreadContext threadContext1 = threadPool1.getThreadContext();
@@ -733,7 +738,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrailService,
                 new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool2, new AnonymousUser(Settings.EMPTY),
                 tokenService, apiKeyService);
-            service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
+            service.authenticate("_action", new InternalRequest(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
                     assertThat(result, notNullValue());
                     assertThat(result.getUser(), equalTo(user1));
                     assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
@@ -747,7 +752,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticateTamperedUser() throws Exception {
-        InternalMessage message = new InternalMessage();
+        InternalRequest message = new InternalRequest();
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, "_signed_auth");
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
@@ -776,8 +781,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
             threadContext.putHeader("Authorization", "Bearer thisisaninvalidtoken");
             ElasticsearchSecurityException e =
-                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
-            verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
+            verify(auditTrail).anonymousAccessDenied(reqId, "_action", transportRequest);
             verifyNoMoreInteractions(auditTrail);
             assertAuthenticationException(e);
         }
@@ -806,8 +811,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
             threadContext.putHeader("Authorization", "ApiKey dGhpc2lzYW5pbnZhbGlkaWQ6dGhpc2lzYW5pbnZhbGlkc2VjcmV0");
             ElasticsearchSecurityException e =
-                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
-            verify(auditTrail).anonymousAccessDenied(reqId, "_action", message);
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
+            verify(auditTrail).anonymousAccessDenied(reqId, "_action", transportRequest);
             verifyNoMoreInteractions(auditTrail);
             assertAuthenticationException(e);
         }
@@ -874,7 +879,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, anonymousUser, tokenService, apiKeyService);
-        InternalMessage message = new InternalMessage();
+        InternalRequest message = new InternalRequest();
 
         Authentication result = authenticateBlocking("_action", message, null);
         assertThat(result, notNullValue());
@@ -892,7 +897,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, anonymousUser, tokenService, apiKeyService);
 
-        InternalMessage message = new InternalMessage();
+        InternalRequest message = new InternalRequest();
 
         Authentication result = authenticateBlocking("_action", message, SystemUser.INSTANCE);
         assertThat(result, notNullValue());
@@ -901,15 +906,57 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThreadContextContainsAuthentication(result);
     }
 
+    public void testInheritAnonymousUserRoles() {
+        Settings settings = Settings.builder()
+            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
+            .build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool, anonymousUser, tokenService, apiKeyService);
+        User user1 = new User("username", "r1", "r2", "r3");
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        mockAuthenticate(firstRealm, token, user1);
+        // this call does not actually go async
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
+            assertThat(authentication.getUser().roles(), arrayContainingInAnyOrder("r1", "r2", "r3", "r4", "r5"));
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+    }
+
+    public void testSystemUsersDoNotInheritAnonymousRoles() {
+        Settings settings = Settings.builder()
+            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
+            .build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        service = new AuthenticationService(settings, realms, auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool, anonymousUser, tokenService, apiKeyService);
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        final User sysUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        mockAuthenticate(firstRealm, token, sysUser);
+        // this call does not actually go async
+        final AtomicBoolean completed = new AtomicBoolean(false);
+        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
+            assertThat(authentication.getUser().roles(), equalTo(sysUser.roles()));
+            setCompletedToTrue(completed);
+        }, this::logAndFail));
+        assertTrue(completed.get());
+    }
+
     public void testRealmTokenThrowingException() throws Exception {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         when(firstRealm.token(threadContext)).thenThrow(authenticationError("realm doesn't like tokens"));
         try {
-            authenticateBlocking("_action", message, null);
+            authenticateBlocking("_action", transportRequest, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like tokens"));
-            verify(auditTrail).authenticationFailed(reqId, "_action", message);
+            verify(auditTrail).authenticationFailed(reqId, "_action", transportRequest);
         }
     }
 
@@ -932,11 +979,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.supports(token)).thenThrow(authenticationError("realm doesn't like supports"));
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         try {
-            authenticateBlocking("_action", message, null);
+            authenticateBlocking("_action", transportRequest, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like supports"));
-            verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
+            verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         }
     }
 
@@ -955,14 +1002,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
     }
 
-    public void testRealmAuthenticateTerminatingAuthenticationProcess() throws Exception {
+    public void testRealmAuthenticateTerminateAuthenticationProcessWithException() {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         final AuthenticationToken token = mock(AuthenticationToken.class);
-        when(token.principal()).thenReturn(randomAlphaOfLength(5));
+        final String principal = randomAlphaOfLength(5);
+        when(token.principal()).thenReturn(principal);
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
-        final boolean terminateWithNoException = rarely();
-        final boolean throwElasticsearchSecurityException = (terminateWithNoException == false) && randomBoolean();
+        final boolean throwElasticsearchSecurityException = randomBoolean();
         final boolean withAuthenticateHeader = throwElasticsearchSecurityException && randomBoolean();
         Exception throwE = new Exception("general authentication error");
         final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
@@ -973,28 +1020,42 @@ public class AuthenticationServiceTests extends ESTestCase {
                 ((ElasticsearchSecurityException) throwE).addHeader("WWW-Authenticate", selectedScheme);
             }
         }
-        mockAuthenticate(secondRealm, token, (terminateWithNoException) ? null : throwE, true);
+        mockAuthenticate(secondRealm, token, throwE, true);
 
         ElasticsearchSecurityException e =
-                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
-        if (terminateWithNoException) {
-            assertThat(e.getMessage(), is("terminate authc process"));
-            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
-        } else {
-            if (throwElasticsearchSecurityException) {
-                assertThat(e.getMessage(), is("authentication error"));
-                if (withAuthenticateHeader) {
-                    assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
-                } else {
-                    assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
-                }
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
+        if (throwElasticsearchSecurityException) {
+            assertThat(e.getMessage(), is("authentication error"));
+            if (withAuthenticateHeader) {
+                assertThat(e.getHeader("WWW-Authenticate"), contains(selectedScheme));
             } else {
-                assertThat(e.getMessage(), is("error attempting to authenticate request"));
                 assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
             }
+        } else {
+            assertThat(e.getMessage(), is("error attempting to authenticate request"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
         }
-        verify(auditTrail).authenticationFailed(reqId, secondRealm.name(), token, "_action", message);
-        verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
+        verify(auditTrail).authenticationFailed(reqId, secondRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testRealmAuthenticateGracefulTerminateAuthenticationProcess() {
+        final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
+        final AuthenticationToken token = mock(AuthenticationToken.class);
+        final String principal = randomAlphaOfLength(5);
+        when(token.principal()).thenReturn(principal);
+        when(firstRealm.token(threadContext)).thenReturn(token);
+        when(firstRealm.supports(token)).thenReturn(true);
+        final String basicScheme = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
+        mockAuthenticate(firstRealm, token, null, true);
+
+        ElasticsearchSecurityException e =
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
+            assertThat(e.getMessage(), is("unable to authenticate user [" + principal + "] for action [_action]"));
+            assertThat(e.getHeader("WWW-Authenticate"), contains(basicScheme));
+        verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1007,11 +1068,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
         try {
-            authenticateBlocking("_action", message, null);
+            authenticateBlocking("_action", transportRequest, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't like authenticate"));
-            verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
+            verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         }
     }
 
@@ -1045,11 +1106,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         final String reqId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         try {
-            authenticateBlocking("_action", message, null);
+            authenticateBlocking("_action", transportRequest, null);
             fail("exception should bubble out");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), is("realm doesn't want to lookup"));
-            verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
+            verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         }
     }
 
@@ -1115,7 +1176,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // we do not actually go async
         if (randomBoolean()) {
-            service.authenticate("_action", message, true, listener);
+            service.authenticate("_action", transportRequest, true, listener);
         } else {
             service.authenticate(restRequest, listener);
         }
@@ -1154,7 +1215,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         // call service asynchronously but it doesn't actually go async
         if (randomBoolean()) {
-            service.authenticate("_action", message, true, listener);
+            service.authenticate("_action", transportRequest, true, listener);
         } else {
             service.authenticate(restRequest, listener);
         }
@@ -1191,10 +1252,10 @@ public class AuthenticationServiceTests extends ESTestCase {
         mockAuthenticate(secondRealm, token, user);
 
         try {
-            authenticateBlocking("_action", message, null);
+            authenticateBlocking("_action", transportRequest, null);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq("_action"), eq(message),
+            verify(auditTrail).runAsDenied(eq(reqId), any(Authentication.class), eq("_action"), eq(transportRequest),
                 eq(EmptyAuthorizationInfo.INSTANCE));
             verifyNoMoreInteractions(auditTrail);
         }
@@ -1217,8 +1278,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(secondRealm).lookupUser(eq("run_as"), any(ActionListener.class));
         User fallback = randomBoolean() ? SystemUser.INSTANCE : null;
         ElasticsearchSecurityException e =
-                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, fallback));
-        verify(auditTrail).authenticationFailed(reqId, token, "_action", message);
+                expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, fallback));
+        verify(auditTrail).authenticationFailed(reqId, token, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         assertAuthenticationException(e);
     }
@@ -1260,11 +1321,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         String token = tokenFuture.get().v1();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         mockGetTokenFromId(tokenService, userTokenId, expected, false, client);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
-            service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+            service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
                     assertThat(result, notNullValue());
                     assertThat(result.getUser(), is(user));
                     assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -1274,7 +1336,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 }, this::logAndFail));
         }
         assertTrue(completed.get());
-        verify(auditTrail).authenticationSuccess(anyString(), eq("realm"), eq(user), eq("_action"), same(message));
+        verify(auditTrail).authenticationSuccess(anyString(), eq("realm"), eq(user), eq("_action"), same(transportRequest));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1291,7 +1353,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         AtomicBoolean success = new AtomicBoolean(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + Base64.getEncoder().encodeToString(randomBytes));
-            service.authenticate("_action", message, true, ActionListener.wrap(result -> {
+            service.authenticate("_action", transportRequest, true, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getUser(), is(user));
                 assertThat(result.getLookedUpBy(), is(nullValue()));
@@ -1325,12 +1387,13 @@ public class AuthenticationServiceTests extends ESTestCase {
         latch.await();
         if (success.get()) {
             final String realmName = firstRealm.name();
-            verify(auditTrail).authenticationSuccess(anyString(), eq(realmName), eq(user), eq("_action"), same(message));
+            verify(auditTrail).authenticationSuccess(anyString(), eq(realmName), eq(user), eq("_action"), same(transportRequest));
         }
         verifyNoMoreInteractions(auditTrail);
     }
 
     public void testExpiredToken() throws Exception {
+        when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
@@ -1352,7 +1415,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
             ElasticsearchSecurityException e =
-                    expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
+                    expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", transportRequest, null));
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
             assertEquals("token expired", e.getMessage());
         }
@@ -1363,7 +1426,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             final String invalidHeader = randomFrom("apikey", "apikey ", "apikey foo");
             threadContext.putHeader("Authorization", invalidHeader);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> authenticateBlocking("_action", message, null));
+                () -> authenticateBlocking("_action", transportRequest, null));
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
             assertThat(e.getMessage(), containsString("missing authentication credentials"));
         }
@@ -1403,7 +1466,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
-            final Authentication authentication = authenticateBlocking("_action", message, null);
+            final Authentication authentication = authenticateBlocking("_action", transportRequest, null);
             assertThat(authentication.getUser().principal(), is("johndoe"));
             assertThat(authentication.getAuthenticationType(), is(AuthenticationType.API_KEY));
         }
@@ -1444,14 +1507,14 @@ public class AuthenticationServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", headerValue);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> authenticateBlocking("_action", message, null));
+                () -> authenticateBlocking("_action", transportRequest, null));
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
         }
     }
 
-    private static class InternalMessage extends TransportMessage {
+    private static class InternalRequest extends TransportRequest {
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) {}
     }
 
     void assertThreadContextContainsAuthentication(Authentication authentication) throws IOException {
@@ -1503,19 +1566,19 @@ public class AuthenticationServiceTests extends ESTestCase {
         return future.actionGet();
     }
 
-    private Authentication authenticateBlocking(String action, TransportMessage message, User fallbackUser) {
+    private Authentication authenticateBlocking(String action, TransportRequest transportRequest, User fallbackUser) {
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         if (fallbackUser == null) {
-            service.authenticate(action, message, true, future);
+            service.authenticate(action, transportRequest, true, future);
         } else {
-            service.authenticate(action, message, fallbackUser, future);
+            service.authenticate(action, transportRequest, fallbackUser, future);
         }
         return future.actionGet();
     }
 
     private String expectAuditRequestId() {
         String reqId = AuditUtil.extractRequestId(threadContext);
-        assertThat(reqId, not(isEmptyOrNullString()));
+        assertThat(reqId, is(not(emptyOrNullString())));
         return reqId;
     }
 

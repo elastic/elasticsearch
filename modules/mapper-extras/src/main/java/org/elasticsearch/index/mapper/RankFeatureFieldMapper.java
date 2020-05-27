@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -58,7 +57,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, RankFeatureFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -86,7 +85,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RankFeatureFieldMapper.Builder builder = new RankFeatureFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -136,14 +135,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (positiveScoreImpact != ((RankFeatureFieldType) other).positiveScoreImpact()) {
-                conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
-            }
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
@@ -190,7 +181,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         float value;
         if (context.externalValueSet()) {
             Object v = context.externalValue();
@@ -229,6 +220,14 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         if (includeDefaults || fieldType().positiveScoreImpact() == false) {
             builder.field("positive_score_impact", fieldType().positiveScoreImpact());
+        }
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        RankFeatureFieldType ft = (RankFeatureFieldType) other.fieldType();
+        if (fieldType().positiveScoreImpact != ft.positiveScoreImpact()) {
+            conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
         }
     }
 }

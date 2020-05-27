@@ -16,8 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
   // do not add non-test compile dependencies to secure-sm without a good reason to do so
@@ -31,7 +30,7 @@ dependencies {
   }
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 

@@ -291,7 +291,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]", e.getMessage());
+        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: " +
+            "[mapped_geo_point]", e.getMessage());
         query.lenient(true);
         query.toQuery(context); // no exception
     }

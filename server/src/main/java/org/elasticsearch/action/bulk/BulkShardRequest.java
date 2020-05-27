@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,6 +50,24 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+    }
+
+    public long totalSizeInBytes() {
+        long totalSizeInBytes = 0;
+        for (int i = 0; i < items.length; i++) {
+            DocWriteRequest<?> request = items[i].request();
+            if (request instanceof IndexRequest) {
+                if (((IndexRequest) request).source() != null) {
+                    totalSizeInBytes += ((IndexRequest) request).source().length();
+                }
+            } else if (request instanceof UpdateRequest) {
+                IndexRequest doc = ((UpdateRequest) request).doc();
+                if (doc != null && doc.source() != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
+                }
+            }
+        }
+        return totalSizeInBytes;
     }
 
     public BulkItemRequest[] items() {

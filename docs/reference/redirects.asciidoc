@@ -181,12 +181,13 @@ See <<kerberos-realm-configuration>>.
 === Beats and Security
 
 See:
-* {auditbeat-ref}/securing-beats.html[{auditbeat}]
-* {filebeat-ref}/securing-beats.html[{filebeat}]
-* {heartbeat-ref}/securing-beats.html[{heartbeat}]
-* {metricbeat-ref}/securing-beats.html[{metricbeat}]
-* {packetbeat-ref}/securing-beats.html[{packetbeat}]
-* {winlogbeat-ref}/securing-beats.html[{winlogbeat}]
+
+* {auditbeat-ref}/securing-auditbeat.html[{auditbeat}]
+* {filebeat-ref}/securing-filebeat.html[{filebeat}]
+* {heartbeat-ref}/securing-heartbeat.html[{heartbeat}]
+* {metricbeat-ref}/securing-metricbeat.html[{metricbeat}]
+* {packetbeat-ref}/securing-packetbeat.html[{packetbeat}]
+* {winlogbeat-ref}/securing-winlogbeat.html[{winlogbeat}]
 
 [role="exclude",id="configuring-pki-realm"]
 === Configuring a PKI realm
@@ -389,4 +390,192 @@ coming::[7.x]
 [role="exclude",id="data-streams"]
 === Data stream APIs
 
-coming::[7.x]
+See <<indices-create-data-stream>>, <<indices-get-data-stream>>, and
+<<indices-delete-data-stream>>.
+
+[role="exclude",id="modules-indices"]
+=== Indices module
+
+See:
+
+* <<circuit-breaker>>
+* <<indexing-buffer>>
+* <<modules-fielddata>>
+* <<query-cache>>
+* <<recovery>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+[role="exclude",id="testing"]
+=== Testing
+
+This page was deleted.
+
+[role="exclude",id="testing-framework"]
+=== Java testing framework
+
+This page was deleted.
+
+[role="exclude",id="why-randomized-testing"]
+=== Why randomized testing?
+
+This page was deleted.
+
+[role="exclude",id="using-elasticsearch-test-classes"]
+=== Using the {es} test classes
+
+This page was deleted.
+
+[role="exclude",id="unit-tests"]
+=== Unit tests
+
+This page was deleted.
+
+[role="exclude",id="integration-tests"]
+=== Integration tests
+
+This page was deleted.
+
+[role="exclude",id="number-of-shards"]
+==== Number of shards
+
+This section was deleted.
+
+[role="exclude",id="helper-methods"]
+==== Generic helper methods
+
+This section was deleted.
+
+[role="exclude",id="test-cluster-methods"]
+==== Test cluster methods
+
+This section was deleted.
+
+[role="exclude",id="changing-node-settings"]
+==== Changing node settings
+
+This section was deleted.
+
+[role="exclude",id="accessing-clients"]
+==== Accessing clients
+
+This section was deleted.
+
+[role="exclude",id="scoping"]
+==== Scoping
+
+This section was deleted.
+
+[role="exclude",id="changing-node-configuration"]
+==== Changing plugins via configuration
+
+This section was deleted.
+
+[role="exclude",id="randomized-testing"]
+=== Randomized testing
+
+This page was deleted.
+
+[role="exclude",id="generating-random-data"]
+==== Generating random data
+
+This section was deleted.
+
+[role="exclude",id="assertions"]
+=== Assertions
+
+This page was deleted.
+
+[role="exclude",id="_actions"]
+=== {ilm-init} actions
+
+See <<ilm-actions>>.
+
+[role="exclude",id="ilm-policy-definition"]
+=== {ilm-init} policy definition
+
+See <<ilm-index-lifecycle>>.
+
+[role="exclude",id="search-uri-request"]
+=== URI search
+
+See <<search-search>>.
+
+[role="exclude",id="modules-gateway-dangling-indices"]
+=== Dangling indices
+
+See <<modules-gateway-dangling-indices>>.
+
+[role="exclude",id="shards-allocation"]
+=== Cluster-level shard allocation
+
+See <<cluster-shard-allocation-settings>>.
+
+[role="exclude",id="disk-allocator"]
+=== Disk-based shard allocation
+
+See <<disk-based-shard-allocation>>.
+
+[role="exclude",id="allocation-awareness"]
+=== Shard allocation awareness
+
+See <<shard-allocation-awareness>>.
+
+[role="exclude",id="allocation-filtering"]
+=== Cluster-level shard allocation filtering
+
+See <<cluster-shard-allocation-filtering>>.
+
+[role="exclude",id="misc-cluster"]
+=== Miscellaneous cluster settings
+
+See <<misc-cluster-settings>>.
+
+[role="exclude",id="modules"]
+=== Modules
+
+This page has been removed.
+
+See <<settings,Configuring Elasticsearch>> for settings information:
+
+* <<circuit-breaker>>
+* <<modules-cluster>>
+* <<modules-discovery-settings>>
+* <<modules-fielddata>>
+* <<modules-http>>
+* <<recovery>>
+* <<indexing-buffer>>
+* <<modules-gateway>>
+* <<modules-network>>
+* <<query-cache>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+For other information, see:
+
+* <<modules-transport>>
+* <<modules-threadpool>>
+* <<modules-node>>
+* <<modules-plugins>>
+* <<modules-remote-clusters>>
+
+[role="exclude",id="modules-discovery-adding-removing-nodes"]
+=== Adding and removing nodes
+
+See <<add-elasticsearch-nodes>>.
+
+////
+[role="exclude",id="search-request-body"]
+=== Request body search
+
+This page has been removed.
+
+For search API reference documentation, see <<search-search>>.
+
+For search examples, see <<run-a-search>>.
+
+[role="exclude",id="request-body-search-from-size"]
+==== From / size
+
+See <<paginate-search-results>>.
+////

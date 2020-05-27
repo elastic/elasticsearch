@@ -69,7 +69,7 @@ integTest {
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
-  plugin file(repositoryPlugin.bundlePlugin.archiveFile)
+  plugin repositoryPlugin.bundlePlugin.archiveFile
 
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.searchable_snapshots_feature_enabled', 'true'

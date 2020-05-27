@@ -39,11 +39,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -156,7 +155,6 @@ public class SearchModuleTests extends ESTestCase {
                 return singletonList(new PipelineAggregationSpec(
                         DerivativePipelineAggregationBuilder.NAME,
                         DerivativePipelineAggregationBuilder::new,
-                        DerivativePipelineAggregator::new,
                         DerivativePipelineAggregationBuilder::parse)
                             .addResultReader(InternalDerivative::new));
             }
@@ -174,7 +172,8 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
-        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin)).getNamedXContents());
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin))
+            .getNamedXContents());
     }
 
     public void testRegisterSuggester() {
@@ -279,7 +278,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec("test",
-                        TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
+                        TestPipelineAggregationBuilder::new, TestPipelineAggregationBuilder::fromXContent));
             }
         }));
 
@@ -456,19 +455,8 @@ public class SearchModuleTests extends ESTestCase {
      * Dummy test {@link PipelineAggregator} used to test registering aggregation builders.
      */
     private static class TestPipelineAggregator extends PipelineAggregator {
-        /**
-         * Read from a stream.
-         */
-        TestPipelineAggregator(StreamInput in) throws IOException {
-            super(in);
-        }
-        @Override
-        public String getWriteableName() {
-            return "test";
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
+        TestPipelineAggregator() {
+            super("test", new String[] {}, null);
         }
 
         @Override

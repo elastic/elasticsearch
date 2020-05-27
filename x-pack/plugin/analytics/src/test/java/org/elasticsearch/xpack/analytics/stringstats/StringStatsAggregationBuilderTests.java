@@ -54,6 +54,7 @@ public class StringStatsAggregationBuilderTests extends AbstractSerializingTestC
     @Override
     protected StringStatsAggregationBuilder createTestInstance() {
         StringStatsAggregationBuilder builder = new StringStatsAggregationBuilder(randomAlphaOfLength(5));
+        builder.field("foo");
         builder.showDistribution(randomBoolean());
         return builder;
     }
@@ -92,6 +93,8 @@ public class StringStatsAggregationBuilderTests extends AbstractSerializingTestC
             StringStatsAggregationBuilder serverBuilder) {
         org.elasticsearch.client.analytics.StringStatsAggregationBuilder builder =
                 new org.elasticsearch.client.analytics.StringStatsAggregationBuilder(serverBuilder.getName());
-        return builder.showDistribution(serverBuilder.showDistribution());
+        return builder
+            .showDistribution(serverBuilder.showDistribution())
+            .field(serverBuilder.field());
     }
 }

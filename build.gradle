@@ -22,31 +22,30 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
-
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.gradle.spotless" version "3.24.2" apply false
+  id "com.diffplug.gradle.spotless" version "4.0.0" apply false
 }
 
-apply plugin: 'nebula.info-scm'
 apply from: 'gradle/build-scan.gradle'
 apply from: 'gradle/build-complete.gradle'
 apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
+apply from: 'gradle/local-distribution.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -55,11 +54,9 @@ allprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
-BuildPlugin.configureRepositories(project)
-
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
-  licenseCommit = scminfo.change ?: "master" // leniency for non git builds
+  licenseCommit = BuildParams.gitRevision ?: "master" // leniency for non git builds
 } else {
   licenseCommit = "v${version}"
 }
@@ -109,17 +106,12 @@ subprojects {
   }
 }
 
-/* Introspect all versions of ES that may be tested against for backwards
- * compatibility. It is *super* important that this logic is the same as the
- * logic in VersionUtils.java. */
-BwcVersions versions = new BwcVersions(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-
-task updateCIBwcVersions() {
+tasks.register("updateCIBwcVersions") {
   doLast {
     File yml = file(".ci/bwcVersions")
     yml.text = ""
     yml << "BWC_VERSION:\n"
-    versions.indexCompatible.each {
+    BuildParams.bwcVersions.indexCompatible.each {
       yml << "  - \"$it\"\n"
     }
   }
@@ -144,14 +136,11 @@ allprojects {
       gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
       gradle.startParameter.taskNames.contains('cleanEclipse')
 
-    // for BWC testing
-    bwcVersions = versions
-
     buildMetadata = buildMetadataMap
   }
 }
 
-task verifyVersions {
+tasks.register("verifyVersions") {
   doLast {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
@@ -160,7 +149,7 @@ task verifyVersions {
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      bwcVersions.compareToAuthoritative(
+      BuildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
@@ -168,7 +157,7 @@ task verifyVersions {
       )
     }
     String ciYml = file(".ci/bwcVersions").text
-    bwcVersions.indexCompatible.each {
+    BuildParams.bwcVersions.indexCompatible.each {
       if (ciYml.contains("\"$it\"\n") == false) {
         throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
       }
@@ -203,7 +192,7 @@ subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
 }
 
-task verifyBwcTestsEnabled {
+tasks.register("verifyBwcTestsEnabled") {
   doLast {
     if (bwc_tests_enabled == false) {
       throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
@@ -211,10 +200,10 @@ task verifyBwcTestsEnabled {
   }
 }
 
-task branchConsistency {
+tasks.register("branchConsistency") {
   description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
-  dependsOn verifyVersions, verifyBwcTestsEnabled
+  dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 allprojects {
@@ -405,9 +394,17 @@ class Run extends DefaultTask {
   public void setDataDir(String dataDirStr) {
     project.project(':distribution').run.dataDir = dataDirStr
   }
+
+  @Option(
+    option = "keystore-password",
+    description = "Set the elasticsearch keystore password"
+  )
+  public void setKeystorePassword(String password) {
+    project.project(':distribution').run.keystorePassword = password
+  }
 }
 
-task run(type: Run) {
+tasks.register("run", Run) {
   dependsOn ':distribution:run'
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
@@ -486,7 +483,7 @@ allprojects {
     if (realTask == null) {
       return
     }
-    project.tasks.create(taskName) {
+    project.tasks.register(taskName) {
       doLast {
         println("${realTask.path} dependencies:")
         for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {
@@ -512,9 +509,16 @@ subprojects {
   pluginManager.withPlugin('elasticsearch.testclusters') {
     testClusters.all {
       if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-        systemProperty 'es.itv2_feature_enabled', 'true'
         systemProperty 'es.datastreams_feature_enabled', 'true'
       }
+    }
+  }
+}
+
+subprojects {
+  project.ext.disableTasks = { String... tasknames ->
+    for (String taskname : tasknames) {
+      project.tasks.named(taskname).configure { onlyIf { false } }
     }
   }
 }

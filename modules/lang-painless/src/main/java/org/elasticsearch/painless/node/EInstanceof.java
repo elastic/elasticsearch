@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.InstanceofNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
@@ -46,9 +48,14 @@ public class EInstanceof extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to instanceof with target type [" + type + "]"));
+        }
+
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                "not a statement: result not used from instanceof with target type [" + type + "]"));
+                    "not a statement: result not used from instanceof with target type [" + type + "]"));
         }
 
         Class<?> resolvedType;
@@ -70,9 +77,10 @@ public class EInstanceof extends AExpression {
 
         // analyze and cast the expression
         Input expressionInput = new Input();
-        Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
         expressionInput.expected = expressionOutput.actual;
-        expression.cast(expressionInput, expressionOutput);
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         // record if the expression returns a primitive
         primitiveExpression = expressionOutput.actual.isPrimitive();
@@ -84,7 +92,7 @@ public class EInstanceof extends AExpression {
 
         InstanceofNode instanceofNode = new InstanceofNode();
 
-        instanceofNode.setChildNode(expression.cast(expressionOutput));
+        instanceofNode.setChildNode(cast(expressionOutput.expressionNode, expressionCast));
 
         instanceofNode.setLocation(location);
         instanceofNode.setExpressionType(output.actual);

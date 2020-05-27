@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 /**
@@ -36,7 +37,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
  * <li> <code>index.merge.scheduler.max_thread_count</code>:
  *
  *     The maximum number of threads that may be merging at once. Defaults to
- *     <code>Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2))</code>
+ *     <code>Math.max(1, Math.min(4, {@link EsExecutors#allocatedProcessors(Settings)} / 2))</code>
  *     which works well for a good solid-state-disk (SSD).  If your index is on
  *     spinning platter drives instead, decrease this to 1.
  *
@@ -54,7 +55,7 @@ public final class MergeSchedulerConfig {
 
     public static final Setting<Integer> MAX_THREAD_COUNT_SETTING =
         new Setting<>("index.merge.scheduler.max_thread_count",
-            (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.numberOfProcessors(s) / 2))),
+            (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
             (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"), Property.Dynamic,
             Property.IndexScope);
     public static final Setting<Integer> MAX_MERGE_COUNT_SETTING =

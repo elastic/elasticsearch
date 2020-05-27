@@ -54,7 +54,7 @@ public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQuery
 
     @Override
     protected Query doToQuery(QueryShardContext context) {
-        deprecationLogger.deprecated("[deprecated] query");
+        deprecationLogger.deprecatedAndMaybeLog("to_query", "[deprecated] query");
         return new MatchAllDocsQuery();
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.util.Arrays;
@@ -56,11 +55,6 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             assertEquals(expectedState.quantile(0), reduced.state.quantile(0), 0d);
             assertEquals(expectedState.quantile(1), reduced.state.quantile(1), 0d);
         }
-    }
-
-    @Override
-    protected Writeable.Reader<InternalTDigestPercentiles> instanceReader() {
-        return InternalTDigestPercentiles::new;
     }
 
     @Override

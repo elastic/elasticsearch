@@ -34,7 +34,7 @@ public class EConstant extends AExpression {
 
     protected Object constant;
 
-    EConstant(Location location, Object constant) {
+    public EConstant(Location location, Object constant) {
         super(location);
 
         this.constant = constant;
@@ -42,6 +42,10 @@ public class EConstant extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to constant [" + constant + "]"));
+        }
+
         if (input.read == false) {
             throw createError(new IllegalArgumentException("not a statement: constant [" + constant + "] not used"));
         }

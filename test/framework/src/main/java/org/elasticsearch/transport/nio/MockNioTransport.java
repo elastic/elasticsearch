@@ -54,8 +54,8 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.InboundHandler;
 import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
@@ -278,11 +278,11 @@ public class MockNioTransport extends TcpTransport {
             this.channel = channel;
             final ThreadPool threadPool = transport.getThreadPool();
             final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
-            final InboundHandler inboundHandler = transport.getInboundHandler();
+            final RequestHandlers requestHandlers = transport.getRequestHandlers();
             final Version version = transport.getVersion();
             final StatsTracker statsTracker = transport.getStatsTracker();
             this.pipeline = new InboundPipeline(version, statsTracker, recycler, threadPool::relativeTimeInMillis, breaker,
-                inboundHandler::getRequestHandler, transport::inboundMessage);
+                requestHandlers::getHandler, transport::inboundMessage);
         }
 
         @Override
@@ -293,7 +293,7 @@ public class MockNioTransport extends TcpTransport {
                 references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
             }
             Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-            try (ReleasableBytesReference reference = new ReleasableBytesReference(new CompositeBytesReference(references), releasable)) {
+            try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
                 pipeline.handleBytes(channel, reference);
                 return reference.length();
             }
@@ -366,8 +366,15 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-            getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        public void sendMessage(OutboundHandler.SendContext sendContext) {
+            final BytesReference message;
+            try {
+                message = sendContext.get();
+            } catch (IOException e) {
+                sendContext.onFailure(e);
+                return;
+            }
+            getContext().sendMessage(BytesReference.toByteBuffers(message), ActionListener.toBiConsumer(sendContext));
         }
     }
 

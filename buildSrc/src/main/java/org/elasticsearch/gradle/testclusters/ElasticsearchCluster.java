@@ -25,8 +25,11 @@ import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.file.RegularFile;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 
@@ -142,7 +145,22 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
+    public void plugin(Provider<URI> plugin) {
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
+    public void plugin(RegularFileProperty plugin) {
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
     public void module(File module) {
+        nodes.all(each -> each.module(module));
+    }
+
+    @Override
+    public void module(Provider<RegularFile> module) {
         nodes.all(each -> each.module(module));
     }
 
@@ -169,6 +187,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void keystore(String key, FileSupplier valueSupplier) {
         nodes.all(each -> each.keystore(key, valueSupplier));
+    }
+
+    @Override
+    public void keystorePassword(String password) {
+        nodes.all(each -> each.keystorePassword(password));
     }
 
     @Override

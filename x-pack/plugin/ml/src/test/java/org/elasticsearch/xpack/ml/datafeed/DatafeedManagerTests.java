@@ -118,10 +118,10 @@ public class DatafeedManagerTests extends ESTestCase {
         DatafeedJobBuilder datafeedJobBuilder = mock(DatafeedJobBuilder.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onResponse(datafeedJob);
             return null;
-        }).when(datafeedJobBuilder).build(any(), any());
+        }).when(datafeedJobBuilder).build(any(), any(), any());
 
         hasOpenAutodetectCommunicator = new AtomicBoolean(true);
         AutodetectProcessManager autodetectProcessManager = mock(AutodetectProcessManager.class);

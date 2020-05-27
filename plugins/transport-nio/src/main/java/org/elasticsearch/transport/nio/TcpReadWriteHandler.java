@@ -31,9 +31,9 @@ import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.InboundHandler;
 import org.elasticsearch.transport.InboundPipeline;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -47,9 +47,9 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
         this.channel = channel;
         final ThreadPool threadPool = transport.getThreadPool();
         final Supplier<CircuitBreaker> breaker = transport.getInflightBreaker();
-        final InboundHandler inboundHandler = transport.getInboundHandler();
+        final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
         this.pipeline = new InboundPipeline(transport.getVersion(), transport.getStatsTracker(), recycler, threadPool::relativeTimeInMillis,
-            breaker, inboundHandler::getRequestHandler, transport::inboundMessage);
+            breaker, requestHandlers::getHandler, transport::inboundMessage);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
             references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
         }
         Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-        try (ReleasableBytesReference reference = new ReleasableBytesReference(new CompositeBytesReference(references), releasable)) {
+        try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
             pipeline.handleBytes(channel, reference);
             return reference.length();
         }

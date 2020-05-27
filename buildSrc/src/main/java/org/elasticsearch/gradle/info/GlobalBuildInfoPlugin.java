@@ -1,5 +1,7 @@
 package org.elasticsearch.gradle.info;
 
+import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.GradleException;
@@ -20,6 +22,7 @@ import javax.inject.Inject;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,6 +35,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +47,7 @@ import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
+    private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
     private static Integer _defaultParallel = null;
 
     private final JavaInstallationRegistry javaInstallationRegistry;
@@ -68,8 +73,13 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
 
-        // Initialize global build parameters
+        File rootDir = project.getRootDir();
+        GitInfo gitInfo = gitInfo(rootDir);
+
         BuildParams.init(params -> {
+            // Initialize global build parameters
+            boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
+
             params.reset();
             params.setCompilerJavaHome(compilerJavaHome);
             params.setRuntimeJavaHome(runtimeJavaHome);
@@ -80,18 +90,35 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setMinimumCompilerVersion(minimumCompilerVersion);
             params.setMinimumRuntimeVersion(minimumRuntimeVersion);
             params.setGradleJavaVersion(Jvm.current().getJavaVersion());
-            params.setGitRevision(gitRevision(project.getRootProject().getRootDir()));
+            params.setGitRevision(gitInfo.getRevision());
+            params.setGitOrigin(gitInfo.getOrigin());
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null);
-            params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
+            params.setIsInternal(isInternal);
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
+            if (isInternal) {
+                params.setBwcVersions(resolveBwcVersions(rootDir));
+            }
         });
 
         // Print global build info header just before task execution
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+    }
+
+    /* Introspect all versions of ES that may be tested against for backwards
+     * compatibility. It is *super* important that this logic is the same as the
+     * logic in VersionUtils.java. */
+    private static BwcVersions resolveBwcVersions(File root) {
+        File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
+        try {
+            List<String> versionLines = IOUtils.readLines(new FileInputStream(versionsFile), "UTF-8");
+            return new BwcVersions(versionLines);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
+        }
     }
 
     private void logGlobalBuildInfo() {
@@ -299,7 +326,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    public static String gitRevision(File rootDir) {
+    public static GitInfo gitInfo(File rootDir) {
         try {
             /*
              * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
@@ -320,7 +347,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             final Path dotGit = rootDir.toPath().resolve(".git");
             final String revision;
             if (Files.exists(dotGit) == false) {
-                return "unknown";
+                return new GitInfo("unknown", "unknown");
             }
             final Path head;
             final Path gitDir;
@@ -332,7 +359,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 // this is a git worktree, follow the pointer to the repository
                 final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
                 if (Files.exists(workTree) == false) {
-                    return "unknown";
+                    return new GitInfo("unknown", "unknown");
                 }
                 head = workTree.resolve("HEAD");
                 final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
@@ -366,11 +393,42 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 // we are in detached HEAD state
                 revision = ref;
             }
-            return revision;
+            return new GitInfo(revision, findOriginUrl(gitDir.resolve("config")));
         } catch (final IOException e) {
             // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
             throw new GradleException("unable to read the git revision", e);
         }
+    }
+
+    private static String findOriginUrl(final Path configFile) throws IOException {
+        Map<String, String> props = new HashMap<>();
+
+        try (Stream<String> stream = Files.lines(configFile, StandardCharsets.UTF_8)) {
+            Iterator<String> lines = stream.iterator();
+            boolean foundOrigin = false;
+            while (lines.hasNext()) {
+                String line = lines.next().trim();
+                if (line.startsWith(";") || line.startsWith("#")) {
+                    // ignore comments
+                    continue;
+                }
+                if (foundOrigin) {
+                    if (line.startsWith("[")) {
+                        // we're on to the next config item so stop looking
+                        break;
+                    }
+                    String[] pair = line.trim().split("=");
+                    props.put(pair[0].trim(), pair[1].trim());
+                } else {
+                    if (line.equals("[remote \"origin\"]")) {
+                        foundOrigin = true;
+                    }
+                }
+            }
+        }
+
+        String originUrl = props.get("url");
+        return originUrl == null ? "unknown" : originUrl;
     }
 
     private static String readFirstLine(final Path path) throws IOException {
@@ -379,5 +437,23 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             firstLine = lines.findFirst().orElseThrow(() -> new IOException("file [" + path + "] is empty"));
         }
         return firstLine;
+    }
+
+    private static class GitInfo {
+        private final String revision;
+        private final String origin;
+
+        GitInfo(String revision, String origin) {
+            this.revision = revision;
+            this.origin = origin;
+        }
+
+        public String getRevision() {
+            return revision;
+        }
+
+        public String getOrigin() {
+            return origin;
+        }
     }
 }

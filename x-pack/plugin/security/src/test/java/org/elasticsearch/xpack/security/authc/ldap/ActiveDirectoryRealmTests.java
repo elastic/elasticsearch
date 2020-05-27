@@ -150,7 +150,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     @After
     public void stop() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
         for (int i = 0; i < numberOfLdapServers; i++) {
             directoryServers[i].shutDown(true);

@@ -24,6 +24,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -38,7 +39,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     public FieldDataStats stats(String... fields) {
         ObjectLongHashMap<String> fieldTotals = null;
-        if (fields != null && fields.length > 0) {
+        if (CollectionUtils.isEmpty(fields) == false) {
             fieldTotals = new ObjectLongHashMap<>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
                 if (Regex.simpleMatch(fields, entry.getKey())) {

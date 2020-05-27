@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.ArrayList;
@@ -49,6 +51,10 @@ public class ENewArray extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
+        }
+
         if (input.read == false) {
             throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
         }
@@ -62,14 +68,16 @@ public class ENewArray extends AExpression {
         }
 
         List<Output> argumentOutputs = new ArrayList<>();
+        List<PainlessCast> argumentCasts = new ArrayList<>();
 
         for (AExpression expression : arguments) {
             Input expressionInput = new Input();
             expressionInput.expected = initialize ? clazz.getComponentType() : int.class;
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expression.cast(expressionInput, expressionOutput);
+            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             argumentOutputs.add(expressionOutput);
+            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
         output.actual = clazz;
@@ -77,7 +85,7 @@ public class ENewArray extends AExpression {
         NewArrayNode newArrayNode = new NewArrayNode();
 
         for (int i = 0; i < arguments.size(); ++ i) {
-            newArrayNode.addArgumentNode(arguments.get(i).cast(argumentOutputs.get(i)));
+            newArrayNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
         }
 
         newArrayNode.setLocation(location);

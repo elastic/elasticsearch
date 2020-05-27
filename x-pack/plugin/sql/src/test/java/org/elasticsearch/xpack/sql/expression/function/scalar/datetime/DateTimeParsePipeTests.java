@@ -82,9 +82,9 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
         assertEquals(newB, b3.transformPropertiesOnly(v -> Objects.equals(v, b3.parser()) ? newPr : v, Parser.class));
     
         DateTimeParsePipe b4 = randomInstance();
-        ZoneId newZI = ESTestCase.randomZone();
+        ZoneId newZI = randomValueOtherThan(b4.zoneId(), ESTestCase::randomZone);
         newB = new DateTimeParsePipe(b3.source(), b4.expression(), b4.left(), b4.right(), newZI, b4.parser());
-        assertEquals(newB, b3.transformPropertiesOnly(v -> Objects.equals(v, b3.zoneId()) ? newZI : v, ZoneId.class));
+        assertEquals(newB, b4.transformPropertiesOnly(v -> Objects.equals(v, b4.zoneId()) ? newZI : v, ZoneId.class));
     }
 
     @Override

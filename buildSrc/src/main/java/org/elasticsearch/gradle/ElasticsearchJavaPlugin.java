@@ -487,6 +487,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                     // we put all our distributable files under distributions
                     jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
                     // fixup the jar manifest
+                    // Explicitly using an Action interface as java lambdas
+                    // are not supported by Gradle up-to-date checks
                     jarTask.doFirst(new Action<Task>() {
                         @Override
                         public void execute(Task task) {

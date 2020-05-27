@@ -227,9 +227,9 @@ public class DependencyLicensesTask extends DefaultTask {
 
     }
 
-    // this is just a marker output folder to allow this task being up-to-date
-    // the check logic is exception driven so a failed task will not be defined
-    // by this output but when successful we can safely mark the task as up-to-date
+    // This is just a marker output folder to allow this task being up-to-date.
+    // The check logic is exception driven so a failed tasks will not be defined
+    // by this output but when successful we can safely mark the task as up-to-date.
     @OutputDirectory
     public File getOutputMarker() {
         return new File(getProject().getBuildDir(), "dependencyLicense");

@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -189,6 +190,24 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             log2.onFetchPhase(ctx2, 11L);
             assertNotNull(appender.getLastEventAndReset());
         }
+    }
+
+    public void testMultipleSlowLoggersUseSingleLog4jLogger() {
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+
+        SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
+        IndexSettings settings1 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log1 = new SearchSlowLog(settings1);
+        int numberOfLoggersBefore = context.getLoggers().size();
+
+        SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
+        IndexSettings settings2 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log2 = new SearchSlowLog(settings2);
+
+        int numberOfLoggersAfter = context.getLoggers().size();
+        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
     }
 
     private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {

@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.Version;
@@ -163,6 +164,25 @@ public class IndexingSlowLogTests extends ESTestCase {
             log2.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNotNull(appender.getLastEventAndReset());
         }
+    }
+
+    public void testMultipleSlowLoggersUseSingleLog4jLogger(){
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+
+        IndexSettings index1Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index1", UUIDs.randomBase64UUID()),
+            Settings.EMPTY);
+        IndexingSlowLog log1 = new IndexingSlowLog(index1Settings);
+
+        int numberOfLoggersBefore = context.getLoggers().size();
+
+
+        IndexSettings index2Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index2", UUIDs.randomBase64UUID()),
+            Settings.EMPTY);
+        IndexingSlowLog log2 = new IndexingSlowLog(index2Settings);
+        context = (LoggerContext) LogManager.getContext(false);
+
+        int numberOfLoggersAfter = context.getLoggers().size();
+        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
     }
 
     private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {

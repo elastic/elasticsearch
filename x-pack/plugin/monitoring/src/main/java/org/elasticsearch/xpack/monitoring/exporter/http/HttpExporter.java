@@ -21,6 +21,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.client.sniff.Sniffer;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -424,6 +426,24 @@ public class HttpExporter extends Exporter {
 
         // mark resources as dirty after any node failure or license change
         listener.setResource(resource);
+
+        //for a mixed cluster upgrade, ensure that if master changes and this is the master, allow the resources to re-publish
+        config.clusterService().addLocalNodeMasterListener(new LocalNodeMasterListener() {
+            @Override
+            public void onMaster() {
+                resource.markDirty();
+            }
+
+            @Override
+            public void offMaster() {
+                //do nothing
+            }
+
+            @Override
+            public String executorName() {
+                return ThreadPool.Names.SAME;
+            }
+        });
     }
 
     /**
@@ -837,13 +857,6 @@ public class HttpExporter extends Exporter {
     @Override
     public void openBulk(final ActionListener<ExportBulk> listener) {
         final boolean canUseClusterAlerts = config.licenseState().isAllowed(Feature.MONITORING_CLUSTER_ALERTS);
-
-        //for a mixed cluster upgrade, ensure that if master changes and this is the master, allow the resources to re-publish
-        config.clusterService().addListener(clusterChangedEvent -> {
-            if (clusterChangedEvent.nodesDelta().masterNodeChanged() && clusterChangedEvent.localNodeMaster()) {
-                resource.markDirty();
-            }
-        });
 
         // if this changes between updates, then we need to add OR remove the watches
         if (clusterAlertsAllowed.compareAndSet(!canUseClusterAlerts, canUseClusterAlerts)) {

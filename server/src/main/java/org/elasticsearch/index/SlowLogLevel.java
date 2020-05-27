@@ -26,10 +26,10 @@ public enum SlowLogLevel {
     DEBUG(1),
     TRACE(0); //least specific - lots of logging
 
-    private final int precedence;
+    private final int specificity;
 
     SlowLogLevel(int specificity) {
-        this.precedence = specificity;
+        this.specificity = specificity;
     }
 
     public static SlowLogLevel parse(String level) {
@@ -38,6 +38,6 @@ public enum SlowLogLevel {
 
     boolean isLevelEnabledFor(SlowLogLevel levelToBeUsed) {
         // example: this.info(2) tries to log with levelToBeUsed.warn(3) - should allow
-        return this.precedence <= levelToBeUsed.precedence;
+        return this.specificity <= levelToBeUsed.specificity;
     }
 }

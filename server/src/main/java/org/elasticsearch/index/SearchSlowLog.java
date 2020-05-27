@@ -90,7 +90,6 @@ public final class SearchSlowLog implements SearchOperationListener {
     private SlowLogLevel level;
 
     public SearchSlowLog(IndexSettings indexSettings) {
-
         this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query.");
         this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch.");
         Loggers.setLevel(this.fetchLogger, SlowLogLevel.TRACE.name());

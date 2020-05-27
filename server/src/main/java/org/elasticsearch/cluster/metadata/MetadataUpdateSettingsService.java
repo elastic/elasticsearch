@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -70,16 +71,19 @@ public class MetadataUpdateSettingsService {
 
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
+    private final ShardLimitService shardLimitService;
     private final ThreadPool threadPool;
 
     @Inject
     public MetadataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
-                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService,
+                                         ShardLimitService shardLimitService, ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
+        this.shardLimitService = shardLimitService;
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
@@ -154,7 +158,7 @@ public class MetadataUpdateSettingsService {
                         int totalNewShards = Arrays.stream(request.indices())
                             .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
                             .sum();
-                        Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
+                        Optional<String> error = shardLimitService.checkShardLimit(totalNewShards, currentState);
                         if (error.isPresent()) {
                             ValidationException ex = new ValidationException();
                             ex.addValidationError(error.get());

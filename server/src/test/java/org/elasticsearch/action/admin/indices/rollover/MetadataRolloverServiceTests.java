@@ -56,6 +56,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -468,8 +469,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
+            ShardLimitService shardLimitService = new ShardLimitService(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-                clusterService, indicesService, allocationService, null, env, null, testThreadPool, null, Collections.emptyList(), false);
+                clusterService, indicesService, allocationService, null, shardLimitService, env, null,
+                testThreadPool, null, Collections.emptyList(), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
@@ -533,8 +536,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
+            ShardLimitService shardLimitService = new ShardLimitService(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-                clusterService, indicesService, allocationService, null, env, null, testThreadPool, null, Collections.emptyList(), false);
+                clusterService, indicesService, allocationService, null, shardLimitService, env, null,
+                testThreadPool, null, Collections.emptyList(), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,

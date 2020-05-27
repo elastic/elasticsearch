@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.enrich.MatchProcessorTests.str;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,8 +67,8 @@ public class GeoMatchProcessorTests extends ESTestCase {
             "_tag",
             mockSearch,
             "_name",
-            "location",
-            "entry",
+            str("location"),
+            str("entry"),
             false,
             false,
             "shape",
@@ -166,7 +167,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
 
     public SearchResponse mockResponse(Map<String, Map<String, ?>> documents) {
         SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), Collections.emptyMap());
+            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), Collections.emptyMap(), Collections.emptyMap());
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(e.getValue());
                 builder.flush();

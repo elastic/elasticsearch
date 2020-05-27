@@ -22,47 +22,42 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 
-
 public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTestCase {
 
     public static final String PROJECT_NAME = "elasticsearch-build-resources";
 
     public void testUpToDateWithSourcesConfigured() {
-        getGradleRunner(PROJECT_NAME)
-            .withArguments("clean", "-s")
-            .build();
+        getGradleRunner(PROJECT_NAME).withArguments("clean", "-s").build();
 
-        BuildResult result = getGradleRunner(PROJECT_NAME)
-            .withArguments("buildResources", "-s", "-i")
-            .build();
+        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskSuccessful(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
-        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
 
-        result = getGradleRunner(PROJECT_NAME)
-            .withArguments("buildResources", "-s", "-i")
-            .build();
+        // using task avoidance api means the task configuration of the sample task is never triggered
+        assertBuildFileDoesNotExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+
+        result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskUpToDate(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
-        assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+
+        // using task avoidance api means the task configuration of the sample task is never triggered
+        assertBuildFileDoesNotExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
     }
 
     public void testImplicitTaskDependencyCopy() {
-        BuildResult result = getGradleRunner(PROJECT_NAME)
-            .withArguments("clean", "sampleCopyAll", "-s", "-i")
-            .build();
+        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("clean", "sampleCopyAll", "-s", "-i").build();
 
         assertTaskSuccessful(result, ":buildResources");
         assertTaskSuccessful(result, ":sampleCopyAll");
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle.xml");
-        // This is a side effect of compile time reference
-        assertBuildFileExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle_suppressions.xml");
+
+        // using task avoidance api means the task configuration of the sample task is never triggered
+        // which means buildResource is not configured to copy this file
+        assertBuildFileDoesNotExists(result, PROJECT_NAME, "sampleCopyAll/checkstyle_suppressions.xml");
     }
 
     public void testImplicitTaskDependencyInputFileOfOther() {
-        BuildResult result = getGradleRunner(PROJECT_NAME)
-            .withArguments("clean", "sample", "-s", "-i")
-            .build();
+        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("clean", "sample", "-s", "-i").build();
 
         assertTaskSuccessful(result, ":sample");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
@@ -71,10 +66,7 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
 
     public void testIncorrectUsage() {
         assertOutputContains(
-            getGradleRunner(PROJECT_NAME)
-                .withArguments("noConfigAfterExecution", "-s", "-i")
-                .buildAndFail()
-                .getOutput(),
+            getGradleRunner(PROJECT_NAME).withArguments("noConfigAfterExecution", "-s", "-i").buildAndFail().getOutput(),
             "buildResources can't be configured after the task ran"
         );
     }

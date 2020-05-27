@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -17,7 +18,13 @@ public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
         super(input);
     }
 
-    public RollupFeatureSetUsage(boolean available, boolean enabled) {
-        super(XPackField.ROLLUP, available, enabled);
+    public RollupFeatureSetUsage(boolean available) {
+        super(XPackField.ROLLUP, available, true);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
+    }
+
 }

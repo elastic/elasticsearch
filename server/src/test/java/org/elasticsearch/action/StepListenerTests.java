@@ -22,11 +22,13 @@ package org.elasticsearch.action;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -109,5 +111,21 @@ public class StepListenerTests extends ESTestCase {
         } else {
             runnable.run();
         }
+    }
+
+    /**
+     * This test checks that we no longer unwrap exceptions when using StepListener.
+     */
+    public void testNoUnwrap() {
+        StepListener<String> step = new StepListener<>();
+        step.onFailure(new RemoteTransportException("test", new RuntimeException("expected")));
+        AtomicReference<RuntimeException> exception = new AtomicReference<>();
+        step.whenComplete(null, e -> {
+            exception.set((RuntimeException) e);
+        });
+
+        assertEquals(RemoteTransportException.class, exception.get().getClass());
+        RuntimeException e = expectThrows(RuntimeException.class, () -> step.result());
+        assertEquals(RemoteTransportException.class, e.getClass());
     }
 }

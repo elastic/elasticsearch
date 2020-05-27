@@ -233,9 +233,12 @@ public final class ThreadContext implements Writeable {
      * Reads the headers from the stream into the current context
      */
     public void readHeaders(StreamInput in) throws IOException {
-        final Tuple<Map<String, String>, Map<String, Set<String>>> streamTuple = readHeadersFromStream(in);
-        final Map<String, String>  requestHeaders = streamTuple.v1();
-        final Map<String, Set<String>> responseHeaders = streamTuple.v2();
+        setHeaders(readHeadersFromStream(in));
+    }
+
+    public void setHeaders(Tuple<Map<String, String>, Map<String, Set<String>>> headerTuple) {
+        final Map<String, String>  requestHeaders = headerTuple.v1();
+        final Map<String, Set<String>> responseHeaders = headerTuple.v2();
         final ThreadContextStruct struct;
         if (requestHeaders.isEmpty() && responseHeaders.isEmpty()) {
             struct = ThreadContextStruct.EMPTY;

@@ -375,6 +375,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
+     * A value of 0 is equivalent to the "auto" slices parameter of the Rest API.
      */
     public Self setSlices(int slices) {
         if (slices < 0) {

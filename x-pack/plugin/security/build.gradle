@@ -1,7 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
@@ -25,25 +25,25 @@ dependencies {
     compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
 
     // the following are all SAML dependencies - might as well download the whole internet
-    compile "org.opensaml:opensaml-core:3.3.0"
-    compile "org.opensaml:opensaml-saml-api:3.3.0"
-    compile "org.opensaml:opensaml-saml-impl:3.3.0"
-    compile "org.opensaml:opensaml-messaging-api:3.3.0"
-    compile "org.opensaml:opensaml-messaging-impl:3.3.0"
-    compile "org.opensaml:opensaml-security-api:3.3.0"
-    compile "org.opensaml:opensaml-security-impl:3.3.0"
-    compile "org.opensaml:opensaml-profile-api:3.3.0"
-    compile "org.opensaml:opensaml-profile-impl:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-api:3.3.0"
-    compile "org.opensaml:opensaml-xmlsec-impl:3.3.0"
-    compile "org.opensaml:opensaml-soap-api:3.3.0"
-    compile "org.opensaml:opensaml-soap-impl:3.3.0"
-    compile "org.opensaml:opensaml-storage-api:3.3.0"
-    compile "org.opensaml:opensaml-storage-impl:3.3.0"
-    compile "net.shibboleth.utilities:java-support:7.3.0"
-    compile "org.apache.santuario:xmlsec:2.0.8"
+    compile "org.opensaml:opensaml-core:3.4.5"
+    compile "org.opensaml:opensaml-saml-api:3.4.5"
+    compile "org.opensaml:opensaml-saml-impl:3.4.5"
+    compile "org.opensaml:opensaml-messaging-api:3.4.5"
+    compile "org.opensaml:opensaml-messaging-impl:3.4.5"
+    compile "org.opensaml:opensaml-security-api:3.4.5"
+    compile "org.opensaml:opensaml-security-impl:3.4.5"
+    compile "org.opensaml:opensaml-profile-api:3.4.5"
+    compile "org.opensaml:opensaml-profile-impl:3.4.5"
+    compile "org.opensaml:opensaml-xmlsec-api:3.4.5"
+    compile "org.opensaml:opensaml-xmlsec-impl:3.4.5"
+    compile "org.opensaml:opensaml-soap-api:3.4.5"
+    compile "org.opensaml:opensaml-soap-impl:3.4.5"
+    compile "org.opensaml:opensaml-storage-api:3.4.5"
+    compile "org.opensaml:opensaml-storage-impl:3.4.5"
+    compile "net.shibboleth.utilities:java-support:7.5.1"
+    compile "org.apache.santuario:xmlsec:2.1.4"
     compile "io.dropwizard.metrics:metrics-core:3.2.2"
-    compile ("org.cryptacular:cryptacular:1.2.0") {
+    compile ("org.cryptacular:cryptacular:1.2.4") {
         exclude group: 'org.bouncycastle'
     }
     compile "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -53,11 +53,11 @@ dependencies {
     compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
     compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
     compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
-    compile 'com.google.guava:guava:19.0'
+    runtimeOnly 'com.google.guava:guava:19.0'
 
   // Dependencies for oidc
-  compile "com.nimbusds:oauth2-oidc-sdk:6.16.5"
-  compile "com.nimbusds:nimbus-jose-jwt:8.2"
+  compile "com.nimbusds:oauth2-oidc-sdk:7.0.2"
+  compile "com.nimbusds:nimbus-jose-jwt:8.6"
   compile "com.nimbusds:lang-tag:1.4.4"
   compile "com.sun.mail:jakarta.mail:1.6.3"
   compile "net.jcip:jcip-annotations:1.0"
@@ -82,7 +82,7 @@ dependencies {
   testCompile('org.apache.kerby:kerb-crypto:1.1.1')
   testCompile('org.apache.kerby:kerb-util:1.1.1')
   testCompile('org.apache.kerby:token-provider:1.1.1')
-  testCompile('com.nimbusds:nimbus-jose-jwt:8.2')
+  testCompile('com.nimbusds:nimbus-jose-jwt:8.6')
   testCompile('net.jcip:jcip-annotations:1.0')
   testCompile('org.apache.kerby:kerb-admin:1.1.1')
   testCompile('org.apache.kerby:kerb-server:1.1.1')
@@ -100,7 +100,7 @@ dependencies {
   testCompile('org.apache.directory.api:api-ldap-extras-codec:1.0.0')
   testCompile('org.apache.directory.api:api-ldap-extras-codec-api:1.0.0')
   testCompile('commons-pool:commons-pool:1.6')
-  testCompile('commons-collections:commons-collections:3.2')
+  testCompile('commons-collections:commons-collections:3.2.2')
   testCompile('org.apache.mina:mina-core:2.0.17')
   testCompile('org.apache.directory.api:api-util:1.0.1')
   testCompile('org.apache.directory.api:api-i18n:1.0.1')
@@ -170,7 +170,7 @@ forbiddenPatterns {
   exclude '**/*.zip'
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 
@@ -343,7 +343,6 @@ thirdPartyAudit {
         'org.bouncycastle.crypto.digests.TigerDigest',
         'org.bouncycastle.crypto.digests.WhirlpoolDigest',
         'org.bouncycastle.crypto.engines.AESEngine',
-        'org.bouncycastle.crypto.engines.AESFastEngine',
         'org.bouncycastle.crypto.engines.BlowfishEngine',
         'org.bouncycastle.crypto.engines.CAST5Engine',
         'org.bouncycastle.crypto.engines.CAST6Engine',
@@ -369,6 +368,7 @@ thirdPartyAudit {
         'org.bouncycastle.crypto.engines.TwofishEngine',
         'org.bouncycastle.crypto.engines.VMPCEngine',
         'org.bouncycastle.crypto.engines.XTEAEngine',
+        'org.bouncycastle.crypto.generators.BCrypt',
         'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
         'org.bouncycastle.crypto.generators.PKCS5S1ParametersGenerator',
         'org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator',
@@ -458,6 +458,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'javax.xml.bind.JAXBException',
   'javax.xml.bind.Unmarshaller',
   'javax.xml.bind.UnmarshallerHandler',
+  // Optional dependencies of oauth2-oidc-sdk
+  'com.nimbusds.common.contenttype.ContentType',
   'javax.activation.ActivationDataFlavor',
   'javax.activation.DataContentHandler',
   'javax.activation.DataHandler',

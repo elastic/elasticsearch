@@ -1,0 +1,191 @@
+---
+"Create data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+        body:
+          timestamp_field: "@timestamp2"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { 0.name: simple-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
+  - length: { 0.indices: 1 }
+  - match: { 0.indices.0.index_name: 'simple-data-stream1-000001' }
+  - match: { 1.name: simple-data-stream2 }
+  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 0.generation: 1 }
+  - length: { 1.indices: 1 }
+  - match: { 1.indices.0.index_name: 'simple-data-stream2-000001' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      search:
+        index: simple-data-stream1
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: simple-data-stream1-000001 }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+---
+"Create data stream with invalid name":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: invalid-data-stream#-name
+        body:
+          timestamp_field: "@timestamp"
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"Get data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: get-data-stream1
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: get-data-stream2
+        body:
+          timestamp_field: "@timestamp2"
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { 0.name: get-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
+  - match: { 1.name: get-data-stream2 }
+  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.generation: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: get-data-stream1
+  - match: { 0.name: get-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: get-data-*
+  - match: { 0.name: get-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
+  - match: { 1.name: get-data-stream2 }
+  - match: { 1.timestamp_field: '@timestamp2' }
+  - match: { 1.generation: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: nonexistent-data-stream
+      catch: missing
+
+  - match: { status: 404 }
+  - match: { error.root_cause.0.type: "resource_not_found_exception" }
+
+  - do:
+      indices.get_data_stream:
+        name: nonexistent*
+  - match: { $body: [] }
+
+  - do:
+      indices.delete_data_stream:
+        name: get-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: get-data-stream2
+  - is_true: acknowledged
+
+---
+"Delete data stream with backing indices":
+  - skip:
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: delete-data-stream1
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  - do:
+      indices.get:
+        index: ['delete-data-stream1-000001', 'test_index']
+
+  - is_true: test_index.settings
+  - is_true: delete-data-stream1-000001.settings
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { 0.name: delete-data-stream1 }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
+  - length: { 0.indices: 1 }
+  - match: { 0.indices.0.index_name: 'delete-data-stream1-000001' }
+
+  - do:
+      indices.delete_data_stream:
+        name: delete-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.get:
+        index: "delete-data-stream1-000001"

@@ -7,7 +7,7 @@ Executes another pipeline.
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `name`           | yes       | -        | The name of the pipeline to execute
+| `name`           | yes       | -        | The name of the pipeline to execute. Supports <<accessing-template-fields,template snippets>>.
 include::common-options.asciidoc[]
 |======
 
@@ -20,6 +20,8 @@ include::common-options.asciidoc[]
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+The name of the current pipeline can be accessed from the `_ingest.pipeline` ingest metadata key.
 
 An example of using this processor for nesting pipelines would be:
 

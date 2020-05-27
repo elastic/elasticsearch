@@ -9,7 +9,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -345,7 +345,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         }
 
         {
-            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), MetaData.ALL);
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), Metadata.ALL);
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
             assertTrue(response.isAcknowledged());
         }
@@ -357,7 +357,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
             registerJob(otherJob);
             putJob(otherJob);
-            DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), MetaData.ALL);
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), Metadata.ALL);
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
             assertTrue(response.isAcknowledged());
         }
@@ -370,7 +370,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             registerJob(otherJob);
             putJob(otherJob);
 
-            DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), MetaData.ALL);
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), Metadata.ALL);
             request.setAllowNoForecasts(false);
             ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());

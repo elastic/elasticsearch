@@ -37,8 +37,8 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     @Override
     protected SpanTermQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME,
-            STRING_ALIAS_FIELD_NAME,
+        String fieldName = randomFrom(TEXT_FIELD_NAME,
+            TEXT_ALIAS_FIELD_NAME,
             randomAlphaOfLengthBetween(1, 10));
 
         Object value;
@@ -125,7 +125,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testWithMetaDataField() throws IOException {
+    public void testWithMetadataField() throws IOException {
         QueryShardContext context = createShardContext();
         for (String field : new String[]{"field1", "field2"}) {
             SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");

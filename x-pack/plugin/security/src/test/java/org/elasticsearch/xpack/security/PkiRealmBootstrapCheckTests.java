@@ -19,9 +19,8 @@ import java.nio.file.Path;
 public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testPkiRealmBootstrapDefault() throws Exception {
-        final Settings settings = Settings.EMPTY;
-        final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        assertFalse(runCheck(settings, env).isFailure());
+        final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        assertFalse(runCheck(settings).isFailure());
     }
 
     public void testBootstrapCheckWithPkiRealm() throws Exception {
@@ -34,8 +33,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        assertTrue(runCheck(settings, env).isFailure());
+        assertTrue(runCheck(settings).isFailure());
 
         // enable transport tls
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
@@ -44,7 +42,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .put("xpack.security.transport.ssl.certificate", certPath)
                 .put("xpack.security.transport.ssl.key", keyPath)
                 .build();
-        assertFalse(runCheck(settings, env).isFailure());
+        assertFalse(runCheck(settings).isFailure());
 
         // enable ssl for http
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
@@ -54,29 +52,25 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .put("xpack.security.http.ssl.certificate", certPath)
                 .put("xpack.security.http.ssl.key", keyPath)
                 .build();
-        env = TestEnvironment.newEnvironment(settings);
-        assertTrue(runCheck(settings, env).isFailure());
+        assertTrue(runCheck(settings).isFailure());
 
         // enable client auth for http
         settings = Settings.builder().put(settings)
                 .put("xpack.security.http.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();
-        env = TestEnvironment.newEnvironment(settings);
-        assertFalse(runCheck(settings, env).isFailure());
+        assertFalse(runCheck(settings).isFailure());
 
         // disable http ssl
         settings = Settings.builder().put(settings)
                 .put("xpack.security.http.ssl.enabled", false)
                 .build();
-        env = TestEnvironment.newEnvironment(settings);
-        assertTrue(runCheck(settings, env).isFailure());
+        assertTrue(runCheck(settings).isFailure());
 
         // set transport auth
         settings = Settings.builder().put(settings)
                 .put("xpack.security.transport.client_authentication", randomFrom("required", "optional"))
                 .build();
-        env = TestEnvironment.newEnvironment(settings);
-        assertTrue(runCheck(settings, env).isFailure());
+        assertTrue(runCheck(settings).isFailure());
 
         // test with transport profile
         settings = Settings.builder().put(settings)
@@ -84,12 +78,12 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .put("xpack.security.transport.client_authentication", "none")
                 .put("transport.profiles.foo.xpack.security.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();
-        env = TestEnvironment.newEnvironment(settings);
-        assertFalse(runCheck(settings, env).isFailure());
+        assertFalse(runCheck(settings).isFailure());
     }
 
-    private BootstrapCheck.BootstrapCheckResult runCheck(Settings settings, Environment env) throws Exception {
-        return new PkiRealmBootstrapCheck(new SSLService(settings, env)).check(createTestContext(settings, null));
+    private BootstrapCheck.BootstrapCheckResult runCheck(Settings settings) throws Exception {
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
+        return new PkiRealmBootstrapCheck(sslService).check(createTestContext(settings, null));
     }
 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
@@ -100,7 +94,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .put("path.home", createTempDir())
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        assertFalse(runCheck(settings, env).isFailure());
+        assertFalse(runCheck(settings).isFailure());
     }
 
     public void testBootstrapCheckWithDelegationEnabled() throws Exception {
@@ -119,8 +113,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();
-        Environment env = TestEnvironment.newEnvironment(settings);
-        assertFalse(runCheck(settings, env).isFailure());
+        assertFalse(runCheck(settings).isFailure());
     }
 
     public void testBootstrapCheckWithClosedSecuredSetting() throws Exception {
@@ -140,7 +133,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
             .build();
 
         Environment env = TestEnvironment.newEnvironment(settings);
-        final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(new SSLService(settings, env));
+        final PkiRealmBootstrapCheck check = new PkiRealmBootstrapCheck(new SSLService(env));
         secureSettings.close();
         assertThat(check.check(createTestContext(settings, null)).isFailure(), Matchers.equalTo(expectFail));
     }

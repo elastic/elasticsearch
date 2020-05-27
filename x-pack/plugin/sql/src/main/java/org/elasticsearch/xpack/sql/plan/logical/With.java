@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+
 import java.util.Map;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class With extends UnaryPlan {
     private final Map<String, SubQueryAlias> subQueries;

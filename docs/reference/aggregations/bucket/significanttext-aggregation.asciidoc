@@ -32,7 +32,7 @@ and the _background_set used for statistical comparisons is the index or indices
 
 Example:
 
-[source,console]
+[source,console,id=significanttext-aggregation-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -146,7 +146,7 @@ The uncleansed documents have thrown up some odd-looking terms that are, on the 
 correlated with appearances of our search term "elasticsearch" e.g. "pozmantier".
 We can drill down into examples of these documents to see why pozmantier is connected using this query:
 
-[source,console]
+[source,console,id=significanttext-aggregation-pozmantier-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -214,7 +214,7 @@ Fortunately similar documents tend to rank similarly so as part of examining the
 aggregation can apply a filter to remove sequences of any 6 or more tokens that have already been seen. Let's try this same query now but
 with the `filter_duplicate_text` setting turned on:
 
-[source,console]
+[source,console,id=significanttext-aggregation-filter-duplicate-text-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -416,7 +416,7 @@ The default source of statistical information for background term frequencies is
 scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
 context:
 
-[source,console]
+[source,console,id=significanttext-aggregation-custom-background-example]
 --------------------------------------------------
 GET news/_search
 {
@@ -454,7 +454,7 @@ JSON field(s) and the indexed field being aggregated can differ.
 In these cases it is possible to list the JSON _source fields from which text
 will be analyzed using the `source_fields` parameter:
 
-[source,console]
+[source,console,id=significanttext-aggregation-mappings-example]
 --------------------------------------------------
 GET news/_search
 {

@@ -14,8 +14,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -47,9 +46,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * Service responsible for managing {@link LicensesMetaData}.
+ * Service responsible for managing {@link LicensesMetadata}.
  * <p>
  * On the master node, the service handles updating the cluster state when a new license is registered.
  * It also listens on all nodes for cluster state updates, and updates {@link XPackLicenseState} when
@@ -63,6 +63,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final License.LicenseType type = License.LicenseType.parse(s);
         return SelfGeneratedLicense.validateSelfGeneratedType(type);
     }, Setting.Property.NodeScope);
+
+    static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
+
+    public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting("xpack.license.upload.types",
+        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList()),
+        License.LicenseType::parse, LicenseService::validateUploadTypesSetting, Setting.Property.NodeScope);
 
     // pkg private for tests
     static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
@@ -105,9 +111,16 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     private List<ExpirationCallback> expirationCallbacks = new ArrayList<>();
 
     /**
+     * Which license types are permitted to be uploaded to the cluster
+     * @see #ALLOWED_LICENSE_TYPES_SETTING
+     */
+    private final List<License.LicenseType> allowedLicenseTypes;
+
+    /**
      * Max number of nodes licensed by generated trial license
      */
     static final int SELF_GENERATED_LICENSE_MAX_NODES = 1000;
+    static final int SELF_GENERATED_LICENSE_MAX_RESOURCE_UNITS = SELF_GENERATED_LICENSE_MAX_NODES;
 
     public static final String LICENSE_JOB = "licenseJob";
 
@@ -123,9 +136,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.licenseState = licenseState;
+        this.allowedLicenseTypes = ALLOWED_LICENSE_TYPES_SETTING.get(settings);
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
             XPackPlugin.resolveConfigFile(env, "license_mode"), logger,
-            () -> updateLicenseState(getLicensesMetaData()));
+            () -> updateLicenseState(getLicensesMetadata()));
         this.scheduler.register(this);
         populateExpirationCallbacks();
     }
@@ -196,8 +210,20 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final long now = clock.millis();
         if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now || newLicense.startDate() > now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
-        } else if (newLicense.type().equals(License.LicenseType.BASIC.getTypeName())) {
+            return;
+        }
+        final License.LicenseType licenseType;
+        try {
+            licenseType = License.LicenseType.resolve(newLicense);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (licenseType == License.LicenseType.BASIC) {
             listener.onFailure(new IllegalArgumentException("Registering basic licenses is not allowed."));
+        } else if (isAllowedLicenseType(licenseType) == false) {
+            listener.onFailure(new IllegalArgumentException(
+                "Registering [" + licenseType.getTypeName() + "] licenses is not allowed on this cluster"));
         } else if (newLicense.expiryDate() < now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
@@ -228,8 +254,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
                         "] license unless TLS is configured or security is disabled");
                 } else if (XPackSettings.FIPS_MODE_ENABLED.get(settings)
-                    && newLicense.operationMode() != License.OperationMode.PLATINUM
-                    && newLicense.operationMode() != License.OperationMode.TRIAL) {
+                    && false == XPackLicenseState.isFipsAllowedForOperationMode(newLicense.operationMode())) {
                     throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
                         "] license unless FIPS mode is disabled");
                 }
@@ -250,26 +275,28 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                             throw new IllegalStateException("The provided license is not compatible with node version [" +
                                 oldestNodeVersion + "]");
                         }
-                        MetaData currentMetadata = currentState.metaData();
-                        LicensesMetaData licensesMetaData = currentMetadata.custom(LicensesMetaData.TYPE);
+                        Metadata currentMetadata = currentState.metadata();
+                        LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
                         Version trialVersion = null;
-                        if (licensesMetaData != null) {
-                            trialVersion = licensesMetaData.getMostRecentTrialVersion();
+                        if (licensesMetadata != null) {
+                            trialVersion = licensesMetadata.getMostRecentTrialVersion();
                         }
-                        MetaData.Builder mdBuilder = MetaData.builder(currentMetadata);
-                        mdBuilder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(newLicense, trialVersion));
-                        return ClusterState.builder(currentState).metaData(mdBuilder).build();
+                        Metadata.Builder mdBuilder = Metadata.builder(currentMetadata);
+                        mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
+                        return ClusterState.builder(currentState).metadata(mdBuilder).build();
                     }
                 });
         }
     }
 
     private static boolean licenseIsCompatible(License license, Version version) {
-        if (License.LicenseType.ENTERPRISE.getTypeName().equalsIgnoreCase(license.type())) {
-            return version.onOrAfter(Version.V_8_0_0);
-        } else {
-            return true;
-        }
+        final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
+        return license.version() <= maxVersion;
+    }
+
+    private boolean isAllowedLicenseType(License.LicenseType type) {
+        logger.debug("Checking license [{}] against allowed license types: {}", type, allowedLicenseTypes);
+        return allowedLicenseTypes.contains(type);
     }
 
     public static Map<String, String[]> getAckMessages(License newLicense, License currentLicense) {
@@ -296,11 +323,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        final LicensesMetaData licensesMetaData = getLicensesMetaData();
-        if (licensesMetaData != null) {
-            final License license = licensesMetaData.getLicense();
+        final LicensesMetadata licensesMetadata = getLicensesMetadata();
+        if (licensesMetadata != null) {
+            final License license = licensesMetadata.getLicense();
             if (event.getJobName().equals(LICENSE_JOB)) {
-                updateLicenseState(license, licensesMetaData.getMostRecentTrialVersion());
+                updateLicenseState(license, licensesMetadata.getMostRecentTrialVersion());
             } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
                     .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
@@ -312,38 +339,19 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final DeleteLicenseRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void removeLicense(final DeleteLicenseRequest request, final ActionListener<PostStartBasicResponse> listener) {
+        final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         clusterService.submitStateUpdateTask("delete license",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    MetaData metaData = currentState.metaData();
-                    final LicensesMetaData currentLicenses = metaData.custom(LicensesMetaData.TYPE);
-                    if (currentLicenses.getLicense() != LicensesMetaData.LICENSE_TOMBSTONE) {
-                        MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                        LicensesMetaData newMetadata = new LicensesMetaData(LicensesMetaData.LICENSE_TOMBSTONE,
-                            currentLicenses.getMostRecentTrialVersion());
-                        mdBuilder.putCustom(LicensesMetaData.TYPE, newMetadata);
-                        return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                    } else {
-                        return currentState;
-                    }
-                }
-            });
+            new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, startBasicRequest, listener));
     }
 
     public License getLicense() {
-        final License license = getLicense(clusterService.state().metaData());
-        return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
+        final License license = getLicense(clusterService.state().metadata());
+        return license == LicensesMetadata.LICENSE_TOMBSTONE ? null : license;
     }
 
-    private LicensesMetaData getLicensesMetaData() {
-        return this.clusterService.state().metaData().custom(LicensesMetaData.TYPE);
+    private LicensesMetadata getLicensesMetadata() {
+        return this.clusterService.state().metadata().custom(LicensesMetadata.TYPE);
     }
 
     void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
@@ -381,10 +389,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             final ClusterState clusterState = clusterService.state();
             if (clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false &&
                 clusterState.nodes().getMasterNode() != null && XPackPlugin.isReadyForXPackCustomMetadata(clusterState)) {
-                final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
-                boolean noLicense = currentMetaData == null || currentMetaData.getLicense() == null;
+                final LicensesMetadata currentMetadata = clusterState.metadata().custom(LicensesMetadata.TYPE);
+                boolean noLicense = currentMetadata == null || currentMetadata.getLicense() == null;
                 if (clusterState.getNodes().isLocalNodeElectedMaster() &&
-                    (noLicense || LicenseUtils.licenseNeedsExtended(currentMetaData.getLicense()))) {
+                    (noLicense || LicenseUtils.licenseNeedsExtended(currentMetadata.getLicense()))) {
                     // triggers a cluster changed event eventually notifying the current licensee
                     registerOrUpdateSelfGeneratedLicense();
                 }
@@ -419,30 +427,30 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 return;
             }
 
-            final LicensesMetaData prevLicensesMetaData = previousClusterState.getMetaData().custom(LicensesMetaData.TYPE);
-            final LicensesMetaData currentLicensesMetaData = currentClusterState.getMetaData().custom(LicensesMetaData.TYPE);
+            final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
+            final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             if (logger.isDebugEnabled()) {
-                logger.debug("previous [{}]", prevLicensesMetaData);
-                logger.debug("current [{}]", currentLicensesMetaData);
+                logger.debug("previous [{}]", prevLicensesMetadata);
+                logger.debug("current [{}]", currentLicensesMetadata);
             }
             // notify all interested plugins
             if (previousClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-                || prevLicensesMetaData == null) {
-                if (currentLicensesMetaData != null) {
-                    onUpdate(currentLicensesMetaData);
+                || prevLicensesMetadata == null) {
+                if (currentLicensesMetadata != null) {
+                    onUpdate(currentLicensesMetadata);
                 }
-            } else if (!prevLicensesMetaData.equals(currentLicensesMetaData)) {
-                onUpdate(currentLicensesMetaData);
+            } else if (!prevLicensesMetadata.equals(currentLicensesMetadata)) {
+                onUpdate(currentLicensesMetadata);
             }
 
             License currentLicense = null;
-            boolean noLicenseInPrevMetadata = prevLicensesMetaData == null || prevLicensesMetaData.getLicense() == null;
+            boolean noLicenseInPrevMetadata = prevLicensesMetadata == null || prevLicensesMetadata.getLicense() == null;
             if (noLicenseInPrevMetadata == false) {
-                currentLicense = prevLicensesMetaData.getLicense();
+                currentLicense = prevLicensesMetadata.getLicense();
             }
-            boolean noLicenseInCurrentMetadata = (currentLicensesMetaData == null || currentLicensesMetaData.getLicense() == null);
+            boolean noLicenseInCurrentMetadata = (currentLicensesMetadata == null || currentLicensesMetadata.getLicense() == null);
             if (noLicenseInCurrentMetadata == false) {
-                currentLicense = currentLicensesMetaData.getLicense();
+                currentLicense = currentLicensesMetadata.getLicense();
             }
 
             boolean noLicense = noLicenseInPrevMetadata && noLicenseInCurrentMetadata;
@@ -458,14 +466,14 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    private void updateLicenseState(LicensesMetaData licensesMetaData) {
-        if (licensesMetaData != null) {
-            updateLicenseState(getLicense(licensesMetaData), licensesMetaData.getMostRecentTrialVersion());
+    private void updateLicenseState(LicensesMetadata licensesMetadata) {
+        if (licensesMetadata != null) {
+            updateLicenseState(getLicense(licensesMetadata), licensesMetadata.getMostRecentTrialVersion());
         }
     }
 
     protected void updateLicenseState(final License license, Version mostRecentTrialVersion) {
-        if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
+        if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
             licenseState.update(License.OperationMode.MISSING, false, mostRecentTrialVersion);
             return;
@@ -496,12 +504,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     /**
      * Notifies registered licensees of license state change and/or new active license
-     * based on the license in <code>currentLicensesMetaData</code>.
+     * based on the license in <code>currentLicensesMetadata</code>.
      * Additionally schedules license expiry notifications and event callbacks
      * relative to the current license's expiry
      */
-    private void onUpdate(final LicensesMetaData currentLicensesMetaData) {
-        final License license = getLicense(currentLicensesMetaData);
+    private void onUpdate(final LicensesMetadata currentLicensesMetadata) {
+        final License license = getLicense(currentLicensesMetadata);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
@@ -522,7 +530,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 logger.info("license [{}] mode [{}] - valid", license.uid(),
                     license.operationMode().name().toLowerCase(Locale.ROOT));
             }
-            updateLicenseState(license, currentLicensesMetaData.getMostRecentTrialVersion());
+            updateLicenseState(license, currentLicensesMetadata.getMostRecentTrialVersion());
         }
     }
 
@@ -545,15 +553,15 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         };
     }
 
-    public static License getLicense(final MetaData metaData) {
-        final LicensesMetaData licensesMetaData = metaData.custom(LicensesMetaData.TYPE);
-        return getLicense(licensesMetaData);
+    public static License getLicense(final Metadata metadata) {
+        final LicensesMetadata licensesMetadata = metadata.custom(LicensesMetadata.TYPE);
+        return getLicense(licensesMetadata);
     }
 
-    static License getLicense(final LicensesMetaData metaData) {
-        if (metaData != null) {
-            License license = metaData.getLicense();
-            if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
+    static License getLicense(final LicensesMetadata metadata) {
+        if (metadata != null) {
+            License license = metadata.getLicense();
+            if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
                 return license;
             } else if (license != null) {
                 boolean autoGeneratedLicense = License.isAutoGeneratedLicense(license.signature());
@@ -573,5 +581,21 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     private static boolean isBoundToLoopback(DiscoveryNode localNode) {
         return localNode.getAddress().address().getAddress().isLoopbackAddress();
+    }
+
+    private static List<License.LicenseType> getAllowableUploadTypes() {
+        return Stream.of(License.LicenseType.values())
+            .filter(t -> t != License.LicenseType.BASIC)
+            .collect(Collectors.toUnmodifiableList());
+    }
+
+    private static void validateUploadTypesSetting(List<License.LicenseType> value) {
+        if (ALLOWABLE_UPLOAD_TYPES.containsAll(value) == false) {
+            throw new IllegalArgumentException("Invalid value [" +
+                value.stream().map(License.LicenseType::getTypeName).collect(Collectors.joining(",")) +
+                "] for " + ALLOWED_LICENSE_TYPES_SETTING.getKey() + ", allowed values are [" +
+                ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.joining(",")) +
+                "]");
+        }
     }
 }

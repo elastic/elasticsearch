@@ -79,6 +79,10 @@ public class S3HttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+        }
         try {
             if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();
@@ -212,13 +216,13 @@ public class S3HttpHandler implements HttpHandler {
 
                         final int start = Integer.parseInt(matcher.group(1));
                         final int end = Integer.parseInt(matcher.group(2));
-                        final int length = end - start;
 
+                        final BytesReference rangeBlob = blob.slice(start, end + 1 - start);
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("Content-Range",
-                            String.format(Locale.ROOT, "bytes=%d-%d/%d", start, end, blob.length()));
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                        exchange.getResponseBody().write(BytesReference.toBytes(blob), start, length);
+                        exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d",
+                            start, end, rangeBlob.length()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), rangeBlob.length());
+                        rangeBlob.writeTo(exchange.getResponseBody());
                     }
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);

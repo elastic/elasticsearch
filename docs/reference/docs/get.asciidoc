@@ -160,7 +160,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+`refresh`::
+(Optional, boolean)
+If `true`, {es} refreshes the affected shards to make this operation visible to
+search. If `false`, do nothing with refreshes. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
@@ -206,7 +209,7 @@ The explicit routing, if set.
 '_source'::
 If `found` is `true`, contains the document data formatted in JSON.
 Excluded if the `_source` parameter is set to `false` or the `stored_fields`
-paramter is set to `true`.
+parameter is set to `true`.
 
 '_fields'::
 If the `stored_fields` parameter is set to `true` and `found` is

@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-monitoring'
   description 'Elasticsearch Expanded Pack Plugin - Monitoring'
@@ -22,9 +23,6 @@ dependencies {
 
   testCompile project(xpackModule('ilm'))
 }
-
-compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 configurations {
   testArtifacts.extendsFrom testRuntime
@@ -48,20 +46,3 @@ dependencyLicenses {
 // installing them as individual plugins for integ tests doesn't make sense,
 // so we disable integ tests
 integTest.enabled = false
-
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: Test) {
-  description = 'Multi-node tests'
-  mustRunAfter test
-
-  include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-check.dependsOn internalClusterTest
-
-// also add an "alias" task to make typing on the command line easier task icTest {
-task icTest {
-  dependsOn internalClusterTest
-}

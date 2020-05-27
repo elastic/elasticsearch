@@ -32,6 +32,12 @@ dependencies {
   testCompile project(path: ':plugins:discovery-ec2', configuration: 'runtime')
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
+}
+
 final int ec2NumberOfNodes = 3
 
 Map<String, Object> expansions = [
@@ -73,7 +79,7 @@ integTest.enabled = false
 
   testClusters."integTest${action}" {
     numberOfNodes = ec2NumberOfNodes
-    plugin file(project(':plugins:discovery-ec2').bundlePlugin.archiveFile)
+    plugin project(':plugins:discovery-ec2').bundlePlugin.archiveFile
 
     setting 'discovery.seed_providers', 'ec2'
     setting 'network.host', '_ec2_'

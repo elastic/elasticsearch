@@ -20,8 +20,11 @@ package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class CategoryDefinitionTests extends AbstractXContentTestCase<CategoryDefinition> {
 
@@ -34,6 +37,14 @@ public class CategoryDefinitionTests extends AbstractXContentTestCase<CategoryDe
         categoryDefinition.setExamples(Arrays.asList(generateRandomStringArray(10, 10, false)));
         if (randomBoolean()) {
             categoryDefinition.setGrokPattern(randomAlphaOfLength(50));
+        }
+        if (randomBoolean()) {
+            categoryDefinition.setNumMatches(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            categoryDefinition.setPreferredToCategories(Stream.generate(ESTestCase::randomNonNegativeLong)
+                .limit(10)
+                .collect(Collectors.toList()));
         }
         return categoryDefinition;
     }

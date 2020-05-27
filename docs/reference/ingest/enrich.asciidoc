@@ -150,7 +150,11 @@ include::enrich.asciidoc[tag=enrich-policy-fields]
 You can use this definition to create the enrich policy with the
 <<put-enrich-policy-api,put enrich policy API>>.
 
-include::apis/enrich/put-enrich-policy.asciidoc[tag=update-enrich-policy]
+[WARNING]
+====
+Once created, you can't update or change an enrich policy.
+See <<update-enrich-policies>>.
+====
 
 [[execute-enrich-policy]]
 ==== Execute the enrich policy
@@ -180,7 +184,7 @@ When defining the enrich processor, you must include at least the following:
 * The enrich policy to use.
 * The field used to match incoming documents to the documents in your enrich index.
 * The target field to add to incoming documents. This target field contains the
-enrich fields specified in your enrich policy.
+match and enrich fields specified in your enrich policy.
 
 You also can use the `max_matches` option to set the number of enrich documents
 an incoming document can match. If set to the default of `1`, data is added to
@@ -214,7 +218,19 @@ using your ingest pipeline.
 [[update-enrich-policies]]
 ==== Update an enrich policy
 
-include::apis/enrich/put-enrich-policy.asciidoc[tag=update-enrich-policy]
+// tag::update-enrich-policy[]
+Once created, you can't update or change an enrich policy.
+Instead, you can:
+
+.   Create and <<execute-enrich-policy-api,execute>> a new enrich policy.
+
+.   Replace the previous enrich policy
+    with the new enrich policy
+    in any in-use enrich processors.
+
+.   Use the <<delete-enrich-policy-api, delete enrich policy>> API
+    to delete the previous enrich policy.
+// end::update-enrich-policy[]
 
 [role="xpack"]
 [testenv="basic"]
@@ -231,7 +247,7 @@ following:
         "indices": ["..."],
         "match_field": "...",
         "enrich_fields": ["..."],
-        "query": "..."
+        "query": {...}
     }
   }
 }
@@ -281,9 +297,9 @@ Fields to add to matching incoming documents. These fields must be present in
 the source indices.
 
 `query`::
-(Optional, string)
-Query type used to filter documents in the enrich index for matching. Valid
-value is <<query-dsl-match-all-query,`match_all`>> (default).
+(Optional, <<query-dsl,Query DSL query object>>)
+Query used to filter documents in the enrich index for matching. Defaults to
+a <<query-dsl-match-all-query,`match_all`>> query.
 
 [role="xpack"]
 [testenv="basic"]
@@ -371,6 +387,8 @@ the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 * The `field` of incoming documents used to match the geo_shape of documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.
+  This field contains the `match_field` and `enrich_fields` specified in your
+  enrich policy.
 * The `shape_relation`, which indicates how the processor matches geo_shapes in
   incoming documents to geo_shapes in documents from the enrich index. See
   <<_spatial_relations>> for valid options and more information.
@@ -526,6 +544,8 @@ the pipeline, add an <<enrich-processor,enrich processor>> that includes:
 * The `field` of incoming documents used to match documents
   from the enrich index.
 * The `target_field` used to store appended enrich data for incoming documents.
+  This field contains the `match_field` and `enrich_fields` specified in your
+  enrich policy.
 
 [source,console]
 ----

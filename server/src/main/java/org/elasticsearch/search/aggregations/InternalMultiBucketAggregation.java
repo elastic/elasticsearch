@@ -23,18 +23,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
             B extends InternalMultiBucketAggregation.InternalBucket>
         extends InternalAggregation implements MultiBucketsAggregation {
 
-    public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
+        super(name, metadata);
     }
 
     /**
@@ -73,7 +76,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
 
     @Override
-    public abstract List<? extends InternalBucket> getBuckets();
+    public abstract List<B> getBuckets();
 
     @Override
     public Object getProperty(List<String> path) {
@@ -139,6 +142,59 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
         }
         return size;
+    }
+
+    /**
+     * A multi-bucket agg needs to first reduce the buckets and *their* pipelines
+     * before allowing sibling pipelines to materialize.
+     */
+    @Override
+    public final InternalAggregation reducePipelines(
+            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
+        assert reduceContext.isFinalReduce();
+        InternalAggregation reduced = this;
+        if (pipelineTree.hasSubTrees()) {
+            List<B> materializedBuckets = reducePipelineBuckets(reduceContext, pipelineTree);
+            reduced = create(materializedBuckets);
+        }
+        return super.reducePipelines(reduced, reduceContext, pipelineTree);
+    }
+
+    @Override
+    public InternalAggregation copyWithRewritenBuckets(Function<InternalAggregations, InternalAggregations> rewriter) {
+        boolean modified = false;
+        List<B> newBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            InternalAggregations rewritten = rewriter.apply((InternalAggregations) bucket.getAggregations());
+            if (rewritten == null) {
+                newBuckets.add(bucket);
+                continue;
+            }
+            modified = true;
+            B newBucket = createBucket(rewritten, bucket);
+            newBuckets.add(newBucket);
+        }
+        return modified ? create(newBuckets) : this;
+    }
+
+    @Override
+    public void forEachBucket(Consumer<InternalAggregations> consumer) {
+        for (B bucket : getBuckets()) {
+            consumer.accept((InternalAggregations) bucket.getAggregations());
+        }
+    }
+
+    private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {
+        List<B> reducedBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            for (Aggregation agg : bucket.getAggregations()) {
+                PipelineTree subTree = pipelineTree.subTree(agg.getName());
+                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+            }
+            reducedBuckets.add(createBucket(new InternalAggregations(aggs), bucket));
+        }
+        return reducedBuckets;
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {

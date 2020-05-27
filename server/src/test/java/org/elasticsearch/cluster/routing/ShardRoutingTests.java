@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.snapshots.Snapshot;
@@ -165,7 +166,8 @@ public class ShardRoutingTests extends ESTestCase {
                         otherRouting = new ShardRouting(otherRouting.shardId(), otherRouting.currentNodeId(),
                             otherRouting.relocatingNodeId(), otherRouting.primary(), otherRouting.state(),
                             new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), new Snapshot("test",
-                                new SnapshotId("s1", UUIDs.randomBase64UUID())), Version.CURRENT, "test"),
+                                new SnapshotId("s1", UUIDs.randomBase64UUID())), Version.CURRENT, new IndexId("test",
+                                UUIDs.randomBase64UUID(random()))),
                             otherRouting.unassignedInfo(), otherRouting.allocationId(), otherRouting.getExpectedShardSize());
                     }
                     break;
@@ -207,7 +209,7 @@ public class ShardRoutingTests extends ESTestCase {
             if (unchanged == false) {
                 logger.debug("comparing\nthis  {} to\nother {}", routing, otherRouting);
                 assertFalse("expected non-equality\nthis  " + routing + ",\nother " + otherRouting,
-                    routing.equalsIgnoringMetaData(otherRouting));
+                    routing.equalsIgnoringMetadata(otherRouting));
             }
         }
     }

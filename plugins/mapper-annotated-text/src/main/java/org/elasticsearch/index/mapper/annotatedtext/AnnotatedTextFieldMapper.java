@@ -30,14 +30,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.NormsFieldExistsQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,15 +37,12 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
@@ -96,7 +85,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, AnnotatedTextFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
 
@@ -158,7 +147,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<AnnotatedTextFieldMapper.Builder, AnnotatedTextFieldMapper> parse(
+        public Mapper.Builder<AnnotatedTextFieldMapper.Builder> parse(
                 String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AnnotatedTextFieldMapper.Builder builder = new AnnotatedTextFieldMapper.Builder(fieldName);
 
@@ -531,7 +520,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
       }
 
 
-    public static final class AnnotatedTextFieldType extends StringFieldType {
+    public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
         public AnnotatedTextFieldType() {
             setTokenized(true);
@@ -562,37 +551,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public Query existsQuery(QueryShardContext context) {
-            if (omitNorms()) {
-                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
-            } else {
-                return new NormsFieldExistsQuery(name());
-            }
-        }
-
-        @Override
-        public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
-            SpanMultiTermQueryWrapper<?> spanMulti =
-                new SpanMultiTermQueryWrapper<>(new PrefixQuery(new Term(name(), indexedValueForSearch(value))));
-            spanMulti.setRewriteMethod(method);
-            return spanMulti;
-        }
-
-        @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
-        }
-
-        @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-            return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
-        }
-
-        @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions, null, null);
-        }
     }
 
     private int positionIncrementGap;
@@ -610,12 +568,17 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         return (AnnotatedTextFieldMapper) super.clone();
     }
 
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
     public int getPositionIncrementGap() {
         return this.positionIncrementGap;
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -629,9 +592,9 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
             Field field = new Field(fieldType().name(), value, fieldType());
-            fields.add(field);
+            context.doc().add(field);
             if (fieldType().omitNorms()) {
-                createFieldNamesField(context, fields);
+                createFieldNamesField(context);
             }
         }
     }

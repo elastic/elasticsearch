@@ -23,7 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -82,7 +82,7 @@ public class SharedSignificantTermsTestMethods {
             textMappings += ",fielddata=true";
         }
         assertAcked(testCase.prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
-                .addMapping("_doc", "text", textMappings, CLASS_FIELD, "type=keyword"));
+                .setMapping("text", textMappings, CLASS_FIELD, "type=keyword"));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
         indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME).setId("1")

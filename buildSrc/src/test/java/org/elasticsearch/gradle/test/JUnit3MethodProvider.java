@@ -36,17 +36,17 @@ import java.util.Map;
 public final class JUnit3MethodProvider implements TestMethodProvider {
     @Override
     public Collection<Method> getTestMethods(Class<?> suiteClass, ClassModel classModel) {
-        Map<Method,MethodModel> methods = classModel.getMethods();
+        Map<Method, MethodModel> methods = classModel.getMethods();
         ArrayList<Method> result = new ArrayList<>();
         for (MethodModel mm : methods.values()) {
             // Skip any methods that have overrieds/ shadows.
             if (mm.getDown() != null) continue;
 
             Method m = mm.element;
-            if (m.getName().startsWith("test") &&
-                Modifier.isPublic(m.getModifiers()) &&
-                !Modifier.isStatic(m.getModifiers()) &&
-                m.getParameterTypes().length == 0) {
+            if (m.getName().startsWith("test")
+                && Modifier.isPublic(m.getModifiers())
+                && !Modifier.isStatic(m.getModifiers())
+                && m.getParameterTypes().length == 0) {
                 result.add(m);
             }
         }

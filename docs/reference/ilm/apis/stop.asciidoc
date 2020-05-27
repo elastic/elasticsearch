@@ -31,7 +31,7 @@ is useful when you are performing maintenance on the cluster and need to prevent
 
 The API returns as soon as the stop request has been acknowledged, but the
 plugin might continue to run until in-progress operations complete and the plugin
-can be safely stopped. Use the  <<ilm-get-status, Get ILM Status>> API to see
+can be safely stopped. Use the  <<ilm-get-status, Get {ilm-init} Status>> API to see
 if {ilm-init} is running.
 
 [[ilm-stop-query-params]]
@@ -42,7 +42,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[ilm-stop-example]]
 ==== {api-examples-title}
 
-The following example stops the ILM plugin.
+The following example stops the {ilm-init} plugin.
 
 //////////////////////////
 

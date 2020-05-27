@@ -272,7 +272,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
-        index: ".ml-special-index-to-avoid-picking-up-template"
+        index: "ml-special-index-to-avoid-picking-up-template"
         body:
           mappings:
             properties:
@@ -283,28 +283,28 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.put_alias:
-        index: ".ml-special-index-to-avoid-picking-up-template"
+        index: "ml-special-index-to-avoid-picking-up-template"
         name: ".ml-anomalies-get-datafeed-stats-1"
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.put_alias:
-        index: ".ml-special-index-to-avoid-picking-up-template"
+        index: "ml-special-index-to-avoid-picking-up-template"
         name: ".ml-anomalies-.write-get-datafeed-stats-1"
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.put_alias:
-        index: ".ml-special-index-to-avoid-picking-up-template"
+        index: "ml-special-index-to-avoid-picking-up-template"
         name: ".ml-anomalies-get-datafeed-stats-2"
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.put_alias:
-        index: ".ml-special-index-to-avoid-picking-up-template"
+        index: "ml-special-index-to-avoid-picking-up-template"
         name: ".ml-anomalies-.write-get-datafeed-stats-2"
 
   - do:

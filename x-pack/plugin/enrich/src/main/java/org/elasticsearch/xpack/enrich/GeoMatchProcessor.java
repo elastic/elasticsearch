@@ -16,6 +16,7 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,8 +30,8 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         String tag,
         Client client,
         String policyName,
-        String field,
-        String targetField,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
         boolean overrideEnabled,
         boolean ignoreMissing,
         String matchField,
@@ -46,8 +47,8 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         String tag,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
-        String field,
-        String targetField,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
         boolean overrideEnabled,
         boolean ignoreMissing,
         String matchField,
@@ -58,12 +59,11 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         this.shapeRelation = shapeRelation;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public QueryBuilder getQueryBuilder(Object fieldValue) {
         List<Point> points = new ArrayList<>();
         if (fieldValue instanceof List) {
-            List<Object> values = (List<Object>) fieldValue;
+            List<?> values = (List<?>) fieldValue;
             if (values.size() == 2 && values.get(0) instanceof Number) {
                 GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
                 points.add(new Point(geoPoint.lon(), geoPoint.lat()));

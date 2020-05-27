@@ -23,14 +23,13 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -106,14 +105,19 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
     static class FakeFieldMapper extends FieldMapper {
 
-        private static final Settings SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        private static final Settings SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
             super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, MultiFields.empty(), CopyTo.empty());
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+        protected void parseCreateField(ParseContext context) throws IOException {
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override

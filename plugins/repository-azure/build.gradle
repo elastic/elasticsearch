@@ -25,11 +25,17 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:8.4.0'
+  compile 'com.microsoft.azure:azure-storage:8.6.2'
   compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
-  compile 'com.google.guava:guava:20.0'
+  runtimeOnly 'com.google.guava:guava:20.0'
   compile 'org.apache.commons:commons-lang3:3.4'
   testCompile project(':test:fixtures:azure-fixture')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
 }
 
 dependencyLicenses {

@@ -1,0 +1,35 @@
+---
+"Get backing indices for data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream1
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  - do:
+      indices.get:
+        index: ['data-stream1-000001', 'test_index']
+
+  - is_true: data-stream1-000001.settings
+  - is_true: data-stream1-000001.data_stream
+  - match: { data-stream1-000001.data_stream: data-stream1 }
+  - is_true: test_index.settings
+  - is_false: test_index.data_stream
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream1
+  - is_true: acknowledged

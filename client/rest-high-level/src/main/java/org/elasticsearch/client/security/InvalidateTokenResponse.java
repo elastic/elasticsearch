@@ -62,10 +62,10 @@ public final class InvalidateTokenResponse {
         PARSER.declareInt(constructorArg(), PREVIOUSLY_INVALIDATED_TOKENS);
         PARSER.declareInt(constructorArg(), ERROR_COUNT);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), ERRORS);
+
     }
 
-    public InvalidateTokenResponse(int invalidatedTokens, int previouslyInvalidatedTokens,
-                                   @Nullable List<ElasticsearchException> errors) {
+    public InvalidateTokenResponse(int invalidatedTokens, int previouslyInvalidatedTokens, @Nullable List<ElasticsearchException> errors) {
         this.invalidatedTokens = invalidatedTokens;
         this.previouslyInvalidatedTokens = previouslyInvalidatedTokens;
         if (null == errors) {

@@ -21,7 +21,7 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -45,7 +45,7 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put("index.analysis.analyzer.my_analyzer.tokenizer", tokenizer)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
@@ -86,9 +86,11 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             }
         }
 
-        // Check deprecated name as well
+        // Check deprecated name as well, needs version before 8.0 because throws IAE after that
         {
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(Version.CURRENT, "edgeNGram")) {
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(
+                    VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, VersionUtils.getPreviousVersion(Version.V_8_0_0)),
+                    "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});

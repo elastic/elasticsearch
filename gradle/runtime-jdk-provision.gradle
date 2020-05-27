@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
@@ -9,10 +10,11 @@ jdks {
         vendor = VersionProperties.bundledJdkVendor
         version = VersionProperties.getBundledJdk(OS.current().name().toLowerCase())
         platform = OS.current().name().toLowerCase()
+        architecture = Architecture.current().name().toLowerCase()
     }
 }
 
-allprojects {
+configure(allprojects - project(':build-tools')) {
     project.tasks.withType(Test).configureEach { Test test ->
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java"

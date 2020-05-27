@@ -50,6 +50,6 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         ClusterState clusterState = clusterService.state();
         listener.onResponse(
             new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(),
-                    clusterState.metaData().clusterUUID(), Build.CURRENT));
+                    clusterState.metadata().clusterUUID(), Build.CURRENT));
     }
 }

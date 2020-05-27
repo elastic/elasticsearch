@@ -17,20 +17,33 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation doParseInstance(XContentParser parser) {
-        return Annotation.PARSER.apply(parser, null);
+        return Annotation.PARSER.apply(parser, null).build();
     }
 
     @Override
     protected Annotation createTestInstance() {
-        return new Annotation(randomAlphaOfLengthBetween(100, 1000),
-            new Date(randomNonNegativeLong()),
-            randomAlphaOfLengthBetween(5, 20),
-            new Date(randomNonNegativeLong()),
-            randomBoolean() ? new Date(randomNonNegativeLong()) : null,
-            randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null,
-            randomBoolean() ? new Date(randomNonNegativeLong()) : null,
-            randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null,
-            randomAlphaOfLengthBetween(10, 15));
+        return randomAnnotation();
+    }
+
+    static Annotation randomAnnotation() {
+        return new Annotation.Builder()
+            .setAnnotation(randomAlphaOfLengthBetween(100, 1000))
+            .setCreateTime(new Date(randomNonNegativeLong()))
+            .setCreateUsername(randomAlphaOfLengthBetween(5, 20))
+            .setTimestamp(new Date(randomNonNegativeLong()))
+            .setEndTimestamp(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
+            .setJobId(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null)
+            .setModifiedTime(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
+            .setModifiedUsername(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setType(randomAlphaOfLengthBetween(10, 15))
+            .setDetectorIndex(randomBoolean() ? randomIntBetween(0, 10) : null)
+            .setPartitionFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setPartitionFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setOverFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setOverFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setByFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setByFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .build();
     }
 
     @Override
@@ -41,7 +54,7 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
     public void testCopyConstructor() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             Annotation testAnnotation = createTestInstance();
-            assertThat(testAnnotation, equalTo(new Annotation(testAnnotation)));
+            assertThat(testAnnotation, equalTo(new Annotation.Builder(testAnnotation).build()));
         }
     }
 }

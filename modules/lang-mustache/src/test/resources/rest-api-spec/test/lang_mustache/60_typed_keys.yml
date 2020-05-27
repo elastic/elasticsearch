@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: allowed_warnings
   - do:
       indices.put_template:
         name: index_template
@@ -18,6 +20,8 @@ setup:
                  type: keyword
 
   - do:
+     allowed_warnings:
+      - "index [test-0] matches multiple v1 templates [global, index_template], v2 index templates will only match a single index template"
      bulk:
         refresh: true
         body:

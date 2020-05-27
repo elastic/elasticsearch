@@ -57,6 +57,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -643,7 +644,7 @@ public class NativeUsersStore {
         final String username = id.substring(USER_DOC_TYPE.length() + 1);
         try {
             String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
-            String[] roles = ((List<String>) sourceMap.get(Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
+            String[] roles = new LinkedHashSet<>((List<String>)sourceMap.get(Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
             String fullName = (String) sourceMap.get(Fields.FULL_NAME.getPreferredName());
             String email = (String) sourceMap.get(Fields.EMAIL.getPreferredName());
             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());

@@ -1,0 +1,18 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  name 'wildcard'
+  description 'A plugin for a keyword field type with efficient wildcard search'
+  classname 'org.elasticsearch.xpack.wildcard.Wildcard'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-wildcard'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTest.enabled = false

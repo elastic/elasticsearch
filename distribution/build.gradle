@@ -20,6 +20,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.ConcatFilesTask
+import org.elasticsearch.gradle.DependenciesInfoTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
@@ -36,8 +37,9 @@ apply plugin: 'elasticsearch.testclusters'
 
 // Concatenates the dependencies CSV files into a single file
 task generateDependenciesReport(type: ConcatFilesTask) {
+  dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
   files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
-  headerLine = "name,version,url,license"
+  headerLine = "name,version,url,license,sourceURL"
   target = new File(System.getProperty('csv') ?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
 }
 
@@ -246,6 +248,20 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'elasticsearch.jdk-download'
 
+  // Setup all required JDKs
+  project.jdks {
+    ['darwin', 'windows', 'linux'].each { platform ->
+      (platform == 'linux' ? ['x64', 'aarch64'] : ['x64']).each { architecture ->
+        "bundled_${platform}_${architecture}" {
+          it.platform = platform
+          it.version = VersionProperties.getBundledJdk(platform)
+          it.vendor = VersionProperties.bundledJdkVendor
+          it.architecture = architecture
+        }
+      }
+    }
+  }
+
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
@@ -282,7 +298,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     modulesFiles = { oss, platform ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin-x86_64' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
             it.mode = 0755
@@ -296,15 +312,21 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         } else {
           buildModules = project(':distribution').buildDefaultModules
         }
-        List excludePlatforms = ['linux', 'windows', 'darwin']
+        List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64']
         if (platform != null) {
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
         }
         from(buildModules) {
+          // geo registers the geo_shape mapper that is overridden by
+          // the geo_shape mapper registered in the x-pack-spatial plugin
+          if (oss == false) {
+            exclude "**/geo/**"
+          }
+
           for (String excludePlatform : excludePlatforms) {
-            exclude "**/platform/${excludePlatform}-x86_64/**"
+            exclude "**/platform/${excludePlatform}/**"
           }
         }
         if (project.path.startsWith(':distribution:packages')) {
@@ -391,17 +413,17 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { Project project, String platform ->
-      project.jdks {
-        "bundled_${platform}" {
-          it.platform = platform
-          it.version = VersionProperties.getBundledJdk(platform)
-          it.vendor = VersionProperties.bundledJdkVendor
-        }
-      }
+    jdkFiles = { Project project, String platform, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${platform}"
+        from project.jdks."bundled_${platform}_${architecture}"
         exclude "demo/**"
+        /*
+         * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
+         * it from the build.
+         */
+        if ("darwin".equals(platform)) {
+          exclude "Contents/MacOS"
+        }
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755
@@ -413,7 +435,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
   }
-
 }
 
 testClusters {
@@ -430,9 +451,6 @@ testClusters {
         throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
       }
       setting 'xpack.security.enabled', 'true'
-      setting 'xpack.monitoring.enabled', 'true'
-      setting 'xpack.sql.enabled', 'true'
-      setting 'xpack.rollup.enabled', 'true'
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
     }
@@ -607,10 +625,13 @@ subprojects {
 
 ['archives:windows-zip', 'archives:oss-windows-zip',
   'archives:darwin-tar', 'archives:oss-darwin-tar',
+  'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
   'archives:linux-tar', 'archives:oss-linux-tar',
   'archives:integ-test-zip',
   'packages:rpm', 'packages:deb',
+  'packages:aarch64-rpm', 'packages:aarch64-deb',
   'packages:oss-rpm', 'packages:oss-deb',
+  'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

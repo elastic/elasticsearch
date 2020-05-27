@@ -33,12 +33,14 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -46,8 +48,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.mapper.MetaJoinFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -164,13 +168,18 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         ParentJoinFieldMapper joinFieldMapper = createJoinFieldMapper();
         MapperService mapperService = mock(MapperService.class);
         MetaJoinFieldMapper.MetaJoinFieldType metaJoinFieldType = mock(MetaJoinFieldMapper.MetaJoinFieldType.class);
-        when(metaJoinFieldType.getMapper()).thenReturn(joinFieldMapper);
-        when(mapperService.fullName("_parent_join")).thenReturn(metaJoinFieldType);
+        when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
+        when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
+        DocumentFieldMappers fieldMappers = new DocumentFieldMappers(Collections.singleton(joinFieldMapper),
+            Collections.emptyList(), null, null, null);
+        DocumentMapper mockMapper = mock(DocumentMapper.class);
+        when(mockMapper.mappers()).thenReturn(fieldMappers);
+        when(mapperService.documentMapper()).thenReturn(mockMapper);
         return mapperService;
     }
 
     private static ParentJoinFieldMapper createJoinFieldMapper() {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         return new ParentJoinFieldMapper.Builder("join_field")
                 .addParent(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
                 .build(new Mapper.BuilderContext(settings, new ContentPath(0)));
@@ -186,5 +195,10 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
         InternalChildren result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
+    }
+
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new ParentJoinPlugin());
     }
 }

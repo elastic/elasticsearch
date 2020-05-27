@@ -5,18 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.Foldables;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.EnclosedAgg;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
@@ -61,11 +65,12 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataTypes.DOUBLE;
     }
 
     @Override
     public String innerName() {
-        return Double.toString(Foldables.doubleValueOf(value));
+        Double doubleValue = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(value), DataTypes.DOUBLE);
+        return Double.toString(doubleValue);
     }
 }

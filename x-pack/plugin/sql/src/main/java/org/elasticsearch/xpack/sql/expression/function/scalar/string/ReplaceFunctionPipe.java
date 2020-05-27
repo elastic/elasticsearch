@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -62,7 +62,7 @@ public class ReplaceFunctionPipe extends Pipe {
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
         source.collectFields(sourceBuilder);
         pattern.collectFields(sourceBuilder);
         replacement.collectFields(sourceBuilder);

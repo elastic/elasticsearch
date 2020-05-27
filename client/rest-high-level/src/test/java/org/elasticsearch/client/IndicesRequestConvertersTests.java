@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -167,6 +166,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomTimeout(putMappingRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(putMappingRequest, expectedParams);
+        RequestConvertersTests.setRandomIndicesOptions(putMappingRequest::indicesOptions,
+            putMappingRequest::indicesOptions, expectedParams);
 
         Request request = IndicesRequestConverters.putMapping(putMappingRequest);
 
@@ -238,7 +239,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(getFieldMappingsRequest::indicesOptions, getFieldMappingsRequest::indicesOptions,
             expectedParams);
-        RequestConvertersTests.setRandomLocal(getFieldMappingsRequest::local, expectedParams);
 
         Request request = IndicesRequestConverters.getFieldMapping(getFieldMappingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
@@ -296,7 +296,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         }
 
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+        if (CollectionUtils.isEmpty(indicesUnderTest) == false) {
             endpoint.add(String.join(",", indicesUnderTest));
         }
         endpoint.add("_settings");
@@ -309,7 +309,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
                 }
             }
             getSettingsRequest.names(names);
-            if (names != null && names.length > 0) {
+            if (CollectionUtils.isEmpty(names) == false) {
                 endpoint.add(String.join(",", names));
             }
         }
@@ -454,30 +454,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_flush");
-        Assert.assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
-        Assert.assertThat(request.getParameters(), equalTo(expectedParams));
-        Assert.assertThat(request.getEntity(), nullValue());
-        Assert.assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
-    }
-
-    public void testSyncedFlush() {
-        String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
-        SyncedFlushRequest syncedFlushRequest;
-        if (ESTestCase.randomBoolean()) {
-            syncedFlushRequest = new SyncedFlushRequest(indices);
-        } else {
-            syncedFlushRequest = new SyncedFlushRequest();
-            syncedFlushRequest.indices(indices);
-        }
-        Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomIndicesOptions(syncedFlushRequest::indicesOptions, syncedFlushRequest::indicesOptions,
-            expectedParams);
-        Request request = IndicesRequestConverters.flushSynced(syncedFlushRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices != null && indices.length > 0) {
-                endpoint.add(String.join(",", indices));
-            }
-        endpoint.add("_flush/synced");
         Assert.assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         Assert.assertThat(request.getParameters(), equalTo(expectedParams));
         Assert.assertThat(request.getEntity(), nullValue());
@@ -899,7 +875,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     public void testReloadAnalyzers() {
         String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices != null && indices.length > 0) {
+        if (CollectionUtils.isEmpty(indices) == false) {
             endpoint.add(String.join(",", indices));
         }
         ReloadAnalyzersRequest reloadRequest = new ReloadAnalyzersRequest(indices);

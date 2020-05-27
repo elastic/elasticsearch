@@ -30,7 +30,9 @@ import java.util.stream.Stream;
 public class WeightedModeTests extends AbstractXContentTestCase<WeightedMode> {
 
     WeightedMode createTestInstance(int numberOfWeights) {
-        return new WeightedMode(Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList()));
+        return new WeightedMode(
+            randomIntBetween(2, 10),
+            Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList()));
     }
 
     @Override
@@ -45,7 +47,7 @@ public class WeightedModeTests extends AbstractXContentTestCase<WeightedMode> {
 
     @Override
     protected WeightedMode createTestInstance() {
-        return randomBoolean() ? new WeightedMode(null) : createTestInstance(randomIntBetween(1, 100));
+        return randomBoolean() ? new WeightedMode(randomIntBetween(2, 10), null) : createTestInstance(randomIntBetween(1, 100));
     }
 
 }

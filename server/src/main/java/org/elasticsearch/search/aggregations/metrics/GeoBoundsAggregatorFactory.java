@@ -20,49 +20,65 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
+class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final boolean wrapLongitude;
 
     GeoBoundsAggregatorFactory(String name,
-                                ValuesSourceConfig<ValuesSource.GeoPoint> config,
+                                ValuesSourceConfig config,
                                 boolean wrapLongitude,
                                 QueryShardContext queryShardContext,
                                 AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+                                Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.wrapLongitude = wrapLongitude;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.GeoPoint valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(config.valueSourceType(), GeoBoundsAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof GeoBoundsAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected "
+                + GeoBoundsAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
+        }
+
+        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, wrapLongitude,
+            metadata);
+    }
+
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
+                -> new GeoBoundsAggregator(name, aggregationContext, parent, (ValuesSource.GeoPoint) valuesSource,
+                    wrapLongitude, metadata));
     }
 }

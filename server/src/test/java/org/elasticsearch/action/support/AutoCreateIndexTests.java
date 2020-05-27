@@ -22,9 +22,9 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -112,7 +112,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom("+index*", "index*"))
                 .build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("index" + randomAlphaOfLengthBetween(1, 5), clusterState), equalTo(true));
         expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
     }
@@ -120,7 +120,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testAutoCreationPatternDisabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "-index*").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()).build();
         expectForbidden(clusterState, autoCreateIndex, "index" + randomAlphaOfLengthBetween(1, 5), "-index*");
         /* When patterns are specified, even if the are all negative, the default is can't create. So a pure negative pattern is the same
          * as false, really. */
@@ -131,7 +131,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(),
                 randomFrom("+test*,-index*", "test*,-index*")).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()).build();
         expectForbidden(clusterState, autoCreateIndex, "index" + randomAlphaOfLengthBetween(1, 5), "-index*");
         assertThat(autoCreateIndex.shouldAutoCreate("test" + randomAlphaOfLengthBetween(1, 5), clusterState), equalTo(true));
         expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
@@ -140,7 +140,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testAutoCreationMultiplePatternsNoWildcards() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "+test1,-index1").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", clusterState), equalTo(true));
         expectNotMatch(clusterState, autoCreateIndex, "index" + randomAlphaOfLengthBetween(1, 5));
         expectNotMatch(clusterState, autoCreateIndex, "test" + randomAlphaOfLengthBetween(2, 5));
@@ -150,7 +150,7 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testAutoCreationMultipleIndexNames() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), "test1,test2").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", clusterState), equalTo(true));
         assertThat(autoCreateIndex.shouldAutoCreate("test2", clusterState), equalTo(true));
         expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
@@ -160,7 +160,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(),
                 "+test1,-test1,-test2,+test2").build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(Metadata.builder()).build();
         assertThat(autoCreateIndex.shouldAutoCreate("test1", clusterState), equalTo(true));
         expectForbidden(clusterState, autoCreateIndex, "test2", "-test2");
         expectNotMatch(clusterState, autoCreateIndex, "does_not_match" + randomAlphaOfLengthBetween(1, 5));
@@ -192,12 +192,12 @@ public class AutoCreateIndexTests extends ESTestCase {
     }
 
     private static ClusterState buildClusterState(String... indices) {
-        MetaData.Builder metaData = MetaData.builder();
+        Metadata.Builder metadata = Metadata.builder();
         for (String index : indices) {
-            metaData.put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
+            metadata.put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
         }
         return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData).build();
+                .metadata(metadata).build();
     }
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {

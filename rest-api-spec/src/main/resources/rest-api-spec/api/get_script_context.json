@@ -1,6 +1,7 @@
 {
   "get_script_context":{
     "documentation":{
+      "url": "https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-contexts.html",
       "description":"Returns all script contexts."
     },
     "stability":"experimental",

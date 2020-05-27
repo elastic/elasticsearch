@@ -152,9 +152,9 @@ high). This default value is `5`.
 
 include::search/search.asciidoc[]
 
-include::search/uri-request.asciidoc[]
-
 include::search/request-body.asciidoc[]
+
+include::search/async-search.asciidoc[]
 
 include::search/search-template.asciidoc[]
 
@@ -163,6 +163,12 @@ include::search/search-shards.asciidoc[]
 include::search/suggesters.asciidoc[]
 
 include::search/multi-search.asciidoc[]
+
+ifdef::permanently-unreleased-branch[]
+
+include::eql/eql-search-api.asciidoc[]
+
+endif::[]
 
 include::search/count.asciidoc[]
 

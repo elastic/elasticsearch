@@ -174,6 +174,10 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("indices:admin/settings/foo"), is(false));
     }
 
+    public void testManageAutoscalingPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_AUTOSCALING, "cluster:admin/autoscaling/get_decision");
+    }
+
     public void testManageCcrPrivilege() {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_CCR, "cluster:admin/xpack/ccr/follow_index",
             "cluster:admin/xpack/ccr/unfollow_index", "cluster:admin/xpack/ccr/brand_new_api");

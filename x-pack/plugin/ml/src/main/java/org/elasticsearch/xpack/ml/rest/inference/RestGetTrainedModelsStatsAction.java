@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -18,16 +17,18 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 
 public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
-    public RestGetTrainedModelsStatsAction(RestController controller) {
-        controller.registerHandler(
-            GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats", this);
-        controller.registerHandler(GET, MachineLearning.BASE_PATH + "inference/_stats", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
+            new Route(GET, MachineLearning.BASE_PATH + "inference/_stats"));
     }
 
     @Override
@@ -39,7 +40,7 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         if (Strings.isNullOrEmpty(modelId)) {
-            modelId = MetaData.ALL;
+            modelId = Metadata.ALL;
         }
         GetTrainedModelsStatsAction.Request request = new GetTrainedModelsStatsAction.Request(modelId);
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {

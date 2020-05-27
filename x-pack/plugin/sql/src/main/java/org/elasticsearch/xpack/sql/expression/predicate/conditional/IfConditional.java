@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Nullability;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Arrays;
 import java.util.List;
@@ -69,24 +69,17 @@ public class IfConditional extends Expression {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (!super.equals(o)) {
-            return false;
-        }
-
-        IfConditional that = (IfConditional) o;
-        return Objects.equals(condition, that.condition) &&
-            Objects.equals(result, that.result);
+    public int hashCode() {
+        return Objects.hash(condition, result);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(condition, result);
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            IfConditional that = (IfConditional) o;
+            return Objects.equals(condition, that.condition) 
+                    && Objects.equals(result, that.result);
+        }
+        return false;
     }
 }

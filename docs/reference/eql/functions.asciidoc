@@ -1,0 +1,1236 @@
+[[eql-function-ref]]
+== EQL function reference
+++++
+<titleabbrev>Function reference</titleabbrev>
+++++
+
+experimental::[]
+
+{es} supports the following EQL functions:
+
+* <<eql-fn-add>>
+* <<eql-fn-between>>
+* <<eql-fn-cidrmatch>>
+* <<eql-fn-concat>>
+* <<eql-fn-divide>>
+* <<eql-fn-endswith>>
+* <<eql-fn-indexof>>
+* <<eql-fn-length>>
+* <<eql-fn-match>>
+* <<eql-fn-modulo>>
+* <<eql-fn-multiply>>
+* <<eql-fn-number>>
+* <<eql-fn-startswith>>
+* <<eql-fn-string>>
+* <<eql-fn-stringcontains>>
+* <<eql-fn-substring>>
+* <<eql-fn-subtract>>
+* <<eql-fn-wildcard>>
+
+[discrete]
+[[eql-fn-add]]
+=== `add`
+Returns the sum of two provided addends.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+add(4, 5)                                           // returns 9
+add(4, 0.5)                                         // returns 4.5
+add(0.5, 0.25)                                      // returns 0.75
+add(4, -2)                                          // returns 2
+add(-2, -2)                                         // returns -4
+
+// process.args_count = 4
+add(process.args_count, 5)                          // returns 9
+add(process.args_count, 0.5)                        // returns 4.5
+
+// process.parent.args_count = 2
+add(process.args_count, process.parent.args_count)  // returns 6
+
+// null handling
+add(null, 4)                                        // returns null
+add(4. null)                                        // returns null
+add(null, process.args_count)                       // returns null
+add(process.args_count null)                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+add(<addend>, <addend>)
+----
+
+*Parameters:*
+
+`<addend>`::
+(Required, integer or float or `null`)
+Addend to add. If `null`, the function returns `null`.
++
+Two addends are required. No more than two addends can be provided.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or `null`
+====
+
+[discrete]
+[[eql-fn-between]]
+=== `between`
+
+Extracts a substring that's between a provided `left` and `right` text in a
+source string.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// file.path = "C:\\Windows\\System32\\cmd.exe"
+between(file.path, "system32\\\\", ".exe")                // returns "cmd"
+between(file.path, "workspace\\\\", ".exe")               // returns ""
+
+// Greedy matching defaults to false.
+between(file.path, "\\\\", "\\\\", false)                 // returns "Windows"
+
+// Sets greedy matching to true
+between(file.path, "\\\\", "\\\\", true)                  // returns "Windows\\System32"
+
+// Case sensitivity defaults to false.
+between(file.path, "system32\\\\", ".exe", false, false)  // returns "cmd"
+// Sets case sensitivity to true
+between(file.path, "system32\\\\", ".exe", false, true)   // returns ""
+between(file.path, "System32\\\\", ".exe", false, true)   // returns "cmd"
+
+// empty source string
+between("", "system32\\\\", ".exe")                       // returns ""
+between("", "", "")                                       // returns ""
+
+// null handling
+between(null, "system32\\\\", ".exe")                     // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+between(<source>, <left>, <right>[, <greedy_matching>, <case_sensitive>])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. Empty strings return an empty string (`""`), regardless of the
+`<left>` or `<right>` parameters. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<left>`::
++
+--
+(Required, string)
+Text to the left of the substring to extract. This text should include
+whitespace.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<right>`::
++
+--
+(Required, string)
+Text to the right of the substring to extract. This text should include
+whitespace.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<greedy_matching>`::
+(Optional, boolean)
+If `true`, match the longest possible substring, similar to `.*` in regular
+expressions. If `false`, match the shortest possible substring, similar to `.*?`
+in regular expressions. Defaults to `false`.
+
+`<case_sensitive>`::
+(Optional, boolean)
+If `true`, matching is case-sensitive. Defaults to `false`.
+
+*Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-cidrmatch]]
+=== `cidrMatch`
+
+Returns `true` if an IP address is contained in one or more provided
+https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing[CIDR] blocks.
+
+[%collapsible]
+====
+*Example*
+
+[source,eql]
+----
+// source.address = "192.168.152.12"
+cidrMatch(source.address, "192.168.0.0/16")               // returns true
+cidrMatch(source.address, "192.168.0.0/16", "10.0.0.0/8") // returns true
+cidrMatch(source.address, "10.0.0.0/8")                   // returns false
+cidrMatch(source.address, "10.0.0.0/8", "10.128.0.0/9")   // returns false
+
+// null handling
+cidrMatch(null, "10.0.0.0/8")                             // returns null
+cidrMatch(source.address, null)                           // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+`cidrMatch(<ip_address>, <cidr_block>[, ...])`
+----
+
+*Parameters*
+
+`<ip_address>`::
+(Required, string or `null`)
+IP address. Supports
+https://en.wikipedia.org/wiki/IPv4[IPv4] and
+https://en.wikipedia.org/wiki/IPv6[IPv6] addresses. If `null`, the function
+returns `null`.
++
+If using a field as the argument, this parameter supports only the <<ip,`ip`>>
+field datatype.
+
+`<cidr_block>`::
+(Required{multi-arg}, string or `null`)
+CIDR block you wish to search. If `null`, the function returns `null`.
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-concat]]
+=== `concat`
+
+Returns a concatenated string of provided values.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+concat("process is ", "regsvr32.exe")         // returns "process is regsvr32.exe"
+concat("regsvr32.exe", " ", 42)               // returns "regsvr32.exe 42"
+concat("regsvr32.exe", " ", 42.5)             // returns "regsvr32.exe 42.5"
+concat("regsvr32.exe", " ", true)             // returns "regsvr32.exe true"
+concat("regsvr32.exe")                        // returns "regsvr32.exe"
+
+// process.name = "regsvr32.exe"
+concat(process.name, " ", 42)                 // returns "regsvr32.exe 42"
+concat(process.name, " ", 42.5)               // returns "regsvr32.exe 42.5"
+concat("process is ", process.name)           // returns "process is regsvr32.exe"
+concat(process.name, " ", true)               // returns "regsvr32.exe true"
+concat(process.name)                          // returns "regsvr32.exe"
+
+// process.arg_count = 4
+concat(process.name, " ", process.arg_count)  // returns "regsvr32.exe 4"
+
+// null handling
+concat(null, "regsvr32.exe")                  // returns null
+concat(process.name, null)                    // returns null
+concat(null)                                  // returns null 
+----
+
+*Syntax*
+[source,txt]
+----
+concat(<value>[, <value>])
+----
+
+*Parameters*
+
+`<value>`::
+(Required{multi-arg-ref})
+Value to concatenate. If any of the arguments are `null`, the function returns `null`.
++
+If using a field as the argument, this parameter does not support the
+<<text,`text`>> field datatype.
+
+*Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-divide]]
+==== `divide`
+Returns the quotient of a provided dividend and divisor.
+
+[%collapsible]
+====
+
+[[eql-divide-fn-float-rounding]]
+[WARNING]
+=====
+If both the dividend and divisor are integers, the `divide` function _rounds
+down_ any returned floating point numbers to the nearest integer.
+
+EQL queries in {es} should account for this rounding. To avoid rounding, convert
+either the dividend or divisor to a float.
+
+[%collapsible]
+.**Example**
+======
+The `process.args_count` field is a <<number,`long`>> integer field containing a
+count of process arguments.
+
+A user might expect the following EQL query to only match events with a
+`process.args_count` value of `4`.
+
+[source,eql]
+----
+process where divide(4, process.args_count) == 1
+----
+
+However, the EQL query matches events with a `process.args_count` value of `3`
+or `4`.
+
+For events with a `process.args_count` value of `3`, the `divide` function
+returns a floating point number of `1.333...`, which is rounded down to `1`.
+
+To match only events with a `process.args_count` value of `4`, convert
+either the dividend or divisor to a float.
+
+The following EQL query changes the integer `4` to the equivalent float `4.0`.
+
+[source,eql]
+----
+process where divide(4.0, process.args_count) == 1
+----
+======
+=====
+
+*Example*
+[source,eql]
+----
+divide(4, 2)                                            // returns 2
+divide(4, 3)                                            // returns 1
+divide(4, 3.0)                                          // returns 1.333...
+divide(4, 0.5)                                          // returns 8
+divide(0.5, 4)                                          // returns 0.125
+divide(0.5, 0.25)                                       // returns 2.0
+divide(4, -2)                                           // returns -2
+divide(-4, -2)                                          // returns 2
+
+// process.args_count = 4
+divide(process.args_count, 2)                           // returns 2
+divide(process.args_count, 3)                           // returns 1
+divide(process.args_count, 3.0)                         // returns 1.333...
+divide(12, process.args_count)                          // returns 3
+divide(process.args_count, 0.5)                         // returns 8
+divide(0.5, process.args_count)                         // returns 0.125
+
+// process.parent.args_count = 2
+divide(process.args_count, process.parent.args_count)   // returns 2
+
+// null handling
+divide(null, 4)                                         // returns null
+divide(4, null)                                         // returns null
+divide(null, process.args_count)                        // returns null
+divide(process.args_count, null)                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+divide(<dividend>, <divisor>)
+----
+
+*Parameters*
+
+`<dividend>`::
+(Required, integer or float or `null`)
+Dividend to divide. If `null`, the function returns `null`.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+`<divisor>`::
+(Required, integer or float or `null`)
+Divisor to divide by. If `null`, the function returns `null`. This value cannot
+be zero (`0`).
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or null
+====
+
+[discrete]
+[[eql-fn-endswith]]
+=== `endsWith`
+
+Returns `true` if a source string ends with a provided substring.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+endsWith("regsvr32.exe", ".exe")          // returns true
+endsWith("regsvr32.exe", ".dll")          // returns false
+endsWith("", "")                          // returns true
+
+// file.name = "regsvr32.exe"
+endsWith(file.name, ".exe")               // returns true
+endsWith(file.name, ".dll")               // returns false
+
+// file.extension = ".exe"
+endsWith("regsvr32.exe", file.extension)  // returns true
+endsWith("ntdll.dll", file.name)          // returns false
+
+// null handling
+endsWith("regsvr32.exe", null)            // returns null
+endsWith("", null)                        // returns null
+endsWith(null, ".exe")                    // returns null
+endsWith(null, null)                      // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+endsWith(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-indexof]]
+=== `indexOf`
+
+Returns the first position of a provided substring in a source string.
+
+If an optional start position is provided, this function returns the first
+occurrence of the substring at or after the start position.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// url.domain = "subdomain.example.com"
+indexOf(url.domain, ".")        // returns 9
+indexOf(url.domain, ".", 9)     // returns 9
+indexOf(url.domain, ".", 10)    // returns 17
+indexOf(url.domain, ".", -6)    // returns 9
+
+// empty strings
+indexOf("", "")                 // returns 0
+indexOf(url.domain, "")         // returns 0
+indexOf(url.domain, "", 9)      // returns 9
+indexOf(url.domain, "", 10)     // returns 10
+indexOf(url.domain, "", -6)     // returns 0
+
+// missing substrings
+indexOf(url.domain, "z")        // returns null
+indexOf(url.domain, "z", 9)     // returns null
+
+// start position is higher than string length
+indexOf(url.domain, ".", 30)    // returns null
+
+// null handling
+indexOf(null, ".", 9)           // returns null
+indexOf(url.domain, null, 9)    // returns null
+indexOf(url.domain, ".", null)  // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+indexOf(<source>, <substring>[, <start_pos>])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for.
+
+If this argument is `null` or the `<source>` string does not contain this
+substring, the function returns `null`.
+
+If the `<start_pos>` is positive, empty strings (`""`) return the `<start_pos>`.
+Otherwise, empty strings return `0`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<start_pos>`::
++
+--
+(Optional, integer or `null`)
+Starting position for matching. The function will not return positions before
+this one. Defaults to `0`.
+
+Positions are zero-indexed. Negative offsets are treated as `0`.
+
+If this argument is `null` or higher than the length of the `<source>` string,
+the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+<<number,numeric>> field datatypes:
+
+* `long`
+* `integer`
+* `short`
+* `byte`
+--
+
+*Returns:* integer or `null`
+====
+
+[discrete]
+[[eql-fn-length]]
+=== `length`
+
+Returns the character length of a provided string, including whitespace and
+punctuation.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+length("explorer.exe")         // returns 12
+length("start explorer.exe")   // returns 18
+length("")                     // returns 0
+length(null)                   // returns null
+
+// process.name = "regsvr32.exe"
+length(process.name)           // returns 12
+----
+
+*Syntax*
+[source,txt]
+----
+length(<string>)
+----
+
+*Parameters*
+
+`<string>`::
++
+--
+(Required, string or `null`)
+String for which to return the character length. If `null`, the function returns
+`null`. Empty strings return `0`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+*Returns:* integer or `null`
+====
+
+[discrete]
+[[eql-fn-match]]
+=== `match`
+
+Returns `true` if a source string matches one or more provided regular
+expressions.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+match("explorer.exe", "[a-z]*?.exe")           // returns true
+match("explorer.exe", "[a-z]*?.exe", "[1-9]")  // returns true
+match("explorer.exe", "[1-9]")                 // returns false
+match("explorer.exe", "")                      // returns false
+
+// process.name = "explorer.exe"
+match(process.name, "[a-z]*?.exe")             // returns true
+match(process.name, "[a-z]*?.exe", "[1-9]")    // returns true
+match(process.name, "[1-9]")                   // returns false
+match(process.name, "")                        // returns false
+
+// null handling
+match(null, "[a-z]*?.exe")                     // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+match(<source>, <reg_exp>[, ...])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<reg_exp>`::
++
+--
+(Required{multi-arg-ref}, string)
+Regular expression used to match the source string. For supported syntax, see
+<<regexp-syntax>>.
+https://docs.oracle.com/javase/tutorial/essential/regex/pre_char_classes.html[Predefined
+character classes] are not supported.
+
+Fields are not supported as arguments.
+--
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-modulo]]
+=== `modulo`
+Returns the remainder of the division of a provided dividend and divisor.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+modulo(10, 6)                                       // returns 4
+modulo(10, 5)                                       // returns 0
+modulo(10, 0.5)                                     // returns 0
+modulo(10, -6)                                      // returns 4
+modulo(-10, -6)                                     // returns -4
+
+// process.args_count = 10
+modulo(process.args_count, 6)                       // returns 4
+modulo(process.args_count, 5)                       // returns 0
+modulo(106, process.args_count)                     // returns 6
+modulo(process.args_count, -6)                      // returns 4
+modulo(process.args_count, 0.5)                     // returns 0
+
+// process.parent.args_count = 6
+add(process.args_count, process.parent.args_count)  // returns 4
+
+// null handling
+modulo(null, 5)                                     // returns null
+modulo(7, null)                                     // returns null
+modulo(null, process.args_count)                    // returns null
+modulo(process.args_count, null)                    // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+modulo(<dividend>, <divisor>)
+----
+
+*Parameters*
+
+`<dividend>`::
+(Required, integer or float or `null`)
+Dividend to divide. If `null`, the function returns `null`. Floating point
+numbers return `0`.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+`<divisor>`::
+(Required, integer or float or `null`)
+Divisor to divide by. If `null`, the function returns `null`. Floating point
+numbers return `0`. This value cannot be zero (`0`).
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or `null`
+====
+
+[discrete]
+[[eql-fn-multiply]]
+=== `multiply`
+
+Returns the product of two provided factors.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+multiply(2, 2)                                           // returns 4
+multiply(0.5, 2)                                         // returns 1
+multiply(0.25, 2)                                        // returns 0.5
+multiply(-2, 2)                                          // returns -4
+multiply(-2, -2)                                         // returns 4
+
+// process.args_count = 2
+multiply(process.args_count, 2)                          // returns 4
+multiply(0.5, process.args_count)                        // returns 1
+multiply(0.25, process.args_count)                       // returns 0.5
+
+// process.parent.args_count = 3
+multiply(process.args_count, process.parent.args_count)  // returns 6
+
+// null handling
+multiply(null, 2)                                        // returns null
+multiply(2, null)                                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+multiply(<factor, <factor>)
+----
+
+*Parameters*
+
+`<factor>`::
++
+--
+(Required, integer or float or `null`)
+Factor to multiply.  If `null`, the function returns `null`.
+
+Two factors are required. No more than two factors can be provided.
+
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+--
+
+*Returns:* integer, float, or `null`
+====
+
+[discrete]
+[[eql-fn-number]]
+=== `number`
+
+Converts a string to the corresponding integer or float.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+number("1337")              // returns 1337
+number("42.5")              // returns 42.5
+number("deadbeef", 16)      // returns 3735928559
+
+// integer literals beginning with "0x" are auto-detected as hexadecimal
+number("0xdeadbeef")        // returns 3735928559
+number("0xdeadbeef", 16)    // returns 3735928559
+
+// "+" and "-" are supported
+number("+1337")             // returns 1337
+number("-1337")             // returns -1337
+
+// surrounding whitespace is ignored
+number("  1337  ")          // returns 1337
+
+// process.pid = "1337"
+number(process.pid)         // returns 1337
+
+// null handling
+number(null)                // returns null
+number(null, 16)            // returns null
+
+// strings beginning with "0x" are treated as hexadecimal (base 16),
+// even if the <base_num> is explicitly null.
+number("0xdeadbeef", null) // returns 3735928559
+
+// otherwise, strings are treated as decimal (base 10)
+// if the <base_num> is explicitly null.
+number("1337", null)        // returns 1337
+----
+
+*Syntax*
+[source,txt]
+----
+number(<string>[, <base_num>])
+----
+
+*Parameters*
+
+`<string>`::
++
+--
+(Required, string or `null`)
+String to convert to an integer or float. If this value is a string, it must be
+one of the following:
+
+* A string representation of an integer (e.g., `"42"`)
+* A string representation of a float (e.g., `"9.5"`)
+* If the `<base_num>` parameter is specified, a string containing an integer
+  literal in the base notation (e.g., `"0xDECAFBAD"` in hexadecimal or base
+  `16`)
+
+Strings that begin with `0x` are auto-detected as hexadecimal and use a default
+`<base_num>` of `16`.
+
+`-` and `+` are supported with no space between. Surrounding whitespace is
+ignored. Empty strings (`""`) are not supported.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+If this argument is `null`, the function returns `null`.
+--
+
+`<base_num>`::
++
+--
+(Optional, integer or `null`)
+Radix or base used to convert the string. If the `<string>` begins with `0x`,
+this parameter defaults to `16` (hexadecimal). Otherwise, it defaults to base
+`10`.
+
+If this argument is explicitly `null`, the default value is used.
+
+Fields are not supported as arguments.
+--
+
+*Returns:* integer or float or `null`
+====
+
+[discrete]
+[[eql-fn-startswith]]
+=== `startsWith`
+
+Returns `true` if a source string begins with a provided substring.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+startsWith("regsvr32.exe", "regsvr32")  // returns true
+startsWith("regsvr32.exe", "explorer")  // returns false
+startsWith("", "")                      // returns true
+
+// process.name = "regsvr32.exe"
+startsWith(process.name, "regsvr32")    // returns true
+startsWith(process.name, "explorer")    // returns false
+
+// process.name = "regsvr32"
+startsWith("regsvr32.exe", process.name) // returns true
+startsWith("explorer.exe", process.name) // returns false
+
+// null handling
+startsWith("regsvr32.exe", null)        // returns null
+startsWith("", null)                    // returns null
+startsWith(null, "regsvr32")            // returns null
+startsWith(null, null)                  // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+startsWith(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string or `null`)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<substring>`::
++
+--
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-string]]
+=== `string`
+
+Converts a value to a string.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+string(42)               // returns "42"
+string(42.5)             // returns "42.5"
+string("regsvr32.exe")   // returns "regsvr32.exe"
+string(true)             // returns "true"
+
+// null handling
+string(null)             // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+string(<value>)
+----
+
+*Parameters*
+
+`<value>`::
+(Required)
+Value to convert to a string. If `null`, the function returns `null`.
++
+If using a field as the argument, this parameter does not support the
+<<text,`text`>> field datatype.
+
+*Returns:* string or `null`
+====
+
+[discrete]
+[[eql-fn-stringcontains]]
+=== `stringContains`
+
+Returns `true` if a source string contains a provided substring.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// process.command_line = "start regsvr32.exe"
+stringContains(process.command_line, "regsvr32")  // returns true
+stringContains(process.command_line, "start ")    // returns true
+stringContains(process.command_line, "explorer")  // returns false
+
+// process.name = "regsvr32.exe"
+stringContains(command_line, process.name)        // returns true
+
+// empty strings
+stringContains("", "")                            // returns false
+stringContains(process.command_line, "")          // returns false
+
+// null handling
+stringContains(null, "regsvr32")                  // returns null
+stringContains(process.command_line, null)        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+stringContains(<source>, <substring>)
+----
+
+*Parameters*
+
+`<source>`::
+(Required, string or `null`)
+Source string to search. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+`<substring>`::
+(Required, string or `null`)
+Substring to search for. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+
+*Returns:* boolean or `null`
+====
+
+[discrete]
+[[eql-fn-substring]]
+=== `substring`
+
+Extracts a substring from a source string at provided start and end positions.
+
+If no end position is provided, the function extracts the remaining string.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+substring("start regsvr32.exe", 6)        // returns "regsvr32.exe"
+substring("start regsvr32.exe", 0, 5)     // returns "start"
+substring("start regsvr32.exe", 6, 14)    // returns "regsvr32"
+substring("start regsvr32.exe", -4)       // returns ".exe"
+substring("start regsvr32.exe", -4, -1)   // returns ".ex"
+----
+
+*Syntax*
+[source,txt]
+----
+substring(<source>, <start_pos>[, <end_pos>])
+----
+
+*Parameters*
+
+`<source>`::
+(Required, string)
+Source string.
+
+`<start_pos>`::
++
+--
+(Required, integer)
+Starting position for extraction.
+
+If this position is higher than the `<end_pos>` position or the length of the
+`<source>` string, the function returns an empty string.
+
+Positions are zero-indexed. Negative offsets are supported.
+--
+
+`<end_pos>`::
+(Optional, integer)
+Exclusive end position for extraction. If this position is not provided, the
+function returns the remaining string.
++
+Positions are zero-indexed. Negative offsets are supported.
+
+*Returns:* string
+====
+
+[discrete]
+[[eql-fn-subtract]]
+=== `subtract`
+Returns the difference between a provided minuend and subtrahend.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+subtract(10, 2)                                          // returns 8
+subtract(10.5, 0.5)                                      // returns 10
+subtract(1, 0.2)                                         // returns 0.8
+subtract(-2, 4)                                          // returns -8
+subtract(-2, -4)                                         // returns 8
+
+// process.args_count = 10
+subtract(process.args_count, 6)                          // returns 4
+subtract(process.args_count, 5)                          // returns 5
+subtract(15, process.args_count)                         // returns 5
+subtract(process.args_count, 0.5)                        // returns 9.5
+
+// process.parent.args_count = 6
+subtract(process.args_count, process.parent.args_count)  // returns 4
+
+// null handling
+subtract(null, 2)                                        // returns null
+subtract(2, null)                                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+subtract(<minuend>, <subtrahend>)
+----
+
+*Parameters*
+
+`<minuend>`::
+(Required, integer or float or `null`)
+Minuend to subtract from.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+`<subtrahend>`::
+(Optional, integer or float or `null`)
+Subtrahend to subtract. If `null`, the function returns `null`.
++
+If using a field as the argument, this parameter supports only
+<<number,`numeric`>> field datatypes.
+
+*Returns:* integer, float, or `null`
+====
+
+[discrete]
+[[eql-fn-wildcard]]
+=== `wildcard`
+
+Returns `true` if a source string matches one or more provided wildcard
+expressions.
+
+[%collapsible]
+====
+*Example*
+[source,eql]
+----
+// The two following expressions are equivalent.
+process.name == "*regsvr32*" or process.name == "*explorer*"
+wildcard(process.name, "*regsvr32*", "*explorer*")
+
+// process.name = "regsvr32.exe"
+wildcard(process.name, "*regsvr32*")                // returns true
+wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
+wildcard(process.name, "*explorer*")                // returns false
+wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
+
+// empty strings
+wildcard("", "*start*")                             // returns false
+wildcard("", "*")                                   // returns true
+wildcard("", "")                                    // returns true
+
+// null handling
+wildcard(null, "*regsvr32*")                        // returns null
+wildcard(process.name, null)                        // returns null
+----
+
+*Syntax*
+[source,txt]
+----
+wildcard(<source>, <wildcard_exp>[, ...])
+----
+
+*Parameters*
+
+`<source>`::
++
+--
+(Required, string)
+Source string. If `null`, the function returns `null`.
+
+If using a field as the argument, this parameter supports only the following
+field datatypes:
+
+* <<keyword,`keyword`>>
+* <<constant-keyword,`constant_keyword`>>
+* <<text,`text`>> field with a <<keyword,`keyword`>> or
+  <<constant-keyword,`constant_keyword`>> sub-field
+--
+
+`<wildcard_exp>`::
++
+--
+(Required{multi-arg-ref}, string)
+Wildcard expression used to match the source string. If `null`, the function
+returns `null`. Fields are not supported as arguments.
+--
+
+*Returns:* boolean
+====

@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -131,6 +131,25 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     // needed for deserialization
+    protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(in);
+        this.shardId = shardId;
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
+        id = in.readString();
+        version = in.readZLong();
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
+        forcedRefresh = in.readBoolean();
+        result = Result.readFrom(in);
+    }
+
+    /**
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * deserialization path
+     */
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
@@ -258,10 +277,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return location.toString();
     }
 
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        writeWithoutShardId(out);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         shardId.writeTo(out);
+        writeWithoutShardId(out);
+    }
+
+    private void writeWithoutShardId(StreamOutput out) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -315,7 +343,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         if (token.isValue()) {
             if (_INDEX.equals(currentFieldName)) {
                 // index uuid and shard id are unknown and can't be parsed back for now.
-                context.setShardId(new ShardId(new Index(parser.text(), IndexMetaData.INDEX_UUID_NA_VALUE), -1));
+                context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
             } else if (_ID.equals(currentFieldName)) {
                 context.setId(parser.text());
             } else if (_VERSION.equals(currentFieldName)) {

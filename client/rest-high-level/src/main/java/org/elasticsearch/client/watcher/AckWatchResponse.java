@@ -45,7 +45,7 @@ public class AckWatchResponse {
     }
 
     private static final ParseField STATUS_FIELD = new ParseField("status");
-    private static ConstructingObjectParser<AckWatchResponse, Void> PARSER =
+    private static final ConstructingObjectParser<AckWatchResponse, Void> PARSER =
         new ConstructingObjectParser<>("ack_watch_response", true,
             a -> new AckWatchResponse((WatchStatus) a[0]));
 

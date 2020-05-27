@@ -276,7 +276,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
         logger.info("Authentication with token Response: " + map);
         assertThat(map.get("username"), equalTo("alice"));
-        assertThat((List<?>) map.get("roles"), containsInAnyOrder("kibana_user", "auditor"));
+        assertThat((List<?>) map.get("roles"), containsInAnyOrder("kibana_admin", "auditor"));
 
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
@@ -327,7 +327,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         logger.info(" OpenIDConnect authentication response {}", responseBody);
         assertNotNull(responseBody.get("access_token"));
         assertNotNull(responseBody.get("refresh_token"));
-        return new Tuple(responseBody.get("access_token"), responseBody.get("refresh_token"));
+        return Tuple.tuple(responseBody.get("access_token").toString(), responseBody.get("refresh_token").toString());
     }
 
     private Request buildRequest(String method, String endpoint, Map<String, ?> body, Header... headers) throws IOException {
@@ -374,7 +374,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
 
     private void setRoleMappings() throws IOException {
         Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
-        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"kibana_user\"]," +
+        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"kibana_admin\"]," +
             "\"enabled\": true," +
             "\"rules\": {" +
             "\"field\": { \"realm.name\": \"" + REALM_NAME + "\"}" +

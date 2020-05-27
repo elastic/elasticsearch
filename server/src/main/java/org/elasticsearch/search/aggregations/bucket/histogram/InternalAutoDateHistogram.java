@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
 import java.io.IOException;
@@ -197,11 +197,14 @@ public final class InternalAutoDateHistogram extends
     private final DocValueFormat format;
     private final BucketInfo bucketInfo;
     private final int targetBuckets;
-    private long bucketInnerInterval;
+    /**
+     * The interval within the rounding that the buckets are using.
+     */
+    private final long bucketInnerInterval;
 
     InternalAutoDateHistogram(String name, List<Bucket> buckets, int targetBuckets, BucketInfo emptyBucketInfo, DocValueFormat formatter,
-                              List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData, long bucketInnerInterval) {
-        super(name, pipelineAggregators, metaData);
+                              Map<String, Object> metadata, long bucketInnerInterval) {
+        super(name, metadata);
         this.buckets = buckets;
         this.bucketInfo = emptyBucketInfo;
         this.format = formatter;
@@ -218,6 +221,7 @@ public final class InternalAutoDateHistogram extends
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readList(stream -> new Bucket(stream, format));
         this.targetBuckets = in.readVInt();
+        bucketInnerInterval = 1; // Calculated on merge.
     }
 
     @Override
@@ -259,7 +263,7 @@ public final class InternalAutoDateHistogram extends
 
     @Override
     public InternalAutoDateHistogram create(List<Bucket> buckets) {
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators(), metaData, 1);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, metadata, bucketInnerInterval);
     }
 
     @Override
@@ -315,6 +319,7 @@ public final class InternalAutoDateHistogram extends
                     pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
                 }
             }
+        }
 
             if (pq.size() > 0) {
                 // list of buckets coming from different shards that have the same key
@@ -500,7 +505,7 @@ public final class InternalAutoDateHistogram extends
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
 
         if (reduceContext.isFinalReduce()) {
@@ -519,7 +524,7 @@ public final class InternalAutoDateHistogram extends
                 this.bucketInfo.emptySubAggregations);
 
         return new InternalAutoDateHistogram(getName(), reducedBucketsResult.buckets, targetBuckets, bucketInfo, format,
-                pipelineAggregators(), getMetaData(), reducedBucketsResult.innerInterval);
+                getMetadata(), reducedBucketsResult.innerInterval);
     }
 
     private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult reducedBucketsResult,
@@ -596,7 +601,7 @@ public final class InternalAutoDateHistogram extends
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalAutoDateHistogram(name, buckets2, targetBuckets, bucketInfo, format, pipelineAggregators(), getMetaData(), 1);
+        return new InternalAutoDateHistogram(name, buckets2, targetBuckets, bucketInfo, format, getMetadata(), bucketInnerInterval);
     }
 
     @Override

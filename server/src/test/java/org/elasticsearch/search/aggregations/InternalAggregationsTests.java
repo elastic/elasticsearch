@@ -19,35 +19,30 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
-import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
-import org.elasticsearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 
 public class InternalAggregationsTests extends ESTestCase {
 
@@ -56,175 +51,34 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();
-        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(null, null, randomBoolean());
+        InternalAggregation.ReduceContextBuilder builder = InternalAggregationTestCase.emptyReduceContextBuilder();
+        InternalAggregation.ReduceContext reduceContext = randomBoolean() ? builder.forFinalReduction() : builder.forPartialReduction();
         assertNull(InternalAggregations.reduce(aggs, reduceContext));
     }
 
     public void testNonFinalReduceTopLevelPipelineAggs()  {
-        MockBigArrays bigArrays = new MockBigArrays(null, new CircuitBreakerService() {
-            @Override
-            public void registerBreaker(BreakerSettings breakerSettings) {
-
-            }
-
-            @Override
-            public CircuitBreaker getBreaker(String name) {
-                return new CircuitBreaker() {
-                    @Override
-                    public void circuitBreak(String fieldName, long bytesNeeded) {
-
-                    }
-
-                    @Override
-                    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                        return 0;
-                    }
-
-                    @Override
-                    public long addWithoutBreaking(long bytes) {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getUsed() {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getLimit() {
-                        return 0;
-                    }
-
-                    @Override
-                    public double getOverhead() {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getTrippedCount() {
-                        return 0;
-                    }
-
-                    @Override
-                    public String getName() {
-                        return null;
-                    }
-
-                    @Override
-                    public Durability getDurability() {
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            public AllCircuitBreakerStats stats() {
-                return null;
-            }
-
-            @Override
-            public CircuitBreakerStats stats(String name) {
-                return null;
-            }
-        });
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
-            10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
-        List<SiblingPipelineAggregator> topLevelPipelineAggs = new ArrayList<>();
-        MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
-        topLevelPipelineAggs.add((SiblingPipelineAggregator)maxBucketPipelineAggregationBuilder.create());
-        List<InternalAggregations> aggs = Collections.singletonList(new InternalAggregations(Collections.singletonList(terms),
-            topLevelPipelineAggs));
-        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, null, false);
-        InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContext);
-        assertEquals(1, reducedAggs.getTopLevelPipelineAggregators().size());
+            10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+        List<InternalAggregations> aggs = singletonList(new InternalAggregations(Collections.singletonList(terms)));
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
         assertEquals(1, reducedAggs.aggregations.size());
     }
 
     public void testFinalReduceTopLevelPipelineAggs()  {
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
-            10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
+            10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
 
-        MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
-        SiblingPipelineAggregator siblingPipelineAggregator = (SiblingPipelineAggregator) maxBucketPipelineAggregationBuilder.create();
-        MockBigArrays bigArrays = new MockBigArrays(null, new CircuitBreakerService() {
-            @Override
-            public void registerBreaker(BreakerSettings breakerSettings) {
-
-            }
-
-            @Override
-            public CircuitBreaker getBreaker(String name) {
-                return new CircuitBreaker() {
-                    @Override
-                    public void circuitBreak(String fieldName, long bytesNeeded) {
-
-                    }
-
-                    @Override
-                    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                        return 0;
-                    }
-
-                    @Override
-                    public long addWithoutBreaking(long bytes) {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getUsed() {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getLimit() {
-                        return 0;
-                    }
-
-                    @Override
-                    public double getOverhead() {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getTrippedCount() {
-                        return 0;
-                    }
-
-                    @Override
-                    public String getName() {
-                        return null;
-                    }
-
-                    @Override
-                    public Durability getDurability() {
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            public AllCircuitBreakerStats stats() {
-                return null;
-            }
-
-            @Override
-            public CircuitBreakerStats stats(String name) {
-                return null;
-            }
-        });
-        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, null, true);
-        final InternalAggregations reducedAggs;
-        if (randomBoolean()) {
-            InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms),
-                Collections.singletonList(siblingPipelineAggregator));
-            reducedAggs = InternalAggregations.reduce(Collections.singletonList(aggs), reduceContext);
-        } else {
-            InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms),
-                Collections.singletonList(siblingPipelineAggregator));
-            reducedAggs = InternalAggregations.reduce(Collections.singletonList(aggs), reduceContext);
-        }
-        assertEquals(0, reducedAggs.getTopLevelPipelineAggregators().size());
+        InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms));
+        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(aggs),
+                maxBucketReduceContext().forFinalReduction());
         assertEquals(2, reducedAggs.aggregations.size());
+    }
+
+    private InternalAggregation.ReduceContextBuilder maxBucketReduceContext() {
+        MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
+        PipelineAggregator.PipelineTree tree =
+                new PipelineAggregator.PipelineTree(emptyMap(), singletonList(maxBucketPipelineAggregationBuilder.create()));
+        return InternalAggregationTestCase.emptyReduceContextBuilder(tree);
     }
 
     public static InternalAggregations createTestInstance() throws Exception {
@@ -244,19 +98,7 @@ public class InternalAggregationsTests extends ESTestCase {
             InternalSimpleValueTests simpleValueTests = new InternalSimpleValueTests();
             aggsList.add(simpleValueTests.createTestInstance());
         }
-        List<SiblingPipelineAggregator> topLevelPipelineAggs = new ArrayList<>();
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                topLevelPipelineAggs.add((SiblingPipelineAggregator)new MaxBucketPipelineAggregationBuilder("name1", "bucket1").create());
-            }
-            if (randomBoolean()) {
-                topLevelPipelineAggs.add((SiblingPipelineAggregator)new AvgBucketPipelineAggregationBuilder("name2", "bucket2").create());
-            }
-            if (randomBoolean()) {
-                topLevelPipelineAggs.add((SiblingPipelineAggregator)new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
-            }
-        }
-        return new InternalAggregations(aggsList, topLevelPipelineAggs);
+        return new InternalAggregations(aggsList);
     }
 
     public void testSerialization() throws Exception {
@@ -265,7 +107,7 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     private void writeToAndReadFrom(InternalAggregations aggregations, int iteration) throws IOException {
-        Version version = VersionUtils.randomVersion(random());
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             aggregations.writeTo(out);
@@ -273,20 +115,7 @@ public class InternalAggregationsTests extends ESTestCase {
                 in.setVersion(version);
                 InternalAggregations deserialized = new InternalAggregations(in);
                 assertEquals(aggregations.aggregations, deserialized.aggregations);
-                if (aggregations.getTopLevelPipelineAggregators() == null) {
-                    assertEquals(0, deserialized.getTopLevelPipelineAggregators().size());
-                } else {
-                    assertEquals(aggregations.getTopLevelPipelineAggregators().size(),
-                        deserialized.getTopLevelPipelineAggregators().size());
-                    for (int i = 0; i < aggregations.getTopLevelPipelineAggregators().size(); i++) {
-                        SiblingPipelineAggregator siblingPipelineAggregator1 = aggregations.getTopLevelPipelineAggregators().get(i);
-                        SiblingPipelineAggregator siblingPipelineAggregator2 = deserialized.getTopLevelPipelineAggregators().get(i);
-                        assertArrayEquals(siblingPipelineAggregator1.bucketsPaths(), siblingPipelineAggregator2.bucketsPaths());
-                        assertEquals(siblingPipelineAggregator1.name(), siblingPipelineAggregator2.name());
-                    }
-                }
                 if (iteration < 2) {
-                    //serialize this enough times to make sure that we are able to write again what we read
                     writeToAndReadFrom(deserialized, iteration + 1);
                 }
             }

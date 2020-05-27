@@ -28,20 +28,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -52,17 +49,17 @@ import java.util.Objects;
 import static java.util.Map.entry;
 
 public class AutoDateHistogramAggregationBuilder
-        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AutoDateHistogramAggregationBuilder> {
+        extends ValuesSourceAggregationBuilder<AutoDateHistogramAggregationBuilder> {
 
     public static final String NAME = "auto_date_histogram";
 
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
     private static final ParseField MINIMUM_INTERVAL_FIELD = new ParseField("minimum_interval");
 
-    private static final ObjectParser<AutoDateHistogramAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<AutoDateHistogramAggregationBuilder, String> PARSER =
+        ObjectParser.fromBuilder(NAME, AutoDateHistogramAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(AutoDateHistogramAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
         PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
@@ -75,6 +72,10 @@ public class AutoDateHistogramAggregationBuilder
         entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
         entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        AutoDateHistogramAggregatorFactory.registerAggregators(builder);
+    }
 
     /**
      *
@@ -110,13 +111,53 @@ public class AutoDateHistogramAggregationBuilder
         return Arrays.copyOfRange(roundings, indexToSliceFrom, roundings.length);
     }
 
-    public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new AutoDateHistogramAggregationBuilder(aggregationName), null);
-    }
-
     private int numBuckets = 10;
 
     private String minimumIntervalExpression;
+
+    /** Create a new builder with the given name. */
+    public AutoDateHistogramAggregationBuilder(String name) {
+        super(name);
+    }
+
+    /** Read from a stream, for internal use only. */
+    public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
+        super(in);
+        numBuckets = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            minimumIntervalExpression = in.readOptionalString();
+        }
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(numBuckets);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeOptionalString(minimumIntervalExpression);
+        }
+    }
+
+    protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
+            Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
+        this.numBuckets = clone.numBuckets;
+        this.minimumIntervalExpression = clone.minimumIntervalExpression;
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.DATE;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    public String getType() {
+        return NAME;
+    }
 
     public String getMinimumIntervalExpression() {
         return minimumIntervalExpression;
@@ -129,46 +170,6 @@ public class AutoDateHistogramAggregationBuilder
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
         return this;
-    }
-
-
-    /** Create a new builder with the given name. */
-    public AutoDateHistogramAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.NUMERIC, ValueType.DATE);
-    }
-
-    /** Read from a stream, for internal use only. */
-    public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.NUMERIC, ValueType.DATE);
-        numBuckets = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            minimumIntervalExpression = in.readOptionalString();
-        }
-    }
-
-    protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
-            Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
-        this.numBuckets = clone.numBuckets;
-        this.minimumIntervalExpression = clone.minimumIntervalExpression;
-    }
-
-    @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new AutoDateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(minimumIntervalExpression);
-        }
-    }
-
-    @Override
-    public String getType() {
-        return NAME;
     }
 
     public AutoDateHistogramAggregationBuilder setNumBuckets(int numBuckets) {
@@ -184,8 +185,13 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
-                                                                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+                                                       AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
@@ -201,7 +207,7 @@ public class AutoDateHistogramAggregationBuilder
         }
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, queryShardContext, parent,
             subFactoriesBuilder,
-            metaData);
+            metadata);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {
@@ -302,6 +308,11 @@ public class AutoDateHistogramAggregationBuilder
                 && Objects.deepEquals(innerIntervals, other.innerIntervals)
                 && Objects.equals(dateTimeUnit, other.dateTimeUnit)
                 ;
+        }
+
+        @Override
+        public String toString() {
+            return "RoundingInfo[" + rounding + " " + Arrays.toString(innerIntervals) + "]";
         }
     }
 }

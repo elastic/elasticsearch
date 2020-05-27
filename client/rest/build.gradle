@@ -19,22 +19,13 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * under the License.
  */
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 targetCompatibility = JavaVersion.VERSION_1_8
 sourceCompatibility = JavaVersion.VERSION_1_8
 
 group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-client'
-
-publishing {
-  publications {
-    nebula {
-      artifactId = archivesBaseName
-    }
-  }
-}
 
 dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -52,7 +43,7 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-tasks.withType(CheckForbiddenApis) {
+tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
@@ -61,7 +52,7 @@ forbiddenPatterns {
   exclude '**/*.der'
 }
 
-forbiddenApisTest {
+tasks.named('forbiddenApisTest').configure {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'

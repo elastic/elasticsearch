@@ -1,0 +1,154 @@
+# These tests are not part of the ml-with-security tests
+# These are more like ingest processor tests than actual ML focused tests.
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: a-perfect-regression-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "tags": ["regression", "tag1"],
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": { "regression": {"results_field": "my_regression"}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 42}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
+
+---
+"Test create and delete pipeline with inference processor":
+  - do:
+      ingest.put_pipeline:
+        id: "regression-model-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-perfect-regression-model",
+                  "inference_config": {"regression": {}},
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      ingest.delete_pipeline:
+        id: "regression-model-pipeline"
+---
+"Test create processor with missing mandatory fields":
+  - do:
+      catch: /\[model_id\] required property is missing/
+      ingest.put_pipeline:
+        id: "regression-model-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference" : {
+                  "inference_config": {"regression": {}},
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]
+          }
+  - do:
+      catch: /\[inference_config\] required property is missing/
+      ingest.put_pipeline:
+        id: "regression-model-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-perfect-regression-model",
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]
+          }
+---
+"Test create processor with deprecated fields":
+  - skip:
+      features:
+       - "warnings"
+       - "allowed_warnings"
+  - do:
+      warnings:
+        - 'Deprecated field [field_mappings] used, expected [field_map] instead'
+      ingest.put_pipeline:
+        id: "regression-model-pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-perfect-regression-model",
+                  "inference_config": {"regression": {}},
+                  "field_mappings": {}
+                }
+              }
+            ]
+          }
+
+  - do:
+      allowed_warnings:
+        - 'Deprecated field [field_mappings] used, expected [field_map] instead'
+      ingest.delete_pipeline:
+        id: "regression-model-pipeline"
+---
+"Test simulate":
+  - do:
+      ingest.simulate:
+        body:  >
+          {
+            "pipeline": {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-perfect-regression-model",
+                  "inference_config": {"regression": {}},
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]},
+            "docs": [{"_source": {"field1": 1, "field2": 2}}]
+          }
+  - match: { docs.0.doc._source.regression_field.my_regression: 42.0 }
+
+  - do:
+      ingest.simulate:
+        body:  >
+          {
+            "pipeline": {
+            "processors": [
+              {
+                "inference" : {
+                  "model_id" : "a-perfect-regression-model",
+                  "inference_config": {"regression": {"results_field": "value"}},
+                  "target_field": "regression_field",
+                  "field_map": {}
+                }
+              }
+            ]},
+            "docs": [{"_source": {"field1": 1, "field2": 2}}]
+          }
+  - match: { docs.0.doc._source.regression_field.value: 42.0 }

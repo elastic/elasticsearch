@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -13,16 +14,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -34,6 +37,9 @@ import java.util.function.Supplier;
  */
 public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBuilder> {
     public static final String NAME = "shape";
+
+    protected static final List<String> validContentTypes =
+        Collections.unmodifiableList(Arrays.asList(ShapeFieldMapper.CONTENT_TYPE, PointFieldMapper.CONTENT_TYPE));
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
@@ -101,26 +107,23 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     @Override
-    public String queryFieldType() {
-        return ShapeFieldMapper.CONTENT_TYPE;
-    }
-
-    @Override
     @SuppressWarnings({ "rawtypes" })
-    protected List validContentTypes() {
-        return Arrays.asList(ShapeFieldMapper.CONTENT_TYPE);
+    protected List<String> validContentTypes(){
+        return validContentTypes;
     }
 
     @Override
     @SuppressWarnings({ "rawtypes" })
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (fieldType.typeName().equals(ShapeFieldMapper.CONTENT_TYPE) == false) {
+        List<String> validContentTypes = validContentTypes();
+        if (validContentTypes.contains(fieldType.typeName()) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is not of type [" + String.join(" or ", validContentTypes())
+                    + "] but of type [" + fieldType.typeName() + "]");
         }
 
-        final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
-        return ft.geometryQueryBuilder().process(shape, ft.name(), relation, context);
+        final AbstractGeometryFieldType ft = (AbstractGeometryFieldType) fieldType;
+        return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, ft.name(), relation, context));
     }
 
     @Override

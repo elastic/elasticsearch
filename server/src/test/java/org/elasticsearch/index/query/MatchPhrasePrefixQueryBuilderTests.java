@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<MatchPhrasePrefixQueryBuilder> {
     @Override
     protected MatchPhrasePrefixQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);

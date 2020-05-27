@@ -3,9 +3,9 @@
 
 deprecated[6.0.0,See <<removal-of-types>>]
 
-Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
-<<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is
-indexed in order to make searching by type name fast.
+Each document indexed is associated with a <<mapping-type-field,`_type`>> and
+an <<mapping-id-field,`_id`>>.  The `_type` field is indexed in order to make
+searching by type name fast.
 
 The value of the `_type` field is accessible in queries, aggregations,
 scripts, and when sorting:
@@ -57,7 +57,6 @@ GET my_index/_search
 
 --------------------------
 // TEST[warning:[types removal] Using the _type field in queries and aggregations is deprecated, prefer to use a field instead.]
-// TEST[warning:[types removal] Looking up doc types [_type] in scripts is deprecated.]
 
 <1> Querying on the `_type` field
 <2> Aggregating on the `_type` field

@@ -2,8 +2,8 @@
 
 setup:
 - skip:
-    version: " - 7.99.99"  # correct to 7.09.99 after backporting to 7.1
-    reason: "random score function of script score was added in 7.1"
+    version: " - 7.1.99"
+    reason: "random score function of script score was added in 7.2"
 
 ---
 "Random score function with _seq_no field":

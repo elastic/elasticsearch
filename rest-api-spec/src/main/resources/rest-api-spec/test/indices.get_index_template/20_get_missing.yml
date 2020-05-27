@@ -1,0 +1,20 @@
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
+
+  - do:
+      indices.delete_index_template:
+        name:   '*'
+        ignore: 404
+---
+"Get missing template":
+  - skip:
+      version: " - 7.99.99"
+      reason: "index template v2 API has not been backported"
+
+  - do:
+      catch:  missing
+      indices.get_index_template:
+        name: test
+

@@ -20,22 +20,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 
@@ -62,7 +58,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, IndexFieldMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
@@ -77,19 +73,19 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+        public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new IndexFieldMapper(indexSettings, fieldType);
+            return new IndexFieldMapper(indexSettings, Defaults.FIELD_TYPE);
         }
     }
 
-    static final class IndexFieldType extends MappedFieldType {
+    static final class IndexFieldType extends ConstantFieldType {
 
         IndexFieldType() {}
 
@@ -108,9 +104,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean isSearchable() {
-            // The _index field is always searchable.
-            return true;
+        protected boolean matches(String pattern, QueryShardContext context) {
+            return context.indexMatches(pattern);
         }
 
         @Override
@@ -118,76 +113,14 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             return new MatchAllDocsQuery();
         }
 
-        /**
-         * This termQuery impl looks at the context to determine the index that
-         * is being queried and then returns a MATCH_ALL_QUERY or MATCH_NO_QUERY
-         * if the value matches this index. This can be useful if aliases or
-         * wildcards are used but the aim is to restrict the query to specific
-         * indices
-         */
-        @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            String pattern = value instanceof BytesRef
-                ? ((BytesRef) value).utf8ToString()
-                : value.toString();
-            if (context.indexMatches(pattern)) {
-                // No need to OR these clauses - we can only logically be
-                // running in the context of just one of these index names.
-                return Queries.newMatchAllQuery();
-            } else {
-                return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName() +
-                    "] doesn't match the provided value [" + value + "].");
-            }
-        }
-
-        @Override
-        public Query termsQuery(List values, QueryShardContext context) {
-            if (context == null) {
-                return super.termsQuery(values, context);
-            }
-            for (Object value : values) {
-                String pattern = value instanceof BytesRef
-                    ? ((BytesRef) value).utf8ToString()
-                    : value.toString();
-                if (context.indexMatches(pattern)) {
-                    // No need to OR these clauses - we can only logically be
-                    // running in the context of just one of these index names.
-                    return Queries.newMatchAllQuery();
-                }
-            }
-            // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName() +
-                "] doesn't match the provided values [" + values + "].");
-        }
-
-        @Override
-        public Query prefixQuery(String value,
-                                 @Nullable MultiTermQuery.RewriteMethod method,
-                                 QueryShardContext context) {
-            String pattern = value + "*";
-            if (context.indexMatches(pattern)) {
-                return Queries.newMatchAllQuery();
-            } else {
-                return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName() +
-                    "] doesn't match the provided prefix [" + value + "].");
-            }
-        }
-
-        @Override
-        public Query wildcardQuery(String value,
-                                   @Nullable MultiTermQuery.RewriteMethod method,
-                                   QueryShardContext context) {
-            if (context.indexMatches(value)) {
-                return Queries.newMatchAllQuery();
-            } else {
-                return Queries.newMatchNoDocsQuery("The index [" + context.getFullyQualifiedIndex().getName()
-                    + "] doesn't match the provided pattern [" + value + "].");
-            }
-        }
-
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName);
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
     }
 
@@ -203,7 +136,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     public void preParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {}
+    protected void parseCreateField(ParseContext context) throws IOException {}
 
     @Override
     protected String contentType() {
@@ -213,10 +146,5 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // nothing to do
     }
 }

@@ -166,7 +166,7 @@ public class DeprecationLoggerTests extends ESTestCase {
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         DeprecationLogger.setThreadContext(threadContext);
-        logger.deprecated(expected);
+        logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key1", expected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -178,7 +178,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         }
 
         DeprecationLogger.removeThreadContext(threadContext);
-        logger.deprecated(unexpected);
+        logger.deprecatedAndMaybeLog("testCanRemoveThreadContext_key2", unexpected);
 
         {
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -216,10 +216,18 @@ public class DeprecationLoggerTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> DeprecationLogger.removeThreadContext(threadContext));
     }
 
-    public void testWarningValueFromWarningHeader() throws InterruptedException {
+    public void testWarningValueFromWarningHeader() {
         final String s = randomAlphaOfLength(16);
         final String first = DeprecationLogger.formatWarning(s);
-        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first), equalTo(s));
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first, false), equalTo(s));
+
+        final String withPos = "[context][1:11] Blah blah blah";
+        final String formatted = DeprecationLogger.formatWarning(withPos);
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(formatted, true), equalTo("Blah blah blah"));
+
+        final String withNegativePos = "[context][-1:-1] Blah blah blah";
+        assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(DeprecationLogger.formatWarning(withNegativePos), true),
+            equalTo("Blah blah blah"));
     }
 
     public void testEscapeBackslashesAndQuotes() {
@@ -332,7 +340,7 @@ public class DeprecationLoggerTests extends ESTestCase {
                 new ProtectionDomain[]{new ProtectionDomain(null, new Permissions())}
             );
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                deprecationLogger.deprecated("foo", "bar");
+                deprecationLogger.deprecatedAndMaybeLog("testLogPermissions_key", "foo", "bar");
                 return null;
             }, noPermissionsAcc);
             assertThat("supplier called", supplierCalled.get(), is(true));

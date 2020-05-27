@@ -65,7 +65,7 @@ public class JsonProcessorTests extends ESTestCase {
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
         assertThat(exception.getCause().getMessage(), containsString("Unrecognized token 'blah': " +
-            "was expecting ('true', 'false' or 'null')"));
+            "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"));
     }
 
     public void testByteArray() {
@@ -75,7 +75,12 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
-        assertThat(exception.getCause().getMessage(), containsString("Unrecognized token 'B': was expecting ('true', 'false' or 'null')"));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                "Unrecognized token 'B': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"
+            )
+        );
     }
 
     public void testNull() throws Exception {

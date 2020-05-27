@@ -21,6 +21,8 @@ package org.elasticsearch.client.ml.inference;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -30,6 +32,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -55,6 +58,10 @@ public class TrainedModelDefinitionTests extends AbstractXContentTestCase<Traine
     }
 
     public static TrainedModelDefinition.Builder createRandomBuilder() {
+        return createRandomBuilder(randomFrom(TargetType.values()));
+    }
+
+    public static TrainedModelDefinition.Builder createRandomBuilder(TargetType targetType) {
         int numberOfProcessors = randomIntBetween(1, 10);
         return new TrainedModelDefinition.Builder()
             .setPreProcessors(
@@ -64,7 +71,8 @@ public class TrainedModelDefinitionTests extends AbstractXContentTestCase<Traine
                         TargetMeanEncodingTests.createRandom()))
                         .limit(numberOfProcessors)
                         .collect(Collectors.toList()))
-            .setTrainedModel(randomFrom(TreeTests.createRandom()));
+            .setTrainedModel(randomFrom(TreeTests.buildRandomTree(Arrays.asList("foo", "bar"), 6, targetType),
+                EnsembleTests.createRandom(targetType)));
     }
 
     @Override

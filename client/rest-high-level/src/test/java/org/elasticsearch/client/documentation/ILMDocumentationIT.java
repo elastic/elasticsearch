@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -28,7 +27,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.ilm.DeleteAction;
@@ -71,15 +69,13 @@ import org.elasticsearch.client.slm.SnapshotLifecycleStats;
 import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.client.slm.StartSLMRequest;
 import org.elasticsearch.client.slm.StopSLMRequest;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -365,7 +361,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1")
                 .settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put("index.lifecycle.name", "my_policy")
                     .put("index.lifecycle.rollover_alias", "my_alias")
                     .build());
@@ -373,7 +369,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index")
                 .settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .build());
             client.indices().create(createOtherIndexRequest, RequestOptions.DEFAULT);
 
@@ -627,7 +623,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
                 .settings(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
                     .put("index.lifecycle.name", "my_policy")
                     .build());
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
@@ -692,7 +688,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
             .settings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.lifecycle.name", "my_policy")
                 .build());
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
@@ -1208,10 +1204,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-start-slm-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
-    }
-
-    static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 
 }

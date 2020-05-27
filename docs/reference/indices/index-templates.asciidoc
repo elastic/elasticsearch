@@ -1,0 +1,557 @@
+[[indices-templates]]
+=== Index template API
+++++
+<titleabbrev>Index template</titleabbrev>
+++++
+
+This documentation is about V2 (version 2) index templates. For V1 templates please see the
+<<indices-templates-v1,V1 template documentation>>.
+
+[NOTE]
+====
+In {es} 7.8 V2 templates were introduced. When a V2 index template matches a given index it always
+takes precedence over a V1 template. If no V2 index template matches, a V1 template may still match
+and be applied.
+====
+
+An index template is a way to tell {es} how to configure an index when it is created. Templates are
+configured prior to index creation and then when an index is created either manually or through
+indexing a document, the template settings are used as a basis for creating the index.
+
+There are two types of templates, index templates and <<indices-component-template,component
+templates>>. Component templates are reusable building blocks that configure mappings, settings, and
+aliases. You use component templates to construct index templates, they aren't directly applied to a
+set of indices. Index templates can contain a collection of component templates, as well as directly
+specify settings, mappings, and aliases.
+
+If a new index matches more than one index template, the index template with the highest priority is used.
+
+If an index is created with explicit settings and also matches an index template, 
+the settings from the create index request take precedence over settings specified in the index template and its component templates.
+
+[source,console]
+--------------------------------------------------
+PUT _component_template/component_template1
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT _component_template/other_component_template
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "ip_address": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
+PUT _index_template/template_1
+{
+  "index_patterns": ["te*", "bar*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1
+    },
+    "mappings": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "host_name": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date",
+          "format": "EEE MMM dd HH:mm:ss Z yyyy"
+        }
+      }
+    },
+    "aliases": {
+      "mydata": { }
+    }
+  },
+  "priority": 10,
+  "composed_of": ["component_template1", "other_component_template"],
+  "version": 3,
+  "_meta": {
+    "description": "my custom"
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/*
+DELETE _component_template/*
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
+[[put-index-template-api-request]]
+==== {api-request-title}
+
+`PUT /_index_template/<index-template>`
+
+
+[[put-index-template-api-desc]]
+==== {api-description-title}
+
+Creates or updates an index template. 
+
+// tag::index-template-def[]
+Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>> that you can
+automatically apply when creating new indices. {es} applies templates to new indices based on an
+index pattern that matches the index name.
+// end::index-template-def[]
+
+Index templates are only applied during index creation. Changes to index templates do not affect
+existing indices. Settings and mappings specified in <<indices-create-index, create index>> API
+requests override any settings or mappings specified in an index template.
+
+===== Comments in index templates
+You can use C-style /* */ block comments in index templates. You can include comments anywhere in
+the request body, except before the opening curly bracket.
+
+[[getting]]
+===== Getting templates
+
+[[indices-get-template]]
+=== Get index template API
+++++
+<titleabbrev>Get index template</titleabbrev>
+++++
+
+Returns information about one or more index templates.
+
+[source,console]
+--------------------------------------------------
+GET /_index_template/template_1
+--------------------------------------------------
+
+
+[[get-template-api-request]]
+==== {api-request-title}
+
+`GET /_index_template/<index-template>`
+
+
+[[get-template-api-path-params]]
+==== {api-path-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-template]
++
+To return all index templates, omit this parameter or use a value of `*`.
+
+
+[[get-template-api-query-params]]
+==== {api-query-parms-title}
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[get-template-api-example]]
+==== {api-examples-title}
+
+
+[[get-template-api-wildcard-ex]]
+===== Get index templates using a wildcard expression
+
+[source,console]
+--------------------------------------------------
+GET /_index_template/temp*
+--------------------------------------------------
+
+
+[[get-template-api-all-ex]]
+===== Get all index templates
+
+[source,console]
+--------------------------------------------------
+GET /_index_template
+--------------------------------------------------
+
+[[put-index-template-api-path-params]]
+==== {api-path-parms-title}
+
+`<index-template>`::
+(Required, string)
+Name of the index template to create.
+
+
+[[put-index-template-api-query-params]]
+==== {api-query-parms-title}
+
+`create`::
+(Optional, boolean)
+If `true`, this request cannot replace or update existing index templates. Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[put-index-template-api-request-body]]
+==== {api-request-body-title}
+
+`index_patterns`::
+(Required, array of strings)
+Array of wildcard expressions
+used to match the names of indices during creation.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+
+`template`::
+(Optional, object)
+This is the template to be applied, may optionally include a `mappings`,
+`settings`, or `aliases` configuration.
+
+`composed_of`::
+(Optional, array of strings)
+An ordered list of component template names. Component templates will be merged in the order
+specified, meaning that the last component template specified has the highest precedence. See the
+<<indices-component-template,component template>> reference for information.
+
+`priority`::
+(Optional, integer)
+Priority to determine index template precedence when a new index is created. The index template with
+the highest priority is chosen. If no priority is specified the template is treated as though it is
+of priority 0 (lowest priority).
+This number is not automatically generated by {es}.
+
+`version`::
+(Optional, integer)
+Version number used to manage index templates externally.
+This number is not automatically generated by {es}.
+
+`_meta`::
+(Optional, object)
+Optional user metadata about the index template. May have any contents.
+This map is not automatically generated by {es}.
+
+[[put-index-template-api-example]]
+==== {api-examples-title}
+
+==== Composing multiple component templates
+
+When multiple component templates are specified in the `composed_of` field for an index template,
+they are merged in the order specified, meaning that later component templates override earlier
+component templates.
+
+For two component templates, the order they are specified changes the number of shards for an index:
+
+[source,console]
+--------------------------------------------------
+PUT /_component_template/template_with_2_shards
+{
+  "template": {
+    "settings": {
+      "index.number_of_shards": 2
+    }
+  }
+}
+
+PUT /_component_template/template_with_3_shards
+{
+  "template": {
+    "settings": {
+      "index.number_of_shards": 3
+    }
+  }
+}
+
+PUT /_index_template/template_1
+{
+  "index_patterns": ["t*"],
+  "composed_of": ["template_with_2_shards", "template_with_3_shards"]
+}
+--------------------------------------------------
+
+In this case, an index matching `t*` will have three primary shards. If the order of composed
+templates were reversed, the index would have two primary shards.
+
+
+[[simulating-templates]]
+===== Simulating template composition
+
+Since templates can be composed not only of multiple component templates, but also the index
+template itself, there are two simulation APIs to determine what the resulting index settings will
+be.
+
+To simulate the settings that would be applied to a matching index name:
+
+[source,console]
+--------------------------------------------------
+POST /_index_template/_simulate_index/myindex
+--------------------------------------------------
+
+To simulate the settings that would be applied from a particular template:
+
+[source,console]
+--------------------------------------------------
+POST /_index_template/_simulate/template_1
+
+POST /_index_template/_simulate
+{
+  "index_patterns": ["foo"],
+  "template": {
+    "settings": {
+      "number_of_replicas": 0
+    }
+  }
+}
+--------------------------------------------------
+
+
+Here's an example demonstrating simulating both an index name and template name:
+
+[source,console]
+--------------------------------------------------
+PUT /_component_template/ct1 <1>
+{
+  "template": {
+    "settings": {
+      "index.number_of_shards": 2
+    }
+  }
+}
+
+PUT /_component_template/ct2 <2>
+{
+  "template": {
+    "settings": {
+      "index.number_of_replicas": 0
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT /_index_template/final-template <3>
+{
+  "index_patterns": ["logdata-*"],
+  "composed_of": ["ct1", "ct2"],
+  "priority": 5
+}
+
+POST /_index_template/_simulate_index/logdata-2019-02-01 <4>
+
+POST /_index_template/_simulate/final-template <5>
+
+POST /_index_template/_simulate <6>
+{
+  "index_patterns": ["logdata-*"],
+  "composed_of": ["ct2"],
+  "priority": 10,
+  "template": {
+    "settings": {
+      "index.number_of_replicas": 1
+    }
+  }
+}
+--------------------------------------------------
+<1> Creating a component template (ct1) setting the number of shards to two
+<2> Creating another component template (ct2) setting the number of replicas to zero with mappings
+<3> Creating an index template called "final" template using ct1 and ct2
+<4> Simulate the settings that would be applied for a new index "logdata-2019-02-01"
+<5> Simulate the settings composed using the "final-template" index template
+<6> Simulate the settings composed using a custom specified template
+
+The output of the simulate API from the last example call looks like:
+
+[source,console-result]
+---------------------------------------------------------
+{
+  "template" : {
+    "settings" : {
+      "index" : {
+        "number_of_replicas" : "1" <1>
+      }
+    },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : { <2>
+          "type" : "date"
+        }
+      }
+    },
+    "aliases" : { }
+  },
+  "overlapping" : [ <3>
+    {
+      "name" : "final-template",
+      "index_patterns" : [
+        "logdata-*"
+      ]
+    }
+  ]
+}
+---------------------------------------------------------
+<1> The number of replicas from the simulated template body
+<2> The `@timestamp` field inherited from the "ct2" component template
+<3> Any overlapping templates that would have matched, but have lower priority
+
+When simulating a template and specifying a template in the body of the request, the simulated
+template is not added to the existing templates, it is only used for the simulation.
+
+===== Index template with index aliases
+
+You can include <<indices-aliases,index aliases>> in an index template.
+
+[source,console]
+--------------------------------------------------
+PUT _index_template/template_1
+{
+  "index_patterns" : ["te*"],
+  "template": {
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "aliases" : {
+        "alias1" : {},
+        "alias2" : {
+            "filter" : {
+                "term" : {"user" : "kimchy" }
+            },
+            "routing" : "kimchy"
+        },
+        "{index}-alias" : {} <1>
+    }
+  }
+}
+--------------------------------------------------
+<1> the `{index}` placeholder in the alias name will be replaced with the
+actual index name that the template gets applied to, during index creation.
+
+
+[[multiple-templates]]
+===== Indices matching multiple templates
+
+When an index is created that matches multiple index templates, only the index template with the
+highest priority is applied. For example:
+
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns" : ["t*"],
+  "priority" : 0,
+  "template": {
+    "settings" : {
+      "number_of_shards" : 1,
+      "number_of_replicas": 0
+    },
+    "mappings" : {
+      "_source" : { "enabled" : false }
+    }
+  }
+}
+
+PUT /_index_template/template_2
+{
+  "index_patterns" : ["te*"],
+  "priority" : 1,
+  "template": {
+    "settings" : {
+      "number_of_shards" : 2
+    },
+    "mappings" : {
+      "_source" : { "enabled" : true }
+    }
+  }
+}
+--------------------------------------------------
+
+For indices that start with `te*`, `_source` will enabled, and the index will have two primary
+shards and one replica, because only `template_2` will be applied.
+
+NOTE: Multiple templates with overlapping index patterns at the same priority are not allowed, and
+an error will be thrown when attempting to create a template matching an existing index template at
+identical priorities.
+
+
+[[versioning-templates]]
+===== Template versioning
+
+You can use the `version` parameter to add an optional version number to an index template. External
+systems can use these version numbers to simplify template management.
+
+The `version` parameter is completely optional and not automatically generated by {es}.
+
+To unset a `version`, replace the template without specifying one.
+
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns" : ["foo", "bar"],
+  "priority" : 0,
+  "template": {
+    "settings" : {
+        "number_of_shards" : 1
+    }
+  },
+  "version": 123
+}
+--------------------------------------------------
+
+To check the `version`, you can use the <<indices-get-template, get index template>> API.
+
+[[template-metadata]]
+===== Template metadata
+
+You can use the `_meta` parameter to add optional metadata to an index template. This is a
+user-defined map that can contain any data. This data will be stored in the cluster state however,
+so keeping it short is preferrable.
+
+The `_meta` parameter is completely optional and not automatically generated by {es}.
+
+To unset `_meta`, replace the template without specifying one.
+
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns": ["foo", "bar"],
+  "template": {
+    "settings" : {
+        "number_of_shards" : 3
+    }
+  },
+  "_meta": {
+    "description": "set number of shards to three",
+    "serialization": {
+      "class": "MyIndexTemplate",
+      "id": 17
+    }
+  }
+}
+--------------------------------------------------
+
+To check the `_meta`, you can use the <<indices-get-template, get index template>> API.

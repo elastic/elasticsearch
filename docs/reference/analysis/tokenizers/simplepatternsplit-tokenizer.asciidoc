@@ -1,8 +1,6 @@
 [[analysis-simplepatternsplit-tokenizer]]
 === Simple Pattern Split Tokenizer
 
-experimental[This functionality is marked as experimental in Lucene]
-
 The `simple_pattern_split` tokenizer uses a regular expression to split the
 input into terms at pattern matches. The set of regular expression features it
 supports is more limited than the <<analysis-pattern-tokenizer,`pattern`>>

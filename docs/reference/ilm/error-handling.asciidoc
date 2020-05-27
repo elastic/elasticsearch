@@ -5,7 +5,7 @@
 
 During Index Lifecycle Management's execution of the policy for an index, it's
 possible for a step to encounter an error during its execution. When this
-happens, ILM will move the management state into an "error" step. This halts
+happens, {ilm-init} will move the management state into an "error" step. This halts
 further execution of the policy and gives an administrator the chance to address
 any issues with the policy, index, or cluster.
 
@@ -50,11 +50,11 @@ PUT /myindex
 --------------------------------------------------
 // TEST[continued]
 
-After five days have passed, ILM will attempt to shrink this index from 2
+After five days have passed, {ilm-init} will attempt to shrink this index from 2
 shards to 4, which is invalid since the shrink action cannot increase the
-number of shards. When this occurs, ILM will move this
+number of shards. When this occurs, {ilm-init} will move this
 index to the "error" step. Once an index is in this step, information about the
-reason for the error can be retrieved from the <<ilm-explain-lifecycle,ILM Explain API>>:
+reason for the error can be retrieved from the <<ilm-explain-lifecycle,{ilm-init} Explain API>>:
 
 [source,console]
 --------------------------------------------------
@@ -104,7 +104,7 @@ Which returns the following information:
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> this index is managed by ILM
+<1> this index is managed by {ilm-init}
 <2> the policy in question, in this case, "shrink-the-index"
 <3> the current age for the index
 <4> what phase the index is currently in
@@ -140,7 +140,7 @@ PUT _ilm/policy/shrink-the-index
 --------------------------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 === Retrying failed index lifecycle management steps
 
 Once the underlying issue that caused an index to move to the error step has
@@ -155,5 +155,5 @@ POST /myindex/_ilm/retry
 
 Once this has been issue, index lifecycle management will asynchronously pick up
 on the step that is in a failed state, attempting to re-run it. The
-<<ilm-explain-lifecycle,ILM Explain API>> can again be used to monitor the status of
+<<ilm-explain-lifecycle,{ilm-init} Explain API>> can again be used to monitor the status of
 re-running the step.

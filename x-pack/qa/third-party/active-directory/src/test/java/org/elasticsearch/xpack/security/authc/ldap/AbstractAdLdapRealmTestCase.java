@@ -381,7 +381,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         }
 
         public Settings buildSettings(List<String> certificateAuthorities) {
-            return buildSettings(certificateAuthorities, 1);
+            return buildSettings(certificateAuthorities, randomInt());
         }
 
 

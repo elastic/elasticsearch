@@ -20,42 +20,68 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class AvgAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    AvgAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+    AvgAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                         Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+    }
+
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(AvgAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            new MetricAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name,
+                                        ValuesSource valuesSource,
+                                        DocValueFormat formatter,
+                                        SearchContext context,
+                                        Aggregator parent,
+                                        Map<String, Object> metadata) throws IOException {
+                    return new AvgAggregator(name, (Numeric) valuesSource, formatter, context, parent, metadata);
+                }
+            });
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new AvgAggregator(name, null, config.format(), searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        return new AvgAggregator(name, null, config.format(), searchContext, parent, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
-        return new AvgAggregator(name, valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
+                                            Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            AvgAggregationBuilder.NAME);
+
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent, metadata);
     }
 }

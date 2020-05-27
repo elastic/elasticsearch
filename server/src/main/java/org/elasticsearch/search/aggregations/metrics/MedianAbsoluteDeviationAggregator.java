@@ -31,12 +31,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,13 +52,12 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     MedianAbsoluteDeviationAggregator(String name,
                                              SearchContext context,
                                              Aggregator parent,
-                                             List<PipelineAggregator> pipelineAggregators,
-                                             Map<String, Object> metaData,
+                                             Map<String, Object> metadata,
                                              @Nullable ValuesSource.Numeric valuesSource,
                                              DocValueFormat format,
                                              double compression) throws IOException {
 
-        super(name, context, parent, pipelineAggregators, metaData);
+        super(name, context, parent, metadata);
 
         this.valuesSource = valuesSource;
         this.format = Objects.requireNonNull(format);
@@ -126,7 +123,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     public InternalAggregation buildAggregation(long bucket) throws IOException {
         if (hasDataForBucket(bucket)) {
             final TDigestState valueSketch = valueSketches.get(bucket);
-            return new InternalMedianAbsoluteDeviation(name, pipelineAggregators(), metaData(), format, valueSketch);
+            return new InternalMedianAbsoluteDeviation(name, metadata(), format, valueSketch);
         } else {
             return buildEmptyAggregation();
         }
@@ -134,7 +131,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMedianAbsoluteDeviation(name, pipelineAggregators(), metaData(), format, new TDigestState(compression));
+        return new InternalMedianAbsoluteDeviation(name, metadata(), format, new TDigestState(compression));
     }
 
     @Override

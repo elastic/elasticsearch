@@ -34,6 +34,11 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
         licenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
         licenseService.registerLicense(request, responseFuture);
+        if (responseFuture.isDone()) {
+            // If the future is done, it means request/license validation failed.
+            // In which case, this `actionGet` should throw a more useful exception than the verify below.
+            responseFuture.actionGet();
+        }
         verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
@@ -67,6 +72,11 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
         setInitialState(null, licenseState, settings);
         licenseService.start();
         licenseService.registerLicense(request, responseFuture);
+        if (responseFuture.isDone()) {
+            // If the future is done, it means request/license validation failed.
+            // In which case, this `actionGet` should throw a more useful exception than the verify below.
+            responseFuture.actionGet();
+        }
         verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 }

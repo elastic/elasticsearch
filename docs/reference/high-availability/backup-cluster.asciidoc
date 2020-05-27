@@ -1,7 +1,7 @@
 [[backup-cluster]]
 == Back up a cluster
 
-include::{es-repo-dir}/modules/snapshots.asciidoc[tag=backup-warning]
+include::../snapshot-restore/index.asciidoc[tag=backup-warning]
 
 To have a complete backup for your cluster:
 

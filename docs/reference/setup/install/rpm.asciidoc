@@ -48,12 +48,12 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[elasticsearch-{major-version}]
+[elasticsearch]
 name=Elasticsearch repository for {major-version} packages
 baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
-enabled=1
+enabled=0
 autorefresh=1
 type=rpm-md
 --------------------------------------------------
@@ -64,12 +64,12 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[elasticsearch-{major-version}]
+[elasticsearch]
 name=Elasticsearch repository for {major-version} packages
 baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
-enabled=1
+enabled=0
 autorefresh=1
 type=rpm-md
 --------------------------------------------------
@@ -80,13 +80,19 @@ And your repository is ready for use. You can now install Elasticsearch with one
 
 [source,sh]
 --------------------------------------------------
-sudo yum install elasticsearch <1>
-sudo dnf install elasticsearch <2>
-sudo zypper install elasticsearch <3>
+sudo yum install --enablerepo=elasticsearch elasticsearch <1>
+sudo dnf install --enablerepo=elasticsearch elasticsearch <2>
+sudo zypper modifyrepo --enable elasticsearch && \
+  sudo zypper install elasticsearch; \
+  sudo zypper modifyrepo --disable elasticsearch <3>
 --------------------------------------------------
 <1> Use `yum` on CentOS and older Red Hat based distributions.
 <2> Use `dnf` on Fedora and other newer Red Hat distributions.
 <3> Use `zypper` on OpenSUSE based distributions
+
+NOTE: The configured repository is disabled by default. This eliminates the possibility of accidentally
+upgrading `elasticsearch` when upgrading the rest of the system. Each install or upgrade command
+must explicitly enable the repository as indicated in the sample commands above.
 
 endif::[]
 
@@ -227,7 +233,8 @@ locations for an RPM-based system:
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
-    be overriden by setting the `JAVA_HOME` environment variable.
+    be overridden by setting the `JAVA_HOME` environment variable
+    in `/etc/sysconfig/elasticsearch`.
   | /usr/share/elasticsearch/jdk
  d|
 

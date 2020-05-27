@@ -17,7 +17,18 @@ Replication is pull-based. This means that replication is driven by the
 follower index. This simplifies state management on the leader index and means
 that {ccr} does not interfere with indexing on the leader index.
 
-IMPORTANT: {ccr-cap} requires <<modules-remote-clusters, remote clusters>>.
+In {ccr}, the cluster performing this pull is known as the _local cluster_. The
+cluster being replicated is known as the _remote cluster_.
+
+==== Prerequisites
+
+* {ccr-cap} requires <<modules-remote-clusters, remote clusters>>.
+
+* The {es} version of the local cluster must be **the same as or newer** than
+the remote cluster. If newer, the versions must also be compatible as outlined
+in the following matrix.
+
+include::../modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
 
 ==== Configuring replication
 

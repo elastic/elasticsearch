@@ -3,7 +3,7 @@
 [[sql-syntax-select]]
 === SELECT
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
 SELECT select_expr [, ...]
@@ -16,9 +16,7 @@ SELECT select_expr [, ...]
 [ PIVOT ( aggregation_expr FOR column IN ( value [ [ AS ] alias ] [, ...] ) ) ]
 ----
 
-.Description
-
-Retrieves rows from zero or more tables.
+*Description*: Retrieves rows from zero or more tables.
 
 The general execution of `SELECT` is as follows:
 

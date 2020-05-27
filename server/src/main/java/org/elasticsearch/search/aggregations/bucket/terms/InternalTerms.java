@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,7 +31,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -158,9 +156,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     protected final int requiredSize;
     protected final long minDocCount;
 
-    protected InternalTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    protected InternalTerms(String name, BucketOrder order, int requiredSize, long minDocCount, Map<String, Object> metadata) {
+        super(name, metadata);
         this.order = order;
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
@@ -193,7 +190,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
     public abstract B getBucketByKey(String term);
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<Object, List<B>> buckets = new HashMap<>();
         long sumDocCountError = 0;
         long otherDocCount = 0;
@@ -256,12 +253,12 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
         }
 
-        B[] list;
-        final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
-        CircuitBreaker requestBreaker = reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+        final B[] list;
+        if (reduceContext.isFinalReduce()) {
+            final int size = Math.min(requiredSize, buckets.size());
+            CircuitBreaker requestBreaker = reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
         try (BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null),
             bytes -> requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "<internal-terms-coordinator-reduce [" + name + "]>"))) {
-
             for (List<B> sameTermBuckets : buckets.values()) {
                 final B b = reduceBucket(sameTermBuckets, reduceContext);
                 if (sumDocCountError == -1) {
@@ -269,7 +266,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 } else {
                     b.docCountError += sumDocCountError;
                 }
-                if (b.docCount >= minDocCount || reduceContext.isFinalReduce() == false) {
+                if (b.docCount >= minDocCount) {
                     B removed = ordered.insertWithOverflow(b);
                     if (removed != null) {
                         otherDocCount += removed.getDocCount();
@@ -285,8 +282,22 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             for (int i = ordered.size() - 1; i >= 0; i--) {
                 list[i] = ordered.pop();
             }
+        } else {
+            // keep all buckets on partial reduce
+            // TODO: we could prune the buckets when sorting by key
+            list = createBucketsArray(buckets.size());
+            int pos = 0;
+            for (List<B> sameTermBuckets : buckets.values()) {
+                final B b = reduceBucket(sameTermBuckets, reduceContext);
+                reduceContext.consumeBucketsAndMaybeBreak(1);
+                if (sumDocCountError == -1) {
+                    b.docCountError = -1;
+                } else {
+                    b.docCountError += sumDocCountError;
+                }
+                list[pos++] = b;
+            }
         }
-
         long docCountError;
         if (sumDocCountError == -1) {
             docCountError = -1;

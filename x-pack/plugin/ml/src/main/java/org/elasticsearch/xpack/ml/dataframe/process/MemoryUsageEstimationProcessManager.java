@@ -79,7 +79,8 @@ public class MemoryUsageEstimationProcessManager {
                 1,
                 "",
                 categoricalFields,
-                config.getAnalysis());
+                config.getAnalysis(),
+                dataExtractorFactory.getExtractedFields());
         AnalyticsProcess<MemoryUsageEstimationResult> process =
             processFactory.createAnalyticsProcess(
                 config,
@@ -100,9 +101,9 @@ public class MemoryUsageEstimationProcessManager {
         } finally {
             process.consumeAndCloseOutputStream();
             try {
-                LOGGER.info("[{}] Closing process", jobId);
+                LOGGER.debug("[{}] Closing process", jobId);
                 process.close();
-                LOGGER.info("[{}] Closed process", jobId);
+                LOGGER.debug("[{}] Closed process", jobId);
             } catch (Exception e) {
                 String errorMsg =
                     new ParameterizedMessage(

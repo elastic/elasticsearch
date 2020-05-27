@@ -44,49 +44,100 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
 
     public void testCurrent() throws Exception {
         String projectName = ":distribution:archives:linux-tar";
-        assertExtractedDistro(VersionProperties.getElasticsearch(), "archive", "linux", null, null,
-            "tests.local_distro.config", "default",
-            "tests.local_distro.project", projectName);
+        assertExtractedDistro(
+            VersionProperties.getElasticsearch(),
+            "archive",
+            "linux",
+            null,
+            null,
+            "tests.local_distro.config",
+            "default",
+            "tests.local_distro.project",
+            projectName
+        );
     }
 
     public void testCurrentExternal() throws Exception {
-        checkService(VersionProperties.getElasticsearch(), "archive", "linux", null, null,
+        checkService(
+            VersionProperties.getElasticsearch(),
+            "archive",
+            "linux",
+            null,
+            null,
             "/downloads/elasticsearch/elasticsearch-" + VersionProperties.getElasticsearch() + "-linux-x86_64.tar.gz",
-            "tests.internal", "false");
+            "tests.internal",
+            "false"
+        );
     }
 
     public void testBwc() throws Exception {
-        assertExtractedDistro("8.1.0", "archive", "linux", null, null,
-            "tests.local_distro.config", "linux-tar",
-            "tests.local_distro.project", ":distribution:bwc:minor",
-            "tests.current_version", "8.0.0");
+        assertExtractedDistro(
+            "8.1.0",
+            "archive",
+            "linux",
+            null,
+            null,
+            "tests.local_distro.config",
+            "linux-tar",
+            "tests.local_distro.project",
+            ":distribution:bwc:minor",
+            "tests.current_version",
+            "8.0.0"
+        );
     }
 
     public void testBwcExternal() throws Exception {
-        checkService("8.1.0-SNAPSHOT", "archive", "linux", null, null,
+        checkService(
+            "8.1.0-SNAPSHOT",
+            "archive",
+            "linux",
+            null,
+            null,
             "/downloads/elasticsearch/elasticsearch-8.1.0-SNAPSHOT-linux-x86_64.tar.gz",
-            "tests.internal", "false",
-            "tests.current_version", "9.0.0");
+            "tests.internal",
+            "false",
+            "tests.current_version",
+            "9.0.0"
+        );
     }
 
     public void testReleased() throws Exception {
-        checkService("7.0.0", "archive", "windows", null, null,
-            "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip");
-        checkService("6.5.0", "archive", "windows", null, null,
-            "/downloads/elasticsearch/elasticsearch-6.5.0.zip");
+        checkService("7.0.0", "archive", "windows", null, null, "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip");
+        checkService("6.5.0", "archive", "windows", null, null, "/downloads/elasticsearch/elasticsearch-6.5.0.zip");
     }
 
     public void testReleasedExternal() throws Exception {
-        checkService("7.0.0", "archive", "windows", null, null,
+        checkService(
+            "7.0.0",
+            "archive",
+            "windows",
+            null,
+            null,
             "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip",
-            "tests.internal", "false");
-        checkService("6.5.0", "archive", "windows", null, null,
+            "tests.internal",
+            "false"
+        );
+        checkService(
+            "6.5.0",
+            "archive",
+            "windows",
+            null,
+            null,
             "/downloads/elasticsearch/elasticsearch-6.5.0.zip",
-            "tests.internal", "false");
+            "tests.internal",
+            "false"
+        );
     }
 
-    private void checkService(String version, String type, String platform, String flavor, Boolean bundledJdk,
-                              String urlPath, String... sysProps) throws IOException {
+    private void checkService(
+        String version,
+        String type,
+        String platform,
+        String flavor,
+        Boolean bundledJdk,
+        String urlPath,
+        String... sysProps
+    ) throws IOException {
         String suffix = urlPath.endsWith("zip") ? "zip" : "tar.gz";
         String sourceFile = "src/testKit/distribution-download/distribution/files/fake_elasticsearch." + suffix;
         WireMockServer wireMock = new WireMockServer(0);
@@ -113,16 +164,16 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         }
     }
 
-    private void assertFileDistro(String version, String type, String platform, String flavor, Boolean bundledJdk,
-                                  String... sysProps) throws IOException {
+    private void assertFileDistro(String version, String type, String platform, String flavor, Boolean bundledJdk, String... sysProps)
+        throws IOException {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));
         runBuild(":subproj:assertDistroFile", finalSysProps.toArray(new String[0]));
     }
 
-    private void assertExtractedDistro(String version, String type, String platform, String flavor, Boolean bundledJdk,
-                                       String... sysProps) throws IOException {
+    private void assertExtractedDistro(String version, String type, String platform, String flavor, Boolean bundledJdk, String... sysProps)
+        throws IOException {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));

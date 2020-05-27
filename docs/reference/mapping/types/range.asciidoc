@@ -54,7 +54,7 @@ PUT range_index/_doc/1?refresh
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
 <2> Example indexing a meeting with 10 to 20 attendees.
 <3> Date ranges accept the same format as described in <<ranges-on-dates, date range queries>>.
-<4> Example date range using date time stamp. This also accepts <<date-math, date math>> formatting, or "now" for system time.
+<4> Example date range using date time stamp. This also accepts <<date-math, date math>> formatting. Note that "now" cannot be used at indexing time.
 
 The following is an example of a <<query-dsl-term-query, term query>> on the `integer_range` field named "expected_attendees".
 
@@ -206,11 +206,6 @@ The following parameters are accepted by range types:
 
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`.
-
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
 
 <<mapping-index,`index`>>::
 

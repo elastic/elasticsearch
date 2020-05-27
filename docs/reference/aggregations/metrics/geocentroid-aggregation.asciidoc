@@ -143,3 +143,17 @@ The response for the above aggregation:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
+
+[WARNING]
+.Using `geo_centroid` as a sub-aggregation of `geohash_grid`
+====
+The <<search-aggregations-bucket-geohashgrid-aggregation,`geohash_grid`>>
+aggregation places documents, not individual geo-points, into buckets. If a
+document's `geo_point` field contains <<array,multiple values>>, the document
+could be assigned to multiple buckets, even if one or more of its geo-points are
+outside the bucket boundaries.
+    
+If a `geocentroid` sub-aggregation is also used, each centroid is calculated
+using all geo-points in a bucket, including those outside the bucket boundaries.
+This can result in centroids outside of bucket boundaries.
+====

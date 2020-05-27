@@ -10,4 +10,23 @@ setup:
 
   - is_true: nodes
   - is_true: cluster_name
+
+---
+"node_info role test":
+  - skip:
+      version: " - 7.7.99"
+      reason: "node roles were not sorted before 7.8.0"
+      features: [no_xpack]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
   - is_true: nodes.$node_id.roles
+  # the roles output is sorted
+  - match: { nodes.$node_id.roles.0: "data" }
+  - match: { nodes.$node_id.roles.1: "ingest" }
+  - match: { nodes.$node_id.roles.2: "master" }
+  - match: { nodes.$node_id.roles.3: "remote_cluster_client" }
+

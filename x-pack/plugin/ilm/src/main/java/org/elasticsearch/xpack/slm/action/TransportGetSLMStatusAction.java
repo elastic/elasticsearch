@@ -47,7 +47,7 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSL
     @Override
     protected void masterOperation(Task task, GetSLMStatusAction.Request request,
                                    ClusterState state, ActionListener<GetSLMStatusAction.Response> listener) {
-        SnapshotLifecycleMetadata metadata = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata metadata = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         final GetSLMStatusAction.Response response;
         if (metadata == null) {
             // no need to actually install metadata just yet, but safe to say it is not stopped

@@ -8,18 +8,15 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
@@ -30,12 +27,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrai
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
-import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +41,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TrainedModelDefinition.class);
     public static final String NAME = "trained_model_definition";
-    public static final String HEAP_MEMORY_ESTIMATION = "heap_memory_estimation";
 
     public static final ParseField TRAINED_MODEL = new ParseField("trained_model");
     public static final ParseField PREPROCESSORS = new ParseField("preprocessors");
@@ -57,11 +53,10 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         ObjectParser<TrainedModelDefinition.Builder, Void> parser = new ObjectParser<>(NAME,
             ignoreUnknownFields,
             TrainedModelDefinition.Builder::builderForParser);
-        parser.declareNamedObjects(TrainedModelDefinition.Builder::setTrainedModel,
+        parser.declareNamedObject(TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> ignoreUnknownFields ?
                 p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
                 p.namedObject(StrictlyParsedTrainedModel.class, n, null),
-            (modelDocBuilder) -> { /* Noop does not matter as we will throw if more than one is defined */ },
             TRAINED_MODEL);
         parser.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> ignoreUnknownFields ?
@@ -69,7 +64,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
                 p.namedObject(StrictlyParsedPreProcessor.class, n, null),
             (trainedModelDefBuilder) -> trainedModelDefBuilder.setProcessorsInOrder(true),
             PREPROCESSORS);
-        parser.declareString(TrainedModelDefinition.Builder::setModelId, TrainedModelConfig.MODEL_ID);
         return parser;
     }
 
@@ -77,31 +71,24 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
     }
 
-    public static String docId(String modelId) {
-        return NAME + "-" + modelId;
-    }
-
     private final TrainedModel trainedModel;
     private final List<PreProcessor> preProcessors;
-    private final String modelId;
+    private Map<String, String> decoderMap;
 
-    private TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors, @Nullable String modelId) {
+    private TrainedModelDefinition(TrainedModel trainedModel, List<PreProcessor> preProcessors) {
         this.trainedModel = ExceptionsHelper.requireNonNull(trainedModel, TRAINED_MODEL);
         this.preProcessors = preProcessors == null ? Collections.emptyList() : Collections.unmodifiableList(preProcessors);
-        this.modelId = modelId;
     }
 
     public TrainedModelDefinition(StreamInput in) throws IOException {
         this.trainedModel = in.readNamedWriteable(TrainedModel.class);
         this.preProcessors = in.readNamedWriteableList(PreProcessor.class);
-        this.modelId = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(trainedModel);
         out.writeNamedWriteableList(preProcessors);
-        out.writeOptionalString(modelId);
     }
 
     @Override
@@ -117,16 +104,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             true,
             PREPROCESSORS.getPreferredName(),
             preProcessors);
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
-            builder.humanReadableField(HEAP_MEMORY_ESTIMATION + "_bytes",
-                HEAP_MEMORY_ESTIMATION,
-                new ByteSizeValue(ramBytesUsed()));
-        }
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
-            assert modelId != null;
-            builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
-        }
         builder.endObject();
         return builder;
     }
@@ -139,13 +116,35 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         return preProcessors;
     }
 
-    private void preProcess(Map<String, Object> fields) {
+    void preProcess(Map<String, Object> fields) {
         preProcessors.forEach(preProcessor -> preProcessor.process(fields));
     }
 
     public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
         preProcess(fields);
-        return trainedModel.infer(fields, config);
+        if (config.requestingImportance() && trainedModel.supportsFeatureImportance() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "Feature importance is not supported for the configured model of type [{}]",
+                trainedModel.getName());
+        }
+        return trainedModel.infer(fields,
+            config,
+            config.requestingImportance() ? getDecoderMap() : Collections.emptyMap());
+    }
+
+    private Map<String, String> getDecoderMap() {
+        if (decoderMap != null) {
+            return decoderMap;
+        }
+        synchronized (this) {
+            if (decoderMap != null) {
+                return decoderMap;
+            }
+            this.decoderMap = preProcessors.stream()
+                .map(PreProcessor::reverseLookup)
+                .collect(HashMap::new, Map::putAll, Map::putAll);
+            return decoderMap;
+        }
     }
 
     @Override
@@ -159,13 +158,12 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinition that = (TrainedModelDefinition) o;
         return Objects.equals(trainedModel, that.trainedModel) &&
-            Objects.equals(preProcessors, that.preProcessors) &&
-            Objects.equals(modelId, that.modelId);
+            Objects.equals(preProcessors, that.preProcessors);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(trainedModel, preProcessors, modelId);
+        return Objects.hash(trainedModel, preProcessors);
     }
 
     @Override
@@ -190,7 +188,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
         private List<PreProcessor> preProcessors;
         private TrainedModel trainedModel;
-        private String modelId;
         private boolean processorsInOrder;
 
         private static Builder builderForParser() {
@@ -205,6 +202,12 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             this(true);
         }
 
+        public Builder(TrainedModelDefinition definition) {
+            this(true);
+            this.preProcessors = new ArrayList<>(definition.getPreProcessors());
+            this.trainedModel = definition.trainedModel;
+        }
+
         public Builder setPreProcessors(List<PreProcessor> preProcessors) {
             this.preProcessors = preProcessors;
             return this;
@@ -212,11 +215,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
 
         public Builder setTrainedModel(TrainedModel trainedModel) {
             this.trainedModel = trainedModel;
-            return this;
-        }
-
-        public Builder setModelId(String modelId) {
-            this.modelId = modelId;
             return this;
         }
 
@@ -236,7 +234,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             if (preProcessors != null && preProcessors.size() > 1 && processorsInOrder == false) {
                 throw new IllegalArgumentException("preprocessors must be an array of preprocessor objects");
             }
-            return new TrainedModelDefinition(this.trainedModel, this.preProcessors, this.modelId);
+            return new TrainedModelDefinition(this.trainedModel, this.preProcessors);
         }
     }
 

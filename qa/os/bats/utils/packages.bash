@@ -59,7 +59,7 @@ install_package() {
     local version=$(cat version)
     local rpmCommand='-i'
     local dir='./'
-    while getopts ":fuv:" opt; do
+    while getopts ":ufd:v:" opt; do
         case $opt in
             u)
                 rpmCommand='-U'
@@ -136,7 +136,7 @@ verify_package_installation() {
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
-    assert_file "$ESHOME/README.textile" f root root 644
+    assert_file "$ESHOME/README.asciidoc" f root root 644
 
     if is_dpkg; then
         # Env file

@@ -16,9 +16,12 @@ import java.io.IOException;
  */
 public class NullInferenceConfig implements InferenceConfig {
 
-    public static final NullInferenceConfig INSTANCE = new NullInferenceConfig();
+    private final boolean requestingFeatureImportance;
 
-    private NullInferenceConfig() { }
+
+    public NullInferenceConfig(boolean requestingFeatureImportance) {
+        this.requestingFeatureImportance = requestingFeatureImportance;
+    }
 
     @Override
     public boolean isTargetTypeSupported(TargetType targetType) {
@@ -37,6 +40,7 @@ public class NullInferenceConfig implements InferenceConfig {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("Unable to serialize NullInferenceConfig objects");
     }
 
     @Override
@@ -46,6 +50,11 @@ public class NullInferenceConfig implements InferenceConfig {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
+        throw new UnsupportedOperationException("Unable to write xcontent from NullInferenceConfig objects");
+    }
+
+    @Override
+    public boolean requestingImportance() {
+        return requestingFeatureImportance;
     }
 }

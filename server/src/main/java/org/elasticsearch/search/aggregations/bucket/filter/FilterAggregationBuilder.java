@@ -60,14 +60,14 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     protected FilterAggregationBuilder(FilterAggregationBuilder clone,
-                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.filter = clone.filter;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new FilterAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new FilterAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -84,6 +84,11 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         QueryBuilder result = Rewriteable.rewrite(filter, queryShardContext);
         if (result != filter) {
@@ -95,7 +100,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new FilterAggregatorFactory(name, filter, queryShardContext, parent, subFactoriesBuilder, metaData);
+        return new FilterAggregatorFactory(name, filter, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -106,7 +111,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
         return builder;
     }
 
-    public static FilterAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+    public static FilterAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
         QueryBuilder filter = parseInnerQueryBuilder(parser);
         return new FilterAggregationBuilder(aggregationName, filter);
     }

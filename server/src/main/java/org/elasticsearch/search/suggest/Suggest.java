@@ -190,7 +190,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * @return only suggestions of type <code>suggestionType</code> contained in this {@link Suggest} instance
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public <T extends Suggestion> List<T> filter(Class<T> suggestionType) {
          return suggestions.stream()
             .filter(suggestion -> suggestion.getClass() == suggestionType)

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -108,17 +109,22 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     }
 
     @Override
+    public Map<String, String> reverseLookup() {
+        return Collections.singletonMap(featureName, field);
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
     }
 
     @Override
     public void process(Map<String, Object> fields) {
-        String value = (String)fields.get(field);
+        Object value = MapHelper.dig(field, fields);
         if (value == null) {
             return;
         }
-        fields.put(featureName, meanMap.getOrDefault(value, defaultValue));
+        fields.put(featureName, meanMap.getOrDefault(value.toString(), defaultValue));
     }
 
     @Override
@@ -166,7 +172,8 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         long size = SHALLOW_SIZE;
         size += RamUsageEstimator.sizeOf(field);
         size += RamUsageEstimator.sizeOf(featureName);
-        size += RamUsageEstimator.sizeOfMap(meanMap);
+        // defSize:0 indicates that there is not a defined size. Finding the shallowSize of Double gives the best estimate
+        size += RamUsageEstimator.sizeOfMap(meanMap, 0);
         return size;
     }
 

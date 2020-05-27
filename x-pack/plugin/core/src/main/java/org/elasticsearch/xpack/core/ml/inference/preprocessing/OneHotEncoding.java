@@ -14,11 +14,14 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * PreProcessor for one hot encoding a set of categorical values for a given field.
@@ -80,18 +83,23 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     }
 
     @Override
+    public Map<String, String> reverseLookup() {
+        return hotMap.entrySet().stream().collect(Collectors.toMap(HashMap.Entry::getValue, (entry) -> field));
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
     }
 
     @Override
     public void process(Map<String, Object> fields) {
-        String value = (String)fields.get(field);
+        Object value = MapHelper.dig(field, fields);
         if (value == null) {
             return;
         }
         hotMap.forEach((val, col) -> {
-            int encoding = value.equals(val) ? 1 : 0;
+            int encoding = value.toString().equals(val) ? 1 : 0;
             fields.put(col, encoding);
         });
     }
@@ -134,7 +142,8 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
         size += RamUsageEstimator.sizeOf(field);
-        size += RamUsageEstimator.sizeOfMap(hotMap);
+        // defSize:0 does not do much in this case as sizeOf(String) is a known quantity
+        size += RamUsageEstimator.sizeOfMap(hotMap, 0);
         return size;
     }
 

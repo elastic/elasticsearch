@@ -20,14 +20,11 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -43,9 +40,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        UsageService usageService = new UsageService();
-        action = new RestNodesStatsAction(
-            new RestController(Collections.emptySet(), null, null, null, usageService));
+        action = new RestNodesStatsAction();
     }
 
     public void testUnrecognizedMetric() throws IOException {

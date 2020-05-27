@@ -32,8 +32,6 @@ esplugin {
   classname 'org.elasticsearch.transport.Netty4Plugin'
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
 dependencies {
   // network stack
   compile "io.netty:netty-buffer:${versions.netty}"
@@ -43,6 +41,12 @@ dependencies {
   compile "io.netty:netty-handler:${versions.netty}"
   compile "io.netty:netty-resolver:${versions.netty}"
   compile "io.netty:netty-transport:${versions.netty}"
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
 }
 
 dependencyLicenses {
@@ -112,6 +116,7 @@ thirdPartyAudit {
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
     'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.asn1.x500.X500Name',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
@@ -150,6 +155,7 @@ thirdPartyAudit {
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
     'com.ning.compress.lzf.LZFEncoder',
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
@@ -168,11 +174,13 @@ thirdPartyAudit {
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
 
-
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',
     'org.conscrypt.Conscrypt',
-    'org.conscrypt.HandshakeListener'
+    'org.conscrypt.HandshakeListener',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(
@@ -194,14 +202,4 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
-}
-
-rootProject.globalInfo.ready {
-  if (BuildParams.inFipsJvm == false) {
-    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-    // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.ignoreMissingClasses(
-      'org.bouncycastle.asn1.x500.X500Name'
-    )
-  }
 }

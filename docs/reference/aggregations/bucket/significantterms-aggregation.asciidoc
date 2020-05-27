@@ -63,7 +63,7 @@ set used for statistical comparisons is the index or indices from which the resu
 
 Example:
 
-[source,console]
+[source,console,id=significantterms-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -123,7 +123,7 @@ A simpler way to perform analysis across multiple categories is to use a parent-
 
 Example using a parent aggregation for segmentation:
 
-[source,console]
+[source,console,id=significantterms-aggregation-multiset--example]
 --------------------------------------------------
 GET /_search
 {
@@ -200,7 +200,7 @@ Now we have anomaly detection for each of the police forces using a single reque
 We can use other forms of top-level aggregations to segment our data, for example segmenting by geographic
 area to identify unusual hot-spots of a particular crime type:
 
-[source,console]
+[source,console,id=significantterms-aggregation-hotspot-example]
 --------------------------------------------------
 GET /_search
 {
@@ -460,7 +460,7 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
-[source,console]
+[source,console,id=significantterms-aggregation-min-document-example]
 --------------------------------------------------
 GET /_search
 {
@@ -503,7 +503,7 @@ The default source of statistical information for background term frequencies is
 scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
 context:
 
-[source,console]
+[source,console,id=significantterms-aggregation-custom-background-example]
 --------------------------------------------------
 GET /_search
 {
@@ -561,7 +561,7 @@ is significantly faster. By default, `map` is only used when running an aggregat
 ordinals.
 
 
-[source,console]
+[source,console,id=significantterms-aggregation-execution-hint-example]
 --------------------------------------------------
 GET /_search
 {

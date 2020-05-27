@@ -21,10 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.global;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,9 +30,8 @@ import java.util.Map;
  * regardless the query.
  */
 public class InternalGlobal extends InternalSingleBucketAggregation implements Global {
-    InternalGlobal(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, docCount, aggregations, pipelineAggregators, metaData);
+    InternalGlobal(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata) {
+        super(name, docCount, aggregations, metadata);
     }
 
     /**
@@ -51,6 +48,6 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
 
     @Override
     protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
-        return new InternalGlobal(name, docCount, subAggregations, pipelineAggregators(), getMetaData());
+        return new InternalGlobal(name, docCount, subAggregations, getMetadata());
     }
 }

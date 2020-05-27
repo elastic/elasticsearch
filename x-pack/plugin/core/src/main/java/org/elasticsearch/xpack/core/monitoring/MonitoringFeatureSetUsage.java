@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.monitoring;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,11 +30,15 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
         collectionEnabled = in.readOptionalBoolean();
     }
 
-    public MonitoringFeatureSetUsage(boolean available, boolean enabled,
-                                     boolean collectionEnabled, Map<String, Object> exporters) {
-        super(XPackField.MONITORING, available, enabled);
+    public MonitoringFeatureSetUsage(boolean available, boolean collectionEnabled, Map<String, Object> exporters) {
+        super(XPackField.MONITORING, available, true);
         this.exporters = exporters;
         this.collectionEnabled = collectionEnabled;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
     }
 
     public Map<String, Object> getExporters() {

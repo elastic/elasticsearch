@@ -28,7 +28,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.queries.XIntervals;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -78,6 +77,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class QueryAnalyzerTests extends ESTestCase {
 
@@ -1121,33 +1121,33 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("field", "term1"), new Term("field", "term2"),
             new Term("field", "term3"), new Term("field", "term4"));
 
-        source = Intervals.ordered(Intervals.term("term1"), XIntervals.wildcard(new BytesRef("a*")));
+        source = Intervals.ordered(Intervals.term("term1"), Intervals.wildcard(new BytesRef("a*")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, new Term("field", "term1"));
 
-        source = Intervals.ordered(XIntervals.wildcard(new BytesRef("a*")));
+        source = Intervals.ordered(Intervals.wildcard(new BytesRef("a*")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 
-        source = Intervals.or(Intervals.term("b"), XIntervals.wildcard(new BytesRef("a*")));
+        source = Intervals.or(Intervals.term("b"), Intervals.wildcard(new BytesRef("a*")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 
-        source = Intervals.ordered(Intervals.term("term1"), XIntervals.prefix(new BytesRef("a")));
+        source = Intervals.ordered(Intervals.term("term1"), Intervals.prefix(new BytesRef("a")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, new Term("field", "term1"));
 
-        source = Intervals.ordered(XIntervals.prefix(new BytesRef("a")));
+        source = Intervals.ordered(Intervals.prefix(new BytesRef("a")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 
-        source = Intervals.or(Intervals.term("b"), XIntervals.prefix(new BytesRef("a")));
+        source = Intervals.or(Intervals.term("b"), Intervals.prefix(new BytesRef("a")));
         result = analyze(new IntervalQuery("field", source), Version.CURRENT);
         assertEquals(Result.UNKNOWN, result);
 
@@ -1206,6 +1206,174 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.matchAllDocs, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, new Term("field", "a"));
+    }
+
+    public void testRangeAndTermWithNestedMSM() {
+
+        Query q1 = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("f", "v3")), Occur.SHOULD)
+            .add(new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("f", "n1")), Occur.SHOULD)
+                .build(), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v4")), Occur.SHOULD)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result r1 = analyze(q1, Version.CURRENT);
+        assertEquals(2, r1.minimumShouldMatch);
+        assertThat(r1.extractions, hasSize(3));
+        assertFalse(r1.matchAllDocs);
+        assertTrue(r1.verified);
+
+        Query q = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 0, 10), Occur.FILTER)
+            .add(new TermQuery(new Term("f", "v1")), Occur.MUST)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .add(IntPoint.newRangeQuery("i", 2, 20), Occur.FILTER)
+            .add(new TermQuery(new Term("f", "v3")), Occur.SHOULD)
+            .add(new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("f", "n1")), Occur.SHOULD)
+                .build(), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v4")), Occur.SHOULD)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result r = analyze(q, Version.CURRENT);
+        assertThat(r.minimumShouldMatch, equalTo(5));
+        assertThat(r.extractions, hasSize(7));
+        assertFalse(r.matchAllDocs);
+        assertFalse(r.verified);
+    }
+
+    public void testCombinedRangeAndTermWithMinimumShouldMatch() {
+
+        Query disj = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 0, 10), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result r = analyze(disj, Version.CURRENT);
+        assertThat(r.minimumShouldMatch, equalTo(1));
+        assertThat(r.extractions, hasSize(2));
+        assertFalse(r.matchAllDocs);
+        assertFalse(r.verified);
+
+        Query q = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 0, 10), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.FILTER)
+            .setMinimumNumberShouldMatch(2)
+            .build();
+
+        Result result = analyze(q, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(2));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        q = new BooleanQuery.Builder()
+            .add(q, Occur.MUST)
+            .add(q, Occur.MUST)
+            .build();
+
+        result = analyze(q, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(2));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        Query q2 = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("f", "v1")), Occur.FILTER)
+            .add(IntPoint.newRangeQuery("i", 15, 20), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .setMinimumNumberShouldMatch(1)
+            .build();
+
+        result = analyze(q2, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(3));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple range queries on different fields
+        Query q3 = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 15, 20), Occur.SHOULD)
+            .add(IntPoint.newRangeQuery("i2", 15, 20), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .setMinimumNumberShouldMatch(1)
+            .build();
+        result = analyze(q3, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(4));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple disjoint range queries on the same field
+        Query q4 = new BooleanQuery.Builder()
+            .add(IntPoint.newRangeQuery("i", 15, 20), Occur.SHOULD)
+            .add(IntPoint.newRangeQuery("i", 25, 30), Occur.SHOULD)
+            .add(IntPoint.newRangeQuery("i", 35, 40), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v1")), Occur.SHOULD)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .setMinimumNumberShouldMatch(1)
+            .build();
+        result = analyze(q4, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(5));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple conjunction range queries on the same field
+        Query q5 = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 15, 20), Occur.MUST)
+                .add(IntPoint.newRangeQuery("i", 25, 30), Occur.MUST)
+                .build(), Occur.MUST)
+            .add(IntPoint.newRangeQuery("i", 35, 40), Occur.MUST)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .build();
+        result = analyze(q5, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions, hasSize(4));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // multiple conjunction range queries on different fields
+        Query q6 = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 15, 20), Occur.MUST)
+                .add(IntPoint.newRangeQuery("i2", 25, 30), Occur.MUST)
+                .build(), Occur.MUST)
+            .add(IntPoint.newRangeQuery("i", 35, 40), Occur.MUST)
+            .add(new TermQuery(new Term("f", "v2")), Occur.MUST)
+            .build();
+        result = analyze(q6, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertThat(result.extractions, hasSize(4));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
+
+        // mixed term and range conjunctions
+        Query q7 = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 1, 2), Occur.MUST)
+                .add(new TermQuery(new Term("f", "1")), Occur.MUST)
+                .build(), Occur.MUST)
+            .add(new BooleanQuery.Builder()
+                .add(IntPoint.newRangeQuery("i", 1, 2), Occur.MUST)
+                .add(new TermQuery(new Term("f", "2")), Occur.MUST)
+                .build(), Occur.MUST)
+            .build();
+        result = analyze(q7, Version.CURRENT);
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertThat(result.extractions, hasSize(3));
+        assertFalse(result.verified);
+        assertFalse(result.matchAllDocs);
     }
 
 }

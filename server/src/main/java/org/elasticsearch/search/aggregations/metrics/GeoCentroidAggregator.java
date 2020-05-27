@@ -30,12 +30,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,9 +45,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     private LongArray counts;
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
-                                    ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
-                                    Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+                                    ValuesSource.GeoPoint valuesSource, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -68,6 +65,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         }
         final BigArrays bigArrays = context.bigArrays();
         final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+        final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
+        final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
+
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -88,8 +88,8 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     double sumLon = lonSum.get(bucket);
                     double compensationLon = lonCompensations.get(bucket);
 
-                    CompensatedSum compensatedSumLat = new CompensatedSum(sumLat, compensationLat);
-                    CompensatedSum compensatedSumLon = new CompensatedSum(sumLon, compensationLon);
+                    compensatedSumLat.reset(sumLat, compensationLat);
+                    compensatedSumLon.reset(sumLon, compensationLon);
 
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
@@ -117,12 +117,12 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         final GeoPoint bucketCentroid = (bucketCount > 0)
                 ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
                 : null;
-        return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
+        return new InternalGeoCentroid(name, bucketCentroid , bucketCount, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoCentroid(name, null, 0L, pipelineAggregators(), metaData());
+        return new InternalGeoCentroid(name, null, 0L, metadata());
     }
 
     @Override

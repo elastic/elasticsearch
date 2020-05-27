@@ -40,11 +40,20 @@ import java.util.List;
  * The intention is to confirm that users can still run their Elasticsearch instances with previous configurations.
  */
 public class CustomLoggingConfigIT extends ESRestTestCase {
-    private static final String NODE_STARTED = ".*integTest-0.*cluster.uuid.*node.id.*recovered.*cluster_state.*";
+    //we are looking for a line where pattern contains:
+    // [2020-03-20T14:51:59,989][INFO ][o.e.g.GatewayService     ] [integTest-0] recovered [0] indices into cluster_state
+    private static final String NODE_STARTED = ".*recovered.*cluster_state.*";
 
     public void testSuccessfulStartupWithCustomConfig() throws Exception {
         assertBusy(() -> {
-            List<String> lines = readAllLines(getLogFile());
+            List<String> lines = readAllLines(getPlaintextLogFile());
+            assertThat(lines, Matchers.hasItem(RegexMatcher.matches(NODE_STARTED)));
+        });
+    }
+
+    public void testParseAllV7JsonLines() throws Exception {
+        assertBusy(() -> {
+            List<String> lines = readAllLines(getJSONLogFile());
             assertThat(lines, Matchers.hasItem(RegexMatcher.matches(NODE_STARTED)));
         });
     }
@@ -60,7 +69,18 @@ public class CustomLoggingConfigIT extends ESRestTestCase {
     }
 
     @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
-    private Path getLogFile() {
+    private Path getJSONLogFile() {
+        String logFileString = System.getProperty("tests.logfile");
+        if (logFileString == null) {
+            fail("tests.logfile must be set to run this test. It is automatically "
+                + "set by gradle. If you must set it yourself then it should be the absolute path to the "
+                + "log file.");
+        }
+        return Paths.get(logFileString);
+    }
+
+    @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
+    private Path getPlaintextLogFile() {
         String logFileString = System.getProperty("tests.logfile");
         if (logFileString == null) {
             fail("tests.logfile must be set to run this test. It is automatically "

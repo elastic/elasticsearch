@@ -1,8 +1,7 @@
 [[recovery]]
-=== Index recovery
+=== Index recovery settings
 
-Peer recovery syncs data from a primary shard to a new or
-existing shard copy.
+Peer recovery syncs data from a primary shard to a new or existing shard copy.
 
 Peer recovery automatically occurs when {es}:
 
@@ -16,25 +15,35 @@ You can view a list of in-progress and completed recoveries using the
 [float]
 ==== Peer recovery settings
 
-`indices.recovery.max_bytes_per_sec` (<<cluster-update-settings,Dynamic>>)::
-Limits total inbound and outbound recovery traffic for each node.
-Defaults to `40mb`.
+`indices.recovery.max_bytes_per_sec`::
+(<<cluster-update-settings,Dynamic>>) Limits total inbound and outbound
+recovery traffic for each node. Defaults to `40mb`.
 +
-This limit applies to nodes only. If multiple nodes in a cluster perform
-recoveries at the same time, the cluster's total recovery traffic may exceed
-this limit.
+This limit applies to each node separately. If multiple nodes in a cluster
+perform recoveries at the same time, the cluster's total recovery traffic may
+exceed this limit.
 +
-If this limit is too high, ongoing recoveries may consume an excess
-of bandwidth and other resources, which can destabilize the cluster.
+If this limit is too high, ongoing recoveries may consume an excess of bandwidth
+and other resources, which can destabilize the cluster.
++
+This is a dynamic setting, which means you can set it in each node's
+`elasticsearch.yml` config file and you can update it dynamically using the
+<<cluster-update-settings,cluster update settings API>>. If you set it
+dynamically then the same limit applies on every node in the cluster. If you do
+not set it dynamically then you can set a different limit on each node, which is
+useful if some of your nodes have better bandwidth than others. For example, if
+you are using <<overview-index-lifecycle-management,Index Lifecycle Management>>
+then you may be able to give your hot nodes a higher recovery bandwidth limit
+than your warm nodes.
 
 [float]
 ==== Expert peer recovery settings
 You can use the following _expert_ setting to manage resources for peer
 recoveries.
 
-`indices.recovery.max_concurrent_file_chunks` (<<cluster-update-settings,Dynamic>>, Expert)::
-Number of file chunk requests sent in parallel for each recovery. Defaults to
-`2`.
+`indices.recovery.max_concurrent_file_chunks`::
+(<<cluster-update-settings,Dynamic>>, Expert) Number of file chunk requests
+sent in parallel for each recovery. Defaults to `2`.
 +
 You can increase the value of this setting when the recovery of a single shard
 is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`.

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -43,7 +44,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -51,12 +52,12 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).isAllowed(Feature.MONITORING);
         }
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(true);
         // this controls the blockage
         whenLocalNodeElectedMaster(false);
 
@@ -66,13 +67,13 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
         final ShardsCollector collector = new ShardsCollector(clusterService, licenseState);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).isMonitoringAllowed();
+        verify(licenseState).isAllowed(Feature.MONITORING);
     }
 
     public void testDoCollectWhenNoClusterState() throws Exception {
@@ -111,8 +112,8 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));

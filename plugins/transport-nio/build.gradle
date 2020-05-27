@@ -18,7 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "nebula.maven-scm"
+apply plugin: "elasticsearch.publish"
 
 esplugin {
   description 'The nio transport.'
@@ -64,6 +64,7 @@ thirdPartyAudit {
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
     'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.asn1.x500.X500Name',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
@@ -102,6 +103,7 @@ thirdPartyAudit {
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
     'com.ning.compress.lzf.LZFEncoder',
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
@@ -130,6 +132,9 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(
@@ -154,12 +159,4 @@ thirdPartyAudit {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
 }
-rootProject.globalInfo.ready {
-  if (BuildParams.inFipsJvm == false) {
-    // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-    // a FIPS JVM with BouncyCastleFIPS Provider
-    thirdPartyAudit.ignoreMissingClasses(
-      'org.bouncycastle.asn1.x500.X500Name'
-    )
-  }
-}
+

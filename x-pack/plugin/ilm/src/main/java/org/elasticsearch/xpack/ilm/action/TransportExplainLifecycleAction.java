@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -81,7 +81,7 @@ public class TransportExplainLifecycleAction
             ActionListener<ExplainLifecycleResponse> listener) {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (String index : concreteIndices) {
-            IndexMetaData idxMetadata = state.metaData().index(index);
+            IndexMetadata idxMetadata = state.metadata().index(index);
             Settings idxSettings = idxMetadata.getSettings();
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMetadata);
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
@@ -121,6 +121,8 @@ public class TransportExplainLifecycleAction
                         lifecycleState.getPhaseTime(),
                         lifecycleState.getActionTime(),
                         lifecycleState.getStepTime(),
+                        lifecycleState.getSnapshotRepository(),
+                        lifecycleState.getSnapshotName(),
                         stepInfoBytes,
                         phaseExecutionInfo);
                 } else {

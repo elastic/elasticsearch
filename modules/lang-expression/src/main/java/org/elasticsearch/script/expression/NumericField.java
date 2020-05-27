@@ -19,7 +19,7 @@ package org.elasticsearch.script.expression;
  * under the License.
  */
 
-import org.apache.lucene.queries.function.ValueSource;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -46,7 +46,7 @@ final class NumericField {
     static final String SUM_METHOD              = "sum";
     static final String COUNT_METHOD            = "count";
 
-    static ValueSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
+    static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
             case VALUE_VARIABLE:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
@@ -60,7 +60,7 @@ final class NumericField {
         }
     }
 
-    static ValueSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
+    static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
         switch (method) {
             case GETVALUE_METHOD:
                 return new FieldDataValueSource(fieldData, MultiValueMode.MIN);

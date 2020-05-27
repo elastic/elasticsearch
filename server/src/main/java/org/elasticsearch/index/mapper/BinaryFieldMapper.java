@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -36,10 +35,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -62,7 +63,7 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, BinaryFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -133,7 +134,12 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new BytesBinaryDVIndexFieldData.Builder();
+            return new BytesBinaryIndexFieldData.Builder();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return CoreValuesSourceType.BYTES;
         }
 
         @Override
@@ -157,7 +163,7 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (!fieldType().stored() && !fieldType().hasDocValues()) {
             return;
         }
@@ -173,7 +179,7 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().stored()) {
-            fields.add(new Field(fieldType().name(), value, fieldType()));
+            context.doc().add(new Field(fieldType().name(), value, fieldType()));
         }
 
         if (fieldType().hasDocValues()) {
@@ -188,8 +194,13 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
+
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }
 

@@ -34,8 +34,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -66,8 +66,6 @@ public class TaskResultsService {
     private static final Logger logger = LogManager.getLogger(TaskResultsService.class);
 
     public static final String TASK_INDEX = ".tasks";
-
-    public static final String TASK_TYPE = "task";
 
     public static final String TASK_RESULT_INDEX_MAPPING_FILE = "task-index-mapping.json";
 
@@ -103,7 +101,7 @@ public class TaskResultsService {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest();
             createIndexRequest.settings(taskResultIndexSettings());
             createIndexRequest.index(TASK_INDEX);
-            createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
+            createIndexRequest.mapping(taskResultIndexMapping());
             createIndexRequest.cause("auto(task api)");
 
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
@@ -128,8 +126,8 @@ public class TaskResultsService {
                 }
             });
         } else {
-            IndexMetaData metaData = state.getMetaData().index(TASK_INDEX);
-            if (getTaskResultMappingVersion(metaData) < TASK_RESULT_MAPPING_VERSION) {
+            IndexMetadata metadata = state.getMetadata().index(TASK_INDEX);
+            if (getTaskResultMappingVersion(metadata) < TASK_RESULT_MAPPING_VERSION) {
                 // The index already exists but doesn't have our mapping
                 client.admin().indices().preparePutMapping(TASK_INDEX)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
@@ -140,12 +138,12 @@ public class TaskResultsService {
         }
     }
 
-    private int getTaskResultMappingVersion(IndexMetaData metaData) {
-        MappingMetaData mappingMetaData = metaData.mapping();
-        if (mappingMetaData == null) {
+    private int getTaskResultMappingVersion(IndexMetadata metadata) {
+        MappingMetadata mappingMetadata = metadata.mapping();
+        if (mappingMetadata == null) {
             return 0;
         }
-        @SuppressWarnings("unchecked") Map<String, Object> meta = (Map<String, Object>) mappingMetaData.sourceAsMap().get("_meta");
+        @SuppressWarnings("unchecked") Map<String, Object> meta = (Map<String, Object>) mappingMetadata.sourceAsMap().get("_meta");
         if (meta == null || meta.containsKey(TASK_RESULT_MAPPING_VERSION_META_FIELD) == false) {
             return 1; // The mapping was created before meta field was introduced
         }
@@ -186,9 +184,9 @@ public class TaskResultsService {
 
     private Settings taskResultIndexSettings() {
         return Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
-            .put(IndexMetaData.SETTING_PRIORITY, Integer.MAX_VALUE)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
+            .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
             .build();
     }
 

@@ -15,18 +15,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.utils.TransformStrings;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
 
 public class PutTransformAction extends ActionType<AcknowledgedResponse> {
 
@@ -71,46 +69,46 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if(config.getPivotConfig() != null
+            if (config.getPivotConfig() != null
                 && config.getPivotConfig().getMaxPageSearchSize() != null
                 && (config.getPivotConfig().getMaxPageSearchSize() < 10 || config.getPivotConfig().getMaxPageSearchSize() > 10_000)) {
                 validationException = addValidationError(
-                    "pivot.max_page_search_size [" +
-                        config.getPivotConfig().getMaxPageSearchSize() + "] must be greater than 10 and less than 10,000",
-                    validationException);
+                    "pivot.max_page_search_size ["
+                        + config.getPivotConfig().getMaxPageSearchSize()
+                        + "] must be greater than 10 and less than 10,000",
+                    validationException
+                );
             }
-            for(String failure : config.getPivotConfig().aggFieldValidation()) {
+            for (String failure : config.getPivotConfig().aggFieldValidation()) {
                 validationException = addValidationError(failure, validationException);
             }
-            String destIndex = config.getDestination().getIndex();
-            try {
-                validateIndexOrAliasName(destIndex, InvalidIndexNameException::new);
-                if (!destIndex.toLowerCase(Locale.ROOT).equals(destIndex)) {
-                    validationException = addValidationError("dest.index [" + destIndex +"] must be lowercase", validationException);
-                }
-            } catch (InvalidIndexNameException ex) {
-                validationException = addValidationError(ex.getMessage(), validationException);
-            }
+
+            validationException = SourceDestValidator.validateRequest(validationException, config.getDestination().getIndex());
+
             if (TransformStrings.isValidId(config.getId()) == false) {
                 validationException = addValidationError(
                     TransformMessages.getMessage(TransformMessages.INVALID_ID, TransformField.ID.getPreferredName(), config.getId()),
-                    validationException);
+                    validationException
+                );
             }
             if (TransformStrings.hasValidLengthForId(config.getId()) == false) {
                 validationException = addValidationError(
                     TransformMessages.getMessage(TransformMessages.ID_TOO_LONG, TransformStrings.ID_LENGTH_LIMIT),
-                    validationException);
+                    validationException
+                );
             }
             TimeValue frequency = config.getFrequency();
             if (frequency != null) {
                 if (frequency.compareTo(MIN_FREQUENCY) < 0) {
                     validationException = addValidationError(
                         "minimum permitted [" + TransformField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
-                        validationException);
+                        validationException
+                    );
                 } else if (frequency.compareTo(MAX_FREQUENCY) > 0) {
                     validationException = addValidationError(
                         "highest permitted [" + TransformField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
-                        validationException);
+                        validationException
+                    );
                 }
             }
 

@@ -18,8 +18,7 @@
  */
 
 apply plugin: 'nebula.optional-base'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
@@ -34,7 +33,7 @@ dependencies {
   }
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // :libs:elasticsearch-core does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
   replaceSignatureFiles 'jdk-signatures'

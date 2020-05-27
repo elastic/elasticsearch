@@ -55,7 +55,7 @@ public class QueryStringWithAnalyzersTests extends ESIntegTestCase {
                         .put("analysis.filter.custom_word_delimiter.split_on_case_change", "false")
                         .put("analysis.filter.custom_word_delimiter.split_on_numerics", "false")
                         .put("analysis.filter.custom_word_delimiter.stem_english_possessive", "false"))
-                .addMapping("type1",
+                .setMapping(
                         "field1", "type=text,analyzer=my_analyzer",
                         "field2", "type=text,analyzer=my_analyzer"));
 

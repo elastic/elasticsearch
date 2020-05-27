@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -34,7 +35,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
@@ -50,10 +50,13 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -72,6 +75,7 @@ public abstract class MappedFieldType extends FieldType {
     private Object nullValue;
     private String nullValueAsString; // for sending null value to _all field
     private boolean eagerGlobalOrdinals;
+    private Map<String, String> meta;
 
     protected MappedFieldType(MappedFieldType ref) {
         super(ref);
@@ -80,11 +84,12 @@ public abstract class MappedFieldType extends FieldType {
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
-        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
+        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
         this.similarity = ref.similarity();
         this.nullValue = ref.nullValue();
         this.nullValueAsString = ref.nullValueAsString();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
+        this.meta = ref.meta;
     }
 
     public MappedFieldType() {
@@ -94,6 +99,7 @@ public abstract class MappedFieldType extends FieldType {
         setOmitNorms(false);
         setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
         setBoost(1.0f);
+        meta = Collections.emptyMap();
     }
 
     @Override
@@ -112,6 +118,16 @@ public abstract class MappedFieldType extends FieldType {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
+    /**
+     * Returns the {@link ValuesSourceType} which supports this field type.  This is tightly coupled to field data and aggregations support,
+     * so any implementation that returns a value from {@link MappedFieldType#fielddataBuilder} should also return a value from  here.
+     *
+     * @return The appropriate {@link ValuesSourceType} for this field type.
+     */
+    public ValuesSourceType getValuesSourceType() {
+        throw new IllegalArgumentException("Aggregations are not supported on field [" + name() + "] of type [" + typeName() + "]");
+    }
+
     @Override
     public boolean equals(Object o) {
         if (!super.equals(o)) return false;
@@ -126,82 +142,21 @@ public abstract class MappedFieldType extends FieldType {
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(nullValue, fieldType.nullValue) &&
             Objects.equals(nullValueAsString, fieldType.nullValueAsString) &&
-            Objects.equals(similarity, fieldType.similarity);
+            Objects.equals(similarity, fieldType.similarity) &&
+            Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
-            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
+        int hash = Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
+            eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString, meta);
+        return hash;
     }
 
     // TODO: we need to override freeze() and add safety checks that all settings are actually set
 
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
-
-    /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    private void checkTypeName(MappedFieldType other) {
-        if (typeName().equals(other.typeName()) == false) {
-            throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName()
-                + "] to [" + other.typeName() + "]");
-        } else if (getClass() != other.getClass()) {
-            throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and "
-                + other.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * Checks for any conflicts between this field type and other.
-     * If strict is true, all properties must be equal.
-     * Otherwise, only properties which must never change in an index are checked.
-     */
-    public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-        checkTypeName(other);
-
-        boolean indexed =  indexOptions() != IndexOptions.NONE;
-        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
-        // TODO: should be validating if index options go "up" (but "down" is ok)
-        if (indexed != mergeWithIndexed) {
-            conflicts.add("mapper [" + name() + "] has different [index] values");
-        }
-        if (stored() != other.stored()) {
-            conflicts.add("mapper [" + name() + "] has different [store] values");
-        }
-        if (hasDocValues() != other.hasDocValues()) {
-            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
-        }
-        if (omitNorms() && !other.omitNorms()) {
-            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
-        }
-        if (storeTermVectors() != other.storeTermVectors()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
-        }
-        if (storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
-        }
-        if (storeTermVectorPositions() != other.storeTermVectorPositions()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
-        }
-        if (storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
-            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
-        }
-
-        // null and "default"-named index analyzers both mean the default is used
-        if (indexAnalyzer() == null || "default".equals(indexAnalyzer().name())) {
-            if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
-                conflicts.add("mapper [" + name() + "] has different [analyzer]");
-            }
-        } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        } else if (indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [analyzer]");
-        }
-
-        if (Objects.equals(similarity(), other.similarity()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
-    }
 
     public String name() {
         return name;
@@ -344,20 +299,21 @@ public abstract class MappedFieldType extends FieldType {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
-    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions,
+                            QueryShardContext context) {
         throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name
+        throw new QueryShardException(context, "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
                                QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use wildcard queries on keyword and text fields - not on [" + name
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
@@ -413,10 +369,10 @@ public abstract class MappedFieldType extends FieldType {
      *  {@link Relation#INTERSECTS}, which is always fine to return when there is
      *  no way to check whether values are actually within bounds. */
     public Relation isFieldWithinQuery(
-        IndexReader reader,
-        Object from, Object to,
-        boolean includeLower, boolean includeUpper,
-        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+            IndexReader reader,
+            Object from, Object to,
+            boolean includeLower, boolean includeUpper,
+            ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 
@@ -433,7 +389,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (indexOptions() == IndexOptions.NONE && pointDataDimensionCount() == 0) {
+        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
@@ -490,4 +446,18 @@ public abstract class MappedFieldType extends FieldType {
         return ((TermQuery) termQuery).getTerm();
     }
 
+    /**
+     * Get the metadata associated with this field.
+     */
+    public Map<String, String> meta() {
+        return meta;
+    }
+
+    /**
+     * Associate metadata with this field.
+     */
+    public void setMeta(Map<String, String> meta) {
+        checkIfFrozen();
+        this.meta = Map.copyOf(Objects.requireNonNull(meta));
+    }
 }

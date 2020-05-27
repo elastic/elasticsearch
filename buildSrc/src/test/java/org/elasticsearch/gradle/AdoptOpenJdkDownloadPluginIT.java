@@ -25,11 +25,6 @@ import java.io.InputStream;
 public class AdoptOpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
 
     @Override
-    public String oldJdkVersion() {
-        return "1+99";
-    }
-
-    @Override
     public String jdkVersion() {
         return "12.0.2+10";
     }
@@ -40,13 +35,9 @@ public class AdoptOpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
     }
 
     @Override
-    protected String urlPath(final boolean isOld, final String platform, final String extension) {
+    protected String urlPath(final String version, final String platform, final String extension) {
         final String module = platform.equals("osx") ? "mac" : platform;
-        if (isOld) {
-            return "/adoptopenjdk/OpenJDK1U-jdk_x64_" + module + "_hotspot_1_99." + extension;
-        } else {
-            return "/adoptopenjdk/OpenJDK12U-jdk_x64_" + module + "_hotspot_12.0.2_10." + extension;
-        }
+        return "/jdk-12.0.2+10/" + module + "/x64/jdk/hotspot/normal/adoptopenjdk";
     }
 
     @Override

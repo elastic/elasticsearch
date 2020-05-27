@@ -22,8 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,15 +51,15 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> building initial cluster state");
         AllocationId allocationId = AllocationId.newRelocation(AllocationId.newInitializing());
-        final IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(2).numberOfReplicas(0)
                 .putInSyncAllocationIds(1, Collections.singleton(allocationId.getId()))
                 .build();
-        final Index index = indexMetaData.getIndex();
+        final Index index = indexMetadata.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
-                .metaData(MetaData.builder().put(indexMetaData, false));
+                .metadata(Metadata.builder().put(indexMetadata, false));
 
         final ShardRouting initShard = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1",
             true, ShardRoutingState.INITIALIZING);
@@ -101,17 +101,17 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             replicaId = AllocationId.newRelocation(replicaId);
         }
 
-        final IndexMetaData indexMetaData = IndexMetaData.builder("test")
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(1)
             .putInSyncAllocationIds(0,
                 relocatingReplica ? Sets.newHashSet(primaryId.getId(), replicaId.getId()) : Sets.newHashSet(primaryId.getId()))
             .build();
-        final Index index = indexMetaData.getIndex();
+        final Index index = indexMetadata.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))
                 .add(newNode("node3")).add(newNode("node4")))
-            .metaData(MetaData.builder().put(indexMetaData, false));
+            .metadata(Metadata.builder().put(indexMetadata, false));
 
         final ShardRouting relocatingPrimary = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1",
             "node2", true, ShardRoutingState.RELOCATING, primaryId);

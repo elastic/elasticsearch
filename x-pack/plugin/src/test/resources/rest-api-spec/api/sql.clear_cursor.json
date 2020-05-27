@@ -1,7 +1,8 @@
 {
   "sql.clear_cursor":{
     "documentation":{
-      "url":"Clear SQL cursor"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-pagination.html",
+      "description":"Clears the SQL cursor"
     },
     "stability":"stable",
     "url":{

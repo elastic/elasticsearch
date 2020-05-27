@@ -57,15 +57,15 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
         for (int i = 0; i < numberOfFeatures; i++) {
             featureNames.add(randomAlphaOfLength(10));
         }
-        return buildRandomTree(featureNames,  6);
+        return buildRandomTree(featureNames,  6, randomFrom(TargetType.values()));
     }
 
-    public static Tree buildRandomTree(List<String> featureNames, int depth) {
-        int numFeatures = featureNames.size();
+    public static Tree buildRandomTree(List<String> featureNames, int depth, TargetType targetType) {
+        int maxFeatureIndex = featureNames.size() -1;
         Tree.Builder builder = Tree.builder();
         builder.setFeatureNames(featureNames);
 
-        TreeNode.Builder node = builder.addJunction(0, randomInt(numFeatures), true, randomDouble());
+        TreeNode.Builder node = builder.addJunction(0, randomInt(maxFeatureIndex), true, randomDouble());
         List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
 
         for (int i = 0; i < depth -1; i++) {
@@ -76,7 +76,7 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
                     builder.addLeaf(nodeId, randomDouble());
                 } else {
                     TreeNode.Builder childNode =
-                        builder.addJunction(nodeId, randomInt(numFeatures), true, randomDouble());
+                        builder.addJunction(nodeId, randomInt(maxFeatureIndex), true, randomDouble());
                     nextNodes.add(childNode.getLeftChild());
                     nextNodes.add(childNode.getRightChild());
                 }
@@ -84,11 +84,11 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
             childNodes = nextNodes;
         }
         List<String> categoryLabels = null;
-        if (randomBoolean()) {
+        if (randomBoolean() && targetType.equals(TargetType.CLASSIFICATION)) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
         return builder.setClassificationLabels(categoryLabels)
-            .setTargetType(randomFrom(TargetType.values()))
+            .setTargetType(targetType)
             .build();
     }
 

@@ -32,7 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -60,7 +59,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see AcknowledgedResponse
  */
-public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
@@ -110,7 +109,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         } else if (source.isEmpty()) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
-        if (concreteIndex != null && (indices != null && indices.length > 0)) {
+        if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
             validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
                 + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
         }
@@ -174,8 +173,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Also supports metadata mapping fields such as `_all` and `_parent` as property definition, these metadata
      * mapping fields will automatically be put on the top level mapping object.
      */
-    public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(MapperService.SINGLE_MAPPING_NAME, source));
+    public PutMappingRequest source(String... source) {
+        return source(simpleMapping(source));
     }
 
     public String origin() {
@@ -189,8 +188,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type
-     *            the mapping type
      * @param source
      *            consisting of field/properties pairs (e.g. "field1",
      *            "type=string,store=true")
@@ -198,22 +195,19 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
-    public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+    public static XContentBuilder simpleMapping(String... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
         }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            if (type != null) {
-                builder.startObject(type);
-            }
 
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     builder.startObject(fieldName);
-                    String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                    String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
                         String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
@@ -227,13 +221,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
             builder.startObject("properties");
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     continue;
                 }
 
                 builder.startObject(fieldName);
-                String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {
@@ -244,9 +238,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 builder.endObject();
             }
             builder.endObject();
-            if (type != null) {
-                builder.endObject();
-            }
             builder.endObject();
             return builder;
         } catch (Exception e) {
@@ -305,17 +296,5 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (source != null) {
-            try (InputStream stream = new BytesArray(source).streamInput()) {
-                builder.rawValue(stream, XContentType.JSON);
-            }
-        } else {
-            builder.startObject().endObject();
-        }
-        return builder;
     }
 }

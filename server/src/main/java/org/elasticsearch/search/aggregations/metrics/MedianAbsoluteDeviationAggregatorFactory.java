@@ -20,47 +20,73 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double compression;
 
     MedianAbsoluteDeviationAggregatorFactory(String name,
-                                                    ValuesSourceConfig<ValuesSource.Numeric> config,
-                                                    QueryShardContext queryShardContext,
-                                                    AggregatorFactory parent,
-                                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                                    Map<String, Object> metaData,
-                                                    double compression) throws IOException {
+                                             ValuesSourceConfig config,
+                                             QueryShardContext queryShardContext,
+                                             AggregatorFactory parent,
+                                             AggregatorFactories.Builder subFactoriesBuilder,
+                                             Map<String, Object> metadata,
+                                             double compression) throws IOException {
 
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
+    }
+
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(MedianAbsoluteDeviationAggregationBuilder.NAME,
+            CoreValuesSourceType.NUMERIC,
+            new MedianAbsoluteDeviationAggregatorSupplier() {
+                @Override
+                public Aggregator build(String name,
+                                        ValuesSource valuesSource,
+                                        DocValueFormat format,
+                                        SearchContext context,
+                                        Aggregator parent,
+                                        Map<String, Object> metadata,
+                                        double compression) throws IOException {
+                    return new MedianAbsoluteDeviationAggregator(
+                        name,
+                        context,
+                        parent,
+                        metadata,
+                        (ValuesSource.Numeric) valuesSource,
+                        format,
+                        compression
+                    );
+                }
+            });
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                        Aggregator parent,
+                                        Map<String, Object> metadata) throws IOException {
 
         return new MedianAbsoluteDeviationAggregator(
             name,
             searchContext,
             parent,
-            pipelineAggregators,
-            metaData,
+            metadata,
             null,
             config.format(),
             compression
@@ -68,22 +94,19 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
-                                            Map<String, Object> metaData) throws IOException {
+                                            Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+            MedianAbsoluteDeviationAggregationBuilder.NAME);
 
-        return new MedianAbsoluteDeviationAggregator(
-            name,
-            searchContext,
-            parent,
-            pipelineAggregators,
-            metaData,
-            valuesSource,
-            config.format(),
-            compression
-        );
+        if (aggregatorSupplier instanceof MedianAbsoluteDeviationAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MedianAbsoluteDeviationAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((MedianAbsoluteDeviationAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(),
+            searchContext, parent, metadata, compression);
     }
 }

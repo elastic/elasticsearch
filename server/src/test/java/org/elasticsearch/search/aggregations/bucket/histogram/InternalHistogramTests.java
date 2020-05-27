@@ -20,20 +20,11 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
-import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
@@ -80,10 +71,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected InternalHistogram createTestInstance(String name,
-                                                   List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData,
-                                                   InternalAggregations aggregations) {
+    protected InternalHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final double base = round(randomInt(50) - 30);
         final int numBuckets = randomNumberOfBuckets();
         List<InternalHistogram.Bucket> buckets = new ArrayList<>();
@@ -95,78 +83,11 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators, metaData);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 
     // issue 26787
     public void testHandlesNaN() {
-        MockBigArrays bigArrays = new MockBigArrays(null, new CircuitBreakerService() {
-            @Override
-            public void registerBreaker(BreakerSettings breakerSettings) {
-
-            }
-
-            @Override
-            public CircuitBreaker getBreaker(String name) {
-                return new CircuitBreaker() {
-                    @Override
-                    public void circuitBreak(String fieldName, long bytesNeeded) {
-
-                    }
-
-                    @Override
-                    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                        return 0;
-                    }
-
-                    @Override
-                    public long addWithoutBreaking(long bytes) {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getUsed() {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getLimit() {
-                        return 0;
-                    }
-
-                    @Override
-                    public double getOverhead() {
-                        return 0;
-                    }
-
-                    @Override
-                    public long getTrippedCount() {
-                        return 0;
-                    }
-
-                    @Override
-                    public String getName() {
-                        return null;
-                    }
-
-                    @Override
-                    public Durability getDurability() {
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            public AllCircuitBreakerStats stats() {
-                return null;
-            }
-
-            @Override
-            public CircuitBreakerStats stats(String name) {
-                return null;
-            }
-        });
-
         InternalHistogram histogram = createTestInstance();
         InternalHistogram histogram2 = createTestInstance();
         List<InternalHistogram.Bucket> buckets = histogram.getBuckets();
@@ -181,10 +102,10 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         }
         InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
-        
+
         InternalHistogram newHistogram = histogram.create(newBuckets);
-        newHistogram.doReduce(Arrays.asList(newHistogram, histogram2),
-            new InternalAggregation.ReduceContext(bigArrays, null, false));
+        newHistogram.reduce(Arrays.asList(newHistogram, histogram2),
+                InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction());
     }
 
     @Override
@@ -228,11 +149,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected Reader<InternalHistogram> instanceReader() {
-        return InternalHistogram::new;
-    }
-
-    @Override
     protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
         return ParsedHistogram.class;
     }
@@ -243,8 +159,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         List<InternalHistogram.Bucket> buckets = instance.getBuckets();
         BucketOrder order = instance.getOrder();
         long minDocCount = instance.getMinDocCount();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = instance.emptyBucketInfo;
         switch (between(0, 4)) {
         case 0:
@@ -263,16 +178,16 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             emptyBucketInfo = null;
             break;
         case 4:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators, metaData);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 }

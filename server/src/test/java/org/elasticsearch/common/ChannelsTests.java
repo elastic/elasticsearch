@@ -226,8 +226,8 @@ public class ChannelsTests extends ESTestCase {
         }
 
         @Override
-        public void force(boolean metaData) throws IOException {
-            delegate.force(metaData);
+        public void force(boolean metadata) throws IOException {
+            delegate.force(metadata);
         }
 
         @Override

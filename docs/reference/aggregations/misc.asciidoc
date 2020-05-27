@@ -15,7 +15,7 @@ See <<shard-request-cache>> for more details.
 There are many occasions when aggregations are required but search hits are not.  For these cases the hits can be ignored by
 setting `size=0`. For example:
 
-[source,console]
+[source,console,id=returning-only-agg-results-example]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -41,7 +41,7 @@ at response time.
 
 Consider this example where we want to associate the color blue with our `terms` aggregation.
 
-[source,console]
+[source,console,id=agg-metadata-example]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -92,7 +92,7 @@ Considering the following <<search-aggregations-bucket-datehistogram-aggregation
 `tweets_over_time` which has a sub <<search-aggregations-metrics-top-hits-aggregation, 'top_hits` aggregation>> named
  `top_users`:
 
-[source,console]
+[source,console,id=returning-aggregation-type-example]
 --------------------------------------------------
 GET /twitter/_search?typed_keys
 {
@@ -167,3 +167,12 @@ request. This is the case for Terms, Significant Terms and Percentiles aggregati
 also contains information about the type of the targeted field: `lterms` (for a terms aggregation on a Long field),
  `sigsterms` (for a significant terms aggregation on a String field), `tdigest_percentiles` (for a percentile
  aggregation based on the TDigest algorithm).
+ 
+
+[[indexing-aggregation-results]]
+== Indexing aggregation results with {transforms}
+ 
+<<transforms,{transforms-cap}>> enable you to convert existing {es} indices 
+into summarized indices, which provide opportunities for new insights and 
+analytics. You can use {transforms} to persistently index your aggregation 
+results into entity-centric indices.

@@ -117,8 +117,8 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         settings.put("index.analysis.analyzer.mock_english.filter", "stop");
         prepareCreate("test")
             .setSettings(settings)
-            .addMapping("test", jsonBuilder().startObject()
-                .startObject("test")
+            .setMapping(jsonBuilder().startObject()
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "text")

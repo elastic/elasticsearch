@@ -31,8 +31,89 @@
   - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2323 }
-  - match: { _source.geoip.location.lat: 44.9733 }
+  - match: { _source.geoip.location.lon: -93.2548 }
+  - match: { _source.geoip.location.lat: 44.9399 }
+  - match: { _source.geoip.region_iso_code: "US-MN" }
+  - match: { _source.geoip.region_name: "Minnesota" }
+  - match: { _source.geoip.continent_name: "North America" }
+
+---
+"Test geoip processor with list":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1",
+                  "first_only" : false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: ["128.101.101.101", "127.0.0.1"]}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.field1: ["128.101.101.101", "127.0.0.1"] }
+  - length: { _source.geoip: 2 }
+  - length: { _source.geoip.0: 6 }
+  - match: { _source.geoip.0.city_name: "Minneapolis" }
+  - match: { _source.geoip.0.country_iso_code: "US" }
+  - match: { _source.geoip.0.location.lon: -93.2548 }
+  - match: { _source.geoip.0.location.lat: 44.9399 }
+  - match: { _source.geoip.0.region_iso_code: "US-MN" }
+  - match: { _source.geoip.0.region_name: "Minnesota" }
+  - match: { _source.geoip.0.continent_name: "North America" }
+  - match: { _source.geoip.1: null }
+
+---
+"Test geoip processor with lists, first only":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: ["127.0.0.1", "128.101.101.101", "128.101.101.101"]}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.field1: ["127.0.0.1", "128.101.101.101", "128.101.101.101"] }
+  - length: { _source.geoip: 6 }
+  - match: { _source.geoip.city_name: "Minneapolis" }
+  - match: { _source.geoip.country_iso_code: "US" }
+  - match: { _source.geoip.location.lon: -93.2548 }
+  - match: { _source.geoip.location.lat: 44.9399 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }
@@ -76,8 +157,8 @@
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
   - match: { _source.geoip.ip: "128.101.101.101" }
-  - match: { _source.geoip.location.lon: -93.2323 }
-  - match: { _source.geoip.location.lat: 44.9733 }
+  - match: { _source.geoip.location.lon: -93.2548 }
+  - match: { _source.geoip.location.lat: 44.9399 }
   - match: { _source.geoip.timezone: "America/Chicago" }
   - match: { _source.geoip.country_name: "United States" }
   - match: { _source.geoip.region_iso_code: "US-MN" }
@@ -181,8 +262,8 @@
   - length: { _source.geoip: 6 }
   - match: { _source.geoip.city_name: "Minneapolis" }
   - match: { _source.geoip.country_iso_code: "US" }
-  - match: { _source.geoip.location.lon: -93.2323 }
-  - match: { _source.geoip.location.lat: 44.9733 }
+  - match: { _source.geoip.location.lon: -93.2548 }
+  - match: { _source.geoip.location.lat: 44.9399 }
   - match: { _source.geoip.region_iso_code: "US-MN" }
   - match: { _source.geoip.region_name: "Minnesota" }
   - match: { _source.geoip.continent_name: "North America" }

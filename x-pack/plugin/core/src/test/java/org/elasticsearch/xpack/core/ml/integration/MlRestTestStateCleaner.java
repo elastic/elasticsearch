@@ -94,6 +94,8 @@ public class MlRestTestStateCleaner {
     }
 
     private void deleteAllDataFrameAnalytics() throws IOException {
+        stopAllDataFrameAnalytics();
+
         final Request analyticsRequest = new Request("GET", "/_ml/data_frame/analytics?size=10000");
         analyticsRequest.addParameter("filter_path", "data_frame_analytics");
         final Response analyticsResponse = adminClient.performRequest(analyticsRequest);
@@ -106,6 +108,20 @@ public class MlRestTestStateCleaner {
         for (Map<String, Object> config : analytics) {
             String id = (String) config.get("id");
             adminClient.performRequest(new Request("DELETE", "/_ml/data_frame/analytics/" + id));
+        }
+    }
+
+    private void stopAllDataFrameAnalytics() {
+        try {
+            adminClient.performRequest(new Request("POST", "_ml/data_frame/analytics/*/_stop"));
+        } catch (Exception e1) {
+            logger.warn("failed to stop all data frame analytics. Will proceed to force-stopping", e1);
+            try {
+                adminClient.performRequest(new Request("POST", "_ml/data_frame/analytics/*/_stop?force=true"));
+            } catch (Exception e2) {
+                logger.warn("Force-stopping all data frame analytics failed", e2);
+            }
+            throw new RuntimeException("Had to resort to force-stopping data frame analytics, something went wrong?", e1);
         }
     }
 }

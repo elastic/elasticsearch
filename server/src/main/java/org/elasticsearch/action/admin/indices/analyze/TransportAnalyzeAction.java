@@ -177,7 +177,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (indexService == null) {
                 throw new IllegalArgumentException("analysis based on a specific field requires an index");
             }
-            MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
+            MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
             if (fieldType != null) {
                 if (fieldType.tokenized() || fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
                     return fieldType.indexAnalyzer();

@@ -161,8 +161,8 @@ public class Case extends ConditionalFunction {
         }
         templates.add(asScript(elseResult));
 
-        // Use painless if-else expressions to prevent evaluation of return expression
-        // if the condition is guarded by evaluates to false (e.g. division by 0)
+        // Use painless ?: expressions to prevent evaluation of return expression
+        // if the condition which guards it evaluates to false (e.g. division by 0)
         StringBuilder sb = new StringBuilder();
         ParamsBuilder params = paramsBuilder();
         for (int i = 0; i < templates.size(); i++) {

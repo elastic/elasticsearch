@@ -75,10 +75,6 @@ For example, a query string of `capital of Hungary` is interpreted as `capital
 AND of AND Hungary`.
 --
 
-`all_fields`::
-deprecated:[6.0.0, set `fields` to `*` instead](Optional, boolean) If `true`,
-search all searchable fields in the index's field mapping.
-
 `analyze_wildcard`::
 (Optional, boolean) If `true`, the query attempts to analyze wildcard terms in
 the query string. Defaults to `false`.

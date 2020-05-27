@@ -330,24 +330,6 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             return CONTENT_TYPE;
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
-            super.checkCompatibility(fieldType, conflicts);
-            CompletionFieldType other = (CompletionFieldType)fieldType;
-
-            if (preservePositionIncrements != other.preservePositionIncrements) {
-                conflicts.add("mapper [" + name() + "] has different [preserve_position_increments] values");
-            }
-            if (preserveSep != other.preserveSep) {
-                conflicts.add("mapper [" + name() + "] has different [preserve_separators] values");
-            }
-            if (hasContextMappings() != other.hasContextMappings()) {
-                conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
-            } else if (hasContextMappings() && contextMappings.equals(other.contextMappings) == false) {
-                conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
-            }
-        }
-
     }
 
     /**
@@ -670,9 +652,22 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
-        this.maxInputLength = fieldMergeWith.maxInputLength;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        CompletionFieldType c = (CompletionFieldType)other.fieldType();
+
+        if (fieldType().preservePositionIncrements != c.preservePositionIncrements) {
+            conflicts.add("mapper [" + name() + "] has different [preserve_position_increments] values");
+        }
+        if (fieldType().preserveSep != c.preserveSep) {
+            conflicts.add("mapper [" + name() + "] has different [preserve_separators] values");
+        }
+        if (fieldType().hasContextMappings() != c.hasContextMappings()) {
+            conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
+        } else if (fieldType().hasContextMappings() && fieldType().contextMappings.equals(c.contextMappings) == false) {
+            conflicts.add("mapper [" + name() + "] has different [context_mappings] values");
+        }
+
+        this.maxInputLength = ((CompletionFieldMapper)other).maxInputLength;
     }
+
 }

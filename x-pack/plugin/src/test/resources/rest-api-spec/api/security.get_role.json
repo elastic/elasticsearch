@@ -14,8 +14,8 @@
           ],
           "parts":{
             "name":{
-              "type":"string",
-              "description":"Role name"
+              "type":"list",
+              "description":"A comma-separated list of role names"
             }
           }
         },

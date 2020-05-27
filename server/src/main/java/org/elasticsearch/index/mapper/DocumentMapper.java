@@ -307,19 +307,6 @@ public class DocumentMapper implements ToXContentFragment {
         return new DocumentMapper(mapperService, merged);
     }
 
-    /**
-     * Recursively update sub field types.
-     */
-    public DocumentMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        Mapping updated = this.mapping.updateFieldType(fullNameToFieldType);
-        if (updated == this.mapping) {
-            // no change
-            return this;
-        }
-        assert updated == updated.updateFieldType(fullNameToFieldType) : "updateFieldType operation is not idempotent";
-        return new DocumentMapper(mapperService, updated);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return mapping.toXContent(builder, params);

@@ -284,6 +284,36 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals("1", builder.minimumShouldMatch());
     }
 
+    public void testMinimumShouldMatchNull() throws IOException {
+        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertEquals(null, builder.minimumShouldMatch());
+    }
+
+    public void testMustNull() throws IOException {
+        String query = "{\"bool\" : {\"must\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.must().isEmpty());
+    }
+
+    public void testMustNotNull() throws IOException {
+        String query = "{\"bool\" : {\"must_not\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.mustNot().isEmpty());
+    }
+
+    public void testShouldNull() throws IOException {
+        String query = "{\"bool\" : {\"should\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.should().isEmpty());
+    }
+
+    public void testFilterNull() throws IOException {
+        String query = "{\"bool\" : {\"filter\" : null } }";
+        BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
+        assertTrue(builder.filter().isEmpty());
+    }
+
     /**
      * test that unknown query names in the clauses throw an error
      */

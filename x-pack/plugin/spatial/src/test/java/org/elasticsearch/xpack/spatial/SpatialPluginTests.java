@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregati
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -35,7 +36,8 @@ public class SpatialPluginTests extends ESTestCase {
             registrar.forEach(c -> c.accept(registryBuilder));
             ValuesSourceRegistry registry = registryBuilder.build();
             GeoCentroidAggregatorSupplier centroidSupplier = (GeoCentroidAggregatorSupplier) registry.getAggregator(
-                GeoShapeValuesSourceType.instance(), GeoCentroidAggregationBuilder.NAME);
+                new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, false, null, null, null),
+                 GeoCentroidAggregationBuilder.NAME);
             if (License.OperationMode.TRIAL != operationMode &&
                     License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
                 ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
@@ -55,7 +57,8 @@ public class SpatialPluginTests extends ESTestCase {
                 registrar.forEach(c -> c.accept(registryBuilder));
                 ValuesSourceRegistry registry = registryBuilder.build();
                 GeoGridAggregatorSupplier supplier = (GeoGridAggregatorSupplier) registry.getAggregator(
-                    GeoShapeValuesSourceType.instance(), builderName);
+                    new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, false, null, null, null),
+                    builderName);
                 if (License.OperationMode.TRIAL != operationMode &&
                     License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
                     ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,

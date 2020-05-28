@@ -1331,12 +1331,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private NumberFieldMapper.NumberFieldType longField(String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        type.setName(name);
-        return type;
-    }
-
     private void assertNestedTopHitsScore(InternalMultiBucketAggregation<?, ?> terms, boolean withScore) {
         assertThat(terms.getBuckets().size(), equalTo(9));
         int ptr = 9;

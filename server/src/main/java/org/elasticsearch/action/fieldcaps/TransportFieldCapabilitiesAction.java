@@ -125,6 +125,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 remoteRequest.indicesOptions(originalIndices.indicesOptions());
                 remoteRequest.indices(originalIndices.indices());
                 remoteRequest.fields(request.fields());
+                remoteRequest.indexFilter(request.indexFilter());
                 remoteRequest.nowInMillis(nowInMillis);
                 remoteClusterClient.fieldCaps(remoteRequest,  ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {

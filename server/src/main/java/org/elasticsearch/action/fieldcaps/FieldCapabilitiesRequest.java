@@ -25,11 +25,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -40,10 +38,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
-
 public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
-    public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final String NAME = "field_caps_request";
 
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -54,13 +49,6 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
     private Long nowInMillis;
-
-    private static final ObjectParser<FieldCapabilitiesRequest, Void> PARSER =
-        new ObjectParser<>(NAME, FieldCapabilitiesRequest::new);
-
-    static {
-        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
-    }
 
     public FieldCapabilitiesRequest(StreamInput in) throws IOException {
         super(in);
@@ -110,7 +98,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             out.writeBoolean(includeUnmapped);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(indexFilter);
+            out.writeOptionalNamedWriteable(indexFilter);
             out.writeOptionalLong(nowInMillis);
         }
     }

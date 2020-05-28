@@ -47,6 +47,7 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
         super.tearDown();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57199")
     public void testIdempotencyIsEnforced() {
         Set<Long> seqNosReturned = ConcurrentCollections.newConcurrentSet();
         ConcurrentMap<Long, Set<PlainActionFuture<Void>>> seqToResult = ConcurrentCollections.newConcurrentMap();

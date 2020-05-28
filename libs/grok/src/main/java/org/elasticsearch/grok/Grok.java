@@ -19,6 +19,9 @@
 
 package org.elasticsearch.grok;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jcodings.specific.UTF8Encoding;
 import org.joni.Matcher;
 import org.joni.NameEntry;
@@ -43,6 +46,7 @@ import java.util.Map;
 
 public final class Grok {
 
+    private static final Logger logger = LogManager.getLogger(Grok.class);
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
     private static final String PATTERN_GROUP = "pattern";
@@ -58,7 +62,8 @@ public final class Grok {
             ")" +
             ")?" + "\\}";
     private static final Regex GROK_PATTERN_REGEX = new Regex(GROK_PATTERN.getBytes(StandardCharsets.UTF_8), 0,
-            GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
+        GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT,
+        message -> logger.log(Level.DEBUG, message));
 
     private static final Map<String, String> builtinPatterns;
     private static final int MAX_TO_REGEX_ITERATIONS = 100_000; //sanity limit
@@ -101,7 +106,8 @@ public final class Grok {
 
         String expression = toRegex(grokPattern);
         byte[] expressionBytes = expression.getBytes(StandardCharsets.UTF_8);
-        this.compiledExpression = new Regex(expressionBytes, 0, expressionBytes.length, Option.DEFAULT, UTF8Encoding.INSTANCE);
+        this.compiledExpression = new Regex(expressionBytes, 0, expressionBytes.length, Option.DEFAULT, UTF8Encoding.INSTANCE,
+            message -> logger.log(Level.DEBUG, message));
     }
 
     /**

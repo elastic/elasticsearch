@@ -389,10 +389,23 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                      **/
                     remapGlobalOrd = false;
                 }
-                return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, metadata);
-
+                
+                return new GlobalOrdinalsStringTermsAggregator(
+                    name,
+                    factories,
+                    a -> a.new SignificantTermsResults(termsAggregatorFactory, significanceHeuristic),
+                    (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource,
+                    null,
+                    format,
+                    bucketCountThresholds,
+                    filter,
+                    aggregationContext,
+                    parent,
+                    remapGlobalOrd,
+                    SubAggCollectionMode.BREADTH_FIRST,
+                    false,
+                    metadata
+                );
             }
         };
 

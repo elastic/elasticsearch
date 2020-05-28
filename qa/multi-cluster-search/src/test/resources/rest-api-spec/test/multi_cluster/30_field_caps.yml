@@ -72,3 +72,34 @@
         fields: [number]
   - match: {fields.number.double.searchable:            true}
   - match: {fields.number.double.aggregatable:          true}
+
+---
+"Get field caps from remote cluster with index filter":
+  - skip:
+      version: " - 7.99.99"
+      # TODO: Adapt version after backport
+      reason: Index filter support was added in 8.0
+
+  - do:
+      field_caps:
+        index: 'field_caps_index_2,my_remote_cluster:field_*'
+        fields: [number]
+        body: { index_filter: { range: { created_at: { lt: 2018 } } } }
+  - match: {indices:                                    ["field_caps_index_2", "my_remote_cluster:field_caps_index_1"]}
+  - length: {fields.number:                             1
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}
+
+  - do:
+      field_caps:
+        index: 'field_caps_index_2,my_remote_cluster:field_*'
+        fields: [number]
+        body: { index_filter: { range: { created_at: { gt: 2019 } } } }
+  - match: {indices:                                    ["field_caps_index_2", "my_remote_cluster:field_caps_index_3"]}
+  - length: {fields.number:                             2
+  - match: {fields.number.double.searchable:            true}
+  - match: {fields.number.double.aggregatable:          true}
+  - match: {fields.number.double.indices:               ["field_caps_index_2"]}
+  - match: {fields.number.long.searchable:              true}
+  - match: {fields.number.long.aggregatable:            true}
+  - match: {fields.number.long.indices:                 ["my_remote_cluster:field_caps_index_3"]}

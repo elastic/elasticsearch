@@ -164,7 +164,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             String keyAsString = format.format((double) getKey()).toString();
             builder.startObject();
             if (format != DocValueFormat.RAW) {
-                builder.field(CommonFields.KEY.getPreferredName(), keyAsString);
+                builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
             }
             builder.field(CommonFields.KEY.getPreferredName(), getKeyForXContent());
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);

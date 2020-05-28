@@ -68,7 +68,7 @@ clusters.
 
 ==== Clustering Algorithm
 Each shard fetches the first `cache_limit` documents and stores them in memory. Once this "cache" is full, these documents
-are sorted and linearly separated into ``3/4 * shard_size buckets.
+are sorted and linearly separated into `3/4 * shard_size buckets`.
 Next each remaining documents is either collected into the nearest bucket, or placed into a new bucket if it is distant
 from all the existing ones. At most `shard_size` total buckets are created.
 

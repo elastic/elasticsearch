@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.ParseField;
@@ -47,7 +48,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata originalIndexMeta = clusterState.metadata().index(index);
+        Metadata metadata = clusterState.metadata();
+        IndexMetadata originalIndexMeta = metadata.index(index);
 
         if (originalIndexMeta == null) {
             String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
@@ -65,16 +67,18 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             return new Result(true, new Info(message));
         }
 
-        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
         if (indexAbstraction.getParentDataStream() != null) {
             DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
-            rolledIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            IndexMetadata rolledIndexMeta = clusterState.metadata().index(rolledIndexName);
+            IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
+            assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
+            IndexMetadata rolledIndexMeta = dataStreamAbstraction.getWriteIndex();
             if (rolledIndexMeta == null) {
                 return getErrorResultOnNullMetadata(index);
             }
+            rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
         } else {
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
@@ -83,7 +87,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                     + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
             }
 
-            IndexAbstraction aliasAbstraction = clusterState.metadata().getIndicesLookup().get(rolloverAlias);
+            IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(rolloverAlias);
             assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
             IndexMetadata aliasWriteIndex = aliasAbstraction.getWriteIndex();

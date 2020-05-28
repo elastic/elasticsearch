@@ -130,14 +130,11 @@ Timeout duration to block other requests while waiting for the search request to
 finish. Defaults to no timeout, meaning the search request waits for complete
 search results.
 
-If this parameter is specified and the request completes before this period
-ends, complete search results are returned.
+If this parameter is specified and the request completes during this period,
+complete search results are returned.
 
-If the request does not complete before this period ends, the search becomes an
-<<eql-search-async,async search>>. A
-<<eql-search-api-response-body-search-id,search ID>> is returned at the end of
-the period. This ID can be used to monitor the progress of the async search as
-it runs.
+If the request does not complete during this period, the search becomes an
+<<eql-search-async,async search>>.
 
 [IMPORTANT]
 ====
@@ -257,14 +254,11 @@ Timeout duration to block other requests while waiting for the search request to
 finish. Defaults to no timeout, meaning the search request waits for complete
 search results.
 
-If this parameter is specified and the request completes before this period
-ends, complete search results are returned.
+If this parameter is specified and the request completes during this period,
+complete search results are returned.
 
-If the request does not complete before this period ends, the search becomes an
-<<eql-search-async,async search>>. A
-<<eql-search-api-response-body-search-id,search ID>> is returned at the end of
-the period. This ID can be used to monitor the ongoing progress of the search as
-it runs.
+If the request does not complete during this period, the search becomes an
+<<eql-search-async,async search>>.
 
 [IMPORTANT]
 ====
@@ -283,14 +277,17 @@ parameter. If both parameters are specified, only the query parameter is used.
 --
 Identifier for the search.
 
-This search ID is only provided if a search request does not return complete
-results during the timeout period set by the
-<<eql-search-api-wait-for-completion-timeout, `wait_for_completion_timeout`>>
-parameter, becoming an <<eql-search-async,async search>>.
+This search ID is only provided if one of the following conditions is met:
 
-You can use this ID to
-monitor the progress of an ongoing async search and retrieve complete results
-when the search finishes.
+* A search request does not return complete results during the
+  <<eql-search-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+  parameter's timeout period, becoming an <<eql-search-async,async search>>.
+  
+* The search request's <<eql-search-api-keep-on-completion,`keep_on_completion`>>
+  parameter is `true`.
+
+You can use this ID with the <<get-async-eql-search-api,get async EQL search
+API>> to get the current status and available results for the search.
 --
 
 `is_partial`::

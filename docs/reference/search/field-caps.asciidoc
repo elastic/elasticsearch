@@ -227,7 +227,7 @@ It is also possible to filter indices with a query:
 
 [source,console]
 --------------------------------------------------
-POST twitter-*/_field_caps?fields=rating
+POST twitter*/_field_caps?fields=rating
 {
     "index_filter": {
         "range": {

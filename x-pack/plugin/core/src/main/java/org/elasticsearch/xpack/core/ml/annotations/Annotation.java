@@ -47,6 +47,7 @@ public class Annotation implements ToXContentObject, Writeable {
     }
 
     public enum Event {
+        USER,
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED;
 

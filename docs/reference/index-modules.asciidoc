@@ -180,7 +180,7 @@ specific index module:
 `index.blocks.read_only_allow_delete`::
 
     Similar to `index.blocks.read_only`, but also allows deleting the index to
-    make more resources available. The <<disk-based-shard-allocation,disk-based shard
+    make more resources available. The <<disk-allocator,disk-based shard
     allocator>> may add and remove this block automatically.
 
 Deleting documents from an index to release resources - rather than deleting the index itself - can increase the index size over time. When `index.blocks.read_only_allow_delete` is set to `true`, deleting documents is not permitted. However, deleting the index itself releases the read-only index block and makes resources available almost immediately.

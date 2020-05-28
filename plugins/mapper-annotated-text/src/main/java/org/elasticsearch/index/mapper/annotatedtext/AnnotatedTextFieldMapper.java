@@ -592,6 +592,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String parseSourceValue(Object value) {
+        return value.toString();
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

@@ -168,6 +168,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
+    }
+
+    @Override
     protected boolean indexedByDefault() {
         return false;
     }

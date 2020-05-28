@@ -15,6 +15,8 @@ public class EqlSpec {
     private String note;
     private String[] tags;
     private String query;
+    private Boolean caseSensitiveOnly;
+    private Boolean caseInsensitiveOnly;
     private long[] expectedEventIds;
 
     public String description() {
@@ -57,12 +59,36 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
+    public void caseSensitiveOnly(Boolean caseSensitiveOnly) {
+        this.caseSensitiveOnly = caseSensitiveOnly;
+    }
+
+    public void caseInsensitiveOnly(Boolean caseInsensitiveOnly) {
+        this.caseInsensitiveOnly = caseInsensitiveOnly;
+    }
+
+    public boolean supportsCaseSensitive() {
+        return this.caseInsensitiveOnly == null || this.caseInsensitiveOnly == false;
+    }
+
+    public boolean supportsCaseInsensitive() {
+        return this.caseSensitiveOnly == null || this.caseSensitiveOnly == false;
+    }
+
     @Override
     public String toString() {
         String str = "";
         str = appendWithComma(str, "query", query);
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
+
+        if (caseInsensitiveOnly != null) {
+            str = appendWithComma(str, "case_insensitive", caseInsensitiveOnly.toString());
+        }
+
+        if (caseSensitiveOnly != null) {
+            str = appendWithComma(str, "case_sensitive", caseSensitiveOnly.toString());
+        }
 
         if (tags != null) {
             str = appendWithComma(str, "tags", Arrays.toString(tags));
@@ -72,6 +98,12 @@ public class EqlSpec {
             str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
         }
         return str;
+    }
+
+    public boolean equals(EqlSpec other) {
+        return this.query().equals(other.query()) &&
+            this.supportsCaseSensitive() == other.supportsCaseSensitive() &&
+            this.supportsCaseInsensitive() == other.supportsCaseInsensitive();
     }
 
     private static String appendWithComma(String str, String name, String append) {

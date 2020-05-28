@@ -186,6 +186,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    @Override
+    protected String parseSourceValue(Object value) {
+        return value.toString();
+    }
+
     public static final class KeywordFieldType extends StringFieldType {
 
         private NamedAnalyzer normalizer = null;

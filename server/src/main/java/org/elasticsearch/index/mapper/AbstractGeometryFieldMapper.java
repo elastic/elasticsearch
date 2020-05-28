@@ -158,6 +158,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         protected abstract void setGeometryQueryBuilder(FT fieldType);
     }
 
+    @Override
+    protected Object parseSourceValue(Object value) {
+        throw new UnsupportedOperationException();
+    }
+
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
         protected abstract T newBuilder(String name, Map<String, Object> params);
 

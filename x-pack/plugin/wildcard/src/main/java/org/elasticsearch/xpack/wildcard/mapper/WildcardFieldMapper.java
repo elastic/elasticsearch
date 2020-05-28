@@ -888,6 +888,11 @@ public class WildcardFieldMapper extends FieldMapper {
         parseDoc.addAll(fields);
     }
 
+    @Override
+    protected String parseSourceValue(Object value) {
+        return value.toString();
+    }
+
     // For internal use by Lucene only - used to define ngram index
     final MappedFieldType ngramFieldType;
 

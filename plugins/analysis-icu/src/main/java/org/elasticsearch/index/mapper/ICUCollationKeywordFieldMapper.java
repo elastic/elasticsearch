@@ -744,4 +744,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             createFieldNamesField(context);
         }
     }
+
+    @Override
+    protected String parseSourceValue(Object value) {
+        return value.toString();
+    }
 }

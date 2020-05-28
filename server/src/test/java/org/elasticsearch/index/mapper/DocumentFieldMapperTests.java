@@ -116,6 +116,11 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
+        protected Object parseSourceValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }

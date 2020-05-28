@@ -479,6 +479,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected Object parseSourceValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -501,6 +506,11 @@ public class TextFieldMapper extends FieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected Object parseSourceValue(Object value) {
             throw new UnsupportedOperationException();
         }
 
@@ -826,6 +836,11 @@ public class TextFieldMapper extends FieldMapper {
                 context.doc().add(new Field(phraseFieldMapper.fieldType.name(), value, phraseFieldMapper.fieldType));
             }
         }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value) {
+        return value.toString();
     }
 
     @Override

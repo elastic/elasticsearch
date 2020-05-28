@@ -31,6 +31,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -53,6 +55,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -948,6 +951,20 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         assertTrue(e.getMessage(),
             e.getMessage().contains("Limit of completion field contexts [" +
                 CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"));
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        CompletionFieldMapper mapper = new CompletionFieldMapper.Builder("field").build(context);
+
+        assertEquals(List.of("value"), mapper.parseSourceValue("value"));
+
+        List<String> list = List.of("first", "second");
+        assertEquals(list, mapper.parseSourceValue(list));
+
+        Map<String, Object> object = Map.of("input", List.of("first", "second"), "weight", "2.718");
+        assertEquals(List.of(object), mapper.parseSourceValue(object));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

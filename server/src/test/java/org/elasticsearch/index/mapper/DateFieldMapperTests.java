@@ -21,10 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -457,4 +460,40 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        DateFieldMapper mapper = new DateFieldMapper.Builder("field").build(context);
+        String date = "2020-05-15T21:33:02.000Z";
+        assertEquals(date, mapper.parseSourceValue(date));
+        assertEquals(date, mapper.parseSourceValue(1589578382000L));
+
+        DateFieldMapper mapperWithFormat = new DateFieldMapper.Builder("field")
+            .format("yyyy/MM/dd||epoch_millis")
+            .build(context);
+        String dateInFormat = "1990/12/29";
+        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(dateInFormat));
+        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(662428800000L));
+
+        DateFieldMapper mapperWithMillis = new DateFieldMapper.Builder("field")
+            .format("epoch_millis")
+            .build(context);
+        String dateInMillis = "662428800000";
+        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(dateInMillis));
+        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(662428800000L));
+    }
+
+    public void testParseSourceValueNanos() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        DateFieldMapper mapper = new DateFieldMapper.Builder("field")
+            .format("strict_date_time||epoch_millis")
+            .withResolution(DateFieldMapper.Resolution.NANOSECONDS)
+            .build(context);
+        String date = "2020-05-15T21:33:02.123456789Z";
+        assertEquals("2020-05-15T21:33:02.123456789Z", mapper.parseSourceValue(date));
+        assertEquals("2020-05-15T21:33:02.123Z", mapper.parseSourceValue(1589578382123L));
+    }
 }

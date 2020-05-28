@@ -593,7 +593,8 @@ Elasticsearch and regret that we sometimes have to reject contributions even
 when they might appear to make genuine improvements to the system. Reviewing
 contributions can be a very time-consuming task, yet the team is small and our
 time is very limited. In some cases the time we would need to spend on reviews
-would outweigh the benefits of a change by a significant margin.
+would outweigh the benefits of a change by preventing us from working on other
+more beneficial tasks instead.
 
 Please discuss your change in a Github issue before spending much time on its
 implementation. We sometimes have to reject contributions that duplicate other

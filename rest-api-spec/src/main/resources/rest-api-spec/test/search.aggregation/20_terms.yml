@@ -767,6 +767,7 @@ setup:
   - match: { profile.shards.0.aggregations.0.description: str_terms }
   - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
   - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.debug.collection_strategy: dense }
   - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
   - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
 

@@ -620,12 +620,10 @@ We sometimes reject contributions if we find ourselves performing many review
 iterations without making significant progress. Some iteration is expected,
 particularly on technically complicated changes, and there's no fixed limit on
 the acceptable number of review cycles since it depends so much on the nature
-of the change. However some contributions consume too much review time on
-superficial issues, leaving us with less time to consider their deeper
-implications and ultimately outweighing their benefits. It is a good idea to
-review your contribution yourself or in your own team before asking us for a
-review. You may be surprised how many comments you can anticipate and address
-by taking a short break and then carefully looking over your changes again.
+of the change. You can help to reduce the number of iterations by reviewing
+your contribution yourself or in your own team before asking us for a review.
+You may be surprised how many comments you can anticipate and address by taking
+a short break and then carefully looking over your changes again.
 
 We expect you to follow up on review comments somewhat promptly, but recognise
 that everyone has many priorities for their time and may not be able to respond

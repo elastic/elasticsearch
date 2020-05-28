@@ -385,8 +385,8 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             if (numClusters == 0){
                 return -1;
             }
-            BigArrays.DoubleBinarySearcher searcher = new BigArrays.DoubleBinarySearcher(clusterCentroids);
-            return searcher.search(0, numClusters - 1, value);
+            BigArrays.DoubleBinarySearcher binarySearcher = new BigArrays.DoubleBinarySearcher(clusterCentroids);
+            return binarySearcher.search(0, numClusters - 1, value);
         }
 
 

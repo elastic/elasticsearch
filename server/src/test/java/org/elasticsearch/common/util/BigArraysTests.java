@@ -389,47 +389,6 @@ public class BigArraysTests extends ESTestCase {
         }
     }
 
-    public void testDoubleBinarySearch() throws Exception {
-        final int size = randomIntBetween(50, 10000);
-        DoubleArray array = new BigDoubleArray(size, bigArrays, false);
-
-        // Fill array with sorted values
-        double currentValue = randomDoubleBetween(-100, 100, true);
-        for (int i = 0; i < size; ++i) {
-            array.set(i, currentValue);
-            currentValue += randomDoubleBetween(0, 30, false);
-        }
-
-        // Pick a number to search for
-        int index = randomIntBetween(0, size-1);
-        double searchFor = array.get(index);
-        if (randomBoolean()){
-            // Pick a number where there is no exact match, but that is closest to array.get(index)
-            if(randomBoolean()){
-                // Pick a number above array.get(index)
-                if(index < size - 1){
-                    searchFor += (array.get(index + 1) - array.get(index)) / 3; // Divide by 3 so that it's closer to array.get(index) than to array.get(index + 1)
-                } else {
-                    // There is nothing about index
-                    searchFor += 0.1;
-                }
-            } else {
-                // Pick one below array.get(index)
-                if (index > 0) {
-                    searchFor -= (array.get(index) - array.get(index - 1)) / 3;
-                } else {
-                    // There is nothing below index
-                    searchFor -= 0.1;
-                }
-            }
-        }
-
-        BigArrays.DoubleBinarySearcher searcher = new BigArrays.DoubleBinarySearcher(array);
-        assertEquals(index, searcher.search(0, size - 1, searchFor));
-
-        Releasables.close(array);
-    }
-
     private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {
         final BigArrays byteBigArrays = newBigArraysInstance(maxSize, withBreaking);
         BigArraysHelper byteHelper = new BigArraysHelper(byteBigArrays,

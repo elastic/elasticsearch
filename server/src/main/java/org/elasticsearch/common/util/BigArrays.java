@@ -356,88 +356,6 @@ public class BigArrays {
 
     }
 
-    abstract public static class BinarySearcher<T>{
-
-        /**
-         * @return a negative integer, zero, or a positive integer if the
-         * array's value at <code>index</code> is less than, equal to, or greater than <code>value</code>
-         */
-        abstract protected int compare(int index, T value);
-
-        /**
-         * @return the magnitude of the distance between <code>value</code> and the element at <code>index</code>
-         * It will usually be <code>Math.abs(array[index] - value)</code>
-         */
-        abstract protected double distance(int index, T value);
-
-        /**
-         * @return the index who's underlying value is closest to <code>value</code>
-         */
-        private int getClosestIndex(int index1, int index2, T value){
-            if(distance(index1, value) < distance(index2, value)){
-                return index1;
-            } else {
-                return index2;
-            }
-        }
-
-        /**
-         * Uses a binary search to determine the index of the closest element to <code>value</code> that lies in
-         * the index range {from, ... , to}
-         *
-         * @return the index of the closest element
-         *
-         * Requires: The underlying array should be sorted
-         **/
-        public int search(int from, int to, T value){
-            while(from < to){
-                int mid = (from + to) / 2;
-                int compareResult = compare(mid, value);
-
-                if(compareResult == 0){
-                    // arr[mid] == value
-                    return mid;
-                } else if(compareResult < 0){
-                    // arr[mid] < val
-
-                    if(mid < to) {
-                        // Check if val is between (mid, mid + 1) before setting left = mid + 1
-                        // (mid < to) ensures that mid + 1 is not out of bounds
-                        int compareValAfterMid = compare(mid + 1, value);
-                        if (compareValAfterMid > 0) {
-                            return getClosestIndex(mid, mid + 1, value);
-                        }
-                    } else if(mid == to){
-                        // val > arr[mid] and there are no more elements above mid, so mid is the closest
-                        return mid;
-                    }
-
-                    from = mid + 1;
-                } else{
-                    // arr[mid] > val
-
-                    if(mid > from) {
-                        // Check if val is between (mid - 1, mid)
-                        // (mid > from) ensures that mid - 1 is not out of bounds
-                        int compareValBeforeMid = compare(mid - 1, value);
-                        if (compareValBeforeMid < 0) {
-                            // val is between indices (mid - 1), mid
-                            return getClosestIndex(mid, mid - 1, value);
-                        }
-                    } else if(mid == 0){
-                        // val < arr[mid] and there are no more candidates below mid, so mid is the closest
-                        return mid;
-                    }
-
-                    to = mid - 1;
-                }
-            }
-
-            return from;
-        }
-
-    }
-
     final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
     private final boolean checkBreaker;
@@ -773,22 +691,32 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
-    public static class DoubleBinarySearcher extends BinarySearcher<Double>{
+    public static class DoubleBinarySearcher extends BinarySearcher{
 
         DoubleArray array;
+        double searchFor;
 
         public DoubleBinarySearcher(DoubleArray array){
             this.array = array;
+            this.searchFor = Integer.MIN_VALUE;
         }
 
         @Override
-        protected int compare(int index, Double value) {
-            return Double.compare(array.get(index), value);
+        protected int compare(int index) {
+            // Prevent use of BinarySearcher.search() and force the use of DoubleBinarySearcher.search()
+            assert this.searchFor != Integer.MIN_VALUE;
+
+            return Double.compare(array.get(index), searchFor);
         }
 
         @Override
-        protected double distance(int index, Double value) {
-            return Math.abs(array.get(index) - value);
+        protected double distance(int index) {
+            return Math.abs(array.get(index) - searchFor);
+        }
+
+        public int search(int from, int to, double searchFor) {
+            this.searchFor = searchFor;
+            return super.search(from, to);
         }
     }
 

@@ -96,11 +96,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Merges the bucket doc counts together using <code>mergeMap</code> where <code>mergeMap[i]</code> is the
-     * ordinal of the bucket that the i'th bucket is merged into
+     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}  to merge the actual
+     * ordinals and doc ID deltas.
      *
-     * This only tidies up doc counts. Call <code>DeferringCollector::mergeBuckets</code> to merge the actual
-     * ordinals and doc ID deltas
+     * Refer to that method for documentation about the merge map.
      */
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
         try (IntArray oldDocCounts = docCounts) {

@@ -764,8 +764,14 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if the username is missing, but a password is supplied
      */
     @Nullable
-    private static CredentialsProvider createCredentialsProvider(final Config config) {
+    // visible for testing
+    static CredentialsProvider createCredentialsProvider(final Config config) {
         final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+
+        if (Strings.isNullOrEmpty(username)) {
+            // nothing to configure; default situation for most users
+            return null;
+        }
 
         final String deprecatedPassword = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         final SecureString securePassword = SECURE_AUTH_PASSWORDS.get(config.name());

@@ -83,8 +83,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        final ArrayList<Releasable> toClose = new ArrayList<>(4);
-        toClose.add(httpRequest::release);
+        // We're sending a response so we know we won't be needing the request content again and release it
+        Releasables.closeWhileHandlingException(httpRequest::release);
+
+        final ArrayList<Releasable> toClose = new ArrayList<>(3);
         if (isCloseConnection()) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }

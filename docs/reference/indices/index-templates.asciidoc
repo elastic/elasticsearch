@@ -4,14 +4,14 @@
 <titleabbrev>Index template</titleabbrev>
 ++++
 
-This documentation is about V2 (version 2) index templates. For V1 templates please see the
-<<indices-templates-v1,V1 template documentation>>.
+This documentation is about composable templates. For legacy templates please see the
+<<indices-templates-v1,legacy template documentation>>.
 
 [NOTE]
 ====
-In {es} 7.8 V2 templates were introduced. When a V2 index template matches a given index it always
-takes precedence over a V1 template. If no V2 index template matches, a V1 template may still match
-and be applied.
+In {es} 7.8 composable templates were introduced. When a composable template matches a given index
+it always takes precedence over a legacy template. If no composable template matches, a legacy
+template may still match and be applied.
 ====
 
 An index template is a way to tell {es} how to configure an index when it is created. Templates are
@@ -26,7 +26,7 @@ specify settings, mappings, and aliases.
 
 If a new index matches more than one index template, the index template with the highest priority is used.
 
-If an index is created with explicit settings and also matches an index template, 
+If an index is created with explicit settings and also matches an index template,
 the settings from the create index request take precedence over settings specified in the index template and its component templates.
 
 [source,console]
@@ -112,7 +112,7 @@ DELETE _component_template/*
 [[put-index-template-api-desc]]
 ==== {api-description-title}
 
-Creates or updates an index template. 
+Creates or updates an index template.
 
 // tag::index-template-def[]
 Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>> that you can
@@ -555,3 +555,36 @@ PUT /_index_template/template_1
 --------------------------------------------------
 
 To check the `_meta`, you can use the <<indices-get-template, get index template>> API.
+
+[[data-stream-definition]]
+===== Data stream definition
+
+If a composable template should auto create a data stream instead of an index then
+a `data_stream` definition can be added to a composable template.
+
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns": ["logs-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  },
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+--------------------------------------------------
+
+Required properties of a data stream definition:
+
+`timestamp_field`::
+(Required, string) The name of the timestamp field. This field must be present
+in all documents indexed into the data stream and must be of type
+<<date, `date`>> or <<date_nanos, `date_nanos`>>.

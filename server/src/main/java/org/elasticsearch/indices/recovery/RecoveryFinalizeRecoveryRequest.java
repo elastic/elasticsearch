@@ -24,11 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
+final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
@@ -47,7 +46,9 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         }
     }
 
-    RecoveryFinalizeRecoveryRequest(final long recoveryId, final ShardId shardId, final long globalCheckpoint, final long trimAboveSeqNo) {
+    RecoveryFinalizeRecoveryRequest(final long recoveryId, final long requestSeqNo, final ShardId shardId,
+                                    final long globalCheckpoint, final long trimAboveSeqNo) {
+        super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.globalCheckpoint = globalCheckpoint;

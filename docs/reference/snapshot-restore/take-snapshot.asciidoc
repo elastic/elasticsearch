@@ -201,16 +201,3 @@ DELETE /_snapshot/my_backup/my_backup,my_fs_backup
 DELETE /_snapshot/my_backup/snap*
 -----------------------------------
 // TEST[skip:no my_fs_backup]
-
-A repository can be unregistered using the following command:
-
-[source,console]
------------------------------------
-DELETE /_snapshot/my_backup
------------------------------------
-// TEST[continued]
-
-When a repository is unregistered, Elasticsearch only removes the reference to the location where the repository is storing
-the snapshots. The snapshots themselves are left untouched and in place.
-
-

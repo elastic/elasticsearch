@@ -166,10 +166,12 @@ specific index module:
     The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.
     Defaults to `1`.
 
+[[index-max-shingle-diff]]
 `index.max_shingle_diff`::
 
-    The maximum allowed difference between max_shingle_size and min_shingle_size for ShingleTokenFilter.
-    Defaults to `3`.
+    The maximum allowed difference between max_shingle_size and min_shingle_size
+    for the <<analysis-shingle-tokenfilter,`shingle` token filter>>. Defaults to
+    `3`.
 
 `index.blocks.read_only`::
 

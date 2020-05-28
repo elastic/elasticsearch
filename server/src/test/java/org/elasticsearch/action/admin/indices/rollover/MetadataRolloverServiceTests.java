@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
@@ -352,7 +352,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Map<String, AliasMetadata> aliases = new HashMap<>();
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
-        final IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("foo-*", "bar-*"), new Template(null, null, aliases),
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"),
+            new Template(null, null, aliases),
             null, null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
@@ -369,7 +370,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
-        final IndexTemplateV2 template = new IndexTemplateV2(Arrays.asList("foo-*", "bar-*"), null,
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"), null,
             Collections.singletonList("ct"), null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
@@ -404,7 +405,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Map<String, AliasMetadata> aliases = new HashMap<>();
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
-        final IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("*"), new Template(null, null, aliases),
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"),
+            new Template(null, null, aliases),
             null, null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
@@ -425,7 +427,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
-        final IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("*"), null,
+        final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"), null,
             Collections.singletonList("ct"), null, null, null, null);
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)

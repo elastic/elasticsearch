@@ -41,7 +41,6 @@ import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
-import static org.elasticsearch.packaging.util.Platforms.isSysVInit;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.anyOf;
@@ -55,7 +54,6 @@ public class Packages {
 
     private static final Logger logger = LogManager.getLogger(Packages.class);
 
-    public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
 
     public static void assertInstalled(Distribution distribution) throws Exception {
@@ -208,10 +206,6 @@ public class Packages {
 
             final String sysctlExecutable = (distribution.packaging == Distribution.Packaging.RPM) ? "/usr/sbin/sysctl" : "/sbin/sysctl";
             assertThat(sh.run(sysctlExecutable + " vm.max_map_count").stdout, containsString("vm.max_map_count = 262144"));
-        }
-
-        if (isSysVInit()) {
-            assertThat(SYSVINIT_SCRIPT, file(File, "root", "root", p750));
         }
     }
 

@@ -23,10 +23,8 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
@@ -392,12 +390,5 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(copy.getBucketInfo(), equalTo(orig.getBucketInfo()));
         assertThat(copy.getFormatter(), equalTo(orig.getFormatter()));
         assertThat(copy.getInterval(), equalTo(orig.getInterval()));
-    }
-
-    @Override
-    public void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
-        /*
-         * No-op.
-         */
     }
 }

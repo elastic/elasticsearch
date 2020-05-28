@@ -39,6 +39,7 @@ import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
+import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
@@ -79,8 +80,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        // apply global test task failure listener
+        project.getRootProject().getPluginManager().apply(TestFailureReportingPlugin.class);
 
         project.getPluginManager().apply(JavaPlugin.class);
+
         configureConfigurations(project);
         configureRepositories(project);
         configureCompile(project);
@@ -540,5 +544,32 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
+    }
+
+    static class TestFailureReportingPlugin implements Plugin<Project> {
+        @Override
+        public void apply(Project project) {
+            if (project != project.getRootProject()) {
+                throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
+            }
+
+            project.getGradle().addListener(new TaskActionListener() {
+                @Override
+                public void beforeActions(Task task) {}
+
+                @Override
+                public void afterActions(Task task) {
+                    if (task instanceof Test) {
+                        ErrorReportingTestListener listener = task.getExtensions().findByType(ErrorReportingTestListener.class);
+                        if (listener != null && listener.getFailedTests().size() > 0) {
+                            task.getLogger().lifecycle("\nTests with failures:");
+                            for (ErrorReportingTestListener.Descriptor failure : listener.getFailedTests()) {
+                                task.getLogger().lifecycle(" - " + failure.getFullName());
+                            }
+                        }
+                    }
+                }
+            });
+        }
     }
 }

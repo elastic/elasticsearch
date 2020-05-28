@@ -26,10 +26,13 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -295,6 +298,16 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+        IpFieldMapper mapper = new IpFieldMapper.Builder("field").build(context);
+
+        assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8::2:1"));
+        assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1"));
+        assertEquals("::1", mapper.parseSourceValue("0:0:0:0:0:0:0:1"));
     }
 
     @Override

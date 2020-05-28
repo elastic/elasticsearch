@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -268,6 +269,47 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * current failing token
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
+
+    /**
+     * Given access to a document's _source, return this field's values.
+     *
+     * In addition to pulling out the values, mappers can parse them into a standard form. This
+     * method delegates parsing to {@link #parseSourceValue} for parsing. Most mappers will choose
+     * to override {@link #parseSourceValue} -- for example numeric field mappers make sure to
+     * parse the  source value into a number of the right type.
+     *
+     * Some mappers may need more flexibility and can override this entire method instead.
+     *
+     * @param lookup a lookup structure over the document's source.
+     * @return a list a standardized field values.
+     */
+    public List<?> lookupValues(SourceLookup lookup) {
+        Object sourceValue = lookup.extractValue(name());
+        if (sourceValue == null) {
+            return List.of();
+        }
+
+        List<Object> values = new ArrayList<>();
+        if (parsesArrayValue()) {
+            return (List<?>) parseSourceValue(sourceValue);
+        } else {
+            List<?> sourceValues = sourceValue instanceof List ? (List<?>) sourceValue : List.of(sourceValue);
+            for (Object value : sourceValues) {
+                Object parsedValue = parseSourceValue(value);
+                values.add(parsedValue);
+            }
+        }
+        return values;
+    }
+
+    /**
+     * Given a value that has been extracted from a document's source, parse it into a standard
+     * format. This parsing logic should closely mirror the value parsing in
+     * {@link #parseCreateField} or {@link #parse}.
+     *
+     * Note that when overriding this method, {@link #lookupValues} should *not* be overridden.
+     */
+    protected abstract Object parseSourceValue(Object value);
 
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();

@@ -1086,6 +1086,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected Number parseSourceValue(Object value) {
+        return fieldType().type.parse(value, coerce.value());
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         NumberFieldMapper m = (NumberFieldMapper) other;
         if (fieldType().type != m.fieldType().type) {

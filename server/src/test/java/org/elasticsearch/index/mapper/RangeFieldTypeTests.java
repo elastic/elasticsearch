@@ -237,13 +237,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(1466062190000L, formatter.parseMillis(to));
 
         RangeFieldType fieldType = new RangeFieldType(FIELDNAME, true, true, formatter, Collections.emptyMap());
-        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);
+        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType
             = new DateFieldType(FIELDNAME, true, true, formatter, DateFieldMapper.Resolution.MILLISECONDS, Collections.emptyMap());
-        final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, null, context);
+        final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
 
@@ -464,9 +464,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseIp() {
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(InetAddresses.forString("::1"), randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse("::1", randomBoolean()));
-        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parse(new BytesRef("::1"), randomBoolean()));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue(InetAddresses.forString("::1"), randomBoolean(), null));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue("::1", randomBoolean(), null));
+        assertEquals(InetAddresses.forString("::1"), RangeType.IP.parseValue(new BytesRef("::1"), randomBoolean(), null));
     }
 
     public void testTermQuery() throws Exception {

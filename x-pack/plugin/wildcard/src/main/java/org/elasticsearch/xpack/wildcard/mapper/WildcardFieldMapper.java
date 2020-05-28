@@ -950,6 +950,11 @@ public class WildcardFieldMapper extends FieldMapper {
         parseDoc.addAll(fields);
     }
 
+    @Override
+    protected String parseSourceValue(Object value) {
+        return value.toString();
+    }
+
     void createFields(String value, Document parseDoc, List<IndexableField>fields) throws IOException {
         if (value == null || value.length() > ignoreAbove) {
             return;

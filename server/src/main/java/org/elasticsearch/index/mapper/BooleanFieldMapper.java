@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -245,6 +246,16 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
             createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    public Boolean parseSourceValue(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        } else {
+            String textValue = value.toString();
+            return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
         }
     }
 

@@ -893,7 +893,12 @@ public class WildcardFieldMapper extends FieldMapper {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
         }
-        return value.toString();
+
+        String keywordValue = value.toString();
+        if (keywordValue.length() > ignoreAbove) {
+            return null;
+        }
+        return keywordValue;
     }
 
     // For internal use by Lucene only - used to define ngram index

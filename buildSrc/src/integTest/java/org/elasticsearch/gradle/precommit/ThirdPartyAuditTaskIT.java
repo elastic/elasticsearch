@@ -1,9 +1,3 @@
-package org.elasticsearch.gradle.precommit;
-
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
-import org.gradle.testkit.runner.BuildResult;
-import org.junit.Before;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -13,7 +7,7 @@ import org.junit.Before;
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -22,6 +16,13 @@ import org.junit.Before;
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package org.elasticsearch.gradle.precommit;
+
+import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.gradle.testkit.runner.BuildResult;
+import org.junit.Before;
+
 public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     @Before
@@ -41,6 +42,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "-PcompileVersion=0.0.1"
         ).build();
         assertTaskNoSource(result, ":empty");
+        assertNoDeprecationWarning(result);
     }
 
     public void testWithEmptyRules() {
@@ -69,6 +71,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         assertTaskFailed(result, ":absurd");
         assertOutputContains(result.getOutput(), "Classes with violations:", "  * TestingIO", "> Audit of third party dependencies failed");
         assertOutputDoesNotContain(result.getOutput(), "Missing classes:");
+        assertNoDeprecationWarning(result);
     }
 
     public void testClassNotFoundAndCompileOnlyIgnored() {
@@ -90,6 +93,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "> Audit of third party dependencies failed"
         );
         assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
+        assertNoDeprecationWarning(result);
     }
 
     public void testJarHellWithJDK() {
@@ -111,6 +115,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "    * java.lang.String"
         );
         assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
+        assertNoDeprecationWarning(result);
     }
 
     public void testElasticsearchIgnoredWithViolations() {
@@ -124,6 +129,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "-PcompileVersion=0.0.1"
         ).build();
         assertTaskNoSource(result, ":absurd");
+        assertNoDeprecationWarning(result);
     }
 
 }

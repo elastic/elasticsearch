@@ -128,7 +128,7 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
         }
 
-        IndexTemplateV2 template = lookupTemplateForDataStream(request.name, currentState.metadata());
+        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
 
         String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
@@ -144,17 +144,17 @@ public class MetadataCreateDataStreamService {
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
-    public static IndexTemplateV2 lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {
+    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {
         final String v2Template = MetadataIndexTemplateService.findV2Template(metadata, dataStreamName, false);
         if (v2Template == null) {
             throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
         }
-        IndexTemplateV2 indexTemplateV2 = metadata.templatesV2().get(v2Template);
-        if (indexTemplateV2.getDataStreamTemplate() == null) {
+        ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(v2Template);
+        if (composableIndexTemplate.getDataStreamTemplate() == null) {
             throw new IllegalArgumentException("matching index template [" + v2Template + "] for data stream [" + dataStreamName  +
                 "] has no data stream template");
         }
-        return indexTemplateV2;
+        return composableIndexTemplate;
     }
 
 }

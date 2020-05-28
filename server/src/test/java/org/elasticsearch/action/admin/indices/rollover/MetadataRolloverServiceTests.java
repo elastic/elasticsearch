@@ -517,8 +517,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
     public void testRolloverClusterStateForDataStream() throws Exception {
         final DataStream dataStream = DataStreamTests.randomInstance();
-        IndexTemplateV2 template = new IndexTemplateV2(List.of(dataStream.getName() + "*"), null, null, null, null, null,
-            new IndexTemplateV2.DataStreamTemplate("@timestamp"));
+        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStream.getName() + "*"), null, null, null, null, null,
+            new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         for (Index index : dataStream.getIndices()) {

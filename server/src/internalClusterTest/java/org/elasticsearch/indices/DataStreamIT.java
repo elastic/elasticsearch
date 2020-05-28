@@ -28,8 +28,8 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateV2Action;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -43,8 +43,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -79,8 +79,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
     @After
     public void deleteAllComposableTemplates() {
-        DeleteIndexTemplateV2Action.Request deleteTemplateRequest = new DeleteIndexTemplateV2Action.Request("*");
-        client().execute(DeleteIndexTemplateV2Action.INSTANCE, deleteTemplateRequest).actionGet();
+        DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
+        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
     }
 
     public void testBasicScenario() throws Exception {
@@ -336,15 +336,15 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     static void createIndexTemplate(String id, String pattern, String timestampFieldName) throws IOException {
-        PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request(id);
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new IndexTemplateV2(
+            new ComposableIndexTemplate(
                 List.of(pattern),
                 null,
                 null, null, null, null,
-                new IndexTemplateV2.DataStreamTemplate(timestampFieldName))
+                new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName))
         );
-        client().execute(PutIndexTemplateV2Action.INSTANCE, request).actionGet();
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
 }

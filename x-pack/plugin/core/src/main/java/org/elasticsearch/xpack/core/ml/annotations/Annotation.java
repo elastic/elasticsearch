@@ -19,17 +19,25 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+
+import static java.util.stream.Collectors.toMap;
 
 public class Annotation implements ToXContentObject, Writeable {
 
     public enum Type {
-        ANNOTATION;
+        ANNOTATION,
+        COMMENT;
+
+        private static Map<String, Type> lookupByName = Arrays.stream(values()).collect(toMap(Type::name, Function.identity()));
 
         public static Type fromString(String value) {
-            return valueOf(value.toUpperCase(Locale.ROOT));
+            return lookupByName.getOrDefault(value.toUpperCase(Locale.ROOT), ANNOTATION);
         }
 
         @Override
@@ -42,8 +50,10 @@ public class Annotation implements ToXContentObject, Writeable {
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED;
 
+        private static Map<String, Event> lookupByName = Arrays.stream(values()).collect(toMap(Event::name, Function.identity()));
+
         public static Event fromString(String value) {
-            return valueOf(value.toUpperCase(Locale.ROOT));
+            return lookupByName.get(value.toUpperCase(Locale.ROOT));
         }
 
         @Override

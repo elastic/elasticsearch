@@ -43,22 +43,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
-    private final Index index;
-    private boolean reformat;
-    private long indexWarnThreshold;
-    private long indexInfoThreshold;
-    private long indexDebugThreshold;
-    private long indexTraceThreshold;
-    /**
-     * How much of the source to log in the slowlog - 0 means log none and
-     * anything greater than 0 means log at least that many <em>characters</em>
-     * of the source.
-     */
-    private int maxSourceCharsToLog;
-
-    private final Logger indexLogger;
-
-    private static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
+    public static final String INDEX_INDEXING_SLOWLOG_PREFIX = "index.indexing.slowlog";
     public static final Setting<TimeValue> INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING =
         Setting.timeSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".threshold.index.warn", TimeValue.timeValueNanos(-1),
             TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
@@ -76,6 +61,22 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING =
         new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, Property.Dynamic,
             Property.IndexScope);
+
+    private final Logger indexLogger;
+    private final Index index;
+
+    private boolean reformat;
+    private long indexWarnThreshold;
+    private long indexInfoThreshold;
+    private long indexDebugThreshold;
+    private long indexTraceThreshold;
+    /*
+     * How much of the source to log in the slowlog - 0 means log none and anything greater than 0 means log at least that many
+     * <em>characters</em> of the source.
+     */
+    private int maxSourceCharsToLog;
+    private SlowLogLevel level;
+
     /**
      * Reads how much of the source to log. The user can specify any value they
      * like and numbers are interpreted the maximum number of characters to log
@@ -92,7 +93,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }, Property.Dynamic, Property.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index." + indexSettings.getUUID());
+        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+        Loggers.setLevel(this.indexLogger, SlowLogLevel.TRACE.name());
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -121,7 +123,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
     private void setLevel(SlowLogLevel level) {
-        Loggers.setLevel(this.indexLogger, level.name());
+        this.level = level;
     }
 
     private void setWarnThreshold(TimeValue warnThreshold) {
@@ -149,13 +151,14 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         if (result.getResultType() == Engine.Result.Type.SUCCESS) {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
-            if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
+            // when logger level is more specific than WARN AND event is within threshold it should be logged
+            if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold && level.isLevelEnabledFor(SlowLogLevel.WARN)) {
                 indexLogger.warn(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-            } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
+            } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold && level.isLevelEnabledFor(SlowLogLevel.INFO)) {
                 indexLogger.info(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-            } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
+            } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold && level.isLevelEnabledFor(SlowLogLevel.DEBUG)) {
                 indexLogger.debug(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
-            } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
+            } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold && level.isLevelEnabledFor(SlowLogLevel.TRACE)) {
                 indexLogger.trace(IndexingSlowLogMessage.of(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             }
         }
@@ -230,7 +233,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
     SlowLogLevel getLevel() {
-        return SlowLogLevel.parse(indexLogger.getLevel().name());
+        return level;
     }
 
 }

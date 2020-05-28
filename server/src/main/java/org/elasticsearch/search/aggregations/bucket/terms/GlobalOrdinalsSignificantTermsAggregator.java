@@ -96,50 +96,33 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
-        SignificantStringTerms.Bucket spare = null;
-        final boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
-        final long maxId = needsFullScan ? valueCount : bucketOrds.size();
-        for (long ord = 0; ord < maxId; ord++) {
-            final long globalOrd;
-            final long bucketOrd;
-            if (needsFullScan) {
-                bucketOrd = bucketOrds == null ? ord : bucketOrds.find(ord);
-                globalOrd = ord;
-            } else {
-                assert bucketOrds != null;
-                bucketOrd = ord;
-                globalOrd = bucketOrds.get(ord);
-            }
-            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalOrd)) {
-                continue;
-            }
-            final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
-            if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
-                continue;
-            }
-            if (bucketDocCount < bucketCountThresholds.getShardMinDocCount()) {
-                continue;
-            }
+        collectionStrategy.forEach(new BucketInfoConsumer() {
+            SignificantStringTerms.Bucket spare = null;
 
-            if (spare == null) {
-                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
+            @Override
+            public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
+                    if (spare == null) {
+                        spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
+                    }
+                    spare.bucketOrd = bucketOrd;
+                    copy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
+                    spare.subsetDf = docCount;
+                    spare.subsetSize = subsetSize;
+                    spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
+                    spare.supersetSize = supersetSize;
+                    // During shard-local down-selection we use subset/superset stats
+                    // that are for this shard only
+                    // Back at the central reducer these properties will be updated with
+                    // global stats
+                    spare.updateScore(significanceHeuristic);
+                    spare = ordered.insertWithOverflow(spare);
+                    if (spare == null) {
+                        consumeBucketsAndMaybeBreak(1);
+                    }
+                }
             }
-            spare.bucketOrd = bucketOrd;
-            copy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
-            spare.subsetDf = bucketDocCount;
-            spare.subsetSize = subsetSize;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
-            spare.supersetSize = supersetSize;
-            // During shard-local down-selection we use subset/superset stats
-            // that are for this shard only
-            // Back at the central reducer these properties will be updated with
-            // global stats
-            spare.updateScore(significanceHeuristic);
-            spare = ordered.insertWithOverflow(spare);
-            if (spare == null) {
-                consumeBucketsAndMaybeBreak(1);
-            }
-        }
+        });
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {

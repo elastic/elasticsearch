@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.info.BuildParams
+import org.gradle.internal.jvm.Jvm
 
 // Tell the tests we're running with ssl enabled
 integTest.runner {
@@ -26,7 +27,7 @@ task createNodeKeyStore(type: LoggedExec) {
             delete nodeKeystore
         }
     }
-    executable = "${BuildParams.compilerJavaHome}/bin/keytool"
+    executable = "${Jvm.current().javaHome}/bin/keytool"
     standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
     args '-genkey',
             '-alias', 'test-node',

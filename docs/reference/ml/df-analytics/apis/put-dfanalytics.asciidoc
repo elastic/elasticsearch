@@ -229,12 +229,15 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `loss_function`::::
 (Optional, string)
-The loss function used during regression. Available options are `mse` (mean squared error),
-`msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber loss). Defaults to `mse`.
+The loss function used during {regression}. Available options are `mse` (mean 
+squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber 
+loss). Defaults to `mse`. Refer to 
+{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses] 
+to learn more.
 
 `loss_function_parameter`::::
 (Optional, double)
-A strictly positive number that is used as a parameter to the `loss_function`.
+A positive number that is used as a parameter to the `loss_function`.
 
 `max_trees`::::
 (Optional, integer) 

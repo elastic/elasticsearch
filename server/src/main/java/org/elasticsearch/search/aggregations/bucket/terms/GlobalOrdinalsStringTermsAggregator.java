@@ -395,6 +395,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     /**
      * Strategy for collecting global ordinals.
+     * <p>
+     * The {@link GlobalOrdinalsSignificantTermsAggregator} uses one of these
+     * to collect the global ordinals by calling
+     * {@link CollectionStrategy#collectGlobalOrd(int, long, LeafBucketCollector)}
+     * for each global ordinal that it hits and then calling
+     * {@link CollectionStrategy#forEach(BucketInfoConsumer)} once to iterate on
+     * the results.
      */
     abstract class CollectionStrategy implements Releasable {
         /**
@@ -407,7 +414,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          */
         abstract void globalOrdsReady(SortedSetDocValues globalOrds);
         /**
-         * Collect a global ordinal.
+         * Called once per unique document, global ordinal combination to
+         * collect the bucket.
+         *
          * @param doc the doc id in to collect
          * @param globalOrd the global ordinal to collect
          * @param sub the sub-aggregators that that will collect the bucket data
@@ -418,7 +427,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          */
         abstract long globalOrdToBucketOrd(long globalOrd);
         /**
-         * Iterate all of the buckets.
+         * Iterate all of the buckets. Implementations take into account
+         * the {@link BucketCountThresholds}. In particular,
+         * if the {@link BucketCountThresholds#getMinDocCount()} is 0 then
+         * they'll make sure to iterate a bucket even if it was never 
+         * {{@link #collectGlobalOrd(int, long, LeafBucketCollector) collected}.
+         * If {@link BucketCountThresholds#getMinDocCount()} is not 0 then
+         * they'll skip all global ords that weren't collected.
          */
         abstract void forEach(BucketInfoConsumer consumer) throws IOException;
     }

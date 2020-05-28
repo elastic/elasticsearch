@@ -94,7 +94,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         mockClientRolloverCall(alias);
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -175,7 +181,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         RolloverStep step = createRandomInstance();
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -203,8 +215,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         RolloverStep step = createRandomInstance();
-
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -236,7 +253,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -265,7 +288,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         RolloverStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");
@@ -290,7 +319,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         RolloverStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

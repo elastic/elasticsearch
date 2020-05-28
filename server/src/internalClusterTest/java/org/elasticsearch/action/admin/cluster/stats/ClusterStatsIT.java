@@ -39,9 +39,11 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -233,5 +235,30 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+    }
+
+    public void testFieldTypes() {
+        internalCluster().startNode();
+        ensureGreen();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        client().admin().indices().prepareCreate("test2")
+            .setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
+                "\"eggplant\":{\"type\":\"integer\"}}}}}").get();
+        response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
+        Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (IndexFeatureStats stat : stats) {
+            if (stat.getName().equals("integer")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            } else if (stat.getName().equals("keyword")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(3));
+            } else if (stat.getName().equals("object")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            }
+        }
     }
 }

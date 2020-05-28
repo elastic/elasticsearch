@@ -294,6 +294,7 @@
   - do:
         cat.aliases:
             v: true
+            name: test*
 
   - match:
       $body: |
@@ -364,6 +365,7 @@
   - do:
         cat.aliases:
             h:      [index, alias]
+            name: test*
 
   - match:
       $body: /^ test \s+ test_1 \s+ $/
@@ -373,6 +375,7 @@
         cat.aliases:
             h:      [index, alias]
             v:      true
+            name: test*
   - match:
       $body: |
             /^
@@ -398,7 +401,8 @@
         index: test_index
 
   - do:
-      cat.aliases: {}
+      cat.aliases:
+        name: test*
 
   - match:
       $body: |

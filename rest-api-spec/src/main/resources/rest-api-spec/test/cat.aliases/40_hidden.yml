@@ -73,7 +73,8 @@
           aliases:
             test_alias: {}
   - do:
-      cat.aliases: {}
+      cat.aliases:
+        name: test*
 
   - match:
       $body: |

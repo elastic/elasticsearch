@@ -1,0 +1,15 @@
+{
+  "index_patterns": ["logs-*-*"],
+  "priority": 100,
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "composed_of": [
+    "logs-default-mappings",
+    "logs-default-settings"
+  ],
+  "_meta": {
+    "description": "default logs template installed by x-pack"
+  },
+  "version": ${xpack.stack.template.version}
+}

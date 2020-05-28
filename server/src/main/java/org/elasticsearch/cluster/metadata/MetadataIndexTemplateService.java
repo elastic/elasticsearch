@@ -441,7 +441,7 @@ public class MetadataIndexTemplateService {
         }
 
         validate(name, finalIndexTemplate);
-        logger.info("adding index template [{}]", name);
+        logger.info("adding index template [{}] for index patterns {}", name, template.indexPatterns());
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
             .build();

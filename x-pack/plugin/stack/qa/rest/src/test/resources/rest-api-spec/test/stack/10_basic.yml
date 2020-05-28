@@ -1,0 +1,107 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test stack template installation":
+  - do:
+      ilm.get_lifecycle:
+        policy: "logs-default-policy"
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "metrics-default-policy"
+
+  - do:
+      cluster.get_component_template:
+        name: logs-default-mappings
+
+  - do:
+      cluster.get_component_template:
+        name: logs-default-settings
+
+  - do:
+      cluster.get_component_template:
+        name: metrics-default-mappings
+
+  - do:
+      cluster.get_component_template:
+        name: metrics-default-settings
+
+  - do:
+      indices.get_index_template:
+        name: logs-default-template
+
+  - do:
+      indices.get_index_template:
+        name: metrics-default-template
+
+---
+"Test logs index auto creation":
+  - do:
+      index:
+        index: logs-foo-bar
+        body:
+          "@timestamp": "2020-01-01"
+          message: "test-log-message"
+
+  - do:
+      indices.get_data_stream:
+        name: logs-foo-bar
+
+  - match: { 0.name: logs-foo-bar }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
+  - length: { 0.indices: 1 }
+  - match: { 0.indices.0.index_name: 'logs-foo-bar-000001' }
+
+  - do:
+      indices.get:
+        index: logs-foo-bar-000001
+
+  - is_true: logs-foo-bar-000001.aliases
+  - is_true: logs-foo-bar-000001.settings
+  - is_true: logs-foo-bar-000001.mappings
+  - match: { logs-foo-bar-000001.settings.index.lifecycle.name: "logs-default-policy" }
+  - is_true: logs-foo-bar-000001.mappings.properties.message
+  - match: { logs-foo-bar-000001.data_stream: "logs-foo-bar" }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foo-bar
+
+---
+"Test metrics index auto creation":
+  - do:
+      index:
+        index: metrics-foo-bar
+        body:
+          "@timestamp": "2020-01-01"
+          message: "test-log-message"
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-foo-bar
+
+  - match: { 0.name: metrics-foo-bar }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 1 }
+  - length: { 0.indices: 1 }
+  - match: { 0.indices.0.index_name: 'metrics-foo-bar-000001' }
+
+  - do:
+      indices.get:
+        index: metrics-foo-bar-000001
+
+  - is_true: metrics-foo-bar-000001.aliases
+  - is_true: metrics-foo-bar-000001.settings
+  - is_true: metrics-foo-bar-000001.mappings
+  - match: { metrics-foo-bar-000001.settings.index.lifecycle.name: "metrics-default-policy" }
+  - is_true: metrics-foo-bar-000001.mappings.properties.message
+  - match: { metrics-foo-bar-000001.data_stream: "metrics-foo-bar" }
+
+  - do:
+      indices.delete_data_stream:
+        name: metrics-foo-bar

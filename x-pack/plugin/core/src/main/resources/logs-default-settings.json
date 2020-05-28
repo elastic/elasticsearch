@@ -1,0 +1,21 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "logs-default-policy"
+        },
+        "codec": "best_compression",
+        "refresh_interval": "5s",
+        "query": {
+          "default_field": ["message"]
+        },
+        "number_of_routing_shards": "30"
+      }
+    }
+  },
+  "_meta": {
+    "description": "default settings for the logs index template installed by x-pack"
+  },
+  "version": ${xpack.stack.template.version}
+}

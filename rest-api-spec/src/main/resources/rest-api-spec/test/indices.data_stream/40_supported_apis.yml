@@ -1,10 +1,20 @@
 ---
 setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs_template
+        body:
+          index_patterns: logs-foobar
+          data_stream:
+            timestamp_field: '@timestamp'
+
   - do:
       indices.create_data_stream:
         name: logs-foobar
-        body:
-          timestamp_field: "@timestamp"
 
 ---
 teardown:
@@ -23,6 +33,7 @@ teardown:
         index: logs-foobar
   - is_true: logs-foobar-000001
   - is_false: logs-foobar
+  - match: { logs-foobar-000001.settings.index.number_of_shards: '1' }
 
 ---
 "Verify get mapping api":

@@ -13,18 +13,21 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<ConstantKeywordFieldMapper.Builder> {
@@ -132,5 +135,28 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testLookupValues() throws Exception {
+        IndexService indexService = createIndex("test");
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "constant_keyword")
+                .endObject().endObject().endObject().endObject());
+        DocumentMapper mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        List<?> values = fieldMapper.lookupValues(new SourceLookup());
+        assertTrue(values.isEmpty());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "constant_keyword")
+                .field("value", "foo").endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+
+        fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        values = fieldMapper.lookupValues(new SourceLookup());
+        assertEquals(1, values.size());
+        assertEquals("foo", values.get(0));
     }
 }

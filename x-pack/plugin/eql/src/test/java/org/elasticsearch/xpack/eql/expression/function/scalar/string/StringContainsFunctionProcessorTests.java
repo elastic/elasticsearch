@@ -37,10 +37,10 @@ public class StringContainsFunctionProcessorTests extends ESTestCase {
             // The string parameter can be null. Expect exception if any of other parameters is null.
             if ((string != null) && (substring == null)) {
                 EqlIllegalArgumentException e = expectThrows(EqlIllegalArgumentException.class,
-                        () -> StringContainsFunctionProcessor.doProcess(string, substring));
+                        () -> StringContainsFunctionProcessor.doProcess(string, substring, true));
                 assertThat(e.getMessage(), equalTo("A string/char is required; received [null]"));
             } else {
-                assertThat(StringContainsFunctionProcessor.doProcess(string, substring),
+                assertThat(StringContainsFunctionProcessor.doProcess(string, substring, true),
                         equalTo(string == null ? null : true));
             }
             return null;

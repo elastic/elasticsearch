@@ -193,9 +193,28 @@ stringContains
 process where stringContains(process_name, "foo")
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1))"
-"params":{"v0":"process_name","v1":"foo"}
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":true}
 ;
+
+
+stringContains-casesensitive
+process where stringContains(process_name, "foo")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":true}
+;
+
+
+stringContains-caseinsensitive
+process where stringContains(process_name, "foo")
+;
+"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.stringContains(
+InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
+"params":{"v0":"process_name","v1":"foo","v2":false},
+;
+
 
 stringFunction
 process where string(pid) == "123"

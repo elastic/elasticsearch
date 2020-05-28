@@ -34,6 +34,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -140,7 +141,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
             boolean supported = true;
             // Check if spec is supported, simple iteration, cause the list is short.
             for (EqlSpec unSpec : unsupportedSpecs) {
-                if (spec.query() != null && spec.query().equals(unSpec.query())) {
+                if (spec.equals(unSpec)) {
                     supported = false;
                     break;
                 }
@@ -179,7 +180,13 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     }
 
     public void test() throws Exception {
-        assertResponse(runQuery(testIndexName, spec.query()));
+        if (spec.supportsCaseSensitive()) {
+            assertResponse(runQuery(testIndexName, spec.query(), true));
+        }
+
+        if (spec.supportsCaseInsensitive()) {
+            assertResponse(runQuery(testIndexName, spec.query(), false));
+        }
     }
 
     protected void assertResponse(EqlSearchResponse response) {
@@ -195,8 +202,8 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         }
     }
 
-    protected EqlSearchResponse runQuery(String index, String query) throws Exception {
-        EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
+    protected EqlSearchResponse runQuery(String index, String query, boolean isCaseSensitive) throws Exception {
+        EqlSearchRequest request = new EqlSearchRequest(testIndexName, query, isCaseSensitive);
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }
 
@@ -231,7 +238,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
                     client(),
                     ignore -> {
                     },
-                    List.of()) {
+                    Collections.emptyList()) {
             };
         }
         return highLevelClient;

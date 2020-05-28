@@ -525,7 +525,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         continue;
                     }
                     long bucketOrd = bucketOrds.find(globalOrd);
-                    consumer.accept(globalOrd, bucketOrd, bucketDocCount(bucketOrd));
+                    long docCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
+                    consumer.accept(globalOrd, bucketOrd, docCount);
                 }
             } else {
                 for (long bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {

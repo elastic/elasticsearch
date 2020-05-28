@@ -17,12 +17,11 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
 public class DateTimeParse extends BinaryDateTimeFunction {
 
-    public DateTimeParse(Source source, Expression timestamp, Expression pattern) {
-        super(source, timestamp, pattern, UTC);
+    public DateTimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
+        super(source, timestamp, pattern, zoneId);
     }
 
     @Override
@@ -45,12 +44,12 @@ public class DateTimeParse extends BinaryDateTimeFunction {
 
     @Override
     protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {
-        return new DateTimeParse(source(), timestamp, pattern);
+        return new DateTimeParse(source(), timestamp, pattern, zoneId());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTimeParse::new, left(), right());
+        return NodeInfo.create(this, DateTimeParse::new, left(), right(), zoneId());
     }
 
     @Override
@@ -60,11 +59,11 @@ public class DateTimeParse extends BinaryDateTimeFunction {
 
     @Override
     public Object fold() {
-        return DateTimeParseProcessor.process(left().fold(), right().fold());
+        return DateTimeParseProcessor.process(left().fold(), right().fold(), zoneId());
     }
 
     @Override
     protected Pipe createPipe(Pipe timestamp, Pipe pattern, ZoneId zoneId) {
-        return new DateTimeParsePipe(source(), this, timestamp, pattern);
+        return new DateTimeParsePipe(source(), this, timestamp, pattern, zoneId);
     }
 }

@@ -45,28 +45,26 @@ public class NativeController implements MlController {
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream commandStream;
 
-    public static NativeController makeNativeController(String localNodeName, Environment env)
-        throws IOException {
-        NativeController nativeController = new NativeController(localNodeName, env, new NamedPipeHelper());
-        nativeController.tailLogsInThread();
-        return nativeController;
+    public static NativeController makeNativeController(String localNodeName, Environment env) throws IOException {
+        return new NativeController(localNodeName, env, new NamedPipeHelper());
     }
 
     NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER, null,
-                true, true, false, false, false, false);
-        processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
+                true, false, false, false, false);
+        processPipes.connectLogStream(CONTROLLER_CONNECT_TIMEOUT);
+        tailLogsInThread(processPipes.getLogStreamHandler());
+        processPipes.connectOtherStreams(CONTROLLER_CONNECT_TIMEOUT);
         this.localNodeName = localNodeName;
-        this.cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
+        this.cppLogHandler = processPipes.getLogStreamHandler();
         this.commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
     }
 
-    void tailLogsInThread() {
+    static void tailLogsInThread(CppLogMessageHandler cppLogHandler) {
         final Thread logTailThread = new Thread(
                 () -> {
-                    try {
-                        cppLogHandler.tailStream();
-                        cppLogHandler.close();
+                    try (CppLogMessageHandler h = cppLogHandler) {
+                        h.tailStream();
                     } catch (IOException e) {
                         LOGGER.error("Error tailing C++ controller logs", e);
                     }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -65,8 +66,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -371,6 +374,25 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         for (final DataFrameAnalyticsConfig config : analytics.results()) {
             client.execute(DeleteDataFrameAnalyticsAction.INSTANCE, new DeleteDataFrameAnalyticsAction.Request(config.getId())).actionGet();
         }
+    }
+
+    protected static <T> void blockingCall(Consumer<ActionListener<T>> function,
+                                           AtomicReference<T> response,
+                                           AtomicReference<Exception> error) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<T> listener = ActionListener.wrap(
+            r -> {
+                response.set(r);
+                latch.countDown();
+            },
+            e -> {
+                error.set(e);
+                latch.countDown();
+            }
+        );
+
+        function.accept(listener);
+        latch.await();
     }
 
     protected String awaitJobOpenedAndAssigned(String jobId, String queryNode) throws Exception {

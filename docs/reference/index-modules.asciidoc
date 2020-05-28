@@ -105,7 +105,7 @@ specific index module:
     for the upper bound (e.g. `0-all`). Defaults to `false` (i.e. disabled).
     Note that the auto-expanded number of replicas only takes
     <<shard-allocation-filtering,allocation filtering>> rules into account, but ignores
-    any other allocation rules such as <<allocation-awareness,shard allocation awareness>>
+    any other allocation rules such as <<shard-allocation-awareness,shard allocation awareness>>
     and <<allocation-total-shards,total shards per node>>, and this can lead to the
     cluster health becoming `YELLOW` if the applicable rules prevent all the replicas
     from being allocated.
@@ -128,6 +128,7 @@ specific index module:
     out of this behavior an explicit value of `1s` should set as the refresh
     interval.
 
+[[index-max-result-window]]
 `index.max_result_window`::
 
     The maximum value of `from + size` for searches to this index. Defaults to
@@ -165,10 +166,12 @@ specific index module:
     The maximum allowed difference between min_gram and max_gram for NGramTokenizer and NGramTokenFilter.
     Defaults to `1`.
 
+[[index-max-shingle-diff]]
 `index.max_shingle_diff`::
 
-    The maximum allowed difference between max_shingle_size and min_shingle_size for ShingleTokenFilter.
-    Defaults to `3`.
+    The maximum allowed difference between max_shingle_size and min_shingle_size
+    for the <<analysis-shingle-tokenfilter,`shingle` token filter>>. Defaults to
+    `3`.
 
 `index.blocks.read_only`::
 
@@ -178,8 +181,8 @@ specific index module:
 `index.blocks.read_only_allow_delete`::
 
     Similar to `index.blocks.read_only` but also allows deleting the index to
-    free up resources. The <<disk-allocator,disk-based shard allocator>> may
-    add and remove this block automatically.
+    free up resources. The <<disk-based-shard-allocation,disk-based shard
+    allocator>> may add and remove this block automatically.
 
 `index.blocks.read`::
 

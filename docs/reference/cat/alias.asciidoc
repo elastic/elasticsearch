@@ -38,6 +38,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+
 
 [[cat-alias-api-example]]
 ==== {api-examples-title}

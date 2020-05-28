@@ -151,6 +151,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetric;
@@ -2034,7 +2035,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         MachineLearningIT.buildJob(jobId);
        {
             // tag::delete-expired-data-request
-            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest(); // <1>
+            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest( // <1>
+               1000.0f, // <2>
+               TimeValue.timeValueHours(12) // <3>
+            );
+
             // end::delete-expired-data-request
 
             // tag::delete-expired-data-execute
@@ -3007,6 +3012,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setPredictionFieldName("my_prediction_field_name") // <8>
                 .setTrainingPercent(50.0) // <9>
                 .setRandomizeSeed(1234L) // <10>
+                .setLossFunction(Regression.LossFunction.MSE) // <11>
+                .setLossFunctionParameter(1.0) // <12>
                 .build();
             // end::put-data-frame-analytics-regression
 

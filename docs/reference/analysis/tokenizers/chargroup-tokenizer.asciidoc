@@ -13,10 +13,14 @@ The `char_group` tokenizer accepts one parameter:
 
 [horizontal]
 `tokenize_on_chars`::
-    A list containing a list of characters to tokenize the string on. Whenever a character 
+    A list containing a list of characters to tokenize the string on. Whenever a character
     from this list is encountered, a new token is started. This accepts either single
     characters like e.g. `-`, or character groups: `whitespace`, `letter`, `digit`,
     `punctuation`, `symbol`.
+
+`max_token_length`::
+    The maximum token length. If a token is seen that exceeds this length then
+    it is split at `max_token_length` intervals. Defaults to `255`.
 
 
 [float]

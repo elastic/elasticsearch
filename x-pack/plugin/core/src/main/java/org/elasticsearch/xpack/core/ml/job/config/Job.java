@@ -98,7 +98,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      */
     public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(10, ByteSizeUnit.MB);
 
-    public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 1;
+    public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 10;
+    public static final long DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS = 1;
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>("job_details", ignoreUnknownFields, Builder::new);
@@ -808,6 +809,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
+        public Long getModelSnapshotRetentionDays() {
+            return modelSnapshotRetentionDays;
+        }
+
         public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
             this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
             return this;
@@ -1043,9 +1048,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
             checkValidBackgroundPersistInterval();
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
-            checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
-            checkValueNotLessThan(0, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
-                dailyModelSnapshotRetentionAfterDays);
             checkValueNotLessThan(0, RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
 
             if (!MlStrings.isValidId(id)) {
@@ -1054,6 +1056,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (!MlStrings.hasValidLengthForId(id)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
             }
+
+            validateModelSnapshotRetentionSettings();
 
             validateGroups();
 
@@ -1074,6 +1078,37 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public void validateAnalysisLimitsAndSetDefaults(@Nullable ByteSizeValue maxModelMemoryLimit) {
             analysisLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
                     AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
+        }
+
+        /**
+         * This is meant to be called when a new job is created.
+         * It sets {@link #dailyModelSnapshotRetentionAfterDays} to the default value if it is not set and the default makes sense.
+         */
+        public void validateModelSnapshotRetentionSettingsAndSetDefaults() {
+            validateModelSnapshotRetentionSettings();
+            if (dailyModelSnapshotRetentionAfterDays == null &&
+                modelSnapshotRetentionDays != null &&
+                modelSnapshotRetentionDays > DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS) {
+                dailyModelSnapshotRetentionAfterDays = DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS;
+            }
+        }
+
+        /**
+         * Validates that {@link #modelSnapshotRetentionDays} and {@link #dailyModelSnapshotRetentionAfterDays} make sense,
+         * both individually and in combination.
+         */
+        public void validateModelSnapshotRetentionSettings() {
+
+            checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
+            checkValueNotLessThan(0, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
+                dailyModelSnapshotRetentionAfterDays);
+
+            if (modelSnapshotRetentionDays != null &&
+                dailyModelSnapshotRetentionAfterDays != null &&
+                dailyModelSnapshotRetentionAfterDays > modelSnapshotRetentionDays) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT,
+                    dailyModelSnapshotRetentionAfterDays, modelSnapshotRetentionDays));
+            }
         }
 
         private void validateGroups() {

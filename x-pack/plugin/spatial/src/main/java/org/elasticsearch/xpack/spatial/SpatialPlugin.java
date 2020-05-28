@@ -16,6 +16,8 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregator;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSupplier;
@@ -23,6 +25,7 @@ import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
@@ -36,6 +39,14 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoHashGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.BoundedGeoTileGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHashGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeCellIdSource;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeHashGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoShapeTileGridAggregator;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBoundsAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -80,8 +91,9 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
         return List.of(
-            this::registerGeoShapeBoundsAggregator,
             this::registerGeoShapeCentroidAggregator,
+            this::registerGeoShapeGridAggregators,
+            SpatialPlugin::registerGeoShapeBoundsAggregator,
             SpatialPlugin::registerValueCountAggregator,
             SpatialPlugin::registerCardinalityAggregator
         );
@@ -92,14 +104,14 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
     }
 
-    public void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
+    private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
                 -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
                 wrapLongitude, metadata));
     }
 
-    public void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
+    private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
                 -> {
@@ -110,13 +122,55 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
             });
     }
 
-    public static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+    private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoHashGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+            (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
+                                         aggregationContext, parent, metadata) -> {
+                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+                    final GeoGridTiler tiler;
+                    if (geoBoundingBox.isUnbounded()) {
+                        tiler = new GeoHashGridTiler();
+                    } else {
+                        tiler = new BoundedGeoHashGridTiler(geoBoundingBox);
+                    }
+                    GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
+                    GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
+                        aggregationContext, parent, metadata);
+                    // this would ideally be something set in an immutable way on the ValuesSource
+                    cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
+                    return agg;
+                }
+                throw LicenseUtils.newComplianceException("geohash_grid aggregation on geo_shape fields");
+            });
+
+        builder.register(GeoTileGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
+            (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
+                                         aggregationContext, parent, metadata) -> {
+                if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
+                    final GeoGridTiler tiler;
+                    if (geoBoundingBox.isUnbounded()) {
+                        tiler = new GeoTileGridTiler();
+                    } else {
+                        tiler = new BoundedGeoTileGridTiler(geoBoundingBox);
+                    }
+                    GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
+                    GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
+                        aggregationContext, parent, metadata);
+                    // this would ideally be something set in an immutable way on the ValuesSource
+                    cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
+                    return agg;
+                }
+                throw LicenseUtils.newComplianceException("geotile_grid aggregation on geo_shape fields");
+            });
+    }
+
+    private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (ValueCountAggregatorSupplier) ValueCountAggregator::new
         );
     }
 
-    public static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
+    private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(CardinalityAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (CardinalityAggregatorSupplier) CardinalityAggregator::new);
     }

@@ -1,8 +1,8 @@
 ---
 "Test apis that do not supported data streams":
   - skip:
-      version: " - 7.7.99"
-      reason: available only in 7.8+
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:

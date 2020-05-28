@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.eql.session.EmptyExecutable;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Executable;
 import org.elasticsearch.xpack.eql.session.Results;
@@ -23,7 +24,15 @@ public class LocalRelation extends LogicalPlan implements Executable {
 
     private final Executable executable;
 
-    public LocalRelation(Source source, Executable executable) {
+    public LocalRelation(Source source, List<Attribute> output) {
+        this(source, output, Results.Type.SEARCH_HIT);
+    }
+
+    public LocalRelation(Source source, List<Attribute> output, Results.Type resultType) {
+        this(source, new EmptyExecutable(output, resultType));
+    }
+
+    private LocalRelation(Source source, Executable executable) {
         super(source, emptyList());
         this.executable = executable;
     }

@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.eql.plan.logical;
 
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -22,35 +23,41 @@ import java.util.Objects;
  */
 public class KeyedFilter extends UnaryPlan {
 
-    private final List<Expression> keys;
+    private final List<? extends NamedExpression> keys;
+    private final Attribute timestampField;
 
-    public KeyedFilter(Source source, LogicalPlan child, List<Expression> keys) {
+    public KeyedFilter(Source source, LogicalPlan child, List<? extends NamedExpression> keys, Attribute timestampField) {
         super(source, child);
         this.keys = keys;
+        this.timestampField = timestampField;
     }
 
     @Override
     protected NodeInfo<KeyedFilter> info() {
-        return NodeInfo.create(this, KeyedFilter::new, child(), keys);
+        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestampField);
     }
 
     @Override
     protected KeyedFilter replaceChild(LogicalPlan newChild) {
-        return new KeyedFilter(source(), newChild, keys);
+        return new KeyedFilter(source(), newChild, keys, timestampField);
     }
     
-    public List<Expression> keys() {
+    public List<? extends NamedExpression> keys() {
         return keys;
+    }
+
+    public Attribute timestampField() {
+        return timestampField;
     }
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(keys);
+        return Resolvables.resolved(keys) && timestampField.resolved();
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(keys, child());
+        return Objects.hash(keys, timestampField, child());
     }
     
     @Override
@@ -65,6 +72,7 @@ public class KeyedFilter extends UnaryPlan {
         KeyedFilter other = (KeyedFilter) obj;
 
         return Objects.equals(keys, other.keys)
+                && Objects.equals(timestampField, other.timestampField)
                 && Objects.equals(child(), other.child());
     }
 }

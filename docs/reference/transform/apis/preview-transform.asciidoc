@@ -93,10 +93,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-aggs]
 `group_by`:::
 (Required, object)
 include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
-
-`max_page_search_size`:::
-(Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pivot-max-page-search-size]
 ====
 //End pivot
 
@@ -148,6 +144,23 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 //End sync.time
 ====
 //End sync
+
+//Begin settings
+`settings`::
+(Optional, object)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`docs_per_second`:::
+(Optional, float)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
 
 [role="child_attributes"]
 [[preview-transform-response]]

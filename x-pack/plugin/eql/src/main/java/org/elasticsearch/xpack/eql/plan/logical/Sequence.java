@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.eql.plan.logical;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,14 +22,19 @@ public class Sequence extends Join {
 
     private final TimeValue maxSpan;
 
-    public Sequence(Source source, List<LogicalPlan> queries, LogicalPlan until, TimeValue maxSpan) {
-        super(source, queries, until);
+    public Sequence(Source source, List<KeyedFilter> queries, KeyedFilter until, TimeValue maxSpan, Attribute timestampField) {
+        super(source, queries, until, timestampField);
+        this.maxSpan = maxSpan;
+    }
+
+    private Sequence(Source source, List<LogicalPlan> queries, LogicalPlan until, TimeValue maxSpan, Attribute timestampField) {
+        super(source, asKeyed(queries), asKeyed(until), timestampField);
         this.maxSpan = maxSpan;
     }
 
     @Override
-    protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, Sequence::new, queries(), until(), maxSpan);
+    protected NodeInfo<Sequence> info() {
+        return NodeInfo.create(this, Sequence::new, queries(), until(), maxSpan, timestampField());
     }
 
     @Override
@@ -37,7 +43,7 @@ public class Sequence extends Join {
             throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
         }
         int lastIndex = newChildren.size() - 1;
-        return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan);
+        return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestampField());
     }
 
     public TimeValue maxSpan() {
@@ -46,7 +52,7 @@ public class Sequence extends Join {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxSpan, queries(), until());
+        return Objects.hash(maxSpan, timestampField(), queries(), until());
     }
 
     @Override
@@ -62,7 +68,8 @@ public class Sequence extends Join {
 
         return Objects.equals(maxSpan, other.maxSpan)
                 && Objects.equals(queries(), other.queries())
-                && Objects.equals(until(), other.until());
+                && Objects.equals(until(), other.until())
+                && Objects.equals(timestampField(), other.timestampField());
     }
 
     @Override

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.script.DeprecationMap;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -35,13 +37,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
-    private static final Map<String, String> DEPRECATIONS =
-            Map.of("_type", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+    private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
+            "_type", value -> {
+                deprecationLogger.deprecatedAndMaybeLog("conditional-processor__type",
+                        "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+                return value;
+            });
 
     static final String TYPE = "conditional";
 
@@ -102,8 +111,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     boolean evaluate(IngestDocument ingestDocument) {
         IngestConditionalScript script =
             scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
-        return script.execute(new UnmodifiableIngestData(
-                new DeprecationMap(ingestDocument.getSourceAndMetadata(), DEPRECATIONS, "conditional-processor")));
+        return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
     }
 
     public Processor getInnerProcessor() {

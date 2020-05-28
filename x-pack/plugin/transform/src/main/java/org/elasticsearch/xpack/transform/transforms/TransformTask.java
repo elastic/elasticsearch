@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -367,6 +368,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
                 getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
             }
         }
+    }
+
+    public synchronized void applyNewSettings(SettingsConfig newSettings) {
+        getIndexer().applyNewSettings(newSettings);
     }
 
     @Override

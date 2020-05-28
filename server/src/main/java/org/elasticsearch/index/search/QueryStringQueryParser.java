@@ -48,6 +48,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -322,6 +323,10 @@ public class QueryStringQueryParser extends XQueryParser {
                         }
                     }
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
+                }
+                // if we are querying a single date field, we also create a range query that leverages the time zone setting
+                if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
+                    return getRangeQuery(field, queryText, queryText, true, true);
                 }
             }
         }

@@ -20,10 +20,10 @@
 package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2Tests;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -45,8 +45,8 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
     @Override
     protected SimulateIndexTemplateRequest createTestInstance() {
         SimulateIndexTemplateRequest req = new SimulateIndexTemplateRequest(randomAlphaOfLength(10));
-        PutIndexTemplateV2Action.Request newTemplateRequest = new PutIndexTemplateV2Action.Request(randomAlphaOfLength(4));
-        newTemplateRequest.indexTemplate(IndexTemplateV2Tests.randomInstance());
+        PutComposableIndexTemplateAction.Request newTemplateRequest = new PutComposableIndexTemplateAction.Request(randomAlphaOfLength(4));
+        newTemplateRequest.indexTemplate(ComposableIndexTemplateTests.randomInstance());
         req.indexTemplateRequest(newTemplateRequest);
         return req;
     }
@@ -63,9 +63,9 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
 
     public void testAddingGlobalTemplateWithHiddenIndexSettingIsIllegal() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        IndexTemplateV2 globalTemplate = new IndexTemplateV2(List.of("*"), template, null, null, null, null);
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), template, null, null, null, null, null);
 
-        PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request("test");
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
 
         SimulateIndexTemplateRequest simulateRequest = new SimulateIndexTemplateRequest("testing");
@@ -76,6 +76,6 @@ public class SimulateIndexTemplateRequestTests extends AbstractWireSerializingTe
         List<String> validationErrors = validationException.validationErrors();
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
-        assertThat(error, is("global V2 templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
+        assertThat(error, is("global composable templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
     }
 }

@@ -1,0 +1,81 @@
+[[indices-create-data-stream]]
+=== Create data stream API
+++++
+<titleabbrev>Create data stream</titleabbrev>
+++++
+
+Creates a new data stream.
+
+Data streams provide a convenient way to ingest, search, and manage time series
+data. Documents containing time series data may be indexed directly into a data
+stream and searched through the data stream. Behind the scenes, data streams
+contain one or more hidden backing indices and a generation attribute that
+indicates which of the backing indices is the write index, the index into which
+documents will be ingested.
+
+Backing indices are generated with the naming convention
+`<data-stream-name>-zzzzzz` where `zzzzzz` is the six-digit, zero-padded
+generation of the data stream. For example, a data stream named
+`web-server-logs` with a generation of 34 would have a write index named
+`web-server-logs-000034`. While nothing prevents backing indices from being
+addressed directly, data streams are integrated with the
+<<indices-rollover-index, rollover index API>> and
+<<index-lifecycle-management, index lifecycle management (ILM)>> to facilitate
+the management of the time series data contained in their backing indices.
+
+[source,console]
+--------------------------------------------------
+PUT _data_stream/my-data-stream
+{
+  "timestamp_field": "@timestamp"
+}
+--------------------------------------------------
+
+////
+[source,console]
+-----------------------------------
+DELETE /_data_stream/my-data-stream
+-----------------------------------
+// TEST[continued]
+////
+
+[[indices-create-data-stream-request]]
+==== {api-request-title}
+
+`PUT _data_stream/<data-stream>`
+
+[[indices-create-data-stream-desc]]
+==== {api-description-title}
+You can use the create data stream API to add a new data stream to an {es}
+cluster. When creating a data stream, you must specify the following:
+
+* The name of the data stream
+* The name of the timestamp field.
+
+[[indices-create-data-stream-api-path-params]]
+==== {api-path-parms-title}
+
+`<data-stream>`::
++
+--
+(Required, string) Name of the data stream to create.
+
+Data stream names must meet the following criteria:
+
+- Lowercase only
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character),
+`,`, `#`, `:`
+- Cannot start with `-`, `_`, `+`, `.`
+- Cannot be `.` or `..`
+- Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters
+will count towards the 255 limit faster)
+--
+
+[[indices-create-data-stream-api-request-body]]
+==== {api-request-body-title}
+
+`timestamp_field`::
+(Required, string) The name of the timestamp field. This field must be present
+in all documents indexed into the data stream and must be of type
+<<date, `date`>> or <<date_nanos, `date_nanos`>>.
+

@@ -10,7 +10,7 @@ Reloads the keystore on nodes in the cluster.
 ==== {api-request-title}
 
 `POST _nodes/reload_secure_settings` +
-`POST _nodes/<nodes/reload_secure_settings`
+`POST _nodes/<node_id>/reload_secure_settings`
 
 [[cluster-nodes-reload-secure-settings-api-desc]]
 ==== {api-description-title}
@@ -32,7 +32,7 @@ the node-specific {es} keystore password.
 [[cluster-nodes-reload-secure-settings-path-params]]
 ==== {api-path-parms-title}
 
-`<nodes>`::
+`<node_id>`::
     (Optional, string) The names of particular nodes in the cluster to target.
     For example, `nodeId1,nodeId2`. For node selection options, see
     <<cluster-nodes>>.

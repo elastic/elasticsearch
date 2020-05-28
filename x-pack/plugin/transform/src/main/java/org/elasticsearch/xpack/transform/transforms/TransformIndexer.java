@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -50,6 +51,7 @@ import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -84,6 +86,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
     private final TransformProgressGatherer progressGatherer;
+    private volatile float docsPerSecond = -1;
 
     protected final TransformAuditor auditor;
     protected final TransformContext context;
@@ -97,7 +100,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private final Map<String, String> fieldMappings;
 
     private Pivot pivot;
-    private int pageSize = 0;
+    private volatile Integer initialConfiguredPageSize;
+    private volatile int pageSize = 0;
     private long logEvery = 1;
     private long logCount = 0;
     private volatile TransformCheckpoint lastCheckpoint;
@@ -144,6 +148,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // give runState a default
         this.runState = RunState.APPLY_BUCKET_RESULTS;
+
+        if (transformConfig.getSettings() != null && transformConfig.getSettings().getDocsPerSecond() != null) {
+            docsPerSecond = transformConfig.getSettings().getDocsPerSecond();
+        }
     }
 
     public int getPageSize() {
@@ -153,6 +161,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected String getJobId() {
         return transformConfig.getId();
+    }
+
+    @Override
+    protected float getMaxDocsPerSecond() {
+        return docsPerSecond;
     }
 
     public TransformConfig getConfig() {
@@ -229,7 +242,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
                 if (pageSize == 0) {
-                    pageSize = pivot.getInitialPageSize();
+                    configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
                 }
 
                 runState = determineRunStateAtStart();
@@ -438,6 +451,22 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         return super.maybeTriggerAsyncJob(now);
+    }
+
+    /**
+     * Handle new settings at runtime, this is triggered by a call to _transform/id/_update
+     *
+     * @param newSettings The new settings that should be applied
+     */
+    public void applyNewSettings(SettingsConfig newSettings) {
+        auditor.info(transformConfig.getId(), "Transform settings have been updated.");
+        logger.info("[{}] transform settings have been updated.", transformConfig.getId());
+
+        docsPerSecond = newSettings.getDocsPerSecond() != null ? newSettings.getDocsPerSecond() : -1;
+        if (Objects.equals(newSettings.getMaxPageSearchSize(), initialConfiguredPageSize) == false) {
+            configurePageSize(newSettings.getMaxPageSearchSize());
+        }
+        rethrottle();
     }
 
     @Override
@@ -883,6 +912,17 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // continuous mode: we need to get the changed buckets first
         return RunState.IDENTIFY_CHANGES;
+    }
+
+    private void configurePageSize(Integer newPageSize) {
+        initialConfiguredPageSize = newPageSize;
+
+        // if the user explicitly set a page size, take it from the config, otherwise let the function decide
+        if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
+            pageSize = initialConfiguredPageSize;
+        } else {
+            pageSize = pivot.getInitialPageSize();
+        }
     }
 
     /**

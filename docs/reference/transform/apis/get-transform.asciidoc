@@ -149,6 +149,7 @@ The API returns the following results:
         }
       },
       "description" : "Maximum priced ecommerce data by customer_id in Asia",
+      "settings" : { },
       "version" : "7.5.0",
       "create_time" : 1576094542936
     }

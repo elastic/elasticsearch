@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
@@ -45,7 +46,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -63,6 +63,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -207,7 +208,7 @@ public class CachePreWarmingTests extends ESTestCase {
                     .filter(fileInfo -> excludedFromCache.contains(IndexFileNames.getExtension(fileInfo.physicalName())) == false)
                     .collect(Collectors.toList());
 
-                final FilterBlobContainer filterBlobContainer = new FilterBlobContainer(blobContainer);
+                final TrackingFilesBlobContainer filterBlobContainer = new TrackingFilesBlobContainer(blobContainer);
                 try (
                     SearchableSnapshotDirectory snapshotDirectory = new SearchableSnapshotDirectory(
                         () -> filterBlobContainer,
@@ -254,12 +255,17 @@ public class CachePreWarmingTests extends ESTestCase {
         }
     }
 
-    private static class FilterBlobContainer extends BlobContainerWrapper {
+    private static class TrackingFilesBlobContainer extends FilterBlobContainer {
 
-        private final Map<String, Long> files = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Long> files;
 
-        FilterBlobContainer(BlobContainer delegate) {
+        TrackingFilesBlobContainer(BlobContainer delegate) {
+            this(delegate, new ConcurrentHashMap<>());
+        }
+
+        TrackingFilesBlobContainer(BlobContainer delegate, ConcurrentHashMap<String, Long> files) {
             super(delegate);
+            this.files = Objects.requireNonNull(files);
         }
 
         public long totalFilesRead() {
@@ -306,6 +312,11 @@ public class CachePreWarmingTests extends ESTestCase {
                     super.close();
                 }
             };
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new TrackingFilesBlobContainer(child, this.files);
         }
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.messages;
 
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.text.MessageFormat;
 import java.util.Locale;
@@ -212,6 +213,9 @@ public final class Messages {
             "This job would cause a mapping clash with existing field [{0}] - avoid the clash by assigning a dedicated results index";
     public static final String JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG =
             "data_description.time_field may not be used in the analysis_config";
+    public static final String JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT =
+            "The value of '" + Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS + "' [{0}] cannot be greater than '" +
+                Job.MODEL_SNAPSHOT_RETENTION_DAYS + "' [{1}]";
 
     public static final String JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE =
             "job and group names must be unique but job [{0}] and group [{0}] have the same name";

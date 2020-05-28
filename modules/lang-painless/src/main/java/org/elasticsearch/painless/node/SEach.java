@@ -64,10 +64,7 @@ public class SEach extends AStatement {
         Output output = new Output();
 
         AExpression.Input expressionInput = new AExpression.Input();
-        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-        // TODO: no need to cast here
-        expressionInput.expected = expressionOutput.actual;
-        expression.cast(expressionInput, expressionOutput);
+        AExpression.Output expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
 
         Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 

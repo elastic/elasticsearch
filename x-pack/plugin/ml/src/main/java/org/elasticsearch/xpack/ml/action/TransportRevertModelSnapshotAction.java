@@ -143,10 +143,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // acknowledged responses
         return ActionListener.wrap(response -> {
             Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
-            logger.debug("Removing intervening records: last record: " + deleteAfter + ", last result: "
-                    + modelSnapshot.getLatestResultTimeStamp());
-
-            logger.info("Deleting results after '" + deleteAfter + "'");
+            logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
             dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {

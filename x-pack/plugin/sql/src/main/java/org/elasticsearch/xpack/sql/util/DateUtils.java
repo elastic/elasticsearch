@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -69,7 +70,7 @@ public final class DateUtils {
             .optionalEnd()
             .toFormatter().withZone(UTC);
 
-    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
+    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
     private DateUtils() {}
@@ -203,5 +204,9 @@ public final class DateUtils {
         // remove the remainder
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
+    }
+
+    public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
+        return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
     }
 }

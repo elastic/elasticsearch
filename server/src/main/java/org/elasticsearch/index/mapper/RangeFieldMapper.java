@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -42,7 +41,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -79,7 +78,7 @@ public class RangeFieldMapper extends FieldMapper {
     static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
 
-    public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private Boolean coerce;
         private Locale locale = Locale.ROOT;
         private String pattern;
@@ -156,7 +155,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -211,7 +210,7 @@ public class RangeFieldMapper extends FieldMapper {
         public RangeType rangeType() { return rangeType; }
 
         @Override
-        public MappedFieldType clone() {
+        public RangeFieldType clone() {
             return new RangeFieldType(this);
         }
 
@@ -233,7 +232,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().setRangeType(rangeType);
+            return new BinaryIndexFieldData.Builder();
         }
 
         @Override
@@ -337,7 +336,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         Range range;
         if (context.externalValueSet()) {
             range = context.parseExternalValue(Range.class);
@@ -396,18 +395,18 @@ public class RangeFieldMapper extends FieldMapper {
         boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType.hasDocValues();
         boolean stored = fieldType.stored();
-        fields.addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
+
         if (docValued == false && (indexed || stored)) {
-            createFieldNamesField(context, fields);
+            createFieldNamesField(context);
         }
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        RangeFieldMapper other = (RangeFieldMapper) mergeWith;
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        RangeFieldMapper mergeWith = (RangeFieldMapper) other;
+        if (mergeWith.coerce.explicit()) {
+            this.coerce = mergeWith.coerce;
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -124,7 +125,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -152,7 +153,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -180,7 +181,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -205,7 +206,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", ActionListener.wrap(datafeedJob -> fail(), taskHandler));
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), ActionListener.wrap(datafeedJob -> fail(), taskHandler));
 
         verify(taskHandler).accept(error);
     }
@@ -247,7 +248,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
         assertBusy(() -> wasHandlerCalled.get());
     }
 

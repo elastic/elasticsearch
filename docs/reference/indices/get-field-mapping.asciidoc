@@ -48,8 +48,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 (Optional, boolean) If `true`, the response includes default mapping values.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
-
 
 [[get-field-mapping-api-example]]
 ==== {api-examples-title}

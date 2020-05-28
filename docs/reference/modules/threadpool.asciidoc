@@ -1,11 +1,9 @@
 [[modules-threadpool]]
-== Thread Pool
+=== Thread pools
 
-A node holds several thread pools in order to improve how threads memory consumption
-are managed within a node. Many of these pools also have queues associated with them,
-which allow pending requests to be held instead
-of discarded.
-
+A node uses several thread pools to manage memory consumption. 
+Queues associated with many of the thread pools enable pending requests 
+to be held instead of discarded. 
 
 There are several thread pools, but the important ones include:
 
@@ -13,11 +11,11 @@ There are several thread pools, but the important ones include:
     For generic operations (for example, background node discovery).
     Thread pool type is `scaling`.
 
+[[search-threadpool]]
 `search`::
     For count/search/suggest operations. Thread pool type is
-    `fixed` with a size of
-    `int((# of available_processors * 3) / 2) + 1`, and queue_size of
-    `1000`.
+    `fixed` with a size of `int((`<<node.processors,
+    `# of allocated processors`>>`pass:[ * ]3) / 2) + 1`, and queue_size of `1000`.
 
 [[search-throttled]]`search_throttled`::
     For count/search/suggest/get operations on `search_throttled indices`.
@@ -25,7 +23,7 @@ There are several thread pools, but the important ones include:
 
 `get`::
     For get operations. Thread pool type is `fixed`
-    with a size of `# of available processors`,
+    with a size of <<node.processors, `# of allocated processors`>>,
     queue_size of `1000`.
 
 `analyze`::
@@ -34,40 +32,45 @@ There are several thread pools, but the important ones include:
 
 `write`::
     For single-document index/delete/update and bulk requests. Thread pool type
-    is `fixed` with a size of `# of available processors`, queue_size of `200`.
-    The maximum size for this pool is `1 + # of available processors`.
+    is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
+    queue_size of `200`. The maximum size for this pool is
+    `pass:[1 + ]`<<node.processors, `# of allocated processors`>>.
 
 `snapshot`::
     For snapshot/restore operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(5, (# of available processors)/2)`.
+    keep-alive of `5m` and a max of `min(5, (`<<node.processors,
+    `# of allocated processors`>>`) / 2)`.
 
 `warmer`::
     For segment warm-up operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(5, (# of available processors)/2)`.
+    keep-alive of `5m` and a max of `min(5, (`<<node.processors,
+    `# of allocated processors`>>`) / 2)`.
 
 `refresh`::
     For refresh operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(10, (# of available processors)/2)`.
+    keep-alive of `5m` and a max of `min(10, (`<<node.processors,
+    `# of allocated processors`>>`) / 2)`.
 
 `listener`::
     Mainly for java client executing of action when listener threaded is set to
     `true`. Thread pool type is `scaling` with a default max of
-    `min(10, (# of available processors)/2)`.
+    `min(10, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
 
 `fetch_shard_started`::
     For listing shard states.
     Thread pool type is `scaling` with keep-alive of `5m` and a default maximum
-    size of `2 * # of available processors`.
+    size of `pass:[2 * ]`<<node.processors, `# of allocated processors`>>.
 
 `fetch_shard_store`::
     For listing shard stores.
     Thread pool type is `scaling` with keep-alive of `5m` and a default maximum
-    size of `2 * # of available processors`.
+    size of `pass:[2 * ]`<<node.processors, `# of allocated processors`>>.
 
 `flush`::
-    For <<indices-flush,flush>> and <<index-modules-translog, translog>> `fsync` operations.
-    Thread pool type is `scaling` with a keep-alive of `5m` and a default
-    maximum size of `min(5, (# of available processors)/2)`.
+    For <<indices-flush,flush>> and <<index-modules-translog, translog>> `fsync`
+    operations. Thread pool type is `scaling` with a keep-alive of `5m` and a
+    default maximum size of `min(5, (`<<node.processors,
+    `# of allocated processors`>>`) / 2)`.
 
 `force_merge`::
     For <<indices-forcemerge,force merge>> operations.
@@ -89,15 +92,13 @@ thread_pool:
         size: 30
 --------------------------------------------------
 
-[float]
-[[types]]
-=== Thread pool types
+[[thread-pool-types]]
+==== Thread pool types
 
 The following are the types of thread pools and their respective parameters:
 
-[float]
-[[fixed]]
-==== `fixed`
+[[fixed-thread-pool]]
+===== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the
 requests with a queue (optionally bounded) for pending requests that
@@ -118,9 +119,8 @@ thread_pool:
         queue_size: 1000
 --------------------------------------------------
 
-[float]
-[[scaling]]
-==== `scaling`
+[[scaling-thread-pool]]
+===== `scaling`
 
 The `scaling` thread pool holds a dynamic number of threads. This
 number is proportional to the workload and varies between the value of
@@ -138,34 +138,32 @@ thread_pool:
         keep_alive: 2m
 --------------------------------------------------
 
-[float]
-[[processors]]
-=== Processors setting
+[[node.processors]]
+==== Allocated processors setting
 
-The number of processors is automatically detected, and the thread pool
-settings are automatically set based on it. In some cases it can be
-useful to override the number of detected processors. This can be done
-by explicitly setting the `processors` setting.
+The number of processors is automatically detected, and the thread pool settings
+are automatically set based on it. In some cases it can be useful to override
+the number of detected processors. This can be done by explicitly setting the
+`node.processors` setting.
 
 [source,yaml]
 --------------------------------------------------
-processors: 2
+node.processors: 2
 --------------------------------------------------
 
-There are a few use-cases for explicitly overriding the `processors`
+There are a few use-cases for explicitly overriding the `node.processors`
 setting:
 
-. If you are running multiple instances of {es} on the same host but want {es}
-to size its thread pools as if it only has a fraction of the CPU, you should
-override the `processors` setting to the desired fraction, for example, if
-you're running two instances of {es} on a 16-core machine, set `processors` to 8.
-Note that this is an expert-level use case and there's a lot more involved
-than just setting the `processors` setting as there are other considerations
-like changing the number of garbage collector threads, pinning processes to
-cores, and so on.
-. Sometimes the number of processors is wrongly detected and in such
-cases explicitly setting the `processors` setting will workaround such
-issues.
+. If you are running multiple instances of {es} on the same host but want want
+{es} to size its thread pools as if it only has a fraction of the CPU, you
+should override the `node.processors` setting to the desired fraction, for
+example, if you're running two instances of {es} on a 16-core machine, set
+`node.processors` to 8.  Note that this is an expert-level use case and there's
+a lot more involved than just setting the `node.processors` setting as there are
+other considerations like changing the number of garbage collector threads,
+pinning processes to cores, and so on.
+. Sometimes the number of processors is wrongly detected and in such cases
+explicitly setting the `node.processors` setting will workaround such issues.
 
 In order to check the number of processors detected, use the nodes info
 API with the `os` flag.

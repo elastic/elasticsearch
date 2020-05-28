@@ -16,11 +16,6 @@
 query = 'process where true | head 6'
 expected_event_ids  = [1, 2, 3, 4, 5, 6]
 
-# presently not supported, throwing: org.elasticsearch.xpack.ql.rule.RuleExecutionException: Does not know how to handle a local relation
-[[queries]]
-query = 'process where false'
-expected_event_ids = []
-
 [[queries]]
 expected_event_ids = []
 query = 'process where missing_field != null'
@@ -237,25 +232,10 @@ process where true
 [[queries]]
 query = '''
 sequence
-  [process where serial_event_id = 1]
-  [process where serial_event_id = 2]
-'''
-expected_event_ids  = [1, 2]
-
-[[queries]]
-query = '''
-sequence
   [process where serial_event_id < 5]
   [process where serial_event_id = 5]
 '''
 expected_event_ids  = [4, 5]
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id=1] by unique_pid
-  [process where true] by unique_ppid'''
-expected_event_ids  = [1, 2]
 
 [[queries]]
 query = '''
@@ -809,12 +789,6 @@ description = "check built-in string functions"
 
 [[queries]]
 query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 0) == 2'''
-expected_event_ids  = [88, 92]
-description = "check built-in string functions"
-
-[[queries]]
-query = '''
 file where opcode=0 and indexOf(file_name, 'plorer.', 2)'''
 expected_event_ids  = [88, 92]
 description = "check built-in string functions"
@@ -832,59 +806,19 @@ expected_event_ids = []
 description = "check built-in string functions"
 
 [[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'plorer.', 2) == 2'''
-expected_event_ids  = [88, 92]
-description = "check substring ranges"
+# This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
+expected_event_ids = [82]
+query = "file where serial_event_id / 2 == 41"
 
 [[queries]]
-query = '''
-file where opcode=0 and indexOf(file_name, 'explorer.', 0) == 0'''
-expected_event_ids  = [88, 92]
-description = "check substring ranges"
-
-[[queries]]
-query = '''
-process where add(serial_event_id, 0) == 1 and add(0, 1) == serial_event_id'''
-expected_event_ids  = [1]
-description = "test built-in math functions"
-
-[[queries]]
-query = '''
-process where subtract(serial_event_id, -5) == 6'''
-expected_event_ids  = [1]
-description = "test built-in math functions"
-
-[[queries]]
-query = '''
-process where multiply(6, serial_event_id) == 30 and divide(30, 4.0) == 7.5'''
-expected_event_ids  = [5]
-description = "test built-in math functions"
-
-[[queries]]
+# Error: Line 1:42: Comparisons against fields are not (currently) supported; offender [serial_event_id] in [==]
 query = '''
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id'''
 expected_event_ids  = [1, 2, 3, 5, 11]
 description = "test built-in math functions"
 
-[[queries]]
-query = '''
-process where serial_event_id == number('5')'''
-expected_event_ids  = [5]
-description = "test string/number conversions"
 
-[[queries]]
-expected_event_ids  = [50]
-description = "test string/number conversions"
-query = '''
-process where serial_event_id == number('0x32', 16)'''
-
-[[queries]]
-expected_event_ids  = [50]
-description = "test string/number conversions"
-query = '''
-process where serial_event_id == number('32', 16)'''
-
+# this should be removed and the number function should be updated to take only strings
 [[queries]]
 query = '''
 process where number(serial_event_id) == number(5)'''
@@ -1020,96 +954,21 @@ query = '''
 registry where arrayContains(bytes_written_string_list, "missing", "en-US")
 '''
 
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id - 1 == 81"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id + 1 == 83"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id * 2 == 164"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id / 2 == 41"
-
-[[queries]]
-expected_event_ids = [82]
-query = "file where serial_event_id % 40 == 2"
-
-[[queries]]
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "s", "e") == "yst"
-'''
-
-[[queries]]
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "s", "e", false) == "yst"
-'''
-
-[[queries]]
-expected_event_ids = []
-query = '''
-process where between(process_name, "s", "e", false, true) == "yst"
-'''
-
-[[queries]]
-expected_event_ids = [1, 2, 42]
-query = '''
-process where between(process_name, "s", "e", false, true) == "t"
-'''
-
-[[queries]]
-expected_event_ids = [1, 2]
-query = '''
-process where between(process_name, "S", "e", false, true) == "yst"
-'''
-
-[[queries]]
-expected_event_ids = [1]
-query = '''
-process where between(process_name, "s", "e", true) == "ystem Idle Proc"
-'''
-
+# The following two "between" queries behave slightly different with elasticsearch
+# due to comparison on keyword field would be case-sensitive and would need to be
+# file where between(file_path, "dev", ".json", false) == "\\TestLogs\\something"
+# blacklisted, check for modified query in test_queries_supported.toml
 [[queries]]
 expected_event_ids = [95]
 query = '''
 file where between(file_path, "dev", ".json", false) == "\\testlogs\\something"
 '''
 
+# blacklisted, check for modified query in test_queries_supported.toml
 [[queries]]
 expected_event_ids = [95]
 query = '''
 file where between(file_path, "dev", ".json", true) == "\\testlogs\\something"
-'''
-
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "10.6.48.157/8")
-'''
-
-[[queries]]
-expected_event_ids = []
-query = '''
-network where cidrMatch(source_address, "192.168.0.0/16")
-'''
-
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8")
-
-'''
-[[queries]]
-expected_event_ids = [75304, 75305]
-query = '''
-network where cidrMatch(source_address, "0.0.0.0/0")
 '''
 
 [[queries]]

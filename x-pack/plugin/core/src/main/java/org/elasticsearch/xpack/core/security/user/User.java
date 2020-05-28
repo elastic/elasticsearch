@@ -118,6 +118,10 @@ public class User implements ToXContentObject {
         return authenticatedUser != null;
     }
 
+    public User withRoles(String[] newRoles) {
+        return new User(username, newRoles, fullName, email, metadata, enabled);
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -207,6 +211,10 @@ public class User implements ToXContentObject {
             writeUser(user.authenticatedUser, output);
         }
         output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
+    }
+
+    public static boolean isInternal(User user) {
+        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
     }
 
     /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */

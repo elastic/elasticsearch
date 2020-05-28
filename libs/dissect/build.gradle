@@ -26,7 +26,7 @@ dependencies {
   testCompile "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 

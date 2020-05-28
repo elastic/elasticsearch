@@ -1,0 +1,287 @@
+[[run-a-search]]
+== Run a search
+
+You can use the <<search-search,search API>> to search data stored in
+one or more {es} indices.
+
+The API can runs two types of searches, depending on how you provide
+<<search-query,queries>>:
+
+<<run-uri-search,URI searches>>::
+  Queries are provided through a query parameter. URI searches tend to be
+  simpler and best suited for testing.
+
+<<run-request-body-search,Request body searches>>::
+  Queries are provided through the JSON body of the API request. These queries
+  are written in <<query-dsl,Query DSL>>. We recommend using request body
+  searches in most production use cases.
+
+[WARNING]
+====
+If you specify a query in both the URI and request body, the search API request
+runs only the URI query.
+====
+
+[discrete]
+[[run-uri-search]]
+=== Run a URI search
+
+You can use the search API's <<search-api-query-params-q,`q` query string
+parameter>> to run a search in the request's URI. The `q` parameter only accepts
+queries written in Lucene's <<query-string-syntax,query string syntax>>.
+
+.*Example*
+[%collapsible]
+====
+To get started, ingest or add some data to an {es} index.
+
+The following <<docs-bulk,bulk API>> request adds some example user log data to
+the `user_logs_000001` index.
+
+[source,console]
+----
+PUT /user_logs_000001/_bulk?refresh
+{"index":{"_index" : "user_logs_000001", "_id" : "1"}}
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "user": { "id": "vlb44hny" }, "message": "Login attempt failed" }
+{"index":{"_index" : "user_logs_000001", "_id" : "2"}}
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
+{"index":{"_index" : "user_logs_000001", "_id" : "3"}}
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "user": { "id": "l7gk7f82" }, "message": "Logout successful" }
+----
+
+You can now use the search API to run a URI search on this index.
+
+The following URI search matches documents with a `user.id` value of `l7gk7f82`.
+Note the query is specified using the `q` query string parameter.
+
+[source,console]
+----
+GET /user_logs_000001/_search?q=user.id:8a4f500d
+----
+// TEST[continued]
+
+The API returns the following response. Note the `hits.hits` property contains
+the document that matched the query.
+
+[source,console-result]
+----
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 0.9808291,
+    "hits": [
+      {
+        "_index": "user_logs_000001",
+        "_id": "2",
+        "_score": 0.9808291,
+        "_source": {
+          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "user": {
+            "id": "8a4f500d"
+          },
+          "message": "Login successful"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 2/"took": "$body.took"/]
+====
+
+[discrete]
+[[run-request-body-search]]
+=== Run a request body search
+
+You can use the search API's <<request-body-search-query,`query` request
+body parameter>> to provide a query as a JSON object, written in
+<<query-dsl,Query DSL>>.
+
+.*Example*
+[%collapsible]
+====
+The following request body search uses the <<query-dsl-match-query,`match`>>
+query to match documents with a `message` value of `login successful`. Note the
+`match` query is specified as a JSON object in the `query` parameter.
+
+[source,console]
+----
+GET /user_logs_000001/_search
+{
+  "query": {
+    "match": {
+      "message": "login successful"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The API returns the following response.
+
+The `hits.hits` property contains matching documents. By default, the response
+sorts these matching documents by `_score`, a <<relevance-scores,relevance
+score>> that measures how well each document matches the query.
+
+[source,console-result]
+----
+{
+  "took": 1,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 3,
+      "relation": "eq"
+    },
+    "max_score": 0.9983525,
+    "hits": [
+      {
+        "_index": "user_logs_000001",
+        "_id": "2",
+        "_score": 0.9983525,
+        "_source": {
+          "@timestamp": "2020-12-07T11:06:07.000Z",
+          "user": {
+            "id": "8a4f500d"
+          },
+          "message": "Login successful"
+        }
+      },
+      {
+        "_index": "user_logs_000001",
+        "_id": "3",
+        "_score": 0.49917626,
+        "_source": {
+          "@timestamp": "2020-12-07T11:07:08.000Z",
+          "user": {
+            "id": "l7gk7f82"
+          },
+          "message": "Logout successful"
+        }
+      },
+      {
+        "_index": "user_logs_000001",
+        "_id": "1",
+        "_score": 0.42081726,
+        "_source": {
+          "@timestamp": "2020-12-06T11:04:05.000Z",
+          "user": {
+            "id": "vlb44hny"
+          },
+          "message": "Login attempt failed"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 1/"took": "$body.took"/]
+====
+
+[discrete]
+[[search-multiple-indices]]
+=== Search multiple indices
+
+To search multiple indices, add them as comma-separated values in the search API
+request path.
+
+.*Example*
+[%collapsible]
+====
+The following request searches the `user_logs_000001` and `user_logs_000002`
+indices.
+
+[source,console]
+----
+GET /user_logs_000001,user_logs_000002/_search
+{
+  "query": {
+    "match": {
+      "message": "login successful"
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/^/PUT user_logs_000002\n/]
+====
+
+You can also search multiple indices using an index pattern.
+
+.*Example*
+[%collapsible]
+====
+The following request uses the index pattern `user_logs*` in place of the index
+name. The request searches any indices in the cluster that start with
+`user_logs`.
+
+[source,console]
+----
+GET /user_logs*/_search
+{
+  "query": {
+    "match": {
+      "message": "login successful"
+    }
+  }
+}
+----
+// TEST[continued]
+====
+
+To search all indices in a cluster, omit the index name from the request path.
+Alternatively, you can use `_all` or `*` in place of the index name.
+
+.*Example*
+[%collapsible]
+====
+The following requests are equivalent and search all indices in the cluster.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "match": {
+      "message": "login successful"
+    }
+  }
+}
+
+GET /_all/_search
+{
+  "query": {
+    "match": {
+      "message": "login successful"
+    }
+  }
+}
+
+GET /*/_search
+{
+    "query" : {
+        "match" : { "message" : "login" }
+    }
+}
+----
+// TEST[continued]
+====
+
+include::request/from-size.asciidoc[]

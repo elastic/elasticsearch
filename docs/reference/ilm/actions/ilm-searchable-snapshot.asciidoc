@@ -1,0 +1,39 @@
+[role="xpack"]
+[[ilm-searchable-snapshot]]
+=== Searchable snapshot
+
+Phases allowed: cold.
+
+Takes a snapshot of the managed index in the configured repository
+and mounts it as a searchable snapshot.
+
+By default, this snapshot is deleted by the <<ilm-delete-action, delete action>> in the delete phase.
+To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
+
+[[ilm-searchable-snapshot-options]]
+==== Options
+
+`snapshot_repository`::
+(Required, string)
+Specifies where to store the snapshot. 
+See <<snapshots-register-repository>> for more information.
+
+[[ilm-searchable-snapshot-ex]]
+==== Examples
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "cold": {
+        "actions": {
+          "searchable_snapshot" : {
+            "snapshot_repository" : "backing_repo"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

@@ -164,8 +164,164 @@ include::../mapping/types/numeric.asciidoc[tag=map-ids-as-keyword]
 [float]
 === Avoid scripts
 
-In general, scripts should be avoided. If they are absolutely needed, you
-should prefer the `painless` and `expressions` engines.
+If possible, avoid using <<modules-scripting,scripts>> or
+<<request-body-search-script-fields,scripted fields>> in searches. Because
+scripts can't make use of index structures, using scripts in search queries can
+result in slower search speeds.
+
+If you often use scripts to transform indexed data, you can speed up search by
+making these changes during ingest instead. However, that often means slower
+index speeds.
+
+.*Example*
+[%collapsible]
+====
+An index, `my_test_scores`, contains two `long` fields:
+
+* `math_score`
+* `verbal_score`
+
+When running searches, users often use a script to sort results by the sum of
+these two field's values.
+
+[source,console]
+----
+GET /my_test_scores/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2020"
+    }
+  },
+  "sort": [
+    {
+      "_script": {
+        "type": "number",
+        "script": {
+          "source": "doc['math_score'].value + doc['verbal_score'].value"
+        },
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my_test_scores\n/]
+
+To speed up search, you can perform this calculation during ingest and index the
+sum to a field instead.
+
+First, <<indices-put-mapping,add a new field>>, `total_score`, to the index. The
+`total_score` field will contain sum of the `math_score` and `verbal_score`
+field values.
+
+[source,console]
+----
+PUT /my_test_scores/_mapping
+{
+  "properties": {
+    "total_score": {
+      "type": "long"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Next, use an <<ingest,ingest pipeline>> containing the
+<<script-processor,`script`>> processor to calculate the sum of `math_score` and
+`verbal_score` and index it in the `total_score` field.
+
+[source,console]
+----
+PUT _ingest/pipeline/my_test_scores_pipeline
+{
+  "description": "Calculates the total test score",
+  "processors": [
+    {
+      "script": {
+        "source": "ctx.total_score = (ctx.math_score + ctx.verbal_score)"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+To update existing data, use this pipeline to <<docs-reindex,reindex>> any
+documents from `my_test_scores` to a new index, `my_test_scores_2`.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "my_test_scores"
+  },
+  "dest": {
+    "index": "my_test_scores_2",
+    "pipeline": "my_test_scores_pipeline"
+  }
+}
+----
+// TEST[continued]
+
+Continue using the pipeline to index any new documents to `my_test_scores_2`.
+
+[source,console]
+----
+POST /my_test_scores_2/_doc/?pipeline=my_test_scores_pipeline
+{
+  "student": "kimchy",
+  "grad_year": "2020",
+  "math_score": 800,
+  "verbal_score": 800
+}
+----
+// TEST[continued]
+
+These changes may slow indexing but allow for faster searches. Users can now
+sort searches made on `my_test_scores_2` using the `total_score` field instead
+of using a script.
+
+[source,console]
+----
+GET /my_test_scores_2/_search
+{
+  "query": {
+    "term": {
+      "grad_year": "2020"
+    }
+  },
+  "sort": [
+    {
+      "total_score": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_ingest/pipeline/my_test_scores_pipeline
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+"acknowledged": true
+}
+----
+////
+====
+
+We recommend testing and benchmarking any indexing changes before deploying them
+in production.
 
 [float]
 === Search rounded dates

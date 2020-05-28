@@ -6,8 +6,10 @@
 <titleabbrev>Estimate model memory</titleabbrev>
 ++++
 
-Estimates the model memory an {anomaly-job} is likely to need based on analysis
-configuration details and cardinality estimates for the fields it references.
+Makes an estimation of the memory usage for an {anomaly-job} model. It 
+is based on analysis configuration details for the job and cardinality estimates for the 
+fields it references.
+
 
 [[ml-estimate-model-memory-request]]
 ==== {api-request-title}
@@ -17,35 +19,39 @@ configuration details and cardinality estimates for the fields it references.
 [[ml-estimate-model-memory-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+If the {es} {security-features} are enabled, you must have the following 
+equivalent privileges:
+
+* `manage_ml` or cluster: `manage`
+
+For more information, see <<security-privileges>>.
+
 
 [[ml-estimate-model-memory-request-body]]
 ==== {api-request-body-title}
 
 `analysis_config`::
-(Required, object) For a list of the properties that you can specify in the
-`analysis_config` component of the body of this API, see <<put-analysisconfig,`analysis_config`>>.
+(Required, object) 
+For a list of the properties that you can specify in the `analysis_config` 
+component of the body of this API, see <<put-analysisconfig,`analysis_config`>>.
 
 `max_bucket_cardinality`::
-(Required^\*^, object) Estimates of the highest cardinality in a single bucket
-that will be observed for influencer fields over the time period that the job
-analyzes data. To produce a good answer, values must be provided for
-all influencer fields. It does not matter if values are provided for fields
-that are not listed as `influencers`. +
-^*^If there are no `influencers` then `max_bucket_cardinality` can be omitted 
-from the request.
+(Required^\*^, object)
+Estimates of the highest cardinality in a single bucket that is observed for 
+influencer fields over the time period that the job analyzes data. To produce a 
+good answer, values must be provided for all influencer fields. Providing values 
+for fields that are not listed as `influencers` has no effect on the estimation. +
+^*^It can be omitted from the request if there are no `influencers`.
 
 `overall_cardinality`::
-(Required^\*^, object) Estimates of the cardinality that will be observed for
-fields over the whole time period that the job analyzes data. To produce a good 
-answer, values must be provided for fields referenced in the `by_field_name`, 
-`over_field_name` and `partition_field_name` of any detectors. It does not 
-matter if values are provided for other fields. +
-^*^If no detectors have a `by_field_name`, `over_field_name` or 
-`partition_field_name` then `overall_cardinality` can be omitted from the 
-request.
+(Required^\*^, object) 
+Estimates of the cardinality that is observed for fields over the whole time 
+period that the job analyzes data. To produce a good answer, values must be 
+provided for fields referenced in the `by_field_name`, `over_field_name` and 
+`partition_field_name` of any detectors. Providing values for other fields has 
+no effect on the estimation. +
+^*^It can be omitted from the request if no detectors have a `by_field_name`, 
+`over_field_name` or `partition_field_name`.
 
 [[ml-estimate-model-memory-example]]
 ==== {api-examples-title}

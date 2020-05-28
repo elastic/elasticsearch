@@ -3,13 +3,14 @@
 [[ilm-with-existing-indices]]
 == Manage existing indices
 
+NOTE:  If migrating from Curator, ensure you are running Curator version 5.7 or greater
+so that Curator will ignore ILM managed indices.
+
 While it is recommended to use {ilm-init} to manage the index lifecycle from
 start to finish, it may be useful to use {ilm-init} with existing indices,
-particularly when transitioning from an alternative method of managing the index
-lifecycle such as Curator, or when migrating from daily indices to
-rollover-based indices. Such use cases are fully supported, but there are some
-configuration differences from when {ilm-init} can manage the complete index
-lifecycle.
+for example, when migrating from daily indices to rollover-based indices. 
+Such use cases are fully supported, but there are some configuration differences 
+from when {ilm-init} can manage the complete index lifecycle.
 
 This section describes strategies to leverage {ilm-init} for existing periodic
 indices when migrating to fully {ilm-init}-manged indices, which can be done in
@@ -76,7 +77,7 @@ DELETE _template/mylogs_template
 //////////////////////////
 
 Now that we have these indices, we'll look at a few different ways of migrating
-these indices to ILM.
+these indices to {ilm-init}.
 
 [[ilm-with-existing-periodic-indices]]
 === Managing existing periodic indices with {ilm-init}
@@ -90,12 +91,11 @@ The simplest way to manage existing indices while transitioning to fully
 all new documents should be directed to {ilm-init}-managed indices - if you are
 using Beats or Logstash data shippers, upgrading all of those shippers to
 version 7.0.0 or higher will take care of that part for you. If you are not
-using Beats or Logstash, you may need to set up ILM for new indices yourself as
-demonstrated in the <<getting-started-index-lifecycle-management,getting started
-guide>>.
+using Beats or Logstash, you may need to set up {ilm-init} for new indices yourself as
+demonstrated in the <<getting-started-index-lifecycle-management,{ilm-init} tutorial>>.
 
 NOTE: If you are using Beats through Logstash, you may need to change your
-Logstash output configuration and invoke the Beats setup to use ILM for new
+Logstash output configuration and invoke the Beats setup to use {ilm-init} for new
 data.
 
 Once all new documents are being written to fully {ilm-init}-managed indices, it
@@ -340,7 +340,7 @@ All new documents should be indexed via the `mylogs` alias at this point. Adding
 new data to the old indices during the reindexing process can cause data to be
 added to the old indices, but not be reindexed into the new indices.
 
-NOTE: If you do not want to mix new data and old data in the new ILM-managed
+NOTE: If you do not want to mix new data and old data in the new {ilm-init}-managed
 indices, indexing of new data should be paused entirely while the reindex
 completes. Mixing old and new data within one index is safe, but keep in mind
 that the indices with mixed data should be retained in their entirety until you
@@ -363,7 +363,7 @@ PUT _cluster/settings
 -----------------------
 // TEST[skip:don't want to overwrite this setting for other tests]
 
-<1> This tells ILM to check for rollover conditions every minute
+<1> This tells {ilm-init} to check for rollover conditions every minute
 
 We're now ready to reindex our data using the <<docs-reindex,reindex API>>. If
 you have a timestamp or date field in your documents, as in this example, it may

@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomIntLiteral;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
@@ -40,7 +41,8 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         List<Expression> expressions = new ArrayList<>(noConditionals + 1);
         for (int i = 0; i < noConditionals; i++) {
             expressions.add(new IfConditional(
-                randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()), randomIntLiteral()));
+                randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
+                randomIntLiteral()));
 
         }
         // default else
@@ -86,14 +88,14 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // ELSE 'default'
         // END
         Case c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), Literal.NULL), literal("default")));
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL), literal("default")));
         assertEquals(KEYWORD, c.dataType());
 
         // CASE WHEN 1 = 1 THEN 'foo'
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), literal("foo")),
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), literal("foo")),
             Literal.NULL));
         assertEquals(KEYWORD, c.dataType());
 
@@ -101,7 +103,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), Literal.NULL),
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL),
             Literal.NULL));
         assertEquals(NULL, c.dataType());
 
@@ -110,8 +112,8 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
         // ELSE NULL
         // END
         c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, literal(1), literal(1)), Literal.NULL),
-                new IfConditional(EMPTY, new Equals(EMPTY, literal(2), literal(2)), literal("foo")),
+                new IfConditional(EMPTY, equalsOf(literal(1), literal(1)), Literal.NULL),
+                new IfConditional(EMPTY, equalsOf(literal(2), literal(2)), literal("foo")),
             Literal.NULL));
         assertEquals(KEYWORD, c.dataType());
     }
@@ -133,7 +135,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
             for (int i = 0; i < c.conditions().size(); i++) {
                 if (i == rndIdx) {
                     expressions.add(new IfConditional(randomValueOtherThan(c.conditions().get(i).source(), SourceTests::randomSource),
-                        new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()),
+                        new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
                         randomValueOtherThan(c.conditions().get(i).condition(), FunctionTestUtils::randomStringLiteral)));
                 } else {
                     expressions.add(c.conditions().get(i));

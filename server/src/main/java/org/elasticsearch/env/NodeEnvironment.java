@@ -279,9 +279,7 @@ public final class NodeEnvironment  implements Closeable {
             applySegmentInfosTrace(settings);
             assertCanWrite();
 
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
-                ensureAtomicMoveSupported(nodePaths);
-            }
+            ensureAtomicMoveSupported(nodePaths);
 
             if (upgradeLegacyNodeFolders(logger, settings, environment, nodeLock)) {
                 assertCanWrite();

@@ -30,10 +30,6 @@ To learn about monitoring in general, see <<monitor-elasticsearch-cluster>>.
 
 . Configure your cluster to collect monitoring data:
 
-.. Verify that the `xpack.monitoring.enabled` setting is `true`, which is its
-default value, on each node in the cluster. For more information, see
-<<monitoring-settings>>.
-
 .. Verify that the `xpack.monitoring.elasticsearch.collection.enabled` setting
 is `true`, which is its default value, on each node in the cluster.
 +
@@ -143,7 +139,7 @@ Alternatively, use the
 <<built-in-users,`remote_monitoring_user` built-in user>>.
 
 ... Add the user ID and password settings to the HTTP exporter settings in the
-`elasticsearch.yml` file on each node. +
+`elasticsearch.yml` file and keystore on each node. +
 +
 --
 For example:
@@ -155,7 +151,7 @@ xpack.monitoring.exporters:
     type: http
     host: ["http://es-mon-1:9200", "http://es-mon2:9200"]
     auth.username: remote_monitoring_user
-    auth.password: YOUR_PASSWORD
+    # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore
 --------------------------------------------------
 --
 
@@ -177,7 +173,7 @@ xpack.monitoring.exporters:
     host: ["https://es-mon1:9200", "https://es-mon2:9200"]
     auth:
       username: remote_monitoring_user
-      password: YOUR_PASSWORD
+      # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore
     ssl:
       certificate_authorities: [ "/path/to/ca.crt" ]
 --------------------------------------------------
@@ -195,7 +191,7 @@ xpack.monitoring.exporters:
     host: ["https://es-mon1:9200", "https://es-mon2:9200"]
     auth:
       username: remote_monitoring_user
-      password: YOUR_PASSWORD
+      # "xpack.monitoring.exporters.id1.auth.secure_password" must be set in the keystore
     ssl:
       truststore.path: /path/to/file
       truststore.password: password

@@ -22,10 +22,12 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -39,11 +41,14 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
-import static java.util.Collections.emptySet;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 
 /** A dummy repository for testing which just needs restore overridden */
@@ -90,20 +95,21 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
         listener.onResponse(new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.singletonMap(indexId, emptySet()), ShardGenerations.EMPTY));
+            Collections.singletonMap(indexId, emptyList()), ShardGenerations.EMPTY));
     }
 
     @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, Metadata metadata, Map<String, Object> userMetadata,
-                                 Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
+                                 Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
+                                 ActionListener<Tuple<RepositoryData, SnapshotInfo>> listener) {
         listener.onResponse(null);
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                               ActionListener<Void> listener) {
+    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                ActionListener<Void> listener) {
         listener.onResponse(null);
     }
 
@@ -148,5 +154,11 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void updateState(final ClusterState state) {
+    }
+
+    @Override
+    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+                                             Consumer<Exception> onFailure) {
+        throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }
 }

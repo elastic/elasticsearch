@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -15,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -61,11 +61,13 @@ public class RestOpenJobAction extends BaseRestHandler {
             request = new OpenJobAction.Request(jobParams);
         }
         return channel -> {
-            client.execute(OpenJobAction.INSTANCE, request, new RestBuilderListener<AcknowledgedResponse>(channel) {
+            client.execute(OpenJobAction.INSTANCE, request, new RestBuilderListener<NodeAcknowledgedResponse>(channel) {
                 @Override
-                public RestResponse buildResponse(AcknowledgedResponse r, XContentBuilder builder) throws Exception {
+                public RestResponse buildResponse(NodeAcknowledgedResponse r, XContentBuilder builder) throws Exception {
+                    // This doesn't use the toXContent of the response object because we rename "acknowledged" to "opened"
                     builder.startObject();
                     builder.field("opened", r.isAcknowledged());
+                    builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());
                     builder.endObject();
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

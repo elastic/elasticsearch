@@ -74,7 +74,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
-import org.hamcrest.core.IsCollectionContaining;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -564,7 +564,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             assertTrue(connectedNodeIds + " should be a quorum of " + lastCommittedConfiguration,
                 lastCommittedConfiguration.hasQuorum(connectedNodeIds));
             assertThat("leader " + leader.getLocalNode() + " should be part of voting configuration " + lastCommittedConfiguration,
-                lastCommittedConfiguration.getNodeIds(), IsCollectionContaining.hasItem(leader.getLocalNode().getId()));
+                lastCommittedConfiguration.getNodeIds(), Matchers.hasItem(leader.getLocalNode().getId()));
 
             assertThat("no reconfiguration is in progress",
                 lastAcceptedState.getLastCommittedConfiguration(), equalTo(lastAcceptedState.getLastAcceptedConfiguration()));

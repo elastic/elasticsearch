@@ -45,16 +45,14 @@ public class EAssignment extends AExpression {
 
     protected final AExpression lhs;
     protected final AExpression rhs;
-    protected final boolean pre;
     protected final boolean post;
     protected final Operation operation;
 
-    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
+    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean post, Operation operation) {
         super(location);
 
         this.lhs = Objects.requireNonNull(lhs);
-        this.rhs = rhs;
-        this.pre = pre;
+        this.rhs = Objects.requireNonNull(rhs);
         this.post = post;
         this.operation = operation;
     }
@@ -68,63 +66,20 @@ public class EAssignment extends AExpression {
         boolean cat = false;
         Class<?> promote = null;
         Class<?> shiftDistance = null;
+        PainlessCast rightCast;
         PainlessCast there = null;
         PainlessCast back = null;
 
-        Output leftOutput;
+        Input leftInput = new Input();
+        leftInput.read = input.read;
+        leftInput.write = true;
+        Output leftOutput = analyze(lhs, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         Output rightOutput;
 
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
-            AStoreable.Input leftInput = new AStoreable.Input();
-
-            leftInput.read = input.read;
-            leftInput.write = true;
-            leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
-        } else {
-            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
-        }
-
-        if (pre && post) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        } else if (pre || post) {
-            if (rhs != null) {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-
-            if (operation == Operation.INCR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.ADD;
-            } else if (operation == Operation.DECR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.SUB;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
-
         if (operation != null) {
-            rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+            rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
             boolean shift = false;
 
             if (operation == Operation.MUL) {
@@ -166,8 +121,10 @@ public class EAssignment extends AExpression {
 
             cat = operation == Operation.ADD && promote == String.class;
 
-            if (cat) {
-                if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rightOutput.actual == String.class) {
+            if (cat && rightOutput.expressionNode instanceof BinaryMathNode) {
+                BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
+
+                if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
                     ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
                 }
             }
@@ -186,19 +143,17 @@ public class EAssignment extends AExpression {
                 rightInput.expected = promote;
             }
 
-            rhs.cast(rightInput, rightOutput);
+            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 
             there = AnalyzerCaster.getLegalCast(location, leftOutput.actual, promote, false, false);
             back = AnalyzerCaster.getLegalCast(location, promote, leftOutput.actual, true, false);
 
 
         } else if (rhs != null) {
-            AStoreable lhs = (AStoreable)this.lhs;
-
-            // TODO: move this optimization to a later phase
             // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (lhs.isDefOptimized()) {
-                rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+            if (leftOutput.isDefOptimized) {
+                rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
 
                 if (rightOutput.actual == void.class) {
                     throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -218,10 +173,11 @@ public class EAssignment extends AExpression {
             // Otherwise, we must adapt the rhs type to the lhs type with a cast.
             } else {
                 rightInput.expected = leftOutput.actual;
-                rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+                rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
             }
 
-            rhs.cast(rightInput, rightOutput);
+            rightCast = AnalyzerCaster.getLegalCast(rhs.location,
+                    rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
@@ -231,12 +187,11 @@ public class EAssignment extends AExpression {
         AssignmentNode assignmentNode = new AssignmentNode();
 
         assignmentNode.setLeftNode(leftOutput.expressionNode);
-        assignmentNode.setRightNode(rhs.cast(rightOutput));
+        assignmentNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
 
         assignmentNode.setLocation(location);
         assignmentNode.setExpressionType(output.actual);
         assignmentNode.setCompoundType(promote);
-        assignmentNode.setPre(pre);
         assignmentNode.setPost(post);
         assignmentNode.setOperation(operation);
         assignmentNode.setRead(input.read);

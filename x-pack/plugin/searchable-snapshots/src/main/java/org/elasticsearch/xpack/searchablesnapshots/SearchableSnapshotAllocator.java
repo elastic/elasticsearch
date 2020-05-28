@@ -42,14 +42,14 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {
             if (shardRouting.primary() && shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                 // we don't care what the allocation ID is since we know that these shards cannot really be stale, so we can
-                // safely ignore the allocation ID with a forced-stale allocation
+                // safely ignore the allocation ID with a forced-stale allocation and allow this shard to fall through to the balanced
+                // shards allocator
                 unassignedAllocationHandler.updateUnassigned(
                     shardRouting.unassignedInfo(),
                     RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE,
                     allocation.changes()
                 );
             }
-            unassignedAllocationHandler.initialize(allocateUnassignedDecision.getTargetNode().getId(), null, 0L, allocation.changes());
         } else {
             unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
         }

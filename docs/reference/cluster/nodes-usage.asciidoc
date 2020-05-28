@@ -31,15 +31,15 @@ of features for each node. All the nodes selective options are explained
 ==== {api-path-parms-title}
 
 `<metric>`::
-    (Optional, string) Limits the information returned to the specific metrics. 
-    A comma-separated list of the following options: 
+    (Optional, string) Limits the information returned to the specific metrics.
+    A comma-separated list of the following options:
 +
 --
     `_all`::
         Returns all stats.
-    
+
     `rest_actions`::
-        Returns the REST actions classname with a count of the number of times 
+        Returns the REST actions classname with a count of the number of times
         that action has been called on the node.
 --
 
@@ -79,11 +79,14 @@ The API returns the following response:
       "timestamp": 1492553961812, <1>
       "since": 1492553906606, <2>
       "rest_actions": {
-        "org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction": 1,
-        "org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction": 1,
-        "org.elasticsearch.rest.action.document.RestGetAction": 1,
-        "org.elasticsearch.rest.action.search.RestSearchAction": 19, <3>
-        "org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction": 36
+        "nodes_usage_action": 1,
+        "create_index_action": 1,
+        "document_get_action": 1,
+        "search_action": 19, <3>
+        "nodes_info_action": 36
+      },
+      "aggregations": {
+        ...
       }
     }
   }
@@ -94,7 +97,9 @@ The API returns the following response:
 // TESTRESPONSE[s/1492553961812/$body.$_path/]
 // TESTRESPONSE[s/1492553906606/$body.$_path/]
 // TESTRESPONSE[s/"rest_actions": [^}]+}/"rest_actions": $body.$_path/]
+// TESTRESPONSE[s/"aggregations": [^}]+}/"aggregations": $body.$_path/]
 <1> Timestamp for when this nodes usage request was performed.
 <2> Timestamp for when the usage information recording was started. This is
 equivalent to the time that the node was started.
 <3> Search action has been called 19 times for this node.
+

@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -29,7 +30,7 @@ task copyTestNodeKeyMaterial(type: Copy) {
   into outputDir
 }
 
-for (Version bwcVersion : bwcVersions.wireCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
 
   testClusters {
@@ -95,6 +96,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
+  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
   tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster testClusters."${baseName}"
@@ -105,7 +107,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', oldVersion
     // We only need to run these tests once so we may as well do it when we're two thirds upgraded
     systemProperty 'tests.rest.blacklist', [
       'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
@@ -129,7 +131,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
   tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -141,7 +143,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

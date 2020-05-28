@@ -163,23 +163,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
         if (waitForCompletion == false) {
-            // busy assert on the delete because a known race condition could cause the delete request to not see
-            // the snapshot if delete and snapshot finalization happen at the same time
-            // See https://github.com/elastic/elasticsearch/issues/53509#issuecomment-603899620 for details
-            // TODO: Remove busy assert in 7.x+ once this race is fixed
-            assertBusy(() -> {
-                // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
-                AcknowledgedResponse deleteResponse;
-                try {
-                    deleteResponse = execute(
-                        new DeleteSnapshotRequest(repository, snapshot),
-                        highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
-                    );
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-                assertTrue(deleteResponse.isAcknowledged());
-            });
+            // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
+            AcknowledgedResponse deleteResponse = execute(
+                    new DeleteSnapshotRequest(repository, snapshot),
+                    highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+            );
+            assertTrue(deleteResponse.isAcknowledged());
         }
     }
 

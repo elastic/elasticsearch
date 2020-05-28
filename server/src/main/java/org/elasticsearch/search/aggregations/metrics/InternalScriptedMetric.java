@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,14 +42,13 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     final Script reduceScript;
     private final List<Object> aggregations;
 
-    InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
-                                  Map<String, Object> metadata) {
-        this(name, Collections.singletonList(aggregation), reduceScript, pipelineAggregators, metadata);
+    InternalScriptedMetric(String name, Object aggregation, Script reduceScript, Map<String, Object> metadata) {
+        this(name, Collections.singletonList(aggregation), reduceScript, metadata);
     }
 
-    private InternalScriptedMetric(String name, List<Object> aggregations, Script reduceScript,
-                                   List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        super(name, pipelineAggregators, metadata);
+
+    private InternalScriptedMetric(String name, List<Object> aggregations, Script reduceScript, Map<String, Object> metadata) {
+        super(name, metadata);
         this.aggregations = aggregations;
         this.reduceScript = reduceScript;
     }
@@ -133,8 +131,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             // until we hit the final reduce phase.
             aggregation = aggregationObjects;
         }
-        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, pipelineAggregators(),
-                getMetadata());
+        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, getMetadata());
     }
 
     @Override

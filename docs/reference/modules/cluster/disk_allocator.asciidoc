@@ -1,5 +1,5 @@
-[[disk-allocator]]
-=== Disk-based shard allocation
+[[disk-based-shard-allocation]]
+==== Disk-based shard allocation settings
 
 Elasticsearch considers the available disk space on a node before deciding
 whether to allocate new shards to that node or to actively relocate shards away
@@ -30,6 +30,12 @@ file or updated dynamically on a live cluster with the
     to the low watermark) to relocate shards away from a node if it has less
     than the specified amount of free space. This setting affects the
     allocation of all shards, whether previously allocated or not.
+
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
+    For a single data node, the default is to disregard disk watermarks when
+    making an allocation decision. This is deprecated behavior and will be
+    changed in 8.0. This setting can be set to `true` to enable the
+    disk watermarks for a single data node cluster (will become default in 8.0).
 
 `cluster.routing.allocation.disk.watermark.flood_stage`::
 +

@@ -21,9 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -36,7 +33,7 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
-public abstract class PipelineAggregator implements NamedWriteable {
+public abstract class PipelineAggregator {
     /**
      * Parse the {@link PipelineAggregationBuilder} from a {@link XContentParser}.
      */
@@ -95,6 +92,13 @@ public abstract class PipelineAggregator implements NamedWriteable {
             return subTrees.getOrDefault(name, EMPTY);
         }
 
+        /**
+         * Return {@code true} if this node in the tree has any subtrees.
+         */
+        public boolean hasSubTrees() {
+            return false == subTrees.isEmpty();
+        }
+
         @Override
         public String toString() {
             return "PipelineTree[" + aggregators + "," + subTrees + "]";
@@ -110,25 +114,6 @@ public abstract class PipelineAggregator implements NamedWriteable {
         this.bucketsPaths = bucketsPaths;
         this.metadata = metadata;
     }
-
-    /**
-     * Read from a stream.
-     */
-    protected PipelineAggregator(StreamInput in) throws IOException {
-        name = in.readString();
-        bucketsPaths = in.readStringArray();
-        metadata = in.readMap();
-    }
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeStringArray(bucketsPaths);
-        out.writeMap(metadata);
-        doWriteTo(out);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     public String name() {
         return name;

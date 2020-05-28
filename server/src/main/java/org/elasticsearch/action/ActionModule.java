@@ -28,8 +28,9 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -148,22 +149,26 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.get.TransportGetComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.get.TransportGetIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.get.TransportGetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.TransportGetIndexTemplatesAction;
+import org.elasticsearch.action.admin.indices.template.post.SimulateIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.post.SimulateTemplateAction;
+import org.elasticsearch.action.admin.indices.template.post.TransportSimulateIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.post.TransportSimulateTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.TransportUpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.TransportUpgradeAction;
@@ -260,11 +265,9 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCreateSnapshotAction;
-import org.elasticsearch.rest.action.admin.indices.RestDeleteDataStreamAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetDataStreamsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
@@ -277,7 +280,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
-import org.elasticsearch.rest.action.admin.indices.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -288,18 +290,21 @@ import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestDeleteDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateV2Action;
+import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetComponentTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetDataStreamsAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateV2Action;
+import org.elasticsearch.rest.action.admin.indices.RestGetComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetSettingsAction;
@@ -312,12 +317,14 @@ import org.elasticsearch.rest.action.admin.indices.RestIndicesStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestOpenIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateV2Action;
+import org.elasticsearch.rest.action.admin.indices.RestPutComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated;
@@ -387,21 +394,7 @@ public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
-    private static final boolean ITV2_FEATURE_ENABLED;
-
-    static {
-        final String property = System.getProperty("es.itv2_feature_enabled");
-        if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
-            ITV2_FEATURE_ENABLED = true;
-        } else if ("false".equals(property) || property == null) {
-            ITV2_FEATURE_ENABLED = false;
-        } else {
-            throw new IllegalArgumentException("expected es.itv2_feature_enabled to be unset, true, or false but was [" +
-                property + "]");
-        }
-    }
-
-    private static final boolean DATASTREAMS_FEATURE_ENABLED;
+    public static final boolean DATASTREAMS_FEATURE_ENABLED;
 
     static {
         final String property = System.getProperty("es.datastreams_feature_enabled");
@@ -543,14 +536,14 @@ public class ActionModule extends AbstractModule {
         actions.register(PutIndexTemplateAction.INSTANCE, TransportPutIndexTemplateAction.class);
         actions.register(GetIndexTemplatesAction.INSTANCE, TransportGetIndexTemplatesAction.class);
         actions.register(DeleteIndexTemplateAction.INSTANCE, TransportDeleteIndexTemplateAction.class);
-        if (ITV2_FEATURE_ENABLED) {
-            actions.register(PutComponentTemplateAction.INSTANCE, TransportPutComponentTemplateAction.class);
-            actions.register(GetComponentTemplateAction.INSTANCE, TransportGetComponentTemplateAction.class);
-            actions.register(DeleteComponentTemplateAction.INSTANCE, TransportDeleteComponentTemplateAction.class);
-            actions.register(PutIndexTemplateV2Action.INSTANCE, TransportPutIndexTemplateV2Action.class);
-            actions.register(GetIndexTemplateV2Action.INSTANCE, TransportGetIndexTemplateV2Action.class);
-            actions.register(DeleteIndexTemplateV2Action.INSTANCE, TransportDeleteIndexTemplateV2Action.class);
-        }
+        actions.register(PutComponentTemplateAction.INSTANCE, TransportPutComponentTemplateAction.class);
+        actions.register(GetComponentTemplateAction.INSTANCE, TransportGetComponentTemplateAction.class);
+        actions.register(DeleteComponentTemplateAction.INSTANCE, TransportDeleteComponentTemplateAction.class);
+        actions.register(PutComposableIndexTemplateAction.INSTANCE, TransportPutComposableIndexTemplateAction.class);
+        actions.register(GetComposableIndexTemplateAction.INSTANCE, TransportGetComposableIndexTemplateAction.class);
+        actions.register(DeleteComposableIndexTemplateAction.INSTANCE, TransportDeleteComposableIndexTemplateAction.class);
+        actions.register(SimulateIndexTemplateAction.INSTANCE, TransportSimulateIndexTemplateAction.class);
+        actions.register(SimulateTemplateAction.INSTANCE, TransportSimulateTemplateAction.class);
         actions.register(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
@@ -580,6 +573,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
+        actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
 
         //Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
@@ -602,7 +596,7 @@ public class ActionModule extends AbstractModule {
         if (DATASTREAMS_FEATURE_ENABLED) {
             actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
             actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
-            actions.register(GetDataStreamsAction.INSTANCE, GetDataStreamsAction.TransportAction.class);
+            actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
         }
 
         // Persistent tasks:
@@ -693,14 +687,14 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetIndexTemplateAction());
         registerHandler.accept(new RestPutIndexTemplateAction());
         registerHandler.accept(new RestDeleteIndexTemplateAction());
-        if (ITV2_FEATURE_ENABLED) {
-            registerHandler.accept(new RestPutComponentTemplateAction());
-            registerHandler.accept(new RestGetComponentTemplateAction());
-            registerHandler.accept(new RestDeleteComponentTemplateAction());
-            registerHandler.accept(new RestPutIndexTemplateV2Action());
-            registerHandler.accept(new RestGetIndexTemplateV2Action());
-            registerHandler.accept(new RestDeleteIndexTemplateV2Action());
-        }
+        registerHandler.accept(new RestPutComponentTemplateAction());
+        registerHandler.accept(new RestGetComponentTemplateAction());
+        registerHandler.accept(new RestDeleteComponentTemplateAction());
+        registerHandler.accept(new RestPutComposableIndexTemplateAction());
+        registerHandler.accept(new RestGetComposableIndexTemplateAction());
+        registerHandler.accept(new RestDeleteComposableIndexTemplateAction());
+        registerHandler.accept(new RestSimulateIndexTemplateAction());
+        registerHandler.accept(new RestSimulateTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());
         registerHandler.accept(new RestGetMappingAction());
@@ -716,7 +710,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestIndexAction());
         registerHandler.accept(new CreateHandler());
-        registerHandler.accept(new AutoIdHandler(clusterService));
+        registerHandler.accept(new AutoIdHandler(nodesInCluster));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));

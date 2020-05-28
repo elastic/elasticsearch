@@ -210,6 +210,10 @@ public class RestCatJobsAction extends AbstractCatAction {
             TableColumnAttributeBuilder.builder("count of dead categories", false)
                 .setAliases("mdcc", "modelDeadCategoryCount")
                 .build());
+        table.addCell("model.failed_category_count",
+            TableColumnAttributeBuilder.builder("count of failed categories", false)
+                .setAliases("mfcc", "modelFailedCategoryCount")
+                .build());
         table.addCell("model.log_time",
             TableColumnAttributeBuilder.builder("when the model stats were gathered", false)
                 .setAliases("mlt", "modelLogTime")
@@ -364,6 +368,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getRareCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getDeadCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getFailedCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getLogTime());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTimestamp());
 

@@ -36,8 +36,8 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator.ResultStrategy;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -49,6 +49,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TermsAggregatorFactory.class));
@@ -62,12 +63,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(TermsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             TermsAggregatorFactory.bytesSupplier());
 
-        valuesSourceRegistry.register(TermsAggregationBuilder.NAME,
+        builder.register(TermsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
             TermsAggregatorFactory.numericSupplier());
     }
@@ -91,8 +92,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    List<PipelineAggregator> pipelineAggregators,
+                                    boolean collectsFromSingleBucket,
                                     Map<String, Object> metadata) throws IOException {
+                assert collectsFromSingleBucket;
 
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -123,8 +125,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
                 return execution.create(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude,
-                    context, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metadata);
+                    context, parent, subAggCollectMode, showTermDocCountError, metadata);
 
+            }
+
+            @Override
+            public boolean needsToCollectFromSingleBucket() {
+                return true;
             }
         };
     }
@@ -148,7 +155,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    List<PipelineAggregator> pipelineAggregators,
+                                    boolean collectsFromSingleBucket,
                                     Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -157,7 +164,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         + "include/exclude clauses used to filter numeric fields");
                 }
 
-                IncludeExclude.LongFilter longFilter = null;
                 if (subAggCollectMode == null) {
                     // TODO can we remove concept of AggregatorFactories.EMPTY?
                     if (factories != AggregatorFactories.EMPTY) {
@@ -166,20 +172,28 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         subAggCollectMode = SubAggCollectionMode.DEPTH_FIRST;
                     }
                 }
-                if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
+
+                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource; 
+                IncludeExclude.LongFilter longFilter = null;
+                Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy;
+                if (numericValuesSource.isFloatingPoint()) {
                     if (includeExclude != null) {
                         longFilter = includeExclude.convertToDoubleFilter();
                     }
-                    return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
-                        bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                        pipelineAggregators, metadata);
+                    resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+                } else {
+                    if (includeExclude != null) {
+                        longFilter = includeExclude.convertToLongFilter(format);
+                    }
+                    resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToLongFilter(format);
-                }
-                return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format, order,
-                    bucketCountThresholds, context, parent, subAggCollectMode, showTermDocCountError, longFilter,
-                    pipelineAggregators, metadata);
+                return new NumericTermsAggregator(name, factories, resultStrategy, numericValuesSource, format, order,
+                    bucketCountThresholds, context, parent, subAggCollectMode, longFilter, collectsFromSingleBucket, metadata);
+            }
+
+            @Override
+            public boolean needsToCollectFromSingleBucket() {
+                return false;
             }
         };
     }
@@ -208,11 +222,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), metadata);
-        Aggregator agg = new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metadata) {
+        Aggregator agg = new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -239,12 +252,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
-                                          List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             TermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof TermsAggregatorSupplier == false) {
@@ -253,6 +261,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
 
         TermsAggregatorSupplier termsAggregatorSupplier = (TermsAggregatorSupplier) aggregatorSupplier;
+        if (collectsFromSingleBucket == false && termsAggregatorSupplier.needsToCollectFromSingleBucket()) {
+            return asMultiBucketAggregator(this, searchContext, parent);
+        }
+
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
             && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -265,7 +277,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         return termsAggregatorSupplier.build(name, factories, valuesSource, order, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent, collectMode,
-            showTermDocCountError, pipelineAggregators, metadata);
+            showTermDocCountError, collectsFromSingleBucket, metadata);
     }
 
     // return the SubAggCollectionMode that this aggregation should use based on the expected size
@@ -311,11 +323,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               Aggregator parent,
                               SubAggCollectionMode subAggCollectMode,
                               boolean showTermDocCountError,
-                              List<PipelineAggregator> pipelineAggregators,
                               Map<String, Object> metadata) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new StringTermsAggregator(name, factories, valuesSource, order, format, bucketCountThresholds, filter,
-                        context, parent, subAggCollectMode, showTermDocCountError, pipelineAggregators, metadata);
+                        context, parent, subAggCollectMode, showTermDocCountError, metadata);
             }
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
@@ -331,7 +342,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               SearchContext context, Aggregator parent,
                               SubAggCollectionMode subAggCollectMode,
                               boolean showTermDocCountError,
-                              List<PipelineAggregator> pipelineAggregators,
                               Map<String, Object> metadata) throws IOException {
 
                 final long maxOrd = getMaxOrd(valuesSource, context.searcher());
@@ -358,7 +368,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      */
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories,
                             ordinalsValuesSource, order, format, bucketCountThresholds, context, parent, false,
-                            subAggCollectMode, showTermDocCountError, pipelineAggregators, metadata);
+                            subAggCollectMode, showTermDocCountError, metadata);
 
                 }
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
@@ -384,7 +394,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
                 return new GlobalOrdinalsStringTermsAggregator(name, factories, ordinalsValuesSource, order,
                         format, bucketCountThresholds, filter, context, parent, remapGlobalOrds, subAggCollectMode, showTermDocCountError,
-                        pipelineAggregators, metadata);
+                        metadata);
             }
         };
 
@@ -416,7 +426,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                    Aggregator parent,
                                    SubAggCollectionMode subAggCollectMode,
                                    boolean showTermDocCountError,
-                                   List<PipelineAggregator> pipelineAggregators,
                                    Map<String, Object> metadata) throws IOException;
 
         @Override

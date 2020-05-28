@@ -11,12 +11,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
@@ -29,9 +27,8 @@ class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigest
                                  double compression,
                                  boolean keyed,
                                  DocValueFormat formatter,
-                                 List<PipelineAggregator> pipelineAggregators,
                                  Map<String, Object> metadata) throws IOException {
-        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, pipelineAggregators, metadata);
+        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, metadata);
     }
 
     @Override
@@ -40,7 +37,7 @@ class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigest
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, pipelineAggregators(), metadata());
+            return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, metadata());
         }
     }
 
@@ -56,7 +53,6 @@ class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigest
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTDigestPercentiles(name, keys, new TDigestState(compression), keyed,
-            formatter, pipelineAggregators(), metadata());
+        return new InternalTDigestPercentiles(name, keys, new TDigestState(compression), keyed, formatter, metadata());
     }
 }

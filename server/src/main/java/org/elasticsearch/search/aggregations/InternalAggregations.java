@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,12 +34,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
 
 /**
  * An internal implementation of {@link Aggregations}.
@@ -60,102 +54,26 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     };
 
     /**
-     * The way to build a tree of pipeline aggregators. Used only for
-     * serialization backwards compatibility.
-     */
-    private final Supplier<PipelineAggregator.PipelineTree> pipelineTreeForBwcSerialization;
-
-    /**
      * Constructs a new aggregation.
      */
     public InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
-        this.pipelineTreeForBwcSerialization = null;
-    }
-
-    /**
-     * Constructs a node in the aggregation tree.
-     * @param pipelineTreeSource must be null inside the tree or after final reduction. Should reference the
-     *                           search request otherwise so we can properly serialize the response to
-     *                           versions of Elasticsearch that require the pipelines to be serialized.
-     */
-    public InternalAggregations(List<InternalAggregation> aggregations, Supplier<PipelineAggregator.PipelineTree> pipelineTreeSource) {
-        super(aggregations);
-        this.pipelineTreeForBwcSerialization = pipelineTreeSource;
     }
 
     public InternalAggregations(StreamInput in) throws IOException {
         super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        if (in.getVersion().before(Version.V_7_8_0)) {
-            in.readNamedWriteableList(PipelineAggregator.class); 
-        }
-        /*
-         * Setting the pipeline tree source to null is here is correct but
-         * only because we don't immediately pass the InternalAggregations
-         * off to another node. Instead, we always reduce together with
-         * many aggregations and that always adds the tree read from the
-         * current request.
-         */
-        pipelineTreeForBwcSerialization = null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_7_8_0)) {
-            if (pipelineTreeForBwcSerialization == null) {
-                out.writeNamedWriteableList(getInternalAggregations());
-                out.writeNamedWriteableList(emptyList());
-            } else {
-                PipelineAggregator.PipelineTree pipelineTree = pipelineTreeForBwcSerialization.get();
-                mergePipelineTreeForBWCSerialization(pipelineTree);
-                out.writeNamedWriteableList(getInternalAggregations());
-                out.writeNamedWriteableList(pipelineTree.aggregators());
-            }
-        } else {
-            out.writeNamedWriteableList(getInternalAggregations());
-        }
-    }
-
-    /**
-     * Merge a {@linkplain PipelineAggregator.PipelineTree} into this
-     * aggregation result tree before serializing to a node older than
-     * 7.8.0.
-     */
-    public void mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree pipelineTree) {
-        getInternalAggregations().stream().forEach(agg -> {
-            agg.mergePipelineTreeForBWCSerialization(pipelineTree.subTree(agg.getName()));
-        });
+        out.writeNamedWriteableList(getInternalAggregations());
     }
 
     /**
      * Make a mutable copy of the aggregation results.
-     * <p>
-     * IMPORTANT: The copy doesn't include any pipeline aggregations, if there are any.
      */
     public List<InternalAggregation> copyResults() {
         return new ArrayList<>(getInternalAggregations());
-    }
-
-    /**
-     * Get the top level pipeline aggregators.
-     * @deprecated these only exist for BWC serialization
-     */
-    @Deprecated
-    public List<SiblingPipelineAggregator> getTopLevelPipelineAggregators() {
-        if (pipelineTreeForBwcSerialization == null) {
-            return emptyList();
-        }
-        return pipelineTreeForBwcSerialization.get().aggregators().stream()
-                .map(p -> (SiblingPipelineAggregator) p)
-                .collect(toList());
-    }
-
-    /**
-     * Get the transient pipeline tree used to serialize pipeline aggregators to old nodes.
-     */
-    @Deprecated
-    Supplier<PipelineAggregator.PipelineTree> getPipelineTreeForBwcSerialization() {
-        return pipelineTreeForBwcSerialization;
     }
 
     @SuppressWarnings("unchecked")
@@ -186,8 +104,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
     public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
-        InternalAggregations reduced = reduce(aggregationsList, context,
-                reducedAggregations -> new InternalAggregations(reducedAggregations, context.pipelineTreeForBwcSerialization()));
+        InternalAggregations reduced = reduce(aggregationsList, context);
         if (reduced == null) {
             return null;
         }
@@ -213,13 +130,8 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * {@link InternalAggregations} object found in the list.
      * Note that pipeline aggregations _are not_ reduced by this method.  Pipelines are handled
      * separately by {@link InternalAggregations#topLevelReduce(List, ReduceContext)}
-     * @param ctor used to build the {@link InternalAggregations}. The top level reduce specifies a constructor
-     *            that adds pipeline aggregation information that is used to send pipeline aggregations to
-     *            older versions of Elasticsearch that require the pipeline aggregations to be returned
-     *            as part of the aggregation tree
      */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context,
-            Function<List<InternalAggregation>, InternalAggregations> ctor) {
+    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
         if (aggregationsList.isEmpty()) {
             return null;
         }
@@ -245,14 +157,6 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             reducedAggregations.add(first.reduce(aggregations, context));
         }
 
-        return ctor.apply(reducedAggregations);
+        return new InternalAggregations(reducedAggregations);
     }
-
-    /**
-     * Version of {@link #reduce(List, ReduceContext, Function)} for nodes inside the aggregation tree.
-     */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
-        return reduce(aggregationsList, context, InternalAggregations::new);
-    }
-
 }

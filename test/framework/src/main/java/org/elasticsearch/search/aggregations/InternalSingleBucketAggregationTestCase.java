@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregat
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -37,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -68,15 +66,14 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         };
     }
 
-    protected abstract T createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata);
+    protected abstract T createTestInstance(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metadata);
     protected abstract void extraAssertReduced(T reduced, List<T> inputs);
 
     @Override
     protected final T createTestInstance(String name, Map<String, Object> metadata) {
         // we shouldn't use the full long range here since we sum doc count on reduce, and don't want to overflow the long range there
         long docCount = between(0, Integer.MAX_VALUE);
-        return createTestInstance(name, docCount, subAggregationsSupplier.get(), emptyList(), metadata);
+        return createTestInstance(name, docCount, subAggregationsSupplier.get(), metadata);
     }
 
     @Override
@@ -84,7 +81,6 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         String name = instance.getName();
         long docCount = instance.getDocCount();
         InternalAggregations aggregations = instance.getAggregations();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
@@ -109,7 +105,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
             metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         }
-        return createTestInstance(name, docCount, aggregations, pipelineAggregators, metadata);
+        return createTestInstance(name, docCount, aggregations, metadata);
     }
 
     @Override

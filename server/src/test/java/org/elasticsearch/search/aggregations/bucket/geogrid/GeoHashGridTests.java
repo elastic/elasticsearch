@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
@@ -31,11 +30,6 @@ public class GeoHashGridTests extends GeoGridTestCase<InternalGeoHashGridBucket,
     protected InternalGeoHashGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
                                                         Map<String, Object> metadata) {
         return new InternalGeoHashGrid(name, size, buckets, metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalGeoHashGrid> instanceReader() {
-        return InternalGeoHashGrid::new;
     }
 
     @Override

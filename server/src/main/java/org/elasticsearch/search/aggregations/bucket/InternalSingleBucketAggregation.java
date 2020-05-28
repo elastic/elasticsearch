@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -53,8 +52,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
     protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        super(name, pipelineAggregators, metadata);
+            Map<String, Object> metadata) {
+        super(name, metadata);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }
@@ -122,13 +121,17 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     public final InternalAggregation reducePipelines(
             InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
         assert reduceContext.isFinalReduce();
-        List<InternalAggregation> aggs = new ArrayList<>();
-        for (Aggregation agg : getAggregations().asList()) {
-            PipelineTree subTree = pipelineTree.subTree(agg.getName());
-            aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+        InternalAggregation reduced = this;
+        if (pipelineTree.hasSubTrees()) {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            for (Aggregation agg : getAggregations().asList()) {
+                PipelineTree subTree = pipelineTree.subTree(agg.getName());
+                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+            }
+            InternalAggregations reducedSubAggs = new InternalAggregations(aggs);
+            reduced = create(reducedSubAggs);
         }
-        InternalAggregations reducedSubAggs = new InternalAggregations(aggs);
-        return super.reducePipelines(create(reducedSubAggs), reduceContext, pipelineTree);
+        return super.reducePipelines(reduced, reduceContext, pipelineTree);
     }
 
     @Override

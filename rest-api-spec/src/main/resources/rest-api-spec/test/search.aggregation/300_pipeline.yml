@@ -102,8 +102,8 @@ setup:
 ---
 "Top level bucket_sort":
   - skip:
-      version: " - 7.99.99"
-      reason:  This validation was changed in 8.0.0 to be backported to 7.8.0
+      version: " - 7.7.99"
+      reason:  This validation was changed in 7.8.0
 
   - do:
       catch: /bucket_sort aggregation \[the_bad_bucket_sort\] must be declared inside of another aggregation/

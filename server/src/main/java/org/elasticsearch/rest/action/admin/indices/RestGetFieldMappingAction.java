@@ -63,7 +63,6 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
-        getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel ->
                 client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
                     @Override

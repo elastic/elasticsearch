@@ -41,7 +41,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         threadContext = new ThreadContext(Settings.EMPTY);
         securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         licenseState = Mockito.mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
     }
 
     public void testProcessorWithData() throws Exception {
@@ -102,7 +102,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     }
 
     public void testSecurityDisabled() throws Exception {
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
             "_tag", securityContext, licenseState, "_field", EnumSet.allOf(Property.class));

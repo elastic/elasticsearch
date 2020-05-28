@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -34,11 +33,6 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
         double value = frequently() ? randomDouble() : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY });
         DocValueFormat formatter = randomNumericDocValueFormat();
         return new InternalMin(name, value, formatter, metadata);
-    }
-
-    @Override
-    protected Reader<InternalMin> instanceReader() {
-        return InternalMin::new;
     }
 
     @Override

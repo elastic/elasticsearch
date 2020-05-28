@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.info.BuildParams;
 
 dependencies {
   compile project(":client:rest")
@@ -38,7 +39,7 @@ compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-unchecked'
 compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
 }
 
@@ -60,9 +61,9 @@ thirdPartyAudit.ignoreMissingClasses(
 )
 
 test {
-  systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
-  systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')
-  systemProperty 'tests.gradle_unreleased_versions', bwcVersions.unreleased.join(',')
+  systemProperty 'tests.gradle_index_compat_versions', BuildParams.bwcVersions.indexCompatible.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
+  systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 }
 
 task integTest(type: Test) {

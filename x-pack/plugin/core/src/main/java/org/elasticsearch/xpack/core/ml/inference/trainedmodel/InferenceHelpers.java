@@ -31,7 +31,8 @@ public final class InferenceHelpers {
     public static Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses(double[] probabilities,
                                                                                                 List<String> classificationLabels,
                                                                                                 @Nullable double[] classificationWeights,
-                                                                                                int numToInclude) {
+                                                                                                int numToInclude,
+                                                                                                PredictionFieldType predictionFieldType) {
 
         if (classificationLabels != null && probabilities.length != classificationLabels.size()) {
             throw ExceptionsHelper
@@ -67,7 +68,10 @@ public final class InferenceHelpers {
         List<ClassificationInferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
-            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(labels.get(idx), probabilities[idx], scores[idx]));
+            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(
+                predictionFieldType.transformPredictedValue((double)idx, labels.get(idx)),
+                probabilities[idx],
+                scores[idx]));
         }
 
         return Tuple.tuple(sortedIndices[0], topClassEntries);

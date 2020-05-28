@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
@@ -119,7 +120,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     private static String buildMessage(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         StringBuilder sb = new StringBuilder();
         sb.append("Failed to execute phase [").append(phaseName).append("], ").append(msg);
-        if (shardFailures != null && shardFailures.length > 0) {
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
             sb.append("; shardFailures ");
             for (ShardSearchFailure shardFailure : shardFailures) {
                 if (shardFailure.shard() != null) {

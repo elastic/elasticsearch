@@ -117,7 +117,11 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                 builder.field(TransformField.COUNT.getPreferredName(), invalidTransforms.size());
                 builder.field(TransformField.TRANSFORMS.getPreferredName(), invalidTransforms);
                 builder.endObject();
-                deprecationLogger.deprecated(INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
+                deprecationLogger.deprecatedAndMaybeLog(
+                    "invalid_transforms",
+                    INVALID_TRANSFORMS_DEPRECATION_WARNING,
+                    invalidTransforms.size()
+                );
             }
 
             builder.endObject();

@@ -18,7 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "nebula.maven-scm"
+apply plugin: "elasticsearch.publish"
 
 esplugin {
   description 'The nio transport.'
@@ -103,6 +103,7 @@ thirdPartyAudit {
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
     'com.ning.compress.lzf.LZFEncoder',
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',

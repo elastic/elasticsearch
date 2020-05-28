@@ -28,6 +28,8 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Path dataDir = null;
 
+    private String keystorePassword = "";
+
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
         this.debug = enabled;
@@ -41,6 +43,17 @@ public class RunTask extends DefaultTestClustersTask {
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
     public void setDataDir(String dataDirStr) {
         dataDir = Paths.get(dataDirStr).toAbsolutePath();
+    }
+
+    @Option(option = "keystore-password", description = "Set the elasticsearch keystore password")
+    public void setKeystorePassword(String password) {
+        keystorePassword = password;
+    }
+
+    @Input
+    @Optional
+    public String getKeystorePassword() {
+        return keystorePassword;
     }
 
     @Input
@@ -89,6 +102,9 @@ public class RunTask extends DefaultTestClustersTask {
                     logger.lifecycle("Running elasticsearch in debug mode, {} suspending until connected on debugPort {}", node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
                     debugPort += 1;
+                }
+                if (keystorePassword.length() > 0) {
+                    node.keystorePassword(keystorePassword);
                 }
             }
         }

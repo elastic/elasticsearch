@@ -1,0 +1,67 @@
+---
+"Test apis that do not supported data streams":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:  logs-foobar
+        refresh: true
+        body:   { foo: bar }
+  - match: {_index: logs-foobar-000001}
+
+  - do:
+      search:
+        index: logs-foobar
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: logs-foobar-000001 }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      catch: bad_request
+      indices.delete:
+        index: logs-foobar
+
+  - do:
+      catch: bad_request
+      indices.get:
+        index: logs-foobar
+
+  - do:
+      catch: bad_request
+      indices.put_settings:
+        index: logs-foobar
+        body:
+          number_of_replicas: 1
+
+  - do:
+      catch: bad_request
+      indices.put_mapping:
+        index: logs-foobar
+        body:
+          properties:
+            baz:
+              type: keyword
+
+  - do:
+      indices.create:
+        index: logs-foobarbaz
+
+  - do:
+      catch: bad_request
+      indices.close:
+        index: logs-*
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 
@@ -37,8 +36,8 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
     private final List<TopMetric> topMetrics;
 
     public InternalTopMetrics(String name, @Nullable SortOrder sortOrder, List<String> metricNames,
-            int size, List<TopMetric> topMetrics, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        super(name, pipelineAggregators, metadata);
+            int size, List<TopMetric> topMetrics, Map<String, Object> metadata) {
+        super(name, metadata);
         this.sortOrder = sortOrder;
         this.metricNames = metricNames;
         /*
@@ -48,9 +47,8 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         this.topMetrics = topMetrics;
     }
 
-    static InternalTopMetrics buildEmptyAggregation(String name, List<String> metricNames,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalTopMetrics(name, SortOrder.ASC, metricNames, 0, emptyList(), pipelineAggregators, metadata);
+    static InternalTopMetrics buildEmptyAggregation(String name, List<String> metricNames, Map<String, Object> metadata) {
+        return new InternalTopMetrics(name, SortOrder.ASC, metricNames, 0, emptyList(), metadata);
     }
 
     /**
@@ -124,7 +122,7 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
                 queue.updateTop();
             }
         }
-        return new InternalTopMetrics(getName(), sortOrder, metricNames, size, merged, pipelineAggregators(), getMetadata());
+        return new InternalTopMetrics(getName(), sortOrder, metricNames, size, merged, getMetadata());
     }
 
     @Override

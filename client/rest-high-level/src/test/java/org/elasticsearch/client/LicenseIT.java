@@ -49,7 +49,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class LicenseIT extends ESRestHighLevelClientTestCase {
@@ -167,9 +167,9 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
     private static void assertNotEmptyAcknowledgeMessages(Map<String, String[]> acknowledgeMessages) {
         assertThat(acknowledgeMessages.entrySet(), not(empty()));
         for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            assertThat(entry.getKey(), not(isEmptyOrNullString()));
+            assertThat(entry.getKey(), not(emptyOrNullString()));
             for (String message : entry.getValue()) {
-                assertThat(message, not(isEmptyOrNullString()));
+                assertThat(message, not(emptyOrNullString()));
             }
         }
     }

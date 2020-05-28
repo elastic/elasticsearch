@@ -25,9 +25,9 @@ import com.amazonaws.services.s3.model.S3Object;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -83,6 +83,7 @@ class S3RetryingInputStream extends InputStream {
     private InputStream openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end :
                     "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;

@@ -118,6 +118,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     final Configuration configuration;
     private final Extracted extracted;
 
+    private final Property<Architecture> architecture;
     private final Property<String> version;
     private final Property<Type> type;
     private final Property<Platform> platform;
@@ -135,6 +136,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.name = name;
         this.dockerSupport = dockerSupport;
         this.configuration = fileConfiguration;
+        this.architecture = objectFactory.property(Architecture.class);
         this.version = objectFactory.property(String.class).convention(VersionProperties.getElasticsearch());
         this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
@@ -196,6 +198,14 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     public void setFailIfUnavailable(boolean failIfUnavailable) {
         this.failIfUnavailable.set(failIfUnavailable);
+    }
+
+    public void setArchitecture(Architecture architecture) {
+        this.architecture.set(architecture);
+    }
+
+    public Architecture getArchitecture() {
+        return this.architecture.get();
     }
 
     @Override

@@ -20,12 +20,10 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,8 +31,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.emptyList;
 
 public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBinaryRange> {
 
@@ -86,12 +82,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
             final String key = (i == nullKey) ? null: randomAlphaOfLength(10);
             buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, emptyList(), metadata);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalBinaryRange> instanceReader() {
-        return InternalBinaryRange::new;
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     @Override
@@ -131,7 +122,6 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         DocValueFormat format = instance.format;
         boolean keyed = instance.keyed;
         List<InternalBinaryRange.Bucket> buckets = instance.getBuckets();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
@@ -156,7 +146,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators, metadata);
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     /**

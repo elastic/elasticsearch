@@ -69,7 +69,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         authcService = mock(AuthenticationService.class);
         channel = mock(RestChannel.class);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
@@ -135,7 +135,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessBasicLicense() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
         verifyZeroInteractions(channel, authcService);

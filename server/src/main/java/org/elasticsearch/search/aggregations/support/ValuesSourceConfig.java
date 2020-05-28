@@ -110,28 +110,19 @@ public class ValuesSourceConfig {
                                                      ) {
         ValuesSourceConfig config;
         MappedFieldType fieldType = null;
-        ValuesSourceType valuesSourceType;
-        ValueType scriptValueType = null;
-        AggregationScript.LeafFactory aggregationScript = null;
+        ValuesSourceType valuesSourceType = null;
+        ValueType scriptValueType = userValueTypeHint;
+        AggregationScript.LeafFactory aggregationScript = createScript(script, context); // returns null if script is null
         boolean unmapped = false;
+        if (userValueTypeHint != null) {
+            // If the user gave us a type hint, respect that.
+            valuesSourceType = userValueTypeHint.getValuesSourceType();
+        }
         if (field == null) {
-            // Stand Alone Script Case
             if (script == null) {
                 throw new IllegalStateException(
-                    "value source config is invalid; must have either a field context or a script or marked as unmapped");
+                    "value source config is invalid; must have either a field or a script");
             }
-            /*
-             * This is the Stand Alone Script path.  We should have a script that will produce a value independent of the presence or
-             * absence of any one field.  The type of the script is given by the userValueTypeHint field, if the user specified a type,
-             * or the aggregation's default type if the user didn't.
-             */
-            if (userValueTypeHint != null) {
-                valuesSourceType = userValueTypeHint.getValuesSourceType();
-            } else {
-                valuesSourceType = defaultValueSourceType;
-            }
-            aggregationScript = createScript(script, context);
-            scriptValueType = userValueTypeHint;
         } else {
             // Field case
             fieldType = context.fieldMapper(field);
@@ -141,21 +132,16 @@ public class ValuesSourceConfig {
                  * pattern.  In this case, we're going to end up using the EMPTY variant of the ValuesSource, and possibly applying a user
                  * specified missing value.
                  */
-                if (userValueTypeHint != null) {
-                    valuesSourceType = userValueTypeHint.getValuesSourceType();
-                } else {
-                    valuesSourceType = defaultValueSourceType;
-                }
                 unmapped = true;
-                if (userValueTypeHint != null) {
-                    // todo do we really need this for unmapped?
-                    scriptValueType = userValueTypeHint;
-                }
-            } else {
+                aggregationScript = null;  // Value scripts are not allowed on unmapped fields.  What would that do, anyway?
+            } else if (valuesSourceType == null) {
+                // We have a field, and the user didn't specify a type, so get the type from the field
                 valuesSourceType = fieldResolver.getValuesSourceType(context, fieldType, aggregationName, userValueTypeHint,
                     defaultValueSourceType);
-                aggregationScript = createScript(script, context);
             }
+        }
+        if (valuesSourceType == null) {
+            valuesSourceType = defaultValueSourceType;
         }
         config = new ValuesSourceConfig(valuesSourceType, fieldType, unmapped, aggregationScript, scriptValueType , context);
         config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));

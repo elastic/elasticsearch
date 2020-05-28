@@ -36,6 +36,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -44,7 +45,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -117,8 +117,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-import static java.util.Collections.emptyList;
-
 public class Transform extends Plugin implements SystemIndexPlugin, PersistentTaskPlugin {
 
     public static final String NAME = "transform";
@@ -126,7 +124,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     private static final Logger logger = LogManager.getLogger(Transform.class);
 
-    private final boolean enabled;
     private final Settings settings;
     private final SetOnce<TransformServices> transformServices = new SetOnce<>();
 
@@ -149,12 +146,11 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public static final String TRANSFORM_ENABLED_NODE_ATTR = "transform.node";
 
     /**
-     * Setting whether transform (the coordinator task) can run on this node and REST API's are available,
-     * respects xpack.transform.enabled (for the whole plugin) as fallback
+     * Setting whether transform (the coordinator task) can run on this node.
      */
     public static final Setting<Boolean> TRANSFORM_ENABLED_NODE = Setting.boolSetting(
         "node.transform",
-        settings -> Boolean.toString(XPackSettings.TRANSFORM_ENABLED.get(settings) && DiscoveryNode.isDataNode(settings)),
+        settings -> Boolean.toString(DiscoveryNode.isDataNode(settings)),
         Property.NodeScope
     );
 
@@ -169,7 +165,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     public Transform(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
     }
 
     protected XPackLicenseState getLicenseState() {
@@ -186,10 +181,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-
-        if (!enabled) {
-            return emptyList();
-        }
 
         return Arrays.asList(
             new RestPutTransformAction(),
@@ -216,11 +207,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class);
-        if (enabled == false) {
-            return Arrays.asList(usageAction, infoAction);
-        }
 
         return Arrays.asList(
             new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutTransformAction.class),
@@ -242,17 +228,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(PreviewTransformActionDeprecated.INSTANCE, TransportPreviewTransformActionDeprecated.class),
             new ActionHandler<>(UpdateTransformActionDeprecated.INSTANCE, TransportUpdateTransformActionDeprecated.class),
 
-            usageAction,
-            infoAction
+            // usage and info
+            new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.TRANSFORM, TransformInfoTransportAction.class)
         );
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
-            return emptyList();
-        }
-
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(
             settings,
             TASK_THREAD_POOL_NAME,
@@ -276,16 +259,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Environment environment,
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        if (enabled == false) {
-            return emptyList();
-        }
-
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
         TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
         TransformCheckpointService checkpointService = new TransformCheckpointService(
-            client,
             settings,
             clusterService,
             configManager,
@@ -326,10 +305,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        if (enabled == false) {
-            return emptyList();
-        }
-
         // the transform services should have been created
         assert transformServices.get() != null;
 
@@ -360,10 +335,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             );
         }
 
-        if (enabled == false) {
-            return Settings.EMPTY;
-        }
-
         Settings.Builder additionalSettings = Settings.builder();
 
         additionalSettings.put(transformEnabledNodeAttribute, TRANSFORM_ENABLED_NODE.get(settings));
@@ -389,7 +360,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return Collections.singletonList(
             new SystemIndexDescriptor(TransformInternalIndexConstants.INDEX_NAME_PATTERN, "Contains Transform configuration data")
         );

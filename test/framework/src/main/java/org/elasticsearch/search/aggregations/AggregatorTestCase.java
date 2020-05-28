@@ -48,13 +48,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -73,7 +73,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
@@ -96,9 +95,11 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -113,7 +114,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -125,6 +126,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -144,7 +146,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
     private static final String TYPE_NAME = "type";
-    protected static ValuesSourceRegistry valuesSourceRegistry;
+    protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
     private static List<String> TYPE_TEST_BLACKLIST = List.of(
@@ -176,10 +178,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    @BeforeClass
-    public static void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+    // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
+    @Before
+    public void initValuesSourceRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, this.getSearchPlugins());
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
+    }
+
+    /**
+     * Test cases should override this if they have plugins that need to be loaded, e.g. the plugins their aggregators are in.
+     */
+    protected List<SearchPlugin> getSearchPlugins() {
+        return List.of();
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder,
@@ -283,10 +293,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MapperService mapperService = mapperServiceMock();
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
-        DocumentMapper mapper = mock(DocumentMapper.class);
-        when(mapper.typeText()).thenReturn(new Text(TYPE_NAME));
-        when(mapper.type()).thenReturn(TYPE_NAME);
-        when(mapperService.documentMapper()).thenReturn(mapper);
         when(searchContext.mapperService()).thenReturn(mapperService);
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
@@ -413,9 +419,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         searcher.search(query, a);
         a.postCollection();
         @SuppressWarnings("unchecked")
-        A internalAgg = (A) a.buildAggregation(0L);
-        InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, bucketConsumer);
-        return internalAgg;
+        A result = (A) a.buildTopLevel();
+        InternalAggregationTestCase.assertMultiBucketConsumer(result, bucketConsumer);
+        return result;
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher,
@@ -483,12 +489,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.preCollection();
             subSearcher.search(weight, a);
             a.postCollection();
-            InternalAggregation agg = a.buildAggregation(0L);
+            InternalAggregation agg = a.buildTopLevel();
             aggs.add(agg);
             InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
         if (aggs.isEmpty()) {
-            return null;
+            return (A) root.buildEmptyAggregation();
         } else {
             if (randomBoolean() && aggs.size() > 1) {
                 // sometimes do an incremental reduce
@@ -528,6 +534,35 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
     }
 
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
+            T aggregationBuilder,
+            Query query,
+            CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+            Consumer<V> verify,
+            MappedFieldType... fieldTypes) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            buildIndex.accept(indexWriter);
+            indexWriter.close();
+
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory);
+                    IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
+                verify.accept(agg);
+            }
+        }
+    }
+
+    /**
+     * Override to wrap the {@linkplain DirectoryReader} for aggs like
+     * {@link NestedAggregationBuilder}.
+     */
+    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+        return reader;
+    }
+
     private static class ShardSearcher extends IndexSearcher {
         private final List<LeafReaderContext> ctx;
 
@@ -546,7 +581,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    protected static DirectoryReader wrap(DirectoryReader directoryReader) throws IOException {
+    protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {
         return ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(new Index("_index", "_na_"), 0));
     }
 
@@ -632,7 +667,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      *
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
-    public final void testSupportedFieldTypes() throws IOException {
+    public void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
         String fieldName = "typeTestFieldName";
@@ -711,7 +746,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Document doc = new Document();
         String json;
 
-
         if (vst.equals(CoreValuesSourceType.NUMERIC)) {
             long v;
             if (typeName.equals(NumberFieldMapper.NumberType.DOUBLE.typeName())) {
@@ -723,7 +757,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 v = NumericUtils.floatToSortableInt(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else if (typeName.equals(NumberFieldMapper.NumberType.HALF_FLOAT.typeName())) {
-                float f = Math.abs(randomFloat());
+                // Generate a random float that respects the limits of half float
+                float f = Math.abs((randomFloat() * 2 - 1) * 65504);
                 v = HalfFloatPoint.halfFloatToSortableShort(f);
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {

@@ -19,15 +19,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -72,7 +71,6 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
@@ -99,8 +97,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs init script");
         }
         return new ScriptedMetricAggregator(name, mapScript,
-                combineScript, reduceScript, aggState, searchContext, parent,
-                pipelineAggregators, metadata);
+                combineScript, reduceScript, aggState, searchContext, parent, metadata);
     }
 
     private static Script deepCopyScript(Script script, SearchContext context, Map<String, Object> aggParams) {

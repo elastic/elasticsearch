@@ -15,6 +15,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -54,15 +55,17 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
+    private final Client client;
 
     @Inject
     public TransportGetTransformStatsAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        Client client
     ) {
-        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices);
+        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client);
     }
 
     protected TransportGetTransformStatsAction(
@@ -70,11 +73,13 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        Client client
     ) {
         super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
+        this.client = client;
     }
 
     @Override
@@ -248,6 +253,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private void populateSingleStoppedTransformStat(TransformStoredDoc transform, ActionListener<TransformCheckpointingInfo> listener) {
         transformCheckpointService.getCheckpointingInfo(
+            client,
             transform.getId(),
             transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getPosition(),

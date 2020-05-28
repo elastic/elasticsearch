@@ -9,24 +9,29 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -35,9 +40,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -47,12 +54,17 @@ public class TrainedModelStatsService {
     private static final Logger logger = LogManager.getLogger(TrainedModelStatsService.class);
     private static final TimeValue PERSISTENCE_INTERVAL = TimeValue.timeValueSeconds(1);
 
+    private static final String STATS_UPDATE_SCRIPT_TEMPLATE = "" +
+        "    ctx._source.{0} += params.{0};\n" +
+        "    ctx._source.{1} += params.{1};\n" +
+        "    ctx._source.{2} += params.{2};\n" +
+        "    ctx._source.{3} = params.{3};";
     // Script to only update if stats have increased since last persistence
-    private static final String STATS_UPDATE_SCRIPT = "" +
-        "    ctx._source.missing_all_fields_count += params.missing_all_fields_count;\n" +
-        "    ctx._source.inference_count += params.inference_count;\n" +
-        "    ctx._source.failure_count += params.failure_count;\n" +
-        "    ctx._source.time_stamp = params.time_stamp;";
+    private static final String STATS_UPDATE_SCRIPT = Messages.getMessage(STATS_UPDATE_SCRIPT_TEMPLATE,
+        InferenceStats.MISSING_ALL_FIELDS_COUNT.getPreferredName(),
+        InferenceStats.INFERENCE_COUNT.getPreferredName(),
+        InferenceStats.FAILURE_COUNT.getPreferredName(),
+        InferenceStats.TIMESTAMP.getPreferredName());
     private static final ToXContent.Params FOR_INTERNAL_STORAGE_PARAMS =
         new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
 
@@ -62,7 +74,6 @@ public class TrainedModelStatsService {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
     private volatile Scheduler.Cancellable scheduledFuture;
-    private volatile boolean verifiedStatsIndexCreated;
     private volatile boolean stopped;
     private volatile ClusterState clusterState;
 
@@ -91,14 +102,26 @@ public class TrainedModelStatsService {
         clusterService.addListener((event) -> this.clusterState = event.state());
     }
 
-    public void queueStats(InferenceStats stats) {
-        statsQueue.compute(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
-            (k, previousStats) -> previousStats == null ?
-                stats :
-                InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
+    /**
+     * Queues the stats for storing.
+     * @param stats The stats to store or increment
+     * @param flush When `true`, this indicates that stats should be written as soon as possible.
+     *              If `false`, stats are not persisted until the next periodic persistence action.
+     */
+    public void queueStats(InferenceStats stats, boolean flush) {
+        if (stats.hasStats()) {
+            statsQueue.compute(InferenceStats.docId(stats.getModelId(), stats.getNodeId()),
+                (k, previousStats) -> previousStats == null ?
+                    stats :
+                    InferenceStats.accumulator(stats).merge(previousStats).currentStats(stats.getTimeStamp()));
+        }
+        if (flush) {
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::updateStats);
+        }
     }
 
     void stop() {
+        logger.debug("About to stop TrainedModelStatsService");
         stopped = true;
         statsQueue.clear();
 
@@ -109,6 +132,7 @@ public class TrainedModelStatsService {
     }
 
     void start() {
+        logger.debug("About to start TrainedModelStatsService");
         stopped = false;
         scheduledFuture = threadPool.scheduleWithFixedDelay(this::updateStats,
             PERSISTENCE_INTERVAL,
@@ -116,23 +140,29 @@ public class TrainedModelStatsService {
     }
 
     void updateStats() {
-        if (clusterState == null || statsQueue.isEmpty()) {
+        if (clusterState == null || statsQueue.isEmpty() || stopped) {
             return;
         }
-        if (verifiedStatsIndexCreated == false) {
+        if (verifyIndicesPrimaryShardsAreActive(clusterState, indexNameExpressionResolver) == false) {
             try {
-                PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-                MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
-                listener.actionGet();
-                verifiedStatsIndexCreated = true;
-            } catch (Exception e) {
-                logger.error("failure creating ml stats index for storing model stats", e);
-                return;
+                logger.debug("About to create the stats index as it does not exist yet");
+                createStatsIndexIfNecessary();
+            } catch(Exception e){
+                // This exception occurs if, for some reason, the `createStatsIndexAndAliasIfNecessary` fails due to
+                // a concrete index of the alias name already existing. This error is recoverable eventually, but
+                // should NOT cause us to lose statistics.
+                if ((e instanceof InvalidAliasNameException) == false) {
+                    logger.error("failure creating ml stats index for storing model stats", e);
+                    return;
+                }
             }
         }
 
         List<InferenceStats> stats = new ArrayList<>(statsQueue.size());
-        for(String k : statsQueue.keySet()) {
+        // We want a copy as the underlying concurrent map could be changed while iterating
+        // We don't want to accidentally grab updates twice
+        Set<String> keys = new HashSet<>(statsQueue.keySet());
+        for(String k : keys) {
             InferenceStats inferenceStats = statsQueue.remove(k);
             if (inferenceStats != null) {
                 stats.add(inferenceStats);
@@ -147,10 +177,44 @@ public class TrainedModelStatsService {
         if (bulkRequest.requests().isEmpty()) {
             return;
         }
+        if (stopped) {
+            return;
+        }
         resultsPersisterService.bulkIndexWithRetry(bulkRequest,
             stats.stream().map(InferenceStats::getModelId).collect(Collectors.joining(",")),
             () -> stopped == false,
             (msg) -> {});
+    }
+
+    private static boolean verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver expressionResolver) {
+        String[] indices = expressionResolver.concreteIndexNames(clusterState,
+            IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN,
+            MlStatsIndex.writeAlias());
+        for (String index : indices) {
+            if (clusterState.metadata().hasIndex(index) == false) {
+                return false;
+            }
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void createStatsIndexIfNecessary() {
+        PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, listener);
+        listener.actionGet();
+        listener = new PlainActionFuture<>();
+        ElasticsearchMappings.addDocMappingIfMissing(
+            MlStatsIndex.writeAlias(),
+            MlStatsIndex::mapping,
+            client,
+            clusterState,
+            listener);
+        listener.actionGet();
+        logger.debug("Created stats index");
     }
 
     static UpdateRequest buildUpdateRequest(InferenceStats stats) {
@@ -164,6 +228,9 @@ public class TrainedModelStatsService {
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.upsert(builder)
                 .index(MlStatsIndex.writeAlias())
+                // Usually, there shouldn't be a conflict, but if there is, only around a single update should have happened
+                // out of band. If there is MANY more than that, something strange is happening and it should fail.
+                .retryOnConflict(3)
                 .id(InferenceStats.docId(stats.getModelId(), stats.getNodeId()))
                 .script(new Script(ScriptType.INLINE, "painless", STATS_UPDATE_SCRIPT, params));
             return updateRequest;

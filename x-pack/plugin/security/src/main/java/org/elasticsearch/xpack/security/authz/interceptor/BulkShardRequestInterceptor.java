@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -40,7 +41,8 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        if (requestInfo.getRequest() instanceof BulkShardRequest && licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+        boolean shouldIntercept = licenseState.isSecurityEnabled() && licenseState.isAllowed(Feature.SECURITY_DLS_FLS);
+        if (requestInfo.getRequest() instanceof BulkShardRequest && shouldIntercept) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
 
             final BulkShardRequest bulkShardRequest = (BulkShardRequest) requestInfo.getRequest();

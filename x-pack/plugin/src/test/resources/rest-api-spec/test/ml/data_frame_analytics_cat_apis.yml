@@ -81,6 +81,6 @@ setup:
   - match:
       $body: |
         /^  id                           \s+ t                 \s+ s       \s+ p                                                         \s+ source_index \s+ dest_index    \n
-           (dfa\-classification\-job     \s+ classification    \s+ stopped \s+ reindexing:0,loading_data:0,analyzing:0,writing_results:0 \s+ index-source \s+ index-dest-c  \n)+
-           (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ stopped \s+ reindexing:0,loading_data:0,analyzing:0,writing_results:0 \s+ index-source \s+ index-dest-od \n)+
-           (dfa\-regression\-job         \s+ regression        \s+ stopped \s+ reindexing:0,loading_data:0,analyzing:0,writing_results:0 \s+ index-source \s+ index-dest-r  \n)+  $/
+           (dfa\-classification\-job     \s+ classification    \s+ stopped \s+ reindexing:0,loading_data:0,feature_selection:0,coarse_parameter_search:0,fine_tuning_parameters:0,final_training:0,writing_results:0 \s+ index-source \s+ index-dest-c  \n)+
+           (dfa\-outlier\-detection\-job \s+ outlier_detection \s+ stopped \s+ reindexing:0,loading_data:0,computing_outliers:0,writing_results:0 \s+ index-source \s+ index-dest-od \n)+
+           (dfa\-regression\-job         \s+ regression        \s+ stopped \s+ reindexing:0,loading_data:0,feature_selection:0,coarse_parameter_search:0,fine_tuning_parameters:0,final_training:0,writing_results:0 \s+ index-source \s+ index-dest-r  \n)+  $/

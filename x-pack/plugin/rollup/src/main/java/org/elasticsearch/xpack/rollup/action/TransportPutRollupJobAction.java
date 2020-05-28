@@ -97,7 +97,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     protected void masterOperation(Task task, PutRollupJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
 
-        if (!licenseState.isRollupAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
             return;
         }
@@ -134,7 +134,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
-            deprecationLogger.deprecated("Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
+            deprecationLogger.deprecatedAndMaybeLog("deprecated_timezone",
+                "Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
                 + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
         }
     }

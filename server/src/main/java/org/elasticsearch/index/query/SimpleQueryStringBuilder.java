@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -268,7 +269,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
      * none are specified.
      */
     public SimpleQueryStringBuilder flags(SimpleQueryStringFlag... flags) {
-        if (flags != null && flags.length > 0) {
+        if (CollectionUtils.isEmpty(flags) == false) {
             int value = 0;
             for (SimpleQueryStringFlag flag : flags) {
                 value |= flag.value;

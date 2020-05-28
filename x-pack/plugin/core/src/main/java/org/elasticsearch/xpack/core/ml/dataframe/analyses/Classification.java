@@ -16,9 +16,11 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -102,6 +104,15 @@ public class Classification implements DataFrameAnalysis {
      * This way the user can see if the prediction was made with confidence they need.
      */
     private static final int DEFAULT_NUM_TOP_CLASSES = 2;
+
+    private static final List<String> PROGRESS_PHASES = Collections.unmodifiableList(
+        Arrays.asList(
+            "feature_selection",
+            "coarse_parameter_search",
+            "fine_tuning_parameters",
+            "final_training"
+        )
+    );
 
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
@@ -234,7 +245,7 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
-        String predictionFieldType = getPredictionFieldType(fieldInfo.getTypes(dependentVariable));
+        String predictionFieldType = getPredictionFieldTypeParamString(getPredictionFieldType(fieldInfo.getTypes(dependentVariable)));
         if (predictionFieldType != null) {
             params.put(PREDICTION_FIELD_TYPE, predictionFieldType);
         }
@@ -243,19 +254,36 @@ public class Classification implements DataFrameAnalysis {
         return params;
     }
 
-    private static String getPredictionFieldType(Set<String> dependentVariableTypes) {
+    private static String getPredictionFieldTypeParamString(PredictionFieldType predictionFieldType) {
+        if (predictionFieldType == null) {
+            return null;
+        }
+        switch(predictionFieldType)
+        {
+            case NUMBER:
+                // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
+                return "int";
+            case STRING:
+                return "string";
+            case BOOLEAN:
+                return "bool";
+            default:
+                return null;
+        }
+    }
+
+    public static PredictionFieldType getPredictionFieldType(Set<String> dependentVariableTypes) {
         if (dependentVariableTypes == null) {
             return null;
         }
         if (Types.categorical().containsAll(dependentVariableTypes)) {
-            return "string";
+            return PredictionFieldType.STRING;
         }
         if (Types.bool().containsAll(dependentVariableTypes)) {
-            return "bool";
+            return PredictionFieldType.BOOLEAN;
         }
         if (Types.discreteNumerical().containsAll(dependentVariableTypes)) {
-            // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
-            return "int";
+            return PredictionFieldType.NUMBER;
         }
         return null;
     }
@@ -326,6 +354,11 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public String getStateDocId(String jobId) {
         return jobId + STATE_DOC_ID_SUFFIX;
+    }
+
+    @Override
+    public List<String> getProgressPhases() {
+        return PROGRESS_PHASES;
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {

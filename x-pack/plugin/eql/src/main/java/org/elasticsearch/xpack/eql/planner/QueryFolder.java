@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -36,7 +37,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         Batch fold = new Batch("Fold queries",
-                new FoldFilter(), new FoldOrderBy()
+                new FoldProject(),
+                new FoldFilter(),
+                new FoldOrderBy()
         );
         Batch finish = new Batch("Finish query", Limiter.ONCE,
                 new PlanOutputToQueryRef()
@@ -45,6 +48,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         return Arrays.asList(fold, finish);
     }
     
+
+    private static class FoldProject extends FoldingRule<ProjectExec> {
+
+        @Override
+        protected PhysicalPlan rule(ProjectExec project) {
+            if (project.child() instanceof EsQueryExec) {
+                EsQueryExec exec = (EsQueryExec) project.child();
+                return new EsQueryExec(exec.source(), exec.index(), project.output(), exec.queryContainer());
+            }
+            return project;
+        }
+    }
+
     private static class FoldFilter extends FoldingRule<FilterExec> {
 
         @Override
@@ -53,7 +69,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 QueryContainer qContainer = exec.queryContainer();
 
-                Query query = ExpressionTranslators.toQuery(plan.condition());
+                Query query = QueryTranslator.toQuery(plan.condition());
 
                 if (qContainer.query() != null || query != null) {
                     query = ExpressionTranslators.and(plan.source(), qContainer.query(), query);
@@ -84,7 +100,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                     // field
                     if (orderExpression instanceof FieldAttribute) {
-                        qContainer = qContainer.addSort(lookup, new AttributeSort((FieldAttribute) orderExpression, direction, missing));
+                        FieldAttribute fa = (FieldAttribute) orderExpression;
+                        qContainer = qContainer.addSort(lookup, new AttributeSort(fa, direction, missing));
                     }
                     // unknown
                     else {

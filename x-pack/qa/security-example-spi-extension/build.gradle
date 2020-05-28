@@ -30,9 +30,7 @@ testClusters.integTest {
   setting 'xpack.security.authc.realms.native.native.order', '2'
   setting 'xpack.security.authc.realms.custom_role_mapping.role_map.order', '3'
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
   user username: "test_user", password: "x-pack-test-password"

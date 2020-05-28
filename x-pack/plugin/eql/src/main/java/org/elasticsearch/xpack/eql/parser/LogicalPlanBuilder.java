@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.EventFilterContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinTermContext;
@@ -16,7 +17,10 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceTermContext;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
+import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -25,28 +29,39 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equal
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private final ParserParams params;
     private final UnresolvedRelation RELATION = new UnresolvedRelation(Source.EMPTY, null, "", false, "");
 
     public LogicalPlanBuilder(ParserParams params) {
-        this.params = params;
+        super(params);
+    }
+
+    private Attribute fieldTimestamp() {
+        return new UnresolvedAttribute(Source.EMPTY, params.fieldTimestamp());
     }
 
     @Override
     public LogicalPlan visitEventQuery(EqlBaseParser.EventQueryContext ctx) {
+        return new Project(source(ctx), visitEventFilter(ctx.eventFilter()), emptyList());
+    }
+
+    @Override
+    public LogicalPlan visitEventFilter(EventFilterContext ctx) {
         Source source = source(ctx);
         Expression condition = expression(ctx.expression());
 
@@ -56,34 +71,28 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Literal eventValue = new Literal(eventSource, eventName, DataTypes.KEYWORD);
 
             UnresolvedAttribute eventField = new UnresolvedAttribute(eventSource, params.fieldEventCategory());
-            Expression eventMatch = new Equals(eventSource, eventField, eventValue);
+            Expression eventMatch = new Equals(eventSource, eventField, eventValue, params.zoneId());
 
             condition = new And(source, eventMatch, condition);
         }
 
         Filter filter = new Filter(source, RELATION, condition);
         // add implicit sorting - when pipes are added, this would better sit there (as a default pipe)
-        Order order = new Order(source, new UnresolvedAttribute(source, params.fieldTimestamp()), Order.OrderDirection.ASC,
-                Order.NullsPosition.FIRST);
+        Order order = new Order(source, fieldTimestamp(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST);
         OrderBy orderBy = new OrderBy(source, filter, singletonList(order));
         return orderBy;
     }
 
     @Override
     public Join visitJoin(JoinContext ctx) {
-        List<Expression> parentJoinKeys = visitJoinKeys(ctx.by);
+        List<Attribute> parentJoinKeys = visitJoinKeys(ctx.by);
 
-        LogicalPlan until;
-        
-        if (ctx.until != null) {
-            until = visitJoinTerm(ctx.until, parentJoinKeys);
-        } else {
-            // no until declared means the condition never gets executed and thus folds to false
-            until = new Filter(source(ctx), RELATION, new Literal(source(ctx), Boolean.FALSE, DataTypes.BOOLEAN));
-        }
-        
+        Source source = source(ctx);
+
+        KeyedFilter until;
+
         int numberOfKeys = -1;
-        List<LogicalPlan> queries = new ArrayList<>(ctx.joinTerm().size());
+        List<KeyedFilter> queries = new ArrayList<>(ctx.joinTerm().size());
 
         for (JoinTermContext joinTermCtx : ctx.joinTerm()) {
             KeyedFilter joinTerm = visitJoinTerm(joinTermCtx, parentJoinKeys);
@@ -98,36 +107,51 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                     throw new ParsingException(src, "Inconsistent number of join keys specified; expected [{}] but found [{}]", expected,
                             found);
                 }
-                queries.add(joinTerm);
             }
+            queries.add(joinTerm);
         }
 
-        return new Join(source(ctx), queries, until);
+        // until is already parsed through joinTerm() above
+        if (ctx.until != null) {
+            until = queries.remove(queries.size() - 1);
+        } else {
+            until = defaultUntil(source);
+        }
+
+        return new Join(source, queries, until, fieldTimestamp());
     }
 
-    public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Expression> joinKeys) {
-        List<Expression> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
-        return new KeyedFilter(source(ctx), visitEventQuery(ctx.subquery().eventQuery()), keys);
+    private KeyedFilter defaultUntil(Source source) {
+        // no until declared means no results
+        // create a dummy keyed filter
+        String notUsed = "<not-used>";
+        Attribute tsField = new FieldAttribute(source, notUsed, new UnsupportedEsField(notUsed, notUsed));
+        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), tsField);
+    }
+
+    public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
+        List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
+        LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
+        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp()));
+        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp());
     }
 
     @Override
     public Sequence visitSequence(SequenceContext ctx) {
-        List<Expression> parentJoinKeys = visitJoinKeys(ctx.by);
+        Source source = source(ctx);
 
-        TimeValue maxSpan = visitSequenceParams(ctx.sequenceParams());
-
-        LogicalPlan until;
-
-        if (ctx.until != null) {
-            until = visitSequenceTerm(ctx.until, parentJoinKeys);
-        } else {
-            // no until declared means the condition never gets executed and thus folds to false
-            until = new Filter(source(ctx), RELATION, new Literal(source(ctx), Boolean.FALSE, DataTypes.BOOLEAN));
+        if (ctx.disallowed != null && ctx.sequenceParams() != null) {
+            throw new ParsingException(source, "Please specify sequence [by] before [with] not after");
         }
 
-        int numberOfKeys = -1;
-        List<LogicalPlan> queries = new ArrayList<>(ctx.sequenceTerm().size());
+        List<Attribute> parentJoinKeys = visitJoinKeys(ctx.by);
+        TimeValue maxSpan = visitSequenceParams(ctx.sequenceParams());
 
+        KeyedFilter until;
+        int numberOfKeys = -1;
+        List<KeyedFilter> queries = new ArrayList<>(ctx.sequenceTerm().size());
+
+        // TODO: unify this with the code from Join if the grammar gets aligned
         for (SequenceTermContext sequenceTermCtx : ctx.sequenceTerm()) {
             KeyedFilter sequenceTerm = visitSequenceTerm(sequenceTermCtx, parentJoinKeys);
             int keySize = sequenceTerm.keys().size();
@@ -141,20 +165,29 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                     throw new ParsingException(src, "Inconsistent number of join keys specified; expected [{}] but found [{}]", expected,
                             found);
                 }
-                queries.add(sequenceTerm);
             }
+            queries.add(sequenceTerm);
         }
 
-        return new Sequence(source(ctx), queries, until, maxSpan);
+        // until is already parsed through sequenceTerm() above
+        if (ctx.until != null) {
+            until = queries.remove(queries.size() - 1);
+        } else {
+            until = defaultUntil(source);
+        }
+
+        return new Sequence(source, queries, until, maxSpan, fieldTimestamp());
     }
 
-    public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Expression> joinKeys) {
+    public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
         if (ctx.FORK() != null) {
             throw new ParsingException(source(ctx.FORK()), "sequence fork is unsupported");
         }
 
-        List<Expression> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
-        return new KeyedFilter(source(ctx), visitEventQuery(ctx.subquery().eventQuery()), keys);
+        List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
+        LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
+        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp()));
+        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp());
     }
 
     @Override
@@ -173,45 +206,40 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             }
             
             String timeString = text(ctx.timeUnit().IDENTIFIER());
-            TimeUnit timeUnit = TimeUnit.SECONDS;
-            if (timeString != null) {
-                switch (timeString) {
-                    case "":
-                    case "s":
-                    case "sec":
-                    case "secs":
-                    case "second":
-                    case "seconds":
-                        timeUnit = TimeUnit.SECONDS;
-                        break;
-                    case "m":
-                    case "min":
-                    case "mins":
-                    case "minute":
-                    case "minutes":
-                        timeUnit = TimeUnit.MINUTES;
-                        break;
-                    case "h":
-                    case "hs":
-                    case "hour":
-                    case "hours":
-                        timeUnit = TimeUnit.HOURS;
-                        break;
-                    case "d":
-                    case "ds":
-                    case "day":
-                    case "days":
-                        timeUnit = TimeUnit.DAYS;
-                        break;
-                    default:
-                        throw new ParsingException(source(ctx.timeUnit().IDENTIFIER()), "Unrecognized time unit [{}]", timeString);
-                }
+            
+            if (timeString == null) {
+                throw new ParsingException(source(ctx.timeUnit()), "No time unit specified, did you mean [s] as in [{}s]?", text(ctx
+                        .timeUnit()));
+            }
+            
+            TimeUnit timeUnit = null;
+            switch (timeString) {
+                case "ms":
+                    timeUnit = TimeUnit.MILLISECONDS;
+                    break;
+                case "s":
+                    timeUnit = TimeUnit.SECONDS;
+                    break;
+                case "m":
+                    timeUnit = TimeUnit.MINUTES;
+                    break;
+                case "h":
+                    timeUnit = TimeUnit.HOURS;
+                    break;
+                case "d":
+                    timeUnit = TimeUnit.DAYS;
+                    break;
+                default:
+                    throw new ParsingException(source(ctx.timeUnit().IDENTIFIER()),
+                            "Unrecognized time unit [{}] in [{}], please specify one of [ms, s, m, h, d]",
+                            timeString, text(ctx.timeUnit()));
             }
 
             return new TimeValue(value, timeUnit);
 
         } else {
-            throw new ParsingException(source(numberCtx), "Decimal time interval [{}] not supported yet", text(numberCtx));
+            throw new ParsingException(source(numberCtx), "Decimal time interval [{}] not supported; please use an positive integer",
+                    text(numberCtx));
         }
     }
 }

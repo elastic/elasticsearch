@@ -18,8 +18,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -27,10 +27,12 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
@@ -47,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -150,11 +153,11 @@ public class AnalyticsResultProcessor {
     }
 
     private void updateResultsProgress(int progress) {
-        statsHolder.getProgressTracker().writingResultsPercent.set(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
+        statsHolder.getProgressTracker().updateWritingResultsProgress(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
     }
 
     private void completeResultsProgress() {
-        statsHolder.getProgressTracker().writingResultsPercent.set(100);
+        statsHolder.getProgressTracker().updateWritingResultsProgress(100);
     }
 
     private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {
@@ -162,10 +165,11 @@ public class AnalyticsResultProcessor {
         if (rowResults != null) {
             resultsJoiner.processRowResults(rowResults);
         }
-        Integer progressPercent = result.getProgressPercent();
-        if (progressPercent != null) {
-            LOGGER.debug("[{}] Analyzing progress updated to [{}]", analytics.getId(), progressPercent);
-            statsHolder.getProgressTracker().analyzingPercent.set(progressPercent);
+        PhaseProgress phaseProgress = result.getPhaseProgress();
+        if (phaseProgress != null) {
+            LOGGER.debug("[{}] progress for phase [{}] updated to [{}]", analytics.getId(), phaseProgress.getPhase(),
+                phaseProgress.getProgressPercent());
+            statsHolder.getProgressTracker().updatePhase(phaseProgress);
         }
         TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();
         if (inferenceModelBuilder != null) {
@@ -244,9 +248,11 @@ public class AnalyticsResultProcessor {
             case CLASSIFICATION:
                 assert analytics.getAnalysis() instanceof Classification;
                 Classification classification = ((Classification)analytics.getAnalysis());
+                PredictionFieldType predictionFieldType = getPredictionFieldType(classification);
                 return ClassificationConfig.builder()
                     .setNumTopClasses(classification.getNumTopClasses())
                     .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
+                    .setPredictionFieldType(predictionFieldType)
                     .build();
             case REGRESSION:
                 assert analytics.getAnalysis() instanceof Regression;
@@ -255,12 +261,22 @@ public class AnalyticsResultProcessor {
                     .setNumTopFeatureImportanceValues(regression.getBoostedTreeParams().getNumTopFeatureImportanceValues())
                     .build();
             default:
-                setAndReportFailure(ExceptionsHelper.serverError(
+                throw ExceptionsHelper.serverError(
                     "process created a model with an unsupported target type [{}]",
                     null,
-                    targetType));
-                return null;
+                    targetType);
         }
+    }
+
+    PredictionFieldType getPredictionFieldType(Classification classification) {
+        String dependentVariable = classification.getDependentVariable();
+        Optional<ExtractedField> extractedField = fieldNames.stream()
+            .filter(f -> f.getName().equals(dependentVariable))
+            .findAny();
+        PredictionFieldType predictionFieldType = Classification.getPredictionFieldType(
+            extractedField.isPresent() ? extractedField.get().getTypes() : null
+        );
+        return predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
     }
 
     private String getDependentVariable() {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -50,11 +49,6 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
     @Override
     protected void assertReduced(InternalBucketMetricValue reduced, List<InternalBucketMetricValue> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected Reader<InternalBucketMetricValue> instanceReader() {
-        return InternalBucketMetricValue::new;
     }
 
     @Override

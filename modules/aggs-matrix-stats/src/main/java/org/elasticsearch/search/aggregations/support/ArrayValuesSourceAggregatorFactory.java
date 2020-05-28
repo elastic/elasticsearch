@@ -23,12 +23,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public abstract class ArrayValuesSourceAggregatorFactory
@@ -48,7 +46,6 @@ public abstract class ArrayValuesSourceAggregatorFactory
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
         HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
@@ -59,22 +56,19 @@ public abstract class ArrayValuesSourceAggregatorFactory
             }
         }
         if (valuesSources.isEmpty()) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metadata);
+            return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(valuesSources, searchContext, parent,
-                collectsFromSingleBucket, pipelineAggregators, metadata);
+        return doCreateInternal(valuesSources, searchContext, parent, collectsFromSingleBucket, metadata);
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
-                                                    List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metadata) throws IOException;
 
     protected abstract Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
                                                     SearchContext searchContext,
                                                     Aggregator parent,
                                                     boolean collectsFromSingleBucket,
-                                                    List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metadata) throws IOException;
 
 }

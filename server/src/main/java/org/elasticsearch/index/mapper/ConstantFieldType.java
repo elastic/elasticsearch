@@ -58,11 +58,6 @@ public abstract class ConstantFieldType extends MappedFieldType {
         return true;
     }
 
-    @Override
-    public final Query existsQuery(QueryShardContext context) {
-        return new MatchAllDocsQuery();
-    }
-
     /**
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.

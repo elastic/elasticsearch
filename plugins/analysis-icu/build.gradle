@@ -24,7 +24,7 @@ esplugin {
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 
-tasks.withType(CheckForbiddenApis) {
+tasks.withType(CheckForbiddenApis).configureEach {
   signatures += [
     "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
   ]

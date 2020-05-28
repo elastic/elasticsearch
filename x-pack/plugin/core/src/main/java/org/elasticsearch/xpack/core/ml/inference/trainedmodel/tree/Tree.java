@@ -162,7 +162,8 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                     classificationProbability(value),
                     classificationLabels,
                     null,
-                    classificationConfig.getNumTopClasses());
+                    classificationConfig.getNumTopClasses(),
+                    classificationConfig.getPredictionFieldType());
                 return new ClassificationInferenceResults(topClasses.v1(),
                     classificationLabel(topClasses.v1(), classificationLabels),
                     topClasses.v2(),

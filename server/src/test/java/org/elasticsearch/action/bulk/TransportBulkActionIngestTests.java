@@ -37,7 +37,9 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -155,7 +158,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }
@@ -190,7 +193,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
             .fPut("node1", remoteNode1).fPut("node2", remoteNode2).build();
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
-        when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder().indices(ImmutableOpenMap.<String, IndexMetadata>builder()
@@ -556,6 +559,36 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(metadata.templates()).thenReturn(templateMetadataBuilder.build());
         when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
         when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+
+        IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
+        indexRequest.source(Collections.emptyMap());
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(
+            response -> responseCalled.set(true),
+            e -> {
+                assertThat(e, sameInstance(exception));
+                failureCalled.set(true);
+            }));
+
+        assertEquals("pipeline2", indexRequest.getPipeline());
+        verify(ingestService).executeBulkRequest(eq(1), bulkDocsItr.capture(), failureHandler.capture(),
+            completionHandler.capture(), any());
+    }
+
+    public void testFindDefaultPipelineFromV2TemplateMatch() {
+        Exception exception = new Exception("fake exception");
+
+        ComposableIndexTemplate t1 = new ComposableIndexTemplate(Collections.singletonList("missing_*"),
+            new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
+            null, null, null, null, null);
+
+        ClusterState state = clusterService.state();
+        Metadata metadata = Metadata.builder()
+            .put("my-template", t1)
+            .build();
+        when(state.metadata()).thenReturn(metadata);
+        when(state.getMetadata()).thenReturn(metadata);
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());

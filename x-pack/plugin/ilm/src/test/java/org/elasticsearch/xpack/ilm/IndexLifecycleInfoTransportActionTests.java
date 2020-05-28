@@ -55,30 +55,18 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
-    }
-
-    public void testEnabled() {
-        Settings.Builder settings = Settings.builder().put("xpack.ilm.enabled", false);
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), equalTo(false));
-
-        settings = Settings.builder().put("xpack.ilm.enabled", true);
-        featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 

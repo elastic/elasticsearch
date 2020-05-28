@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -108,11 +107,6 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER), parsed.getStdDeviationBoundAsString(Bounds.LOWER));
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER), parsed.getStdDeviationBoundAsString(Bounds.UPPER));
         }
-    }
-
-    @Override
-    protected Writeable.Reader<InternalExtendedStats> instanceReader() {
-        return InternalExtendedStats::new;
     }
 
     @Override

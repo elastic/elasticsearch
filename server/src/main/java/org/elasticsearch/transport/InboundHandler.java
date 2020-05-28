@@ -23,21 +23,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.Map;
 
 public class InboundHandler {
 
@@ -46,38 +41,23 @@ public class InboundHandler {
     private final ThreadPool threadPool;
     private final OutboundHandler outboundHandler;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final CircuitBreakerService circuitBreakerService;
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
+    private final Transport.ResponseHandlers responseHandlers;
+    private final Transport.RequestHandlers requestHandlers;
 
-    private final Transport.ResponseHandlers responseHandlers = new Transport.ResponseHandlers();
-    private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     InboundHandler(ThreadPool threadPool, OutboundHandler outboundHandler, NamedWriteableRegistry namedWriteableRegistry,
-                   CircuitBreakerService circuitBreakerService, TransportHandshaker handshaker, TransportKeepAlive keepAlive) {
+                   TransportHandshaker handshaker, TransportKeepAlive keepAlive, Transport.RequestHandlers requestHandlers,
+                   Transport.ResponseHandlers responseHandlers) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.circuitBreakerService = circuitBreakerService;
         this.handshaker = handshaker;
         this.keepAlive = keepAlive;
-    }
-
-    synchronized <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
-        if (requestHandlers.containsKey(reg.getAction())) {
-            throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
-        }
-        requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
-    }
-
-    @SuppressWarnings("unchecked")
-    final <T extends TransportRequest> RequestHandlerRegistry<T> getRequestHandler(String action) {
-        return (RequestHandlerRegistry<T>) requestHandlers.get(action);
-    }
-
-    final Transport.ResponseHandlers getResponseHandlers() {
-        return responseHandlers;
+        this.requestHandlers = requestHandlers;
+        this.responseHandlers = responseHandlers;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -95,17 +75,14 @@ public class InboundHandler {
         if (message.isPing()) {
             keepAlive.receiveKeepAlive(channel);
         } else {
-            messageReceived(message, channel);
+            messageReceived(channel, message);
         }
     }
 
-    private void messageReceived(InboundMessage message, TcpChannel channel) throws IOException {
+    private void messageReceived(TcpChannel channel, InboundMessage message) throws IOException {
         final InetSocketAddress remoteAddress = channel.getRemoteAddress();
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
-
-        final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
-        assertRemoteVersion(streamInput, header.getVersion());
 
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
@@ -113,8 +90,12 @@ public class InboundHandler {
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
             if (header.isRequest()) {
-                handleRequest(channel, header, streamInput, message.getContentLength());
+                handleRequest(channel, header, message);
             } else {
+                // Responses do not support short circuiting currently
+                assert message.isShortCircuit() == false;
+                final StreamInput streamInput = namedWriteableStream(message.openOrGetStreamInput());
+                assertRemoteVersion(streamInput, header.getVersion());
                 final TransportResponseHandler<?> handler;
                 long requestId = header.getRequestId();
                 if (header.isHandshake()) {
@@ -147,54 +128,66 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, StreamInput stream, int messageLengthBytes) {
+    private <T extends TransportRequest> void handleRequest(TcpChannel channel, Header header, InboundMessage message) throws IOException {
         final String action = header.getActionName();
         final long requestId = header.getRequestId();
         final Version version = header.getVersion();
-        TransportChannel transportChannel = null;
-        try {
+        if (header.isHandshake()) {
             messageListener.onRequestReceived(requestId, action);
-            if (header.isHandshake()) {
-                // Handshakes are not currently circuit broken
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, 0, header.isCompressed(), header.isHandshake());
-                handshaker.handleHandshake(transportChannel, requestId, stream);
-            } else {
-                final RequestHandlerRegistry<T> reg = getRequestHandler(action);
-                if (reg == null) {
-                    throw new ActionNotFoundTransportException(action);
-                }
-                CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
-                if (reg.canTripCircuitBreaker()) {
-                    breaker.addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
-                } else {
-                    breaker.addWithoutBreaking(messageLengthBytes);
-                }
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, messageLengthBytes, header.isCompressed(), header.isHandshake());
-                final T request = reg.newRequest(stream);
-                request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-                // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-                final int nextByte = stream.read();
-                // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-                if (nextByte != -1) {
-                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
-                        + "], available [" + stream.available() + "]; resetting");
-                }
-                threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
-            }
-        } catch (Exception e) {
-            // the circuit breaker tripped
-            if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
-                    circuitBreakerService, 0, header.isCompressed(), header.isHandshake());
-            }
+            // Cannot short circuit handshakes
+            assert message.isShortCircuit() == false;
+            final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+            assertRemoteVersion(stream, header.getVersion());
+            final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
             try {
-                transportChannel.sendResponse(e);
-            } catch (IOException inner) {
-                inner.addSuppressed(e);
-                logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", action), inner);
+                handshaker.handleHandshake(transportChannel, requestId, stream);
+            } catch (Exception e) {
+                if (Version.CURRENT.isCompatible(header.getVersion())) {
+                    sendErrorResponse(action, transportChannel, e);
+                } else {
+                    logger.warn(new ParameterizedMessage(
+                        "could not send error response to handshake received on [{}] using wire format version [{}], closing channel",
+                        channel, header.getVersion()), e);
+                    channel.close();
+                }
             }
+        } else {
+            final TransportChannel transportChannel = new TcpTransportChannel(outboundHandler, channel, action, requestId, version,
+                header.isCompressed(), header.isHandshake(), message.takeBreakerReleaseControl());
+            try {
+                messageListener.onRequestReceived(requestId, action);
+                if (message.isShortCircuit()) {
+                    sendErrorResponse(action, transportChannel, message.getException());
+                } else {
+                    final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
+                    assertRemoteVersion(stream, header.getVersion());
+                    final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
+                    assert reg != null;
+                    final T request = reg.newRequest(stream);
+                    request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                    // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
+                    final int nextByte = stream.read();
+                    // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
+                    if (nextByte != -1) {
+                        throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
+                            + action + "], available [" + stream.available() + "]; resetting");
+                    }
+                    threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
+                }
+            } catch (Exception e) {
+                sendErrorResponse(action, transportChannel, e);
+            }
+
+        }
+    }
+
+    private static void sendErrorResponse(String actionName, TransportChannel transportChannel, Exception e) {
+        try {
+            transportChannel.sendResponse(e);
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", actionName), inner);
         }
     }
 
@@ -277,13 +270,7 @@ public class InboundHandler {
 
         @Override
         public void onFailure(Exception e) {
-            try {
-                transportChannel.sendResponse(e);
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.warn(() -> new ParameterizedMessage(
-                    "Failed to send error message back to client for action [{}]", reg.getAction()), inner);
-            }
+            sendErrorResponse(reg.getAction(), transportChannel, e);
         }
     }
 }

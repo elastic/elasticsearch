@@ -17,38 +17,38 @@ class EqlBaseLexer extends Lexer {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    AND=1, ANY=2, BY=3, FALSE=4, FORK=5, IN=6, JOIN=7, MAXSPAN=8, NOT=9, NULL=10,
-    OF=11, OR=12, SEQUENCE=13, TRUE=14, UNTIL=15, WHERE=16, WITH=17, EQ=18,
-    NEQ=19, LT=20, LTE=21, GT=22, GTE=23, PLUS=24, MINUS=25, ASTERISK=26,
-    SLASH=27, PERCENT=28, DOT=29, COMMA=30, LB=31, RB=32, LP=33, RP=34, PIPE=35,
-    ESCAPED_IDENTIFIER=36, STRING=37, INTEGER_VALUE=38, DECIMAL_VALUE=39,
+    AND=1, ANY=2, BY=3, FALSE=4, FORK=5, IN=6, JOIN=7, MAXSPAN=8, NOT=9, NULL=10, 
+    OF=11, OR=12, SEQUENCE=13, TRUE=14, UNTIL=15, WHERE=16, WITH=17, EQ=18, 
+    NEQ=19, LT=20, LTE=21, GT=22, GTE=23, PLUS=24, MINUS=25, ASTERISK=26, 
+    SLASH=27, PERCENT=28, DOT=29, COMMA=30, LB=31, RB=32, LP=33, RP=34, PIPE=35, 
+    ESCAPED_IDENTIFIER=36, STRING=37, INTEGER_VALUE=38, DECIMAL_VALUE=39, 
     IDENTIFIER=40, LINE_COMMENT=41, BRACKETED_COMMENT=42, WS=43;
   public static String[] modeNames = {
     "DEFAULT_MODE"
   };
 
   public static final String[] ruleNames = {
-    "AND", "ANY", "BY", "FALSE", "FORK", "IN", "JOIN", "MAXSPAN", "NOT", "NULL",
-    "OF", "OR", "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "EQ", "NEQ",
-    "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT",
-    "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "ESCAPED_IDENTIFIER",
-    "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", "EXPONENT",
+    "AND", "ANY", "BY", "FALSE", "FORK", "IN", "JOIN", "MAXSPAN", "NOT", "NULL", 
+    "OF", "OR", "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "EQ", "NEQ", 
+    "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", 
+    "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "ESCAPED_IDENTIFIER", 
+    "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", "EXPONENT", 
     "DIGIT", "LETTER", "LINE_COMMENT", "BRACKETED_COMMENT", "WS"
   };
 
   private static final String[] _LITERAL_NAMES = {
-    null, "'and'", "'any'", "'by'", "'false'", "'fork'", "'in'", "'join'",
-    "'maxspan'", "'not'", "'null'", "'of'", "'or'", "'sequence'", "'true'",
-    "'until'", "'where'", "'with'", null, "'!='", "'<'", "'<='", "'>'", "'>='",
-    "'+'", "'-'", "'*'", "'/'", "'%'", "'.'", "','", "'['", "']'", "'('",
+    null, "'and'", "'any'", "'by'", "'false'", "'fork'", "'in'", "'join'", 
+    "'maxspan'", "'not'", "'null'", "'of'", "'or'", "'sequence'", "'true'", 
+    "'until'", "'where'", "'with'", null, "'!='", "'<'", "'<='", "'>'", "'>='", 
+    "'+'", "'-'", "'*'", "'/'", "'%'", "'.'", "','", "'['", "']'", "'('", 
     "')'", "'|'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
-    null, "AND", "ANY", "BY", "FALSE", "FORK", "IN", "JOIN", "MAXSPAN", "NOT",
-    "NULL", "OF", "OR", "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "EQ",
-    "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH",
-    "PERCENT", "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "ESCAPED_IDENTIFIER",
-    "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", "LINE_COMMENT",
+    null, "AND", "ANY", "BY", "FALSE", "FORK", "IN", "JOIN", "MAXSPAN", "NOT", 
+    "NULL", "OF", "OR", "SEQUENCE", "TRUE", "UNTIL", "WHERE", "WITH", "EQ", 
+    "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", 
+    "PERCENT", "DOT", "COMMA", "LB", "RB", "LP", "RP", "PIPE", "ESCAPED_IDENTIFIER", 
+    "STRING", "INTEGER_VALUE", "DECIMAL_VALUE", "IDENTIFIER", "LINE_COMMENT", 
     "BRACKETED_COMMENT", "WS"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);

@@ -24,11 +24,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFactory {
@@ -49,21 +47,16 @@ public abstract class MultiValuesSourceAggregatorFactory extends AggregatorFacto
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
-
-        return doCreateInternal(searchContext, configs, format, parent,
-            collectsFromSingleBucket, pipelineAggregators, metadata);
+        return doCreateInternal(searchContext, configs, format, parent, collectsFromSingleBucket, metadata);
     }
 
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                     Aggregator parent,
-                                                    List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metadata) throws IOException;
 
     protected abstract Aggregator doCreateInternal(SearchContext searchContext, Map<String, ValuesSourceConfig> configs,
                                                    DocValueFormat format, Aggregator parent, boolean collectsFromSingleBucket,
-                                                   List<PipelineAggregator> pipelineAggregators,
                                                    Map<String, Object> metadata) throws IOException;
 
 }

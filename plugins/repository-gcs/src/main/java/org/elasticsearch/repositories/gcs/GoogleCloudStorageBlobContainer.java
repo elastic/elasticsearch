@@ -63,6 +63,11 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public InputStream readBlob(final String blobName, final long position, final long length) throws IOException {
+        return blobStore.readBlob(buildKey(blobName), position, length);
+    }
+
+    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         blobStore.writeBlob(buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
     }

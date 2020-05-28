@@ -34,7 +34,6 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
-
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
 
     @Override
@@ -44,7 +43,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_cluster/voting_config_exclusions/{node_name}"));
+        return List.of(new Route(POST, "/_cluster/voting_config_exclusions"));
     }
 
     @Override
@@ -58,10 +57,22 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     }
 
     AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
-        String nodeName = request.param("node_name");
+        String nodeIds = null;
+        String nodeNames = null;
+
+        if (request.hasParam("node_ids")) {
+            nodeIds = request.param("node_ids");
+        }
+
+        if (request.hasParam("node_names")) {
+            nodeNames = request.param("node_names");
+        }
+
         return new AddVotingConfigExclusionsRequest(
-            Strings.splitStringByCommaToArray(nodeName),
+            Strings.splitStringByCommaToArray(nodeIds),
+            Strings.splitStringByCommaToArray(nodeNames),
             TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }
+
 }

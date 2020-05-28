@@ -75,7 +75,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         assertNotNull(request);
         assertEquals(1, request.indices().length);
         assertEquals(alias, request.indices()[0]);
-        assertEquals(alias, request.getAlias());
+        assertEquals(alias, request.getRolloverTarget());
         assertFalse(request.isDryRun());
         assertEquals(0, request.getConditions().size());
     }

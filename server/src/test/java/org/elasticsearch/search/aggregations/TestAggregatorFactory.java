@@ -29,7 +29,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -48,7 +47,7 @@ public class TestAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket, List list,
+    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                         Map metadata) throws IOException {
         return aggregator;
     }

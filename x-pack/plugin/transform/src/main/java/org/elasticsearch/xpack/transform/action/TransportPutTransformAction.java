@@ -203,7 +203,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
 
-        if (!licenseState.isTransformAllowed()) {
+        if (!licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
@@ -237,7 +237,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
             ActionListener.wrap(
                 validationResponse -> {
                     // Early check to verify that the user can create the destination index and can read from the source
-                    if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
+                    if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
                         final String username = securityContext.getUser().principal();
                         HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
                         ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(

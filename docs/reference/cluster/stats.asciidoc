@@ -446,6 +446,217 @@ This object is not populated by the cluster stats API.
 To get information on segment files, use the <<cluster-nodes-stats,node stats
 API>>.
 =====
+
+`mappings`::
+(object)
+Contains statistics about <<mapping,field mappings>> in selected nodes.
++
+.Properties of `mappings`
+[%collapsible%open]
+=====
+`field_types`::
+(array of objects)
+Contains statistics about <<mapping-types,field datatypes>> used in selected
+nodes.
++
+.Properties of `field_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Field datatype used in selected nodes.
+
+`count`::
+(integer)
+Number of fields mapped to the field datatype in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices containing a mapping of the field datatype in selected nodes.
+======
+=====
+
+`analysis`::
+(object)
+Contains statistics about <<analyzer-anatomy,analyzers and analyzer components>>
+used in selected nodes.
++
+.Properties of `analysis`
+[%collapsible%open]
+=====
+`char_filter_types`::
+(array of objects)
+Contains statistics about <<analysis-charfilters,character filter>> types used
+in selected nodes.
++
+.Properties of `char_filter_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Character filter type used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the character filter type in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices the character filter type in selected nodes.
+======
+
+`tokenizer_types`::
+(array of objects)
+Contains statistics about <<analysis-tokenizers,tokenizer>> types used in
+selected nodes.
++
+.Properties of `tokenizer_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Tokenizer type used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the tokenizer type in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the tokenizer type in selected nodes.
+======
+
+`filter_types`::
+(array of objects)
+Contains statistics about <<analysis-tokenfilters,token filter>> types used in
+selected nodes.
++
+.Properties of `filter_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Token filter type used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the token filter type in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices using the token filter type in selected nodes.
+======
+
+`analyzer_types`::
+(array of objects)
+Contains statistics about <<analyzer-anatomy,analyzer>> types used in selected
+nodes.
++
+.Properties of `analyzer_types` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Analyzer type used in selected nodes.
+
+`count`::
+(integer)
+Occurrences of the analyzer type in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the analyzer type in selected nodes.
+======
+
+`built_in_char_filters`::
+(array of objects)
+Contains statistics about built-in <<analysis-charfilters,character filters>>
+used in selected nodes.
++
+.Properties of `built_in_char_filters` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in character filter used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the built-in character filter in
+selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in character filter in selected nodes.
+======
+
+`built_in_tokenizers`::
+(array of objects)
+Contains statistics about built-in <<analysis-tokenizers,tokenizers>> used in
+selected nodes.
++
+.Properties of `built_in_tokenizers` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in tokenizer used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the built-in tokenizer in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in tokenizer in selected nodes.
+======
+
+`built_in_filters`::
+(array of objects)
+Contains statistics about built-in <<analysis-tokenfilters,token filters>> used
+in selected nodes.
++
+.Properties of `built_in_filters` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in token filter used in selected nodes.
+
+`count`::
+(integer)
+Number of analyzers or normalizers using the built-in token filter in selected
+nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in token filter in selected nodes.
+======
+
+`built_in_analyzers`::
+(array of objects)
+Contains statistics about built-in <<analysis-analyzers,analyzers>> used in
+selected nodes.
++
+.Properties of `built_in_analyzers` objects
+[%collapsible%open]
+======
+`name`::
+(string)
+Built-in analyzer used in selected nodes.
+
+`count`::
+(integer)
+Occurrences of the built-in analyzer in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices using the built-in analyzer in selected nodes.
+======
+=====
 ====
 
 [[cluster-stats-api-response-body-nodes]]

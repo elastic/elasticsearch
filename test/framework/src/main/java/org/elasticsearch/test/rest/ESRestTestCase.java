@@ -97,6 +97,7 @@ import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -559,12 +560,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if ("".equals(template)) {
                             throw new IllegalStateException("empty template in templates list:\n" + templates);
                         }
-                        logger.debug("Clearing template [{}]", template);
-                        adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                        logger.info("Clearing template [{}]", template);
+                        try {
+                            adminClient().performRequest(new Request("DELETE", "_template/" + template));
+                        } catch (ResponseException e) {
+                            // This is fine, it could be a V2 template
+                            assertThat(e.getMessage(), containsString("index_template [" + template + "] missing"));
+                            try {
+                                adminClient().performRequest(new Request("DELETE", "_index_template/" + template));
+                            } catch (ResponseException e2) {
+                                // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
+                            }
+                        }
                     }
                 }
                 try {
-                    adminClient().performRequest(new Request("DELETE", "_index_template/*"));
                     adminClient().performRequest(new Request("DELETE", "_component_template/*"));
                 } catch (ResponseException e) {
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore

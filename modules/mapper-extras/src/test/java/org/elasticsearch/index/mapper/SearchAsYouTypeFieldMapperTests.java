@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldMapper;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
@@ -55,9 +57,9 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,19 +72,34 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
+public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchAsYouTypeFieldMapper.Builder> {
+
+    @Before
+    public void addModifiers() {
+        addModifier("max_shingle_size", false, (a, b) -> {
+            a.maxShingleSize(3);
+            b.maxShingleSize(2);
+        });
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(MapperExtrasPlugin.class);
+    }
+
+    @Override
+    protected SearchAsYouTypeFieldMapper.Builder newBuilder() {
+        return new SearchAsYouTypeFieldMapper.Builder("sayt")
+            .indexAnalyzer(new NamedAnalyzer("analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchAnalyzer(new NamedAnalyzer("analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
     public void testIndexing() throws IOException {

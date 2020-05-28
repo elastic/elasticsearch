@@ -15,4 +15,7 @@ Mapping::
 * Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time.
   (e.g. incorrect analyzer settings or unknown field types). {pull}51233[#51233]
 
+Deprecations::
+* Remove undocumented endpoints of hot threads API {pull}55109[#55109]
+
 coming[8.0.0]

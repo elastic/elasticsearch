@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.info;
 
+import org.elasticsearch.gradle.BwcVersions;
 import org.gradle.api.JavaVersion;
 
 import java.io.File;
@@ -12,23 +13,23 @@ import java.util.function.Consumer;
 import static java.util.Objects.requireNonNull;
 
 public class BuildParams {
-    private static File compilerJavaHome;
     private static File runtimeJavaHome;
     private static Boolean isRuntimeJavaHomeSet;
     private static List<JavaHome> javaVersions;
     private static JavaVersion minimumCompilerVersion;
     private static JavaVersion minimumRuntimeVersion;
     private static JavaVersion gradleJavaVersion;
-    private static JavaVersion compilerJavaVersion;
     private static JavaVersion runtimeJavaVersion;
     private static Boolean inFipsJvm;
     private static String gitRevision;
+    private static String gitOrigin;
     private static ZonedDateTime buildDate;
     private static String testSeed;
     private static Boolean isCi;
     private static Boolean isInternal;
     private static Integer defaultParallel;
     private static Boolean isSnapshotBuild;
+    private static BwcVersions bwcVersions;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -40,10 +41,6 @@ public class BuildParams {
      */
     public static void init(Consumer<MutableBuildParams> initializer) {
         initializer.accept(MutableBuildParams.INSTANCE);
-    }
-
-    public static File getCompilerJavaHome() {
-        return value(compilerJavaHome);
     }
 
     public static File getRuntimeJavaHome() {
@@ -70,10 +67,6 @@ public class BuildParams {
         return value(gradleJavaVersion);
     }
 
-    public static JavaVersion getCompilerJavaVersion() {
-        return value(compilerJavaVersion);
-    }
-
     public static JavaVersion getRuntimeJavaVersion() {
         return value(runtimeJavaVersion);
     }
@@ -86,8 +79,16 @@ public class BuildParams {
         return value(gitRevision);
     }
 
+    public static String getGitOrigin() {
+        return value(gitOrigin);
+    }
+
     public static ZonedDateTime getBuildDate() {
         return value(buildDate);
+    }
+
+    public static BwcVersions getBwcVersions() {
+        return value(bwcVersions);
     }
 
     public static String getTestSeed() {
@@ -151,10 +152,6 @@ public class BuildParams {
             });
         }
 
-        public void setCompilerJavaHome(File compilerJavaHome) {
-            BuildParams.compilerJavaHome = requireNonNull(compilerJavaHome);
-        }
-
         public void setRuntimeJavaHome(File runtimeJavaHome) {
             BuildParams.runtimeJavaHome = requireNonNull(runtimeJavaHome);
         }
@@ -179,10 +176,6 @@ public class BuildParams {
             BuildParams.gradleJavaVersion = requireNonNull(gradleJavaVersion);
         }
 
-        public void setCompilerJavaVersion(JavaVersion compilerJavaVersion) {
-            BuildParams.compilerJavaVersion = requireNonNull(compilerJavaVersion);
-        }
-
         public void setRuntimeJavaVersion(JavaVersion runtimeJavaVersion) {
             BuildParams.runtimeJavaVersion = requireNonNull(runtimeJavaVersion);
         }
@@ -193,6 +186,10 @@ public class BuildParams {
 
         public void setGitRevision(String gitRevision) {
             BuildParams.gitRevision = requireNonNull(gitRevision);
+        }
+
+        public void setGitOrigin(String gitOrigin) {
+            BuildParams.gitOrigin = requireNonNull(gitOrigin);
         }
 
         public void setBuildDate(ZonedDateTime buildDate) {
@@ -219,5 +216,8 @@ public class BuildParams {
             BuildParams.isSnapshotBuild = isSnapshotBuild;
         }
 
+        public void setBwcVersions(BwcVersions bwcVersions) {
+            BuildParams.bwcVersions = requireNonNull(bwcVersions);
+        }
     }
 }

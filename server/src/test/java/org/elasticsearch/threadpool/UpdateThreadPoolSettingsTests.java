@@ -61,7 +61,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     public void testWriteThreadPoolsMaxSize() throws InterruptedException {
-        final int maxSize = 1 + EsExecutors.numberOfProcessors(Settings.EMPTY);
+        final int maxSize = 1 + EsExecutors.allocatedProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
         // try to create a too big thread pool
@@ -88,7 +88,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
         if (name.equals(ThreadPool.Names.WRITE)) {
-            return Math.min(size, EsExecutors.numberOfProcessors(settings));
+            return Math.min(size, EsExecutors.allocatedProcessors(settings));
         } else {
             return size;
         }
@@ -184,7 +184,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 new ScalingExecutorBuilder(
                     "my_pool1",
                     1,
-                    EsExecutors.numberOfProcessors(Settings.EMPTY),
+                    EsExecutors.allocatedProcessors(Settings.EMPTY),
                     TimeValue.timeValueMinutes(1));
 
             final FixedExecutorBuilder fixed = new FixedExecutorBuilder(Settings.EMPTY, "my_pool2", 1, 1, false);

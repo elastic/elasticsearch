@@ -33,7 +33,7 @@ creating an index, you can specify the following:
 `<index>`::
 +
 --
-(Optional, string) Name of the index you wish to create.
+(Required, string) Name of the index you wish to create.
 
 // tag::index-name-reqs[]
 Index names must meet the following criteria:

@@ -29,11 +29,9 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class FilterAggregatorFactory extends AggregatorFactory {
@@ -72,9 +70,8 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
                                         boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
-        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, pipelineAggregators, metadata);
+        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, metadata);
     }
 
 }

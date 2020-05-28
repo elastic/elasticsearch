@@ -1,0 +1,44 @@
+---
+"Roll over a data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason:  "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream-for-rollover
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  # rollover data stream to create new backing index
+  - do:
+      indices.rollover:
+        alias: "data-stream-for-rollover"
+
+  - match: { old_index: data-stream-for-rollover-000001 }
+  - match: { new_index: data-stream-for-rollover-000002 }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  # ensure new index is created
+  - do:
+      indices.exists:
+        index: data-stream-for-rollover-000002
+
+  - is_true: ''
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { 0.name: data-stream-for-rollover }
+  - match: { 0.timestamp_field: '@timestamp' }
+  - match: { 0.generation: 2 }
+  - length: { 0.indices: 2 }
+  - match: { 0.indices.0.index_name: 'data-stream-for-rollover-000001' }
+  - match: { 0.indices.1.index_name: 'data-stream-for-rollover-000002' }
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream-for-rollover
+  - is_true: acknowledged

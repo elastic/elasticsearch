@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-management]]
-= Manage the index lifecycle
+= {ilm-init}: Manage the index lifecycle
 
 [partintro]
 --
@@ -9,35 +9,39 @@ You can configure {ilm} ({ilm-init}) policies to automatically manage indices ac
 your performance, resiliency, and retention requirements. 
 For example, you could use {ilm-init} to:
 
+* Spin up a new index when an index reaches a certain size or number of documents
 * Create a new index each day, week, or month and archive previous ones
-* Spin up a new index when an index reaches a certain size
 * Delete stale indices to enforce data retention standards
+
+When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
+{ilm-init} is configured automatically. 
+You can modify the default policies through {kib} Management or the {ilm-init} APIs.
 
 [TIP]
 To automatically back up your indices and manage snapshots, 
 use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
 
 * <<overview-index-lifecycle-management>>
+* <<ilm-concepts>>
 * <<getting-started-index-lifecycle-management>>
-* <<ilm-policy-definition>>
+* <<ilm-actions>>
 * <<set-up-lifecycle-policy>>
-* <<update-lifecycle-policy>>
 * <<index-lifecycle-error-handling>>
 * <<start-stop-ilm>>
-* <<using-policies-rollover>>
+* <<ilm-configure-rollover>>
 * <<ilm-with-existing-indices>>
 * <<index-lifecycle-and-snapshots>>
 
 --
-include::overview-ilm.asciidoc[]
+include::ilm-overview.asciidoc[]
 
-include::getting-started-ilm.asciidoc[]
+include::ilm-concepts.asciidoc[]
 
-include::policy-definitions.asciidoc[]
+include::ilm-tutorial.asciidoc[]
+
+include::ilm-actions.asciidoc[]
 
 include::set-up-lifecycle-policy.asciidoc[]
-
-include::update-lifecycle-policy.asciidoc[]
 
 include::error-handling.asciidoc[]
 
@@ -48,4 +52,3 @@ include::using-policies-rollover.asciidoc[]
 include::ilm-with-existing-indices.asciidoc[]
 
 include::ilm-and-snapshots.asciidoc[]
-

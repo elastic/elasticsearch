@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -55,7 +54,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, SparseVectorFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -73,7 +72,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
                 throw new IllegalArgumentException(ERROR_MESSAGE);
@@ -132,6 +131,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
+    @Override
     public SparseVectorFieldType fieldType() {
         return (SparseVectorFieldType) super.fieldType();
     }
@@ -143,7 +147,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+    protected void parseCreateField(ParseContext context) {
         throw new IllegalStateException("parse is implemented directly");
     }
 

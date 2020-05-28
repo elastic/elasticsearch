@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
@@ -106,11 +105,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected Writeable.Reader<InternalComposite> instanceReader() {
-        return InternalComposite::new;
-    }
-
-    @Override
     protected Class<ParsedComposite> implementationClass() {
         return ParsedComposite.class;
     }
@@ -170,8 +164,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
         Collections.sort(buckets, (o1, o2) -> o1.compareKey(o2));
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
-        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(),
-            Collections.emptyList(), metadata);
+        return new InternalComposite(name, size, sourceNames, formats, buckets, lastBucket, reverseMuls, randomBoolean(), metadata);
     }
 
     @Override
@@ -207,7 +200,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         }
         CompositeKey lastBucket = buckets.size() > 0 ? buckets.get(buckets.size()-1).getRawKey() : null;
         return new InternalComposite(instance.getName(), instance.getSize(), sourceNames, formats, buckets, lastBucket, reverseMuls,
-            randomBoolean(), instance.pipelineAggregators(), metadata);
+            randomBoolean(), metadata);
     }
 
     @Override
@@ -255,7 +248,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         var mapped = createTestInstance(randomAlphaOfLength(10), emptyMap(), InternalAggregations.EMPTY);
         var rawFormats = formats.stream().map(f -> DocValueFormat.RAW).collect(toList());
         var unmapped = new InternalComposite(mapped.getName(), mapped.getSize(), sourceNames,
-                rawFormats, emptyList(), null, reverseMuls, true, emptyList(), emptyMap());
+                rawFormats, emptyList(), null, reverseMuls, true, emptyMap());
         List<InternalAggregation> toReduce = Arrays.asList(unmapped, mapped);
         Collections.shuffle(toReduce, random());
         InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());

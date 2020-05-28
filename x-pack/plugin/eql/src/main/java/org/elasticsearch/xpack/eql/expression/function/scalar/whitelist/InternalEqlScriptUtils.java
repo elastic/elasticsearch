@@ -6,11 +6,19 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist;
 
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.BetweenFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.CIDRMatchFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ConcatFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor;
-import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWithFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContainsFunctionProcessor;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumberFunctionProcessor;
+import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor;
 import org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils;
+
+import java.util.List;
 
 /*
  * Whitelisted class for EQL scripts.
@@ -21,16 +29,40 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
 
+    public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
+        return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);
+    }
+
+    public static Boolean cidrMatch(String s, List<Object>  addresses) {
+        return (Boolean) CIDRMatchFunctionProcessor.doProcess(s, addresses);
+    }
+
+    public static String concat(List<Object> values) {
+        return (String) ConcatFunctionProcessor.doProcess(values);
+    }
+
     public static Boolean endsWith(String s, String pattern) {
         return (Boolean) EndsWithFunctionProcessor.doProcess(s, pattern);
+    }
+
+    public static Integer indexOf(String s, String substring, Number start) {
+        return (Integer) IndexOfFunctionProcessor.doProcess(s, substring, start);
     }
 
     public static Integer length(String s) {
         return (Integer) LengthFunctionProcessor.doProcess(s);
     }
 
-    public static Boolean startsWith(String s, String pattern) {
-        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern);
+    public static String string(Object s) {
+        return (String) ToStringFunctionProcessor.doProcess(s);
+    }
+
+    public static Boolean stringContains(String string, String substring) {
+        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);
+    }
+
+    public static Number number(String source, Number base) {
+        return (Number) ToNumberFunctionProcessor.doProcess(source, base);
     }
 
     public static String substring(String s, Number start, Number end) {

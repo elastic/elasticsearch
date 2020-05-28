@@ -69,7 +69,7 @@ integTest {
 }
 
 testClusters.integTest {
-  plugin file(project(':plugins:repository-azure').bundlePlugin.archiveFile)
+  plugin project(':plugins:repository-azure').bundlePlugin.archiveFile
   keystore 'azure.client.integration_test.account', azureAccount
   if (azureKey != null && azureKey.isEmpty() == false) {
     keystore 'azure.client.integration_test.key', azureKey

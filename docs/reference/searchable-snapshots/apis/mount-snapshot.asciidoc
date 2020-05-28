@@ -1,5 +1,5 @@
 [role="xpack"]
-[testenv="basic"]
+[testenv="platinum"]
 [[searchable-snapshots-api-mount-snapshot]]
 === Mount snapshot API
 ++++

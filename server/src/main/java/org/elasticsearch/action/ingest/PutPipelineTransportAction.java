@@ -79,7 +79,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
         client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
             Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
             for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
+                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
             }
             ingestService.putPipeline(ingestInfos, request, listener);
         }, listener::onFailure));

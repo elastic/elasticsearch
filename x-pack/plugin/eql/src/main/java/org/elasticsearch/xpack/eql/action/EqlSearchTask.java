@@ -23,7 +23,7 @@ public class EqlSearchTask extends CancellableTask {
 
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
-        return false;
+        return true;
     }
 
     @Override

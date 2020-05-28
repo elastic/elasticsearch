@@ -134,7 +134,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
@@ -153,7 +153,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final IndicesQueryCache indicesQueryCache = mock(IndicesQueryCache.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
@@ -178,7 +178,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         when(indicesAccessControl.getIndexPermissions("index")).thenReturn(indexAccessControl);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
         cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);

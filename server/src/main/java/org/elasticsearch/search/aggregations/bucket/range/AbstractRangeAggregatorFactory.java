@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -48,8 +47,9 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final boolean keyed;
     private final String aggregationTypeName;
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry, String aggregationName) {
-        valuesSourceRegistry.register(aggregationName,
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder,
+                                           String aggregationName) {
+        builder.register(aggregationName,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             new RangeAggregatorSupplier() {
                 @Override
@@ -62,10 +62,9 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                         boolean keyed,
                                         SearchContext context,
                                         Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators,
                                         Map<String, Object> metadata) throws IOException {
                     return new RangeAggregator(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent,
-                        pipelineAggregators, metadata);
+                        metadata);
                 }
             });
     }
@@ -89,9 +88,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
-        return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, pipelineAggregators, metadata);
+        return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, metadata);
     }
 
     @Override
@@ -99,7 +97,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                             SearchContext searchContext,
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
-                                            List<PipelineAggregator> pipelineAggregators,
                                             Map<String, Object> metadata) throws IOException {
 
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
@@ -109,6 +106,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                 aggregatorSupplier.getClass().toString() + "]");
         }
         return ((RangeAggregatorSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
-            ranges, keyed, searchContext, parent, pipelineAggregators, metadata);
+            ranges, keyed, searchContext, parent, metadata);
     }
 }

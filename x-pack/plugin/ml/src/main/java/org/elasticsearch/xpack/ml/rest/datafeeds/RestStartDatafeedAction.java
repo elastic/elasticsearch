@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -71,12 +71,14 @@ public class RestStartDatafeedAction extends BaseRestHandler {
         }
         return channel -> {
             client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,
-                    new RestBuilderListener<AcknowledgedResponse>(channel) {
+                    new RestBuilderListener<NodeAcknowledgedResponse>(channel) {
 
                         @Override
-                        public RestResponse buildResponse(AcknowledgedResponse r, XContentBuilder builder) throws Exception {
+                        public RestResponse buildResponse(NodeAcknowledgedResponse r, XContentBuilder builder) throws Exception {
+                            // This doesn't use the toXContent of the response object because we rename "acknowledged" to "started"
                             builder.startObject();
                             builder.field("started", r.isAcknowledged());
+                            builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());
                             builder.endObject();
                             return new BytesRestResponse(RestStatus.OK, builder);
                         }

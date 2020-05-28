@@ -19,10 +19,12 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.NewObjectNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
@@ -52,6 +54,11 @@ public class ENewObj extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (input.write) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment cannot assign a value to new object with constructor [" + type + "/" + arguments.size() + "]"));
+        }
+
         Output output = new Output();
 
         output.actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
@@ -79,6 +86,7 @@ public class ENewObj extends AExpression {
         }
 
         List<Output> argumentOutputs = new ArrayList<>();
+        List<PainlessCast> argumentCasts = new ArrayList<>();
 
         for (int i = 0; i < arguments.size(); ++i) {
             AExpression expression = arguments.get(i);
@@ -86,15 +94,16 @@ public class ENewObj extends AExpression {
             Input expressionInput = new Input();
             expressionInput.expected = types[i];
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
-            expression.cast(expressionInput, expressionOutput);
+            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             argumentOutputs.add(expressionOutput);
+            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
         }
 
         NewObjectNode newObjectNode = new NewObjectNode();
 
         for (int i = 0; i < arguments.size(); ++ i) {
-            newObjectNode.addArgumentNode(arguments.get(i).cast(argumentOutputs.get(i)));
+            newObjectNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
         }
 
         newObjectNode.setLocation(location);

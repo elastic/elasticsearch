@@ -70,7 +70,12 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
  * It's highly recommended to use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of
  * {@link #declareField} which can be used to implement exceptional parsing operations not covered by the high level methods.
  */
-public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
+public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context>
+    implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
+
+    private final List<String[]> requiredFieldSets = new ArrayList<>();
+    private final List<String[]> exclusiveFieldSets = new ArrayList<>();
+
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
@@ -496,6 +501,22 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         return name;
     }
 
+    @Override
+    public void declareRequiredFieldSet(String... requiredSet) {
+        if (requiredSet.length == 0) {
+            return;
+        }
+        this.requiredFieldSets.add(requiredSet);
+    }
+
+    @Override
+    public void declareExclusiveFieldSet(String... exclusiveSet) {
+        if (exclusiveSet.length == 0) {
+            return;
+        }
+        this.exclusiveFieldSets.add(exclusiveSet);
+    }
+
     private void parseArray(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_ARRAY : "Token was: " + parser.currentToken();
@@ -620,6 +641,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         OBJECT(START_OBJECT),
         OBJECT_OR_NULL(START_OBJECT, VALUE_NULL),
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
+        OBJECT_ARRAY_OR_NULL(START_OBJECT, START_ARRAY, VALUE_NULL),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
         OBJECT_OR_LONG(START_OBJECT, VALUE_NUMBER),

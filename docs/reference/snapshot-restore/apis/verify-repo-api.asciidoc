@@ -1,0 +1,94 @@
+[[verify-snapshot-repo-api]]
+=== Verify snapshot repository API
+++++
+<titleabbrev>Verify snapshot repository</titleabbrev>
+++++
+
+Verifies that a snapshot repository is functional.
+
+////
+[source,console]
+----
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+POST /_snapshot/my_repository/_verify
+----
+
+[[verify-snapshot-repo-api-request]]
+==== {api-request-title}
+
+`POST /_snapshot/<repository>/_verify`
+
+[[verify-snapshot-repo-api-desc]]
+==== {api-description-title}
+
+By default, <<put-snapshot-repo-api,put snapshot repository API>> requests
+verify that a snapshot is functional on all master and data nodes in the
+cluster.
+
+You can skip this verification using the put snapshot repository API's `verify`
+parameter. You can then use the verify snapshot repository API to manually
+verify the repository.
+
+If verification is successful, the verify snapshot repository API returns a list
+of nodes connected to the snapshot repository. If verification failed, the API
+returns an error.
+
+[[verify-snapshot-repo-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Name of the snapshot repository to verify.
+
+[[verify-snapshot-repo-api-query-params]]
+==== {api-query-parms-title}
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
+`timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `30s`.
+
+[role="child_attributes"]
+[[verify-snapshot-repo-api-response-body]]
+==== {api-response-body-title}
+
+`nodes`::
+(object)
++
+.Properties of `nodes` objects
+[%collapsible%open]
+====
+`<node_id>`::
+(object)
+Contains information about a node connected to the snapshot repository.
++
+The key is the ID of the node.
++
+.Properties of `<node_id>`
+[%collapsible%open]
+=====
+`name`::
+(string)
+Human-readable name for the node.
++
+You can set this name using the <<node.name,`node.name`>> property in
+`elasticsearch.yml`. Defaults to the machine's hostname.
+=====
+====

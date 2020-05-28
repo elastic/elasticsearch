@@ -150,7 +150,6 @@ public class EmailSslTests extends ESTestCase {
      * so this is the least breaking way to resolve that.
      */
     public void testNotificationSslSettingsOverrideSmtpSslTrust() throws Exception {
-        assumeFalse("Can't run in a FIPS JVM with verification mode None", inFipsJvm());
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {

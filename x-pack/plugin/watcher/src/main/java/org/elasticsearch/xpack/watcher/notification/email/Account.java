@@ -205,9 +205,9 @@ public class Account {
                     .filter(key -> key.startsWith("mail.smtp.ssl."))
                     .collect(Collectors.joining(","));
                 if (sslKeys.isEmpty() == false) {
-                    logger.warn("Account [{}] has explicit SSL settings [{}] which will be ignored" +
-                            " due to notification SSL settings in [{}]",
-                        name, sslKeys, EMAIL_NOTIFICATION_SSL_PREFIX);
+                    logger.warn("The SMTP SSL settings [{}] that are configured for Account [{}]" +
+                            " will be ignored due to the notification SSL settings in [{}]",
+                        sslKeys, name, EMAIL_NOTIFICATION_SSL_PREFIX);
                 }
                 smtp.setSocketFactory(sslSocketFactory);
             }

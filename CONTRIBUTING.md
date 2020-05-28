@@ -617,7 +617,7 @@ the full test suite too. It makes it much easier to review if your code is
 formatted correctly and does not include unnecessary extra changes.
 
 We sometimes reject contributions if we find ourselves performing many review
-iterations without making significant progress. Some iteration is expected,
+iterations without making enough progress. Some iteration is expected,
 particularly on technically complicated changes, and there's no fixed limit on
 the acceptable number of review cycles since it depends so much on the nature
 of the change. You can help to reduce the number of iterations by reviewing

@@ -31,6 +31,7 @@ file or updated dynamically on a live cluster with the
     than the specified amount of free space. This setting affects the
     allocation of all shards, whether previously allocated or not.
 
+[[cluster-routing-flood_stage]]
 `cluster.routing.allocation.disk.watermark.flood_stage`::
 +
 --

@@ -205,7 +205,11 @@ public class BinaryFieldMapper extends FieldMapper {
             // no doc values
             createFieldNamesField(context);
         }
+    }
 
+    @Override
+    protected Object parseSourceValue(Object value) {
+        return value;
     }
 
     @Override

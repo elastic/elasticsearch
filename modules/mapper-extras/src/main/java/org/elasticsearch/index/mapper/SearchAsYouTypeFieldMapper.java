@@ -492,6 +492,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected Object parseSourceValue(Object value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -530,6 +535,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
+        }
+
+        @Override
+        protected Object parseSourceValue(Object value) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -682,6 +692,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         if (fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected String parseSourceValue(Object value) {
+        return value.toString();
     }
 
     @Override

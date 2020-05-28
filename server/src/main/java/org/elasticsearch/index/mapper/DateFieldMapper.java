@@ -59,6 +59,7 @@ import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -356,6 +357,7 @@ public final class DateFieldMapper extends FieldMapper {
             return dateMathParser;
         }
 
+        // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
         }
@@ -623,6 +625,15 @@ public final class DateFieldMapper extends FieldMapper {
         if (fieldType.stored()) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));
         }
+    }
+
+    @Override
+    public String parseSourceValue(Object value) {
+        String date = value.toString();
+        long timestamp = fieldType().parse(date);
+
+        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+        return fieldType().dateTimeFormatter().format(dateTime);
     }
 
     @Override

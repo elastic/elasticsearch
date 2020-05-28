@@ -63,25 +63,10 @@ class BuildPlugin implements Plugin<Project> {
                     + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                     + 'are mutually exclusive')
         }
-        String minimumGradleVersion = null
-        InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
-        try {
-            minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString())
-        } finally {
-            is.close()
-        }
-        if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
-            throw new GradleException(
-                    "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
-            )
-        }
         project.pluginManager.apply('elasticsearch.java')
         configureLicenseAndNotice(project)
         project.pluginManager.apply('elasticsearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
-
-        // apply global test task failure listener
-        project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
 
@@ -131,35 +116,6 @@ class BuildPlugin implements Plugin<Project> {
                 task.systemProperty('javax.net.ssl.trustStore', bcfksKeystore.toString())
             }
 
-        }
-    }
-
-    private static class TestFailureReportingPlugin implements Plugin<Project> {
-        @Override
-        void apply(Project project) {
-            if (project != project.rootProject) {
-                throw new IllegalStateException("${this.class.getName()} can only be applied to the root project.")
-            }
-
-            project.gradle.addListener(new TaskActionListener() {
-                @Override
-                void beforeActions(Task task) {
-
-                }
-
-                @Override
-                void afterActions(Task task) {
-                    if (task instanceof Test) {
-                        ErrorReportingTestListener listener = task.extensions.findByType(ErrorReportingTestListener)
-                        if (listener != null && listener.getFailedTests().size() > 0) {
-                            task.logger.lifecycle("\nTests with failures:")
-                            listener.getFailedTests().each {
-                                task.logger.lifecycle(" - ${it.getFullName()}")
-                            }
-                        }
-                    }
-                }
-            })
         }
     }
 

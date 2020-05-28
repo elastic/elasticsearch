@@ -726,8 +726,8 @@ setup:
 ---
 "profiler":
   - skip:
-      version: " - 7.99.99"
-      reason: debug information added in 7.9.0 (change backporting to 7.9.0)
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
   - do:
       bulk:
         index: test_1

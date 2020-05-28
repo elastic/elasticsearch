@@ -23,8 +23,8 @@ setup:
 ---
 "Create data stream":
   - skip:
-      version: " - 7.99.99"
-      reason:  "mute bwc until backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -80,8 +80,8 @@ setup:
 ---
 "Create data stream with invalid name":
   - skip:
-      version: " - 7.99.99"
-      reason:  "mute bwc until backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       catch: bad_request
@@ -95,8 +95,8 @@ setup:
 ---
 "Get data stream":
   - skip:
-      version: " - 7.99.99"
-      reason:  "mute bwc until backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -160,8 +160,8 @@ setup:
 ---
 "Delete data stream with backing indices":
   - skip:
-      version: " - 7.99.99"
-      reason:  "mute bwc until backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:

@@ -28,7 +28,6 @@ import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDoNotExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
-import static org.elasticsearch.packaging.util.Packages.SYSVINIT_SCRIPT;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -88,9 +87,6 @@ public class DebPreservationTests extends PackagingTestCase {
             Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
         );
 
-        // sysvinit service file was not removed
-        assertThat(SYSVINIT_SCRIPT, fileExists());
-
         // defaults file was not removed
         assertThat(installation.envFile, fileExists());
     }
@@ -102,7 +98,7 @@ public class DebPreservationTests extends PackagingTestCase {
 
         assertRemoved(distribution());
 
-        assertPathsDoNotExist(installation.config, installation.envFile, SYSVINIT_SCRIPT);
+        assertPathsDoNotExist(installation.config, installation.envFile);
 
         assertThat(packageStatus(distribution()).exitCode, is(1));
     }

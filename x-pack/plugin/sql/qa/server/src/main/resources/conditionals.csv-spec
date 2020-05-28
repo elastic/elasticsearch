@@ -197,6 +197,24 @@ END as lang_skills FROM test_emp GROUP BY lang_skills ORDER BY 2;
 10     | zero
 ;
 
+caseGroupByProtectedDivisionByZero
+schema::x:i
+SELECT CASE WHEN languages = 1 THEN NULL ELSE ( salary / (languages - 1) ) END AS x FROM test_emp GROUP BY 1 ORDER BY 1 LIMIT 10;
+
+       x
+---------------
+null
+6331
+6486
+7780
+7974
+8068
+8489
+8935
+9043
+9071
+;
+
 caseGroupByAndHaving
 schema::count:l|gender:s|languages:byte
 SELECT count(*) AS count, gender, languages FROM test_emp
@@ -351,6 +369,28 @@ IIF(NVL(languages, 0) = 0, 'zero',
 15             |one
 17             |trilingual
 10             |zero
+;
+
+iifGroupByProtectedDivisionByZero
+schema::count:l|x:i
+SELECT count(*) AS count,
+IIF(languages - 1 = 0, 0,
+  IIF(languages - 1 = 1, (salary / 10000) / (languages - 1),
+    IIF(languages - 1 = 2, (salary / 10000) / languages,
+      IIF(languages - 1 = 3, (salary / 10000) / (languages + 1),
+         (salary / 10000) / (languages + 2))))) as x FROM test_emp GROUP BY x ORDER BY 2;
+
+     count     |       x
+---------------+---------------
+10             |null
+50             |0
+14             |1
+8              |2
+4              |3
+5              |4
+6              |5
+2              |6
+1              |7
 ;
 
 iifGroupByAndHaving

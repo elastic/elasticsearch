@@ -63,18 +63,6 @@ class BuildPlugin implements Plugin<Project> {
                     + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                     + 'are mutually exclusive')
         }
-        String minimumGradleVersion = null
-        InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
-        try {
-            minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString())
-        } finally {
-            is.close()
-        }
-        if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
-            throw new GradleException(
-                    "Gradle ${minimumGradleVersion}+ is required to use elasticsearch.build plugin"
-            )
-        }
         project.pluginManager.apply('elasticsearch.java')
         configureLicenseAndNotice(project)
         project.pluginManager.apply('elasticsearch.publish')

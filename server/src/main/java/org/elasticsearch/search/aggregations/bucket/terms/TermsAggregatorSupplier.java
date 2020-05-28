@@ -42,5 +42,8 @@ interface TermsAggregatorSupplier extends AggregatorSupplier {
                      Aggregator parent,
                      Aggregator.SubAggCollectionMode subAggCollectMode,
                      boolean showTermDocCountError,
+                     boolean collectsFromSingleBucket,
                      Map<String, Object> metadata) throws IOException;
+
+    boolean needsToCollectFromSingleBucket();
 }

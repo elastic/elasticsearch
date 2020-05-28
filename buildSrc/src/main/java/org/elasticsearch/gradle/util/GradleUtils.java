@@ -41,6 +41,7 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -151,6 +152,8 @@ public abstract class GradleUtils {
             task.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             task.setClasspath(testSourceSet.getRuntimeClasspath());
+            // make the new test run after unit tests
+            task.mustRunAfter(project.getTasks().named("test"));
         });
 
         Configuration testCompileConfig = project.getConfigurations().getByName(testSourceSet.getCompileClasspathConfigurationName());
@@ -170,7 +173,12 @@ public abstract class GradleUtils {
         });
         project.getPluginManager().withPlugin("eclipse", p -> {
             EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
-            eclipse.getClasspath().setSourceSets(List.of(testSourceSet));
+            List<SourceSet> eclipseSourceSets = new ArrayList<>();
+            for (SourceSet old : eclipse.getClasspath().getSourceSets()) {
+                eclipseSourceSets.add(old);
+            }
+            eclipseSourceSets.add(testSourceSet);
+            eclipse.getClasspath().setSourceSets(sourceSets);
             eclipse.getClasspath().getPlusConfigurations().add(runtimeClasspathConfiguration);
         });
 

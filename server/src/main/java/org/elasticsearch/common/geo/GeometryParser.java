@@ -55,9 +55,9 @@ public final class GeometryParser {
     /**
      * Returns a geometry format object that can parse and then serialize the object back to the same format.
      */
-    public GeometryFormat geometryFormat(XContentParser parser) {
+    public GeometryFormat<Geometry> geometryFormat(XContentParser parser) {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            return new GeometryFormat() {
+            return new GeometryFormat<Geometry>() {
                 @Override
                 public Geometry fromXContent(XContentParser parser) throws IOException {
                     return null;
@@ -74,7 +74,7 @@ public final class GeometryParser {
                 }
             };
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            return new GeometryFormat() {
+            return new GeometryFormat<Geometry>() {
                 @Override
                 public Geometry fromXContent(XContentParser parser) throws IOException {
                     return geoJsonParser.fromXContent(parser);
@@ -90,7 +90,7 @@ public final class GeometryParser {
                 }
             };
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new GeometryFormat() {
+            return new GeometryFormat<Geometry>() {
                 @Override
                 public Geometry fromXContent(XContentParser parser) throws IOException, ParseException {
                     return wellKnownTextParser.fromWKT(parser.text());

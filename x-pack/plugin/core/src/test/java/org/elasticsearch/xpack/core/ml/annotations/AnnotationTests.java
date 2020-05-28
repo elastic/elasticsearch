@@ -36,6 +36,13 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
             .setModifiedTime(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
             .setModifiedUsername(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
             .setType(randomAlphaOfLengthBetween(10, 15))
+            .setDetectorIndex(randomBoolean() ? randomIntBetween(0, 10) : null)
+            .setPartitionFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setPartitionFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setOverFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setOverFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setByFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
+            .setByFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
             .build();
     }
 

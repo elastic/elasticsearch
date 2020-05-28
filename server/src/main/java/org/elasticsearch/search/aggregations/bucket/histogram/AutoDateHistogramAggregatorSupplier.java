@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
 @FunctionalInterface
 public interface AutoDateHistogramAggregatorSupplier extends AggregatorSupplier {
@@ -37,6 +39,8 @@ public interface AutoDateHistogramAggregatorSupplier extends AggregatorSupplier 
         AggregatorFactories factories,
         int numBuckets,
         AutoDateHistogramAggregationBuilder.RoundingInfo[] roundingInfos,
+        @Nullable
+        Function<Rounding, Rounding.Prepared> roundingPreparer,
         @Nullable ValuesSource valuesSource,
         DocValueFormat formatter,
         SearchContext aggregationContext,

@@ -2035,7 +2035,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         MachineLearningIT.buildJob(jobId);
        {
             // tag::delete-expired-data-request
-            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest(); // <1>
+            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest( // <1>
+               1000.0f, // <2>
+               TimeValue.timeValueHours(12) // <3>
+            );
+
             // end::delete-expired-data-request
 
             // tag::delete-expired-data-execute

@@ -34,7 +34,7 @@ import java.util.function.IntConsumer;
 /**
  * An aggregation service that creates instances of {@link MultiBucketConsumer}.
  * The consumer is used by {@link BucketsAggregator} and {@link InternalMultiBucketAggregation} to limit the number of buckets created
- * in {@link Aggregator#buildAggregation} and {@link InternalAggregation#reduce}.
+ * in {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
  * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 10000.
  */
 public class MultiBucketConsumerService {
@@ -94,7 +94,7 @@ public class MultiBucketConsumerService {
      * An {@link IntConsumer} that throws a {@link TooManyBucketsException}
      * when the sum of the provided values is above the limit (`search.max_buckets`).
      * It is used by aggregators to limit the number of bucket creation during
-     * {@link Aggregator#buildAggregation} and {@link InternalAggregation#reduce}.
+     * {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
      */
     public static class MultiBucketConsumer implements IntConsumer {
         private final int limit;

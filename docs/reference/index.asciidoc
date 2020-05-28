@@ -36,8 +36,6 @@ include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
 
-include::modules.asciidoc[]
-
 include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]

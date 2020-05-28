@@ -362,15 +362,14 @@ example, it can contain custom URL information as shown in
 end::custom-settings[]
 
 tag::daily-model-snapshot-retention-after-days[]
-Advanced configuration option. Specifies a number of days between 0 and the
-value of `model_snapshot_retention_days`. After this period of time, only the first
-model snapshot per day is retained for this job. Age is calculated relative to
-the timestamp of the newest model snapshot. For new jobs, the default value is
-`1`, which means that all snapshots are retained for one day. Older snapshots
-are thinned out such that only one per day is retained. For jobs that were
-created before this setting was available, the default value matches the 
-`model_snapshot_retention_days` value, which preserves the original behavior
-and no thinning out of model snapshots occurs.
+Advanced configuration option, which affects the automatic removal of old model
+snapshots for this job. It specifies a period of time (in days) after which only
+the first snapshot per day is retained. This period is relative to the timestamp
+of the most recent snapshot for this job. Valid values range from `0` to
+`model_snapshot_retention_days`. For new jobs, the default value is `1`. For
+jobs created before version 7.8.0, the default value matches 
+`model_snapshot_retention_days`. For more information, refer to
+{ml-docs}/ml-model-snapshots.html[Model snapshots].
 end::daily-model-snapshot-retention-after-days[]
 
 tag::data-description[]
@@ -1007,10 +1006,12 @@ example, `1575402236000 `.
 end::model-snapshot-id[]
 
 tag::model-snapshot-retention-days[]
-Advanced configuration option. The period of time (in days) that model snapshots 
-are retained. Age is calculated relative to the timestamp of the newest model 
-snapshot. The default value is `10`, which means snapshots that are ten days 
-older than the newest snapshot are deleted.
+Advanced configuration option, which affects the automatic removal of old model
+snapshots for this job. It specifies the maximum period of time (in days) that
+snapshots are retained. This period is relative to the timestamp of the most
+recent snapshot for this job. The default value is `10`, which means snapshots
+ten days older than the newest snapshot are deleted. For more information, refer
+to {ml-docs}/ml-model-snapshots.html[Model snapshots].
 end::model-snapshot-retention-days[]
 
 tag::model-timestamp[]

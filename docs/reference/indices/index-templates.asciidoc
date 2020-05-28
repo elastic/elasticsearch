@@ -4,16 +4,14 @@
 <titleabbrev>Index template</titleabbrev>
 ++++
 
-This documentation is about V2 (version 2) index templates. For V1 templates please see the
-<<indices-templates-v1,V1 template documentation>>.
+This documentation is about composable templates. For legacy templates please see the
+<<indices-templates-v1,legacy template documentation>>.
 
 [NOTE]
 ====
-In {es} 7.8 the `prefer_v2_templates` querystring parameter was introduced to the index, update,
-bulk, and create index APIs to allow configuring whether to favor V2 or V1 index templates. In 7.x
-the default value for this parameter is `false` meaning that the <<indices-templates-v1,V1 index
-templates>> take precedence. In 8.x the default value for the parameter is `true` meaning that V2
-index templates take precedence (V1 templates may still match if no V2 template matches).
+In {es} 7.8 composable templates were introduced. When a composable template matches a given index
+it always takes precedence over a legacy template. If no composable template matches, a legacy
+template may still match and be applied.
 ====
 
 An index template is a way to tell {es} how to configure an index when it is created. Templates are
@@ -28,11 +26,37 @@ specify settings, mappings, and aliases.
 
 If a new index matches more than one index template, the index template with the highest priority is used.
 
-If an index is created with explicit settings and also matches an index template, 
+If an index is created with explicit settings and also matches an index template,
 the settings from the create index request take precedence over settings specified in the index template and its component templates.
 
 [source,console]
 --------------------------------------------------
+PUT _component_template/component_template1
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT _component_template/other_component_template
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "ip_address": {
+          "type": "ip"
+        }
+      }
+    }
+  }
+}
+
 PUT _index_template/template_1
 {
   "index_patterns": ["te*", "bar*"],
@@ -72,7 +96,7 @@ PUT _index_template/template_1
 
 [source,console]
 --------------------------------------------------
-DELETE _index_template/template_*
+DELETE _index_template/*
 DELETE _component_template/*
 --------------------------------------------------
 // TEARDOWN
@@ -88,7 +112,7 @@ DELETE _component_template/*
 [[put-index-template-api-desc]]
 ==== {api-description-title}
 
-Creates or updates an index template. 
+Creates or updates an index template.
 
 // tag::index-template-def[]
 Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>> that you can
@@ -235,7 +259,7 @@ When multiple component templates are specified in the `composed_of` field for a
 they are merged in the order specified, meaning that later component templates override earlier
 component templates.
 
-For two component templates:
+For two component templates, the order they are specified changes the number of shards for an index:
 
 [source,console]
 --------------------------------------------------
@@ -247,10 +271,7 @@ PUT /_component_template/template_with_2_shards
     }
   }
 }
---------------------------------------------------
 
-[source,console]
---------------------------------------------------
 PUT /_component_template/template_with_3_shards
 {
   "template": {
@@ -259,12 +280,7 @@ PUT /_component_template/template_with_3_shards
     }
   }
 }
---------------------------------------------------
 
-The order they are specified changes the number of shards for an index:
-
-[source,console]
---------------------------------------------------
 PUT /_index_template/template_1
 {
   "index_patterns": ["t*"],
@@ -274,6 +290,135 @@ PUT /_index_template/template_1
 
 In this case, an index matching `t*` will have three primary shards. If the order of composed
 templates were reversed, the index would have two primary shards.
+
+
+[[simulating-templates]]
+===== Simulating template composition
+
+Since templates can be composed not only of multiple component templates, but also the index
+template itself, there are two simulation APIs to determine what the resulting index settings will
+be.
+
+To simulate the settings that would be applied to a matching index name:
+
+[source,console]
+--------------------------------------------------
+POST /_index_template/_simulate_index/myindex
+--------------------------------------------------
+
+To simulate the settings that would be applied from a particular template:
+
+[source,console]
+--------------------------------------------------
+POST /_index_template/_simulate/template_1
+
+POST /_index_template/_simulate
+{
+  "index_patterns": ["foo"],
+  "template": {
+    "settings": {
+      "number_of_replicas": 0
+    }
+  }
+}
+--------------------------------------------------
+
+
+Here's an example demonstrating simulating both an index name and template name:
+
+[source,console]
+--------------------------------------------------
+PUT /_component_template/ct1 <1>
+{
+  "template": {
+    "settings": {
+      "index.number_of_shards": 2
+    }
+  }
+}
+
+PUT /_component_template/ct2 <2>
+{
+  "template": {
+    "settings": {
+      "index.number_of_replicas": 0
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT /_index_template/final-template <3>
+{
+  "index_patterns": ["logdata-*"],
+  "composed_of": ["ct1", "ct2"],
+  "priority": 5
+}
+
+POST /_index_template/_simulate_index/logdata-2019-02-01 <4>
+
+POST /_index_template/_simulate/final-template <5>
+
+POST /_index_template/_simulate <6>
+{
+  "index_patterns": ["logdata-*"],
+  "composed_of": ["ct2"],
+  "priority": 10,
+  "template": {
+    "settings": {
+      "index.number_of_replicas": 1
+    }
+  }
+}
+--------------------------------------------------
+<1> Creating a component template (ct1) setting the number of shards to two
+<2> Creating another component template (ct2) setting the number of replicas to zero with mappings
+<3> Creating an index template called "final" template using ct1 and ct2
+<4> Simulate the settings that would be applied for a new index "logdata-2019-02-01"
+<5> Simulate the settings composed using the "final-template" index template
+<6> Simulate the settings composed using a custom specified template
+
+The output of the simulate API from the last example call looks like:
+
+[source,console-result]
+---------------------------------------------------------
+{
+  "template" : {
+    "settings" : {
+      "index" : {
+        "number_of_replicas" : "1" <1>
+      }
+    },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : { <2>
+          "type" : "date"
+        }
+      }
+    },
+    "aliases" : { }
+  },
+  "overlapping" : [ <3>
+    {
+      "name" : "final-template",
+      "index_patterns" : [
+        "logdata-*"
+      ]
+    }
+  ]
+}
+---------------------------------------------------------
+<1> The number of replicas from the simulated template body
+<2> The `@timestamp` field inherited from the "ct2" component template
+<3> Any overlapping templates that would have matched, but have lower priority
+
+When simulating a template and specifying a template in the body of the request, the simulated
+template is not added to the existing templates, it is only used for the simulation.
 
 ===== Index template with index aliases
 
@@ -410,3 +555,36 @@ PUT /_index_template/template_1
 --------------------------------------------------
 
 To check the `_meta`, you can use the <<indices-get-template, get index template>> API.
+
+[[data-stream-definition]]
+===== Data stream definition
+
+If a composable template should auto create a data stream instead of an index then
+a `data_stream` definition can be added to a composable template.
+
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns": ["logs-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  },
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+--------------------------------------------------
+
+Required properties of a data stream definition:
+
+`timestamp_field`::
+(Required, string) The name of the timestamp field. This field must be present
+in all documents indexed into the data stream and must be of type
+<<date, `date`>> or <<date_nanos, `date_nanos`>>.

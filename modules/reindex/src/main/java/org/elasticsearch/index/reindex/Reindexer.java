@@ -32,7 +32,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -216,11 +215,6 @@ public class Reindexer {
                 return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
-        }
-
-        @Override
-        protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
-            return super.buildBulk(docs).preferV2Templates(mainRequest.preferV2Templates());
         }
 
         @Override

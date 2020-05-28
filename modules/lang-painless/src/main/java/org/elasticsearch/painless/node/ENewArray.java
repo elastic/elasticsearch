@@ -74,7 +74,7 @@ public class ENewArray extends AExpression {
             Input expressionInput = new Input();
             expressionInput.expected = initialize ? clazz.getComponentType() : int.class;
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             argumentOutputs.add(expressionOutput);
             argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));

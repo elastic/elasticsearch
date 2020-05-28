@@ -1,14 +1,25 @@
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [simple-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [simple-*]
+          data_stream:
+            timestamp_field: '@timestamp'
+
 ---
 "Delete backing index on data stream":
   - skip:
       version: " - 7.99.99"
-      reason:  "enable in 7.8+ after backporting"
+      reason:  "mute bwc until backported"
 
   - do:
       indices.create_data_stream:
         name: simple-data-stream
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   # rollover data stream to create new backing index
@@ -39,7 +50,7 @@
   - is_false: ''
 
   - do:
-      indices.get_data_streams:
+      indices.get_data_stream:
         name: "*"
   - match: { 0.name: simple-data-stream }
   - match: { 0.timestamp_field: '@timestamp' }
@@ -56,13 +67,11 @@
 "Attempt to delete write index on data stream is rejected":
   - skip:
       version: " - 7.99.99"
-      reason:  "enable in 7.8+ after backporting"
+      reason:  "mute bwc until backported"
 
   - do:
       indices.create_data_stream:
         name: simple-data-stream
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   # rollover data stream to create new backing index

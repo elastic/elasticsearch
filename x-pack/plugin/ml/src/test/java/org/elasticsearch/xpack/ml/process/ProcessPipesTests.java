@@ -10,6 +10,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
+import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.ByteArrayInputStream;
@@ -17,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,11 +32,14 @@ import static org.mockito.Mockito.when;
 
 public class ProcessPipesTests extends ESTestCase {
 
-    private static final byte[] LOG_BYTES = { 1 };
+    private static final byte[] LOG_BYTES = ("\n"
+        + "{\"logger\":\"controller\",\"timestamp\":1478261151447,\"level\":\"INFO\""
+        + ",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 5\",\"class\":\"ml\","
+        + "\"method\":\"core::Something\",\"file\":\"Something.cc\",\"line\":555}\n").getBytes(StandardCharsets.UTF_8);
     private static final byte[] OUTPUT_BYTES = { 3 };
     private static final byte[] PERSIST_BYTES = { 6 };
 
-    public void testProcessPipes() throws IOException {
+    public void testProcessPipes() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
 
@@ -56,7 +61,7 @@ public class ProcessPipesTests extends ESTestCase {
                 .thenReturn(new ByteArrayInputStream(PERSIST_BYTES));
 
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
-                true, false, true, true, true, true);
+                false, true, true, true, true);
 
         List<String> command = new ArrayList<>();
         processPipes.addArgs(command);
@@ -71,16 +76,21 @@ public class ProcessPipesTests extends ESTestCase {
         assertEquals(ProcessPipes.PERSIST_ARG, command.get(7).substring(0, ProcessPipes.PERSIST_ARG.length()));
         assertEquals(ProcessPipes.PERSIST_IS_PIPE_ARG, command.get(8));
 
-        processPipes.connectStreams(Duration.ofSeconds(2));
+        processPipes.connectLogStream(Duration.ofSeconds(2));
 
-        assertTrue(processPipes.getLogStream().isPresent());
+        CppLogMessageHandler logMessageHandler = processPipes.getLogStreamHandler();
+        assertNotNull(logMessageHandler);
+        logMessageHandler.tailStream();
+        assertEquals(42, logMessageHandler.getPid(Duration.ZERO));
+
+        processPipes.connectOtherStreams(Duration.ofSeconds(2));
+
         assertFalse(processPipes.getCommandStream().isPresent());
         assertTrue(processPipes.getProcessInStream().isPresent());
         assertTrue(processPipes.getProcessOutStream().isPresent());
         assertTrue(processPipes.getRestoreStream().isPresent());
         assertTrue(processPipes.getPersistStream().isPresent());
 
-        assertEquals(1, processPipes.getLogStream().get().read());
         processPipes.getProcessInStream().get().write(2);
         byte[] processIn = processInStream.toByteArray();
         assertEquals(1, processIn.length);
@@ -93,13 +103,13 @@ public class ProcessPipesTests extends ESTestCase {
         assertEquals(6, processPipes.getPersistStream().get().read());
     }
 
-    public void testCloseUnusedPipes_notConnected() throws IOException {
+    public void testCloseUnusedPipes_notConnected() {
         NamedPipeHelper namedPipeHelper = mock(NamedPipeHelper.class);
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
 
-        ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
-                true, true, true, true, true, true);
+        new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
+                true, true, true, true, true);
     }
 
     public void testCloseOpenedPipesOnError() throws IOException {
@@ -126,9 +136,10 @@ public class ProcessPipesTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, AutodetectBuilder.AUTODETECT, "my_job",
-                true, true, true, true, true, true);
+                true, true, true, true, true);
 
-        expectThrows(IOException.class, () -> processPipes.connectStreams(Duration.ofSeconds(2)));
+        processPipes.connectLogStream(Duration.ofSeconds(2));
+        expectThrows(IOException.class, () -> processPipes.connectOtherStreams(Duration.ofSeconds(2)));
 
         // check the pipes successfully opened were then closed
         verify(logStream, times(1)).close();

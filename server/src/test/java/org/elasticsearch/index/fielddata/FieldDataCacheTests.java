@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -69,11 +69,11 @@ public class FieldDataCacheTests extends ESTestCase {
             ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
         DummyAccountingFieldDataCache fieldDataCache = new DummyAccountingFieldDataCache();
-        // Testing SortedSetDVOrdinalsIndexFieldData:
-        SortedSetDVOrdinalsIndexFieldData sortedSetDVOrdinalsIndexFieldData = createSortedDV("field1", fieldDataCache);
-        sortedSetDVOrdinalsIndexFieldData.loadGlobal(ir);
+        // Testing SortedSetOrdinalsIndexFieldData:
+        SortedSetOrdinalsIndexFieldData sortedSetOrdinalsIndexFieldData = createSortedDV("field1", fieldDataCache);
+        sortedSetOrdinalsIndexFieldData.loadGlobal(ir);
         assertThat(fieldDataCache.cachedGlobally, equalTo(1));
-        sortedSetDVOrdinalsIndexFieldData.loadGlobal(new FieldMaskingReader("field1", ir));
+        sortedSetOrdinalsIndexFieldData.loadGlobal(new FieldMaskingReader("field1", ir));
         assertThat(fieldDataCache.cachedGlobally, equalTo(1));
 
         // Testing PagedBytesIndexFieldData
@@ -87,8 +87,8 @@ public class FieldDataCacheTests extends ESTestCase {
         dir.close();
     }
 
-    private SortedSetDVOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, new NoneCircuitBreakerService(),
+    private SortedSetOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
+        return new SortedSetOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, fieldName, new NoneCircuitBreakerService(),
                 AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
     }
 

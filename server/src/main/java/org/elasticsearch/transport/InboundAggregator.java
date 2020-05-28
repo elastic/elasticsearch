@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
@@ -101,7 +102,7 @@ public class InboundAggregator implements Releasable {
             releasableContent = firstContent;
         } else {
             final ReleasableBytesReference[] references = contentAggregation.toArray(new ReleasableBytesReference[0]);
-            final CompositeBytesReference content = new CompositeBytesReference(references);
+            final BytesReference content = CompositeBytesReference.of(references);
             releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
         }
 

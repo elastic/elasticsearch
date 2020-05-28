@@ -4,10 +4,17 @@
 == Configure rollover
 [[using-policies-rollover]]
 You control when the rollover action is triggered by specifying one or more
-rollover parameters. The rollover is performed once any of the criteria are
-met. Because the criteria are checked periodically, the index might grow
-slightly beyond the specified threshold. To control how often the criteria are
-checked, specify the `indices.lifecycle.poll_interval` cluster setting.
+rollover criteria:
+
+* Maximum size (the combined size of all primary shards in the index)
+* Maximum document count
+* Maximum age
+
+The rollover is performed once any of the criteria are met. 
+Because the criteria are checked periodically, the index might grow
+slightly beyond the specified threshold. 
+To control how often the criteria are checked, 
+specify the `indices.lifecycle.poll_interval` cluster setting.
 
 IMPORTANT: New indices created via rollover will not automatically inherit the
 policy used by the old index, and will not use any policy by default. Therefore,
@@ -15,24 +22,6 @@ it is highly recommended to apply the policy via
 <<apply-policy-template,index template>>, including a Rollover alias
 setting, for your indices which specifies the policy you wish to use for each
 new index.
-
-The rollover action takes the following parameters:
-
-[[rollover-action-params]]
-.`rollover` Action Parameters
-[options="header"]
-|===
-|Name |Description
-|max_size |The maximum estimated size the primary shard of the index is allowed
-to grow to. Defaults to `null`. Optional.
-|max_docs |The maximum number of document the index should
-contain. Defaults to `null`. Optional.
-|max_age |The maximum age of the index. Defaults to `null`. Optional.
-|===
-
-These parameters are used to determine when the index is considered "full" and
-a rollover should be performed. Where multiple criteria are defined the
-rollover operation will be performed once any of the criteria are met.
 
 The following request defines a policy with a rollover action that triggers
 when the index size reaches 25GB. The old index is subsequently deleted after
@@ -127,7 +116,7 @@ the new index, enabling indexing to continue uninterrupted.
 [[skipping-rollover]]
 === Skipping Rollover
 
-The `index.lifecycle.indexing_complete` setting indicates to {ilm} whether this
+The `index.lifecycle.indexing_complete` setting indicates to {ilm-init} whether this
 index has already been rolled over. If it is set to `true`, that indicates that
 this index has already been rolled over and does not need to be rolled over
 again. Therefore, {ilm} will skip any Rollover Action configured in the

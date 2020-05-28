@@ -19,11 +19,15 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BulkRequestParserTests extends ESTestCase {
@@ -109,4 +113,20 @@ public class BulkRequestParserTests extends ESTestCase {
         assertTrue(parsed.get());
     }
 
+    public void testParseDeduplicatesParameterStrings() throws IOException {
+        BytesArray request = new BytesArray(
+                "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\"} }\n{}\n"
+                + "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\" } }\n{}\n");
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean());
+        final List<IndexRequest> indexRequests = new ArrayList<>();
+        parser.parse(request, null, null, null, null, true, XContentType.JSON,
+                (indexRequest, type) -> indexRequests.add(indexRequest),
+                req -> fail(), req -> fail());
+        assertThat(indexRequests, Matchers.hasSize(2));
+        final IndexRequest first = indexRequests.get(0);
+        final IndexRequest second = indexRequests.get(1);
+        assertSame(first.index(), second.index());
+        assertSame(first.getPipeline(), second.getPipeline());
+        assertSame(first.routing(), second.routing());
+    }
 }

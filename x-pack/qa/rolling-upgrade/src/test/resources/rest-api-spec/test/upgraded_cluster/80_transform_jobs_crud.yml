@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/56250"
   - do:
       cluster.health:
         wait_for_status: green

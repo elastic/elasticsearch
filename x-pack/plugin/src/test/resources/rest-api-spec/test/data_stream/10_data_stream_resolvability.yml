@@ -1,0 +1,47 @@
+---
+"Verify data stream resolvability for xpack apis":
+  - skip:
+      version: " - 7.99.99"
+      reason: "mute bwc until backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [logs-*]
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.reload_search_analyzers:
+        index: logs-foobar
+  - length: { reload_details: 1}
+
+  # this 404 is expected, because there are no snapshot indices
+  # but the data stream was resolved, which is what is being tested here
+  - do:
+      catch: missing
+      searchable_snapshots.clear_cache:
+        index: logs-foobar
+  - match: { error.reason: "No searchable snapshots indices found"}
+
+  # this 404 is expected, because there are no snapshot indices
+  # but the data stream was resolved, which is what is being tested here
+  - do:
+      catch: missing
+      searchable_snapshots.stats:
+        index: logs-foobar
+  - match: { error.reason: "No searchable snapshots indices found"}
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

@@ -300,7 +300,7 @@ end::frequency[]
 
 tag::from[]
 `from`::
-(Optional, integer) Starting document offset. Defaults to `0`.
+(Optional, integer) Starting document offset. Needs to be non-negative and defaults to `0`.
 end::from[]
 
 tag::from-transforms[]

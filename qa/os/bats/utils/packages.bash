@@ -166,10 +166,6 @@ verify_package_installation() {
         fi
     fi
 
-    if is_sysvinit; then
-        assert_file "/etc/init.d/elasticsearch" f root root 750
-    fi
-
     run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/elasticsearch.yml"
     [ $status = 1 ]
     [[ "$output" == *"Permission denied"* ]] || {

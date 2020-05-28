@@ -39,12 +39,14 @@ import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
+import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
@@ -52,16 +54,12 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.external.javadoc.CoreJavadocOptions;
-import org.gradle.internal.jvm.Jvm;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -82,8 +80,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public void apply(Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        // apply global test task failure listener
+        project.getRootProject().getPluginManager().apply(TestFailureReportingPlugin.class);
 
         project.getPluginManager().apply(JavaPlugin.class);
+
         configureConfigurations(project);
         configureRepositories(project);
         configureCompile(project);
@@ -96,12 +97,12 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     /**
      * Makes dependencies non-transitive.
-     *
+     * <p>
      * Gradle allows setting all dependencies as non-transitive very easily.
      * Sadly this mechanism does not translate into maven pom generation. In order
      * to effectively make the pom act as if it has no transitive dependencies,
      * we must exclude each transitive dependency of each direct dependency.
-     *
+     * <p>
      * Determining the transitive deps of a dependency which has been resolved as
      * non-transitive is difficult because the process of resolving removes the
      * transitive deps. To sidestep this issue, we create a configuration per
@@ -148,7 +149,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
 
-    /** Adds repositories used by ES dependencies */
+    /**
+     * Adds repositories used by ES dependencies
+     */
     public static void configureRepositories(Project project) {
         // ensure all repositories use secure urls
         // TODO: remove this with gradle 7.0, which no longer allows insecure urls
@@ -215,7 +218,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         }
     }
 
-    /** Adds compiler settings to the project */
+    /**
+     * Adds compiler settings to the project
+     */
     public static void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
 
@@ -230,24 +235,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 throw new GradleException("Failed to get canonical path for " + file, e);
             }
         };
-        // common options to both java and groovy
-        Consumer<CompileOptions> configureFork = compileOptions -> {
-            // we only fork if the Gradle JDK is not the same as the compiler JDK
-            String compilerJavaHome = canonicalPath.apply(BuildParams.getCompilerJavaHome());
-            String currentJavaHome = canonicalPath.apply(Jvm.current().getJavaHome());
-            if (compilerJavaHome.equals(currentJavaHome)) {
-                compileOptions.setFork(false);
-            } else {
-                compileOptions.setFork(true);
-                compileOptions.getForkOptions().setJavaHome(BuildParams.getCompilerJavaHome());
-            }
-        };
 
         project.afterEvaluate(p -> {
             project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
                 CompileOptions compileOptions = compileTask.getOptions();
-
-                configureFork.accept(compileOptions);
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
@@ -278,7 +269,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             });
             // also apply release flag to groovy, which is used in build-tools
             project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
-                configureFork.accept(compileTask.getOptions());
 
                 // TODO: this probably shouldn't apply to groovy at all?
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
@@ -415,7 +405,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 
-            nonInputProperties.systemProperty("compiler.java", BuildParams.getCompilerJavaVersion().getMajorVersion());
             nonInputProperties.systemProperty("runtime.java", BuildParams.getRuntimeJavaVersion().getMajorVersion());
 
             // TODO: remove setting logging level via system property
@@ -482,8 +471,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                     // we put all our distributable files under distributions
                     jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
                     // fixup the jar manifest
-                    jarTask.doFirst(
-                        t -> {
+                    // Explicitly using an Action interface as java lambdas
+                    // are not supported by Gradle up-to-date checks
+                    jarTask.doFirst(new Action<Task>() {
+                        @Override
+                        public void execute(Task task) {
                             // this doFirst is added before the info plugin, therefore it will run
                             // after the doFirst added by the info plugin, and we can override attributes
                             jarTask.getManifest()
@@ -492,11 +484,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                                         "Build-Date",
                                         BuildParams.getBuildDate(),
                                         "Build-Java-Version",
-                                        BuildParams.getCompilerJavaVersion()
+                                        BuildParams.getGradleJavaVersion()
                                     )
                                 );
                         }
-                    );
+                    });
                 }
             );
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
@@ -543,21 +535,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     private static void configureJavadoc(Project project) {
         project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
-            // only explicitly set javadoc executable if compiler JDK is different from Gradle
-            // this ensures better cacheability as setting ths input to an absolute path breaks portability
-            Path compilerJvm = BuildParams.getCompilerJavaHome().toPath();
-            Path gradleJvm = Jvm.current().getJavaHome().toPath();
-            try {
-                if (Files.isSameFile(compilerJvm, gradleJvm) == false) {
-                    javadoc.setExecutable(compilerJvm.resolve("bin/javadoc").toString());
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
-            // remove compiled classes from the Javadoc classpath:
-            // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-            javadoc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath());
             /*
              * Generate docs using html5 to suppress a warning from `javadoc`
              * that the default will change to html5 in the future.
@@ -565,9 +542,41 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
             javadocOptions.addBooleanOption("html5", true);
         });
+
+        TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
+        javadoc.configure(doc ->
+        // remove compiled classes from the Javadoc classpath:
+        // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+
         // ensure javadoc task is run with 'check'
-        project.getTasks()
-            .named(LifecycleBasePlugin.CHECK_TASK_NAME)
-            .configure(t -> t.dependsOn(project.getTasks().withType(Javadoc.class)));
+        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
+    }
+
+    static class TestFailureReportingPlugin implements Plugin<Project> {
+        @Override
+        public void apply(Project project) {
+            if (project != project.getRootProject()) {
+                throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
+            }
+
+            project.getGradle().addListener(new TaskActionListener() {
+                @Override
+                public void beforeActions(Task task) {}
+
+                @Override
+                public void afterActions(Task task) {
+                    if (task instanceof Test) {
+                        ErrorReportingTestListener listener = task.getExtensions().findByType(ErrorReportingTestListener.class);
+                        if (listener != null && listener.getFailedTests().size() > 0) {
+                            task.getLogger().lifecycle("\nTests with failures:");
+                            for (ErrorReportingTestListener.Descriptor failure : listener.getFailedTests()) {
+                                task.getLogger().lifecycle(" - " + failure.getFullName());
+                            }
+                        }
+                    }
+                }
+            });
+        }
     }
 }

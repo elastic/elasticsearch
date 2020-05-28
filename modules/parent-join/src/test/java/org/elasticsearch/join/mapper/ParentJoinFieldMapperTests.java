@@ -301,10 +301,11 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject());
-            docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
+            docMapper = indexService.mapperService().merge("_doc", new CompressedXContent(updateMapping),
                 MapperService.MergeReason.MAPPING_UPDATE);
-            assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
+            assertNotNull(mapper);
+            assertEquals("join_field", mapper.name());
             assertTrue(mapper.hasChild("child2"));
             assertFalse(mapper.hasParent("child2"));
             assertTrue(mapper.hasChild("grand_child2"));
@@ -322,10 +323,11 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject());
-            docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
+            docMapper = indexService.mapperService().merge("_doc", new CompressedXContent(updateMapping),
                 MapperService.MergeReason.MAPPING_UPDATE);
-            assertTrue(docMapper.mappers().getMapper("join_field") == ParentJoinFieldMapper.getMapper(indexService.mapperService()));
             ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(indexService.mapperService());
+            assertNotNull(mapper);
+            assertEquals("join_field", mapper.name());
             assertTrue(mapper.hasParent("other"));
             assertFalse(mapper.hasChild("other"));
             assertTrue(mapper.hasChild("child_other1"));

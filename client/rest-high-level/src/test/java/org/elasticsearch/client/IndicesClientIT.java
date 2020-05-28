@@ -61,23 +61,23 @@ import org.elasticsearch.client.indices.CloseIndexResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
-import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
+import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
-import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
-import org.elasticsearch.client.indices.IndexTemplateV2ExistRequest;
+import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -88,7 +88,7 @@ import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -1578,41 +1578,41 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
-        IndexTemplateV2 indexTemplate =
-            new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
-        PutIndexTemplateV2Request putIndexTemplateV2Request =
-            new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);
+        ComposableIndexTemplate indexTemplate =
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+        PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
+            new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
 
-        AcknowledgedResponse response = execute(putIndexTemplateV2Request,
+        AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
             highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
-        IndexTemplateV2ExistRequest indexTemplateV2ExistRequest = new IndexTemplateV2ExistRequest(templateName);
-        boolean exist = execute(indexTemplateV2ExistRequest,
+        ComposableIndexTemplateExistRequest composableIndexTemplateExistRequest = new ComposableIndexTemplateExistRequest(templateName);
+        boolean exist = execute(composableIndexTemplateExistRequest,
             highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
 
         assertTrue(exist);
 
-        GetIndexTemplateV2Request getIndexTemplateV2Request = new GetIndexTemplateV2Request(templateName);
-        GetIndexTemplatesV2Response getResponse = execute(getIndexTemplateV2Request,
+        GetComposableIndexTemplateRequest getComposableIndexTemplateRequest = new GetComposableIndexTemplateRequest(templateName);
+        GetComposableIndexTemplatesResponse getResponse = execute(getComposableIndexTemplateRequest,
             highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync);
 
         assertThat(getResponse.getIndexTemplates().size(), equalTo(1));
         assertThat(getResponse.getIndexTemplates().containsKey(templateName), equalTo(true));
         assertThat(getResponse.getIndexTemplates().get(templateName), equalTo(indexTemplate));
 
-        DeleteIndexTemplateV2Request deleteIndexTemplateV2Request = new DeleteIndexTemplateV2Request(templateName);
-        response = execute(deleteIndexTemplateV2Request, highLevelClient().indices()::deleteIndexTemplate,
+        DeleteComposableIndexTemplateRequest deleteComposableIndexTemplateRequest = new DeleteComposableIndexTemplateRequest(templateName);
+        response = execute(deleteComposableIndexTemplateRequest, highLevelClient().indices()::deleteIndexTemplate,
             highLevelClient().indices()::deleteIndexTemplateAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
         ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(getIndexTemplateV2Request,
+            () -> execute(getComposableIndexTemplateRequest,
                 highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync));
 
         assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
 
-        exist = execute(indexTemplateV2ExistRequest,
+        exist = execute(composableIndexTemplateExistRequest,
             highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
 
         assertFalse(exist);
@@ -1625,21 +1625,21 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
-        IndexTemplateV2 indexTemplate =
-            new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
-        PutIndexTemplateV2Request putIndexTemplateV2Request =
-            new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);
+        ComposableIndexTemplate indexTemplate =
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+        PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
+            new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
 
-        AcknowledgedResponse response = execute(putIndexTemplateV2Request,
+        AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
             highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
-        IndexTemplateV2 simulationTemplate = new IndexTemplateV2(pattern, new Template(null, null,
+        ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(pattern, new Template(null, null,
             Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>(), null);
-        PutIndexTemplateV2Request newIndexTemplateReq =
-            new PutIndexTemplateV2Request().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
+        PutComposableIndexTemplateRequest newIndexTemplateReq =
+            new PutComposableIndexTemplateRequest().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
         newIndexTemplateReq.indexTemplate(simulationTemplate);
         simulateIndexTemplateRequest.indexTemplateV2Request(newIndexTemplateReq);
 

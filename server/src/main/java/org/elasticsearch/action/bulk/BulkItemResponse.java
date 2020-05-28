@@ -52,7 +52,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
- * of the relevant action, and if it has failed or not (with the failure message incase it failed).
+ * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
 public class BulkItemResponse implements Writeable, StatusToXContentObject {
 

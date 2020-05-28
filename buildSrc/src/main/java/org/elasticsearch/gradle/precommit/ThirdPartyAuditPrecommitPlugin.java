@@ -20,6 +20,7 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -28,19 +29,20 @@ import org.gradle.api.tasks.TaskProvider;
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
+        project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
         project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:2.7");
 
-        TaskProvider<ExportElasticsearchBuildResourcesTask> buildResources = project.getTasks()
-            .named("buildResources", ExportElasticsearchBuildResourcesTask.class);
-
         TaskProvider<ThirdPartyAuditTask> audit = project.getTasks().register("thirdPartyAudit", ThirdPartyAuditTask.class);
         audit.configure(t -> {
-            t.dependsOn(buildResources);
-            t.setSignatureFile(buildResources.get().copy("forbidden/third-party-audit.txt"));
+            t.dependsOn("buildResources");
             t.setJavaHome(BuildParams.getRuntimeJavaHome().toString());
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
+
         });
+        project.getTasks()
+            .withType(ExportElasticsearchBuildResourcesTask.class)
+            .configureEach((br) -> { audit.get().setSignatureFile(br.copy("forbidden/third-party-audit.txt")); });
         return audit;
     }
 }

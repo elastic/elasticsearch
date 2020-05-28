@@ -230,7 +230,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
             assertThat(ak1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()), equalTo(List.of(
                 "2020-01-01T00:00Z", "2021-01-01T00:00Z"
             )));
-    
+
             StringTerms.Bucket b = terms.getBucketByKey("b");
             StringTerms bk1 = b.getAggregations().get("k1");
             StringTerms.Bucket bk1a = bk1.getBucketByKey("a");

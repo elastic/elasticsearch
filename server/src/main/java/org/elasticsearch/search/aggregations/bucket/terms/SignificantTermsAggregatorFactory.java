@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -59,8 +60,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory
-    implements Releasable {
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory implements Releasable {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(SignificantTermsAggregatorFactory.class));
 
@@ -103,8 +103,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificantTermsAggregatorFactory sigTermsFactory,
+                                    boolean collectsFromSingleBucket,
                                     Map<String, Object> metadata) throws IOException {
 
+                assert collectsFromSingleBucket;
                 ExecutionMode execution = null;
                 if (executionHint != null) {
                     execution = ExecutionMode.fromString(executionHint, deprecationLogger);
@@ -124,7 +126,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
                     significanceHeuristic, sigTermsFactory, metadata);
+            }
 
+            @Override
+            public boolean needsToCollectFromSingleBucket() {
+                return true;
             }
         };
     }
@@ -147,6 +153,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificantTermsAggregatorFactory sigTermsFactory,
+                                    boolean collectsFromSingleBucket,
                                     Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -155,7 +162,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                         "values for include/exclude clauses used to filter numeric fields");
                 }
 
-                if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
+                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
+                if (numericValuesSource.isFloatingPoint()) {
                     throw new UnsupportedOperationException("No support for examining floating point numerics");
                 }
 
@@ -164,9 +172,15 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     longFilter = includeExclude.convertToLongFilter(format);
                 }
 
-                return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, format,
-                    bucketCountThresholds, context, parent, significanceHeuristic, sigTermsFactory, longFilter, metadata);
+                return new NumericTermsAggregator(name, factories,
+                    agg -> agg.new SignificantLongTermsResults(sigTermsFactory, significanceHeuristic, collectsFromSingleBucket),
+                    numericValuesSource, format, null, bucketCountThresholds, context, parent, SubAggCollectionMode.BREADTH_FIRST,
+                    longFilter, collectsFromSingleBucket, metadata);
+            }
 
+            @Override
+            public boolean needsToCollectFromSingleBucket() {
+                return false;
             }
         };
     }
@@ -200,11 +214,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 ? null
                 : filterBuilder.toQuery(queryShardContext);
         IndexSearcher searcher = queryShardContext.searcher();
-        this.supersetNumDocs = filter == null
-                // Important - need to use the doc count that includes deleted docs
-                // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
-                ? searcher.getIndexReader().maxDoc()
-                : searcher.count(filter);
+        /*
+         * We need to use a superset size that includes deleted docs or we
+         * could end up blowing up with bad statistics that cause us to blow
+         * up later on.
+         */
+        this.supersetNumDocs = filter == null ? searcher.getIndexReader().maxDoc() : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
     }
@@ -217,6 +232,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     private FilterableTermsEnum getTermsEnum(String field) throws IOException {
+        // TODO this method helps because of asMultiBucketAggregator. Once we remove it we can move this logic into the aggregators.
         if (termsEnum != null) {
             return termsEnum;
         }
@@ -286,15 +302,15 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, searchContext, parent);
-        }
-
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             SignificantTermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected SignificantTermsAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
+        }
+        SignificantTermsAggregatorSupplier sigTermsAggregatorSupplier = (SignificantTermsAggregatorSupplier) aggregatorSupplier;
+        if (collectsFromSingleBucket == false && sigTermsAggregatorSupplier.needsToCollectFromSingleBucket()) {
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
 
         numberOfAggregatorsCreated++;
@@ -315,12 +331,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
-        SignificantTermsAggregatorSupplier sigTermsAggregatorSupplier = (SignificantTermsAggregatorSupplier) aggregatorSupplier;
-
         // TODO we should refactor so that we don't need to use this Factory as a singleton (e.g. stop passing `this` to the aggregators)
         return sigTermsAggregatorSupplier.build(name, factories, valuesSource, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
-            significanceHeuristic, this, metadata);
+            significanceHeuristic, this, collectsFromSingleBucket, metadata);
     }
 
     public enum ExecutionMode {

@@ -90,7 +90,8 @@ public final class TimeSeriesRestDriver {
         logger.info(response.getStatusLine());
     }
 
-    public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action) throws IOException {
+    public static void createNewSingletonPolicy(RestClient client, String policyName, String phaseName, LifecycleAction action)
+        throws IOException {
         createNewSingletonPolicy(client, policyName, phaseName, action, TimeValue.ZERO);
     }
 
@@ -107,7 +108,8 @@ public final class TimeSeriesRestDriver {
         client.performRequest(request);
     }
 
-    public static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template) throws IOException {
+    public static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
+        throws IOException {
         XContentBuilder builder = jsonBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         StringEntity templateJSON = new StringEntity(

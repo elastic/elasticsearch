@@ -25,27 +25,21 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
     }
 
     public void handle(boolean httpRedirect, String payload, Collection<String> allowedSamlRequestIds) {
-        final ParsedQueryString parsed = parseQueryStringAndValidateSignature(payload, "SAMLResponse");
-        if (httpRedirect && parsed.hasSignature == false) {
-            throw samlException("URL is not signed, but is required for HTTP-Redirect binding");
-        } else if (httpRedirect == false && parsed.hasSignature) {
-            throw samlException("URL is signed, but binding is HTTP-POST");
-        }
-
         final Element root;
         if (httpRedirect) {
-            logger.info("Process SAML LogoutResponse with HTTP-Redirect binding");
+            logger.debug("Process SAML LogoutResponse with HTTP-Redirect binding");
+            final ParsedQueryString parsed = parseQueryStringAndValidateSignature(payload, "SAMLResponse");
+            if (parsed.hasSignature == false){
+                throw samlException("Query string is not signed, but is required for HTTP-Redirect binding");
+            }
             root = parseSamlMessage(inflate(decodeBase64(parsed.samlMessage)));
         } else {
-            logger.info("Process SAML LogoutResponse with HTTP-POST binding");
-            root = parseSamlMessage(decodeBase64(parsed.samlMessage));
+            logger.debug("Process SAML LogoutResponse with HTTP-POST binding");
+            root = parseSamlMessage(decodeBase64(payload));
         }
 
         if (LOGOUT_RESPONSE_TAG_NAME.equals(root.getLocalName()) && SAML_NAMESPACE.equals(root.getNamespaceURI())) {
             final LogoutResponse logoutResponse = buildXmlObject(root, LogoutResponse.class);
-            if (logoutResponse == null) {
-                throw samlException("Cannot convert element {} into LogoutResponse object", root);
-            }
             // For HTTP-Redirect, we validate the signature while parsing the object from the query string
             if (httpRedirect == false && logoutResponse.getSignature() == null) {
                 throw samlException("LogoutResponse is not signed, but a signature is required for HTTP-Post binding");

@@ -102,7 +102,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         assertThat(e.getMessage(), containsString("is not a 'success' response"));
     }
 
-    public void testHandlerWillFailWhenUrlNotSigned() {
+    public void testHandlerWillFailWhenQueryStringNotSigned() {
         final String requestId = SamlUtils.generateSecureNCName(randomIntBetween(8, 30));
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), null);
         final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
@@ -118,26 +118,7 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         final String url = new SamlRedirect(logoutResponse, signingConfiguration).getRedirectUrl();
         final ElasticsearchSecurityException e =
             expectSamlException(() -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId)));
-        assertThat(e.getMessage(), containsString("URL is not signed, but is required for HTTP-Redirect binding"));
-    }
-
-    public void testHandlerWillFailWhenUrlIsSignedButBindingIsHttpPost() throws URISyntaxException {
-        final String requestId = SamlUtils.generateSecureNCName(randomIntBetween(8, 30));
-        final SigningConfiguration signingConfiguration = new SigningConfiguration(Sets.newHashSet("*"), credential);
-        final LogoutResponse logoutResponse = SamlUtils.buildObject(LogoutResponse.class, LogoutResponse.DEFAULT_ELEMENT_NAME);
-        logoutResponse.setDestination(LOGOUT_URL);
-        logoutResponse.setIssueInstant(new DateTime(clock.millis()));
-        logoutResponse.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
-        logoutResponse.setInResponseTo(requestId);
-        logoutResponse.setStatus(buildStatus(StatusCode.SUCCESS));
-
-        final Issuer issuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
-        issuer.setValue(IDP_ENTITY_ID);
-        logoutResponse.setIssuer(issuer);
-        final String url = new SamlRedirect(logoutResponse, signingConfiguration).getRedirectUrl();
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(false, new URI(url).getRawQuery(), List.of(requestId)));
-        assertThat(e.getMessage(), containsString("URL is signed, but binding is HTTP-POST"));
+        assertThat(e.getMessage(), containsString("Query string is not signed, but is required for HTTP-Redirect binding"));
     }
 
     private Status buildStatus(String statusCodeValue) {

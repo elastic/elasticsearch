@@ -29,6 +29,13 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+/**
+ * This Rest endpoint handles SAML LogoutResponse sent from idP with either HTTP-Redirect or HTTP-Post binding.
+ * For HTTP-Redirect binding, it expects {@link Input#queryString} be set to the query string of the redirect URI.
+ * For HTTP-Post binding, it expects {@link Input#content} be set to the value of SAMLResponse form parameter, i.e.
+ * caller of this API must do the work to extract the SAMLResponse value from body of the HTTP-Post request. The
+ * value must also be URL decoded if necessary.
+ */
 public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler{
 
     private static final Logger logger = LogManager.getLogger(RestSamlCompleteLogoutAction.class);

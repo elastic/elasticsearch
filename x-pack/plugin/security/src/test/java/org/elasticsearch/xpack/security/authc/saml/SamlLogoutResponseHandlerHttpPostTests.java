@@ -13,12 +13,10 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -84,9 +82,7 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
         replacements.putIfAbsent("status", "urn:oasis:names:tc:SAML:2.0:status:Success");
         final String xml = NamedFormatter.format(template, replacements);
         final String signed = shouldSign ? signLogoutResponseString(xml) : xml;
-        String encoded = URLEncoder.encode(Base64.getEncoder().encodeToString(signed.getBytes(StandardCharsets.UTF_8)),
-            StandardCharsets.US_ASCII.name());
-        return String.format(Locale.ROOT, "SAMLResponse=%s", encoded);
+        return Base64.getEncoder().encodeToString(signed.getBytes(StandardCharsets.UTF_8));
     }
 
     private String signLogoutResponseString(String xml) throws Exception {

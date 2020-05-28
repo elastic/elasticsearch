@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.action.saml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -20,7 +21,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class SamlCompleteLogoutRequest extends ActionRequest {
 
+    @Nullable
     private String queryString;
+    @Nullable
     private String content;
     private List<String> validRequestIds;
     @Nullable
@@ -36,10 +39,10 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (queryString == null && content == null) {
-            validationException = addValidationError("queryString and content may not both be null", validationException);
+        if (Strings.hasText(queryString) == false && Strings.hasText(content) == false) {
+            validationException = addValidationError("queryString and content may not both be empty", validationException);
         }
-        if (queryString != null && content != null) {
+        if (Strings.hasText(queryString) && Strings.hasText(content)) {
             validationException = addValidationError("queryString and content may not both present", validationException);
         }
         return validationException;

@@ -16,7 +16,7 @@ public class SamlCompleteLogoutRequestTests extends ESTestCase {
     public void testValidateFailsWhenQueryAndBodyBothNotExist() {
         final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();
         final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
-        assertThat(validationException.getMessage(), containsString("queryString and content may not both be null"));
+        assertThat(validationException.getMessage(), containsString("queryString and content may not both be empty"));
     }
 
     public void testValidateFailsWhenQueryAndBodyBothSet() {
@@ -26,5 +26,4 @@ public class SamlCompleteLogoutRequestTests extends ESTestCase {
         final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
         assertThat(validationException.getMessage(), containsString("queryString and content may not both present"));
     }
-
 }

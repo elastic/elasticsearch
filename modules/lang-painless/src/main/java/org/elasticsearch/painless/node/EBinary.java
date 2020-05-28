@@ -66,13 +66,12 @@ public class EBinary extends AExpression {
         Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
         boolean originallyExplicit = input.explicit; // record whether there was originally an explicit cast
 
-        Output output = new Output();
-
         Input leftInput = new Input();
-        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
 
+        Output output = new Output();
         Input rightInput = new Input();
-        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             leftInput.expected = String.class;
@@ -80,10 +79,12 @@ public class EBinary extends AExpression {
             promote = boolean.class;
             output.actual = boolean.class;
         } else {
-            if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM || operation == Operation.SUB) {
+            if (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM) {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
             } else if (operation == Operation.ADD) {
                 promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
+            } else if (operation == Operation.SUB) {
+                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
             } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
                 promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
                 shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
@@ -112,12 +113,20 @@ public class EBinary extends AExpression {
                 leftInput.expected = leftOutput.actual;
                 rightInput.expected = rightOutput.actual;
 
-                if (left instanceof EBinary && ((EBinary) left).operation == Operation.ADD && leftOutput.actual == String.class) {
-                    ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
+                if (leftOutput.expressionNode instanceof BinaryMathNode) {
+                    BinaryMathNode binaryMathNode = (BinaryMathNode)leftOutput.expressionNode;
+
+                    if (binaryMathNode.getOperation() == Operation.ADD && leftOutput.actual == String.class) {
+                        ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
+                    }
                 }
 
-                if (right instanceof EBinary && ((EBinary) right).operation == Operation.ADD && rightOutput.actual == String.class) {
-                    ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
+                if (rightOutput.expressionNode instanceof BinaryMathNode) {
+                    BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
+
+                    if (binaryMathNode.getOperation() == Operation.ADD && rightOutput.actual == String.class) {
+                        ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
+                    }
                 }
             } else if (promote == def.class || shiftDistance == def.class) {
                 leftInput.expected = leftOutput.actual;

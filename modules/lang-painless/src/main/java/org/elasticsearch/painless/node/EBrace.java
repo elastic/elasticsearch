@@ -45,11 +45,13 @@ import java.util.Objects;
  */
 public class EBrace extends AExpression {
 
+    protected final AExpression prefix;
     protected final AExpression index;
 
     public EBrace(Location location, AExpression prefix, AExpression index) {
-        super(location, prefix);
+        super(location);
 
+        this.prefix = Objects.requireNonNull(prefix);
         this.index = Objects.requireNonNull(index);
     }
 
@@ -59,7 +61,7 @@ public class EBrace extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
-        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, new Input());
+        Output prefixOutput = analyze(prefix, classNode, scriptRoot, scope, new Input());
 
         ExpressionNode expressionNode;
         Output output = new Output();
@@ -67,7 +69,7 @@ public class EBrace extends AExpression {
         if (prefixOutput.actual.isArray()) {
             Input indexInput = new Input();
             indexInput.expected = int.class;
-            Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+            Output indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
             PainlessCast indexCast = AnalyzerCaster.getLegalCast(index.location,
                     indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -80,7 +82,7 @@ public class EBrace extends AExpression {
             expressionNode = braceSubNode;
         } else if (prefixOutput.actual == def.class) {
             Input indexInput = new Input();
-            Output indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+            Output indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
 
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
             output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
@@ -117,7 +119,7 @@ public class EBrace extends AExpression {
             if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
                 indexCast = AnalyzerCaster.getLegalCast(index.location,
                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 
@@ -160,7 +162,7 @@ public class EBrace extends AExpression {
             if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                 Input indexInput = new Input();
                 indexInput.expected = int.class;
-                indexOutput = index.analyze(classNode, scriptRoot, scope, indexInput);
+                indexOutput = analyze(index, classNode, scriptRoot, scope, indexInput);
                 indexCast = AnalyzerCaster.getLegalCast(index.location,
                         indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
 

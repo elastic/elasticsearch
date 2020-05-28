@@ -221,6 +221,16 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return response;
     }
 
+    protected DeleteExpiredDataAction.Response deleteExpiredData(Float customThrottle) throws Exception {
+        DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request();
+        request.setRequestsPerSecond(customThrottle);
+        DeleteExpiredDataAction.Response response = client().execute(DeleteExpiredDataAction.INSTANCE, request).get();
+        // We need to refresh to ensure the deletion is visible
+        refresh("*");
+
+        return response;
+    }
+
     protected PutFilterAction.Response putMlFilter(MlFilter filter) {
         return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }

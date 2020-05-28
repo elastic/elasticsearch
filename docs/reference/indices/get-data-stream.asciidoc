@@ -27,14 +27,14 @@ DELETE /_data_stream/my-data-stream
 
 [source,console]
 --------------------------------------------------
-GET _data_streams/my-data-stream
+GET _data_stream/my-data-stream
 --------------------------------------------------
 // TEST[skip_shard_failures]
 
 [[get-data-stream-api-request]]
 ==== {api-request-title}
 
-`GET _data_streams/<data-stream>`
+`GET _data_stream/<data-stream>`
 
 
 [[get-data-stream-api-path-params]]
@@ -55,7 +55,7 @@ retrieve.
 
 [source,console]
 --------------------------------------------------
-GET _data_streams/my-data-stream*
+GET _data_stream/my-data-stream*
 --------------------------------------------------
 // TEST[continued]
 // TEST[skip_shard_failures]

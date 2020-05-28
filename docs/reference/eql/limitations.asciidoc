@@ -37,4 +37,6 @@ queries that contain:
 
 * {eql-ref}/pipes.html[Pipes]
 
-* {eql-ref}/sequences.html[Sequences]
+* {eql-ref}/sequences.html[State and timespan-related sequence keywords]:
+** `with maxspan`
+** `until`

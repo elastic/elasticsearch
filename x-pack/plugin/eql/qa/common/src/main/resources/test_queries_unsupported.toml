@@ -16,11 +16,6 @@
 query = 'process where true | head 6'
 expected_event_ids  = [1, 2, 3, 4, 5, 6]
 
-# presently not supported, throwing: org.elasticsearch.xpack.ql.rule.RuleExecutionException: Does not know how to handle a local relation
-[[queries]]
-query = 'process where false'
-expected_event_ids = []
-
 [[queries]]
 expected_event_ids = []
 query = 'process where missing_field != null'
@@ -816,7 +811,7 @@ expected_event_ids = [82]
 query = "file where serial_event_id / 2 == 41"
 
 [[queries]]
-# Error: Line 1:42: Comparisons against variables are not (currently) supported; offender [serial_event_id] in [==]
+# Error: Line 1:42: Comparisons against fields are not (currently) supported; offender [serial_event_id] in [==]
 query = '''
 process where modulo(11, add(serial_event_id, 1)) == serial_event_id'''
 expected_event_ids  = [1, 2, 3, 5, 11]

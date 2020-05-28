@@ -342,6 +342,84 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 ----
 
 [discrete]
+[[eql-sequences]]
+=== Sequences
+
+You can use EQL sequences to describe and match an ordered series of events.
+Each item in a sequence is an event category and event condition,
+surrounded by square brackets. Events are listed in ascending chronological
+order, with the most recent event listed last.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL query matches this series of ordered events:
+
+. Start with an event with:
++
+--
+* An event category of `file`
+* A `file.extension` of `exe`
+--
+. Followed by an event with an event category of `process`
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+====
+
+You can use the `by` keyword with sequences to only match events that share the
+same field values. If a field value should be shared across all events, you
+can use `sequence by`.
+
+[source,eql]
+----
+sequence by field_foo
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence uses the `by` keyword to constrain matching events to:
+
+* Events with the same `user.name` value
+* `file` events with a `file.path` value equal to the following `process`
+   event's `process.path` value.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ] by user.name, file.path
+  [ process where true ] by user.name, process.path
+----
+
+Because the `user.name` field is shared across all events in the sequence, it
+can be included using `sequence by`. The following sequence is equivalent to the
+prior one.
+
+[source,eql]
+----
+sequence by user.name
+  [ file where file.extension == "exe" ] by file.path
+  [ process where true ] by process.path
+----
+====
+
+[discrete]
 [[eql-functions]]
 === Functions
 

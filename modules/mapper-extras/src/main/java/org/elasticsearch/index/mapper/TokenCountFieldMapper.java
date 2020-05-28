@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -47,7 +48,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, TokenCountFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private NamedAnalyzer analyzer;
         private boolean enablePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
@@ -84,7 +85,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -200,10 +201,9 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
-        this.enablePositionIncrements = ((TokenCountFieldMapper) mergeWith).enablePositionIncrements;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        this.analyzer = ((TokenCountFieldMapper) other).analyzer;
+        this.enablePositionIncrements = ((TokenCountFieldMapper) other).enablePositionIncrements;
     }
 
     @Override

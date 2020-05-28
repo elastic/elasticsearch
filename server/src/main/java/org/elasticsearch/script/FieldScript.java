@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,7 +53,9 @@ public abstract class FieldScript {
                         "Accessing variable [doc] via [params._doc] from within an field-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
-            });
+            },
+            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+    );
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

@@ -273,3 +273,19 @@
                open \s+ foo\n
                open \s+ baz\n
             $/
+
+---
+"Test cat indices with invalid health parameter":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      catch: bad_request
+      cat.indices:
+        health: "invalid-health-value"

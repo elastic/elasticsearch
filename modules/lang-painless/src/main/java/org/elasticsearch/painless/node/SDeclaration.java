@@ -50,7 +50,9 @@ public class SDeclaration extends AStatement {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+        if (scriptRoot.getPainlessLookup().isValidCanonicalClassName(name)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + name + "] cannot be a name"));
+        }
 
         DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
@@ -60,7 +62,7 @@ public class SDeclaration extends AStatement {
         if (expression != null) {
             AExpression.Input expressionInput = new AExpression.Input();
             expressionInput.expected = resolvedType.getType();
-            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
             expressionCast = AnalyzerCaster.getLegalCast(expression.location,
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
@@ -75,6 +77,7 @@ public class SDeclaration extends AStatement {
         declarationNode.setName(name);
         declarationNode.setRequiresDefault(requiresDefault);
 
+        Output output = new Output();
         output.statementNode = declarationNode;
 
         return output;

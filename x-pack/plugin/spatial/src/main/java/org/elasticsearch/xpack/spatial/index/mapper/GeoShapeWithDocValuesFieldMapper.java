@@ -65,7 +65,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
     @SuppressWarnings("rawtypes")
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
-            GeoShapeWithDocValuesFieldMapper, GeoShapeWithDocValuesFieldType> {
+            GeoShapeWithDocValuesFieldType> {
         public Builder(String name) {
             super (name, new GeoShapeWithDocValuesFieldType(), new GeoShapeWithDocValuesFieldType());
         }

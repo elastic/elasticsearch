@@ -1,17 +1,17 @@
 [[search-aggregations-bucket-variablewidthhistogram-aggregation]]
-== Variable Width Histogram Aggregation
+=== Variable Width Histogram Aggregation
 
-This is a multi-bucket aggregation similar to <<search-aggregations-bucket-histogram-aggregation,histogram>.
+This is a multi-bucket aggregation similar to <<search-aggregations-bucket-histogram-aggregation>>.
 However, the width of each bucket is not specified. Rather, a target number of buckets is provided and bucket intervals
-are dynamically determined based on the document distribution. This is done using a simple one-pass algorithm that aims
-to obtain low distances between bucket centroids. Unlike other multi-bucket aggregations, the intervals will not
+are dynamically determined based on the document distribution. This is done using a simple one-pass document clustering algorithm
+that aims to obtain low distances between bucket centroids. Unlike other multi-bucket aggregations, the intervals will not
 necessarily have a uniform width.
 
 TIP: The number of buckets returned will always be less than or equal to the target number.
 
-Requesting a target of 5 buckets.
+Requesting a target of 3 buckets.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -19,33 +19,58 @@ POST /sales/_search?size=0
         "prices" : {
             "variable_width_histogram" : {
                 "field" : "price",
-                "buckets" : 5
+                "buckets" : 2
             }
         }
     }
 }
 --------------------------------------------------
+// TEST[setup:sales]
 
-=== Shard size
-The `shard_size` parameter specifies the number of buckets that the coordinating node requests from each shard.
-A higher `shard_size` leads each shard to produce smaller buckets, which reduces the likelihood of buckets overlapping
+Response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "prices" : {
+            "buckets": [
+                {
+                    "key": 10.0,
+                    "doc_count": 2
+                },
+                {
+                    "key": 150.0,
+                    "doc_count": 5
+                }
+            ]
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+==== Shard size
+The `shard_size` parameter specifies the number of buckets that the coordinating node will request from each shard.
+A higher `shard_size` leads each shard to produce smaller buckets. This reduce the likelihood of buckets overlapping
 after the reduction step. Increasing the `shard_size` will improve the accuracy of the histogram, but it will
 also make it more expensive to compute the final result because bigger priority queues will have to be managed on a
 shard level, and the data transfers between the nodes and the client will be larger.
 
 TIP: Parameters `buckets`, `shard_size`, and `cache_limit` are optional. By default, `buckets = 10`, `shard_size = 500` and `cache_limit = min(50 * shard_size, 50000)`.
 
-== Cache Limit
+==== Cache Limit
 The `cache_limit` parameter can be used to specify the number of individual documents that will be stored in memory
 on a shard before the initial bucketing algorithm is run. Bucket distribution is determined using this initial sample
 of `cache_limit` documents. So, although a higher `cache_limit` will use more memory, it will lead to more representative
 clusters.
 
-=== Clustering Algorithm
-Each shard fetches the first `cache_limit` documents and stores them in memory. These documents are then sorted and
-linearly separated into `3/4 * shard_size` buckets.
-Finally, each remaining documents is collected into the nearest bucket. However, if a document
-is distant from all of the existing buckets, a new bucket is created for it. At most `shard_size` total buckets are created.
+==== Clustering Algorithm
+Each shard fetches the first `cache_limit` documents and stores them in memory. Once this "cache" is full, these documents
+are sorted and linearly separated into ``3/4 * shard_size buckets.
+Next each remaining documents is either collected into the nearest bucket, or placed into a new bucket if it is distant
+from all the existing ones. At most `shard_size` total buckets are created.
 
 In the reduce step, the coordinating node sorts the buckets from all shards by their centroids. Then, the two buckets
 with the nearest centroids are repeatedly merged until the target number of buckets is achieved.
@@ -53,7 +78,7 @@ This merging procedure is a form of agglomerative hierarchical clustering.
 
 TIP: A shard can return fewer than `shard_size` buckets, but it cannot return more.
 
-=== Document counts are approximate
+==== Document counts are approximate
 During the reduce step, the master node continuously merges the two buckets with the nearest centroids. If two buckets have
 overlapping bounds but distant centroids, then it is possible that they will not be merged. Because of this, after
 reduction it is possible that the maximum value in some interval (`max`) will be greater than the minimum value in the subsequent

@@ -27,7 +27,14 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
+boolean isDefaultDistro = System.getProperty('tests.distribution', 'oss') == 'default'
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
+  if (bwcVersion.before('6.3.0') && isDefaultDistro) {
+    // explicitly running restart on the current node does not work in step 2
+    // below when plugins are installed, wihch is the case for x-pack as a plugin
+    // prior to 6.3.0
+    continue
+  }
   String baseName = "v${bwcVersion}"
 
   testClusters {

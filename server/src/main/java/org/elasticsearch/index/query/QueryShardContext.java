@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -311,6 +312,11 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public boolean indexMatches(String pattern) {
         return indexNameMatcher.test(pattern);
+    }
+
+    public boolean indexSortedOnField(String field) {
+        IndexSortConfig indexSortConfig = indexSettings.getIndexSortConfig();
+        return indexSortConfig.hasPrimarySortOnField(field);
     }
 
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {

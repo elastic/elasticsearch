@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -86,7 +87,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static final ParseField COUNTS_FIELD = new ParseField("counts");
     public static final ParseField VALUES_FIELD = new ParseField("values");
 
-    public static class Builder extends FieldMapper.Builder<Builder, HistogramFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         protected Boolean ignoreMalformed;
 
         public Builder(String name) {
@@ -126,8 +127,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<Builder, HistogramFieldMapper> parse(String name,
-                                                                   Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
             TypeParsers.parseMeta(builder, name, node);
@@ -153,9 +153,8 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) other;
         if (gpfmMergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
         }

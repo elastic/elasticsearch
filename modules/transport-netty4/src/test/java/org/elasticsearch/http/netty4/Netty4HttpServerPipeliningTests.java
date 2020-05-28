@@ -26,9 +26,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.util.ReferenceCounted;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
@@ -38,6 +36,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -154,7 +153,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
     }
 
-    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
+    class PossiblySlowUpstreamHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
         private final ExecutorService executorService;
 
@@ -163,7 +162,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
+        protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest msg) throws Exception {
             executorService.submit(new PossiblySlowRunnable(ctx, msg));
         }
 
@@ -178,26 +177,23 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
     class PossiblySlowRunnable implements Runnable {
 
         private ChannelHandlerContext ctx;
-        private HttpPipelinedRequest<FullHttpRequest> pipelinedRequest;
-        private FullHttpRequest fullHttpRequest;
+        private HttpPipelinedRequest pipelinedRequest;
 
-        PossiblySlowRunnable(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) {
+        PossiblySlowRunnable(ChannelHandlerContext ctx, HttpPipelinedRequest msg) {
             this.ctx = ctx;
             this.pipelinedRequest = msg;
-            this.fullHttpRequest = pipelinedRequest.getRequest();
         }
 
         @Override
         public void run() {
             try {
-                final String uri = fullHttpRequest.uri();
+                final String uri = pipelinedRequest.uri();
 
                 final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-                Netty4HttpRequest httpRequest = new Netty4HttpRequest(fullHttpRequest, pipelinedRequest.getSequence());
-                Netty4HttpResponse response =
-                    httpRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
-                response.headers().add(HttpHeaderNames.CONTENT_LENGTH, buffer.readableBytes());
+                HttpResponse response =
+                    pipelinedRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
+                response.addHeader("content-length", Integer.toString(buffer.readableBytes()));
 
                 final boolean slow = uri.matches("/slow/\\d+");
                 if (slow) {
@@ -213,7 +209,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 final ChannelPromise promise = ctx.newPromise();
                 ctx.writeAndFlush(response, promise);
             } finally {
-                fullHttpRequest.release();
+                pipelinedRequest.release();
             }
         }
 

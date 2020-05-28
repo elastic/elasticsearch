@@ -49,7 +49,6 @@ public class EUnary extends AExpression {
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-
         if (input.write) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -67,51 +66,77 @@ public class EUnary extends AExpression {
 
         Input childInput = new Input();
         Output childOutput;
-        PainlessCast childCast;
 
-        if (operation == Operation.NOT) {
+        ENumeric numeric = (ENumeric)child.getChildIf(ENumeric.class);
+        EDecimal decimal = (EDecimal)child.getChildIf(EDecimal.class);
 
-            childInput.expected = boolean.class;
-            childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
-            childCast = AnalyzerCaster.getLegalCast(child.location,
-                    childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+        if ((operation == Operation.SUB || operation == Operation.ADD) && (numeric != null || decimal != null)) {
+            childInput.expected = input.expected;
+            childInput.explicit = input.explicit;
+            childInput.internal = input.internal;
 
-            output.actual = boolean.class;
-        } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-            childOutput = child.analyze(classNode, scriptRoot, scope, new Input());
-
-            promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
-
-            if (promote == null) {
-                throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                        "[" + operation.symbol + "] to the type " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
-            }
-
-            childInput.expected = promote;
-            childCast = AnalyzerCaster.getLegalCast(child.location,
-                    childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
-
-            if (promote == def.class && input.expected != null) {
-                output.actual = input.expected;
+            if (numeric != null) {
+                if (operation == Operation.SUB) {
+                    childOutput = numeric.analyze(classNode, scriptRoot, scope, childInput, numeric.value.charAt(0) != '-');
+                } else {
+                    childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+                }
+            } else if (decimal != null) {
+                if (operation == Operation.SUB) {
+                    childOutput = decimal.analyze(classNode, scriptRoot, scope, childInput, decimal.value.charAt(0) != '-');
+                } else {
+                    childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+                }
             } else {
-                output.actual = promote;
+                throw createError(new IllegalArgumentException("illegal tree structure"));
             }
+
+            output.actual = childOutput.actual;
+            output.expressionNode = childOutput.expressionNode;
         } else {
-            throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
+            PainlessCast childCast;
+
+            if (operation == Operation.NOT) {
+                childInput.expected = boolean.class;
+                childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
+                childCast = AnalyzerCaster.getLegalCast(child.location,
+                        childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+
+                output.actual = boolean.class;
+            } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
+                childOutput = analyze(child, classNode, scriptRoot, scope, new Input());
+
+                promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
+
+                if (promote == null) {
+                    throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
+                            "[" + operation.symbol + "] to the type " +
+                            "[" + PainlessLookupUtility.typeToCanonicalTypeName(childOutput.actual) + "]"));
+                }
+
+                childInput.expected = promote;
+                childCast = AnalyzerCaster.getLegalCast(child.location,
+                        childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
+
+                if (promote == def.class && input.expected != null) {
+                    output.actual = input.expected;
+                } else {
+                    output.actual = promote;
+                }
+            } else {
+                throw createError(new IllegalStateException("unexpected unary operation [" + operation.name + "]"));
+            }
+
+            UnaryMathNode unaryMathNode = new UnaryMathNode();
+            unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
+            unaryMathNode.setLocation(location);
+            unaryMathNode.setExpressionType(output.actual);
+            unaryMathNode.setUnaryType(promote);
+            unaryMathNode.setOperation(operation);
+            unaryMathNode.setOriginallExplicit(originallyExplicit);
+
+            output.expressionNode = unaryMathNode;
         }
-
-        UnaryMathNode unaryMathNode = new UnaryMathNode();
-
-        unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
-
-        unaryMathNode.setLocation(location);
-        unaryMathNode.setExpressionType(output.actual);
-        unaryMathNode.setUnaryType(promote);
-        unaryMathNode.setOperation(operation);
-        unaryMathNode.setOriginallExplicit(originallyExplicit);
-
-        output.expressionNode = unaryMathNode;
 
         return output;
     }

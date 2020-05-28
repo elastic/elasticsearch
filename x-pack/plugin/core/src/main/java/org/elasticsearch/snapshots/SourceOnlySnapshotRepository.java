@@ -87,16 +87,12 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
-        try {
-            super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metadata), userMetadata, repositoryMetaVersion,
-                    stateTransformer, listener);
-        } catch (IOException ex) {
-            listener.onFailure(ex);
-        }
+        super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+            includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metadata), userMetadata, repositoryMetaVersion,
+                stateTransformer, listener);
     }
 
-    private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) throws IOException {
+    private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (IndexId indexId : indices) {
             IndexMetadata index = metadata.index(indexId.getName());

@@ -38,7 +38,6 @@
  * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
  * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
  * {@link org.elasticsearch.painless.node.ECallLocal} - Represents a user-defined call.
- * {@link org.elasticsearch.painless.node.ECapturingFunctionRef} - Represents a function reference (capturing).
  * {@link org.elasticsearch.painless.node.EComp} - Represents a comparison expression.
  * {@link org.elasticsearch.painless.node.EConditional} - Represents a conditional expression.
  * {@link org.elasticsearch.painless.node.EConstant} - Represents a constant inserted into the tree replacing others. (Internal only.)
@@ -54,7 +53,6 @@
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Represents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.ERegex} - Represents a regular expression constant.
- * {@link org.elasticsearch.painless.node.EStatic} - Represents a static type target.
  * {@link org.elasticsearch.painless.node.EString} - Represents a string constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
  * {@link org.elasticsearch.painless.node.EVariable} - Represents a variable load/store.

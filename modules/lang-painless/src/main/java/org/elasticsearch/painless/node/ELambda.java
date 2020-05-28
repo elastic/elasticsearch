@@ -38,6 +38,7 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Lambda expression node.
@@ -66,15 +67,13 @@ public class ELambda extends AExpression {
 
     protected final List<String> paramTypeStrs;
     protected final List<String> paramNameStrs;
-    protected final List<AStatement> statements;
+    protected final SBlock block;
 
-    public ELambda(Location location,
-                   List<String> paramTypes, List<String> paramNames,
-                   List<AStatement> statements) {
+    public ELambda(Location location, List<String> paramTypes, List<String> paramNames, SBlock block) {
         super(location);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
-        this.statements = Collections.unmodifiableList(statements);
+        this.block = Objects.requireNonNull(block);
 
     }
 
@@ -92,7 +91,6 @@ public class ELambda extends AExpression {
         Class<?> returnType;
         List<Class<?>> typeParametersWithCaptures;
         List<String> parameterNames;
-        SBlock block;
         int maxLoopCounter;
 
         Output output = new Output();
@@ -163,7 +161,6 @@ public class ELambda extends AExpression {
             lambdaScope.defineVariable(location, type, paramName, true);
         }
 
-        block = new SBlock(location, statements);
         if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }

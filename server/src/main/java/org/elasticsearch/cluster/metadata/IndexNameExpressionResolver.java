@@ -81,7 +81,15 @@ public class IndexNameExpressionResolver {
      * are encapsulated in the specified request.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
-        Context context = new Context(state, request.indicesOptions());
+        return concreteIndices(state, request, false);
+    }
+
+    /**
+     * Same as {@link #concreteIndices(ClusterState, IndicesOptions, String...)}, but the index expressions and options
+     * are encapsulated in the specified request and resolves data streams.
+     */
+    public Index[] concreteIndices(ClusterState state, IndicesRequest request, boolean includeDataStreams) {
+        Context context = new Context(state, request.indicesOptions(), false, false, includeDataStreams);
         return concreteIndices(context, request.indices());
     }
 

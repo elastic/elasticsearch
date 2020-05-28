@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -58,6 +59,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -68,7 +71,6 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -84,7 +86,39 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class TextFieldMapperTests extends ESSingleNodeTestCase {
+public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Builder> {
+
+    @Override
+    protected TextFieldMapper.Builder newBuilder() {
+        return new TextFieldMapper.Builder("text")
+            .indexAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()));
+    }
+
+    @Before
+    public void addModifiers() {
+        addBooleanModifier("fielddata", true, TextFieldMapper.Builder::fielddata);
+        addModifier("fielddata_frequency_filter.min", true, (a, b) -> {
+            a.fielddataFrequencyFilter(1, 10, 10);
+            a.fielddataFrequencyFilter(2, 10, 10);
+        });
+        addModifier("fielddata_frequency_filter.max", true, (a, b) -> {
+            a.fielddataFrequencyFilter(1, 10, 10);
+            a.fielddataFrequencyFilter(1, 12, 10);
+        });
+        addModifier("fielddata_frequency_filter.min_segment_size", true, (a, b) -> {
+            a.fielddataFrequencyFilter(1, 10, 10);
+            a.fielddataFrequencyFilter(1, 10, 11);
+        });
+        addBooleanModifier("index_phrases", false, TextFieldMapper.Builder::indexPhrases);
+        addModifier("index_prefixes", false, (a, b) -> {
+            a.indexPrefixes(2, 4);
+        });
+    }
+
+    @Override
+    protected boolean supportsDocValues() {
+        return false;
+    }
 
     IndexService indexService;
     DocumentMapperParser parser;

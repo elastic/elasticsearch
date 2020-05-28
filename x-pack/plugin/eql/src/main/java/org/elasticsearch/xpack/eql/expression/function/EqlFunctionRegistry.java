@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StringContains;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.eql.expression.function.scalar.math.ToNumber;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -50,7 +51,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 def(ToString.class, ToString::new, "string"),
                 def(StringContains.class, StringContains::new, "stringcontains"),
                 def(Substring.class, Substring::new, "substring"),
-                def(Wildcard.class, Wildcard::new, "wildcard")
+                def(Wildcard.class, Wildcard::new, "wildcard"),
             },
         // Arithmetic
             new FunctionDefinition[] {
@@ -58,7 +59,8 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 def(Div.class, Div::new, "divide"),
                 def(Mod.class, Mod::new, "modulo"),
                 def(Mul.class, Mul::new, "multiply"),
-                def(Sub.class, Sub::new, "subtract")
+                def(ToNumber.class, ToNumber::new, "number"),
+                def(Sub.class, Sub::new, "subtract"),
             }
         };
     }

@@ -65,30 +65,30 @@ public class EElvis extends AExpression {
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
-        Output leftOutput = lhs.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(lhs, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
-        Output rightOutput = rhs.analyze(classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(rhs, classNode, scriptRoot, scope, rightInput);
 
         output.actual = input.expected;
 
-        if (lhs instanceof ENull) {
+        if (lhs.getChildIf(ENull.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (lhs instanceof EBoolean
-                || lhs instanceof ENumeric
-                || lhs instanceof EDecimal
-                || lhs instanceof EString
-                || lhs instanceof EConstant) {
+        if (lhs.getChildIf(EBoolean.class) != null
+                || lhs.getChildIf(ENumeric.class) != null
+                || lhs.getChildIf(EDecimal.class) != null
+                || lhs.getChildIf(EString.class) != null
+                || lhs.getChildIf(EConstant.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (leftOutput.actual.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
-        if (rhs instanceof ENull) {
+        if (rhs.getChildIf(ENull.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 

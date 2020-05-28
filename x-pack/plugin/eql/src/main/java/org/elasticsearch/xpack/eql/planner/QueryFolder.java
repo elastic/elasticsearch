@@ -69,7 +69,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) plan.child();
                 QueryContainer qContainer = exec.queryContainer();
 
-                Query query = ExpressionTranslators.toQuery(plan.condition());
+                Query query = QueryTranslator.toQuery(plan.condition());
 
                 if (qContainer.query() != null || query != null) {
                     query = ExpressionTranslators.and(plan.source(), qContainer.query(), query);

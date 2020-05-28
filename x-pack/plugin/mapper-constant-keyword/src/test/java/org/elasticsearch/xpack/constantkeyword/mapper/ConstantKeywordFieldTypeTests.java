@@ -13,46 +13,11 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
-import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
-public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("value", false) {
-            @Override
-            public void modify(MappedFieldType type) {
-                ((ConstantKeywordFieldType) type).setValue("bar");
-            }
-        });
-    }
-
-    public void testSetValue() {
-        ConstantKeywordFieldType ft1 = new ConstantKeywordFieldType();
-        ft1.setName("field");
-        ConstantKeywordFieldType ft2 = new ConstantKeywordFieldType();
-        ft2.setName("field");
-        ft2.setValue("bar");
-        List<String> conflicts = new ArrayList<>();
-        ft1.checkCompatibility(ft2, conflicts);
-        assertEquals(Collections.emptyList(), conflicts);
-    }
-
-    public void testUnsetValue() {
-        ConstantKeywordFieldType ft1 = new ConstantKeywordFieldType();
-        ft1.setName("field");
-        ft1.setValue("foo");
-        ConstantKeywordFieldType ft2 = new ConstantKeywordFieldType();
-        ft2.setName("field");
-        List<String> conflicts = new ArrayList<>();
-        ft1.checkCompatibility(ft2, conflicts);
-        assertEquals(Collections.singletonList("mapper [field] cannot unset [value]"), conflicts);
-    }
+public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {

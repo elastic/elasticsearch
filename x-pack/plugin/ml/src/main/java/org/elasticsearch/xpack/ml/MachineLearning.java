@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -421,6 +422,23 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
         Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
 
+    // Requests per second throttling for the nightly maintenance task
+    public static final Setting<Float> NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND =
+        new Setting<>(
+            "xpack.ml.nightly_maintenance_requests_per_second",
+            (s) -> Float.toString(-1.0f),
+            (s) -> {
+                float value = Float.parseFloat(s);
+                if (value <= 0.0f && value != -1.0f) {
+                    throw new IllegalArgumentException("Failed to parse value [" +
+                        s + "] for setting [xpack.ml.nightly_maintenance_requests_per_second] must be > 0.0 or exactly equal to -1.0");
+                }
+                return value;
+            },
+            Property.Dynamic,
+            Property.NodeScope
+        );
+
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
@@ -466,7 +484,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
                 InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE,
                 ModelLoadingService.INFERENCE_MODEL_CACHE_TTL,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES
+                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND
             );
     }
 
@@ -661,7 +680,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
-            dataFrameAnalyticsAuditor, trainedModelProvider, resultsPersisterService);
+            dataFrameAnalyticsAuditor, trainedModelProvider, resultsPersisterService, EsExecutors.allocatedProcessors(settings));
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);

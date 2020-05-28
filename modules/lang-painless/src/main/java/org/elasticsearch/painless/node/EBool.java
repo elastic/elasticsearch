@@ -63,13 +63,13 @@ public class EBool extends AExpression {
 
         Input leftInput = new Input();
         leftInput.expected = boolean.class;
-        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
         PainlessCast leftCast = AnalyzerCaster.getLegalCast(left.location,
                 leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
 
         Input rightInput = new Input();
         rightInput.expected = boolean.class;
-        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
         PainlessCast rightCast = AnalyzerCaster.getLegalCast(right.location,
                 rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
 

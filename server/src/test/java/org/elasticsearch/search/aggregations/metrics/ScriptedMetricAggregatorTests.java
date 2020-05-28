@@ -39,6 +39,8 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -50,6 +52,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
@@ -426,8 +430,12 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        ValuesSourceRegistry valuesSourceRegistry = mock(ValuesSourceRegistry.class);
+        AggregationUsageService.Builder builder = new AggregationUsageService.Builder();
+        builder.registerAggregationUsage(ScriptedMetricAggregationBuilder.NAME);
+        when(valuesSourceRegistry.getUsageService()).thenReturn(builder.build());
         return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             null, mapperService, null, scriptService, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, null, () -> true, null);
+            null, null, System::currentTimeMillis, null, null, () -> true, valuesSourceRegistry);
     }
 }

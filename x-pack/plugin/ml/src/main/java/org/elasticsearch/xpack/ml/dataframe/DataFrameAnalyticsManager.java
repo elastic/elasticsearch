@@ -338,7 +338,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
             refreshResponse -> {
                 // Now we can ensure reindexing progress is complete
-                task.getStatsHolder().getProgressTracker().updateReindexingProgress(100);
+                task.setReindexingFinished();
 
                 // TODO This could fail with errors. In that case we get stuck with the copied index.
                 // We could delete the index in case of failure or we could try building the factory before reindexing

@@ -50,6 +50,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
 
@@ -375,5 +376,19 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
     private List<Integer> docCounts(InternalAutoDateHistogram h) {
         return h.getBuckets().stream().map(b -> (int) b.getDocCount()).collect(toList());
+    }
+
+    public void testCreateWithReplacementBuckets() {
+        InternalAutoDateHistogram noInterval = createTestInstance();
+        InternalAutoDateHistogram orig = new InternalAutoDateHistogram(
+            noInterval.getName(), noInterval.getBuckets(), noInterval.getTargetBuckets(), noInterval.getBucketInfo(),
+            noInterval.getFormatter(), noInterval.getMetadata(), randomLong());
+        InternalAutoDateHistogram copy = orig.create(List.of());
+        assertThat(copy.getName(), equalTo(orig.getName()));
+        assertThat(copy.getBuckets(), hasSize(0));
+        assertThat(copy.getTargetBuckets(), equalTo(orig.getTargetBuckets()));
+        assertThat(copy.getBucketInfo(), equalTo(orig.getBucketInfo()));
+        assertThat(copy.getFormatter(), equalTo(orig.getFormatter()));
+        assertThat(copy.getInterval(), equalTo(orig.getInterval()));
     }
 }

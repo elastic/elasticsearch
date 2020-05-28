@@ -1,0 +1,38 @@
+---
+"Verify data stream resolvability for xpack apis":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+        body:
+          timestamp_field: "@timestamp"
+  - is_true: acknowledged
+
+  - do:
+      indices.reload_search_analyzers:
+        index: logs-foobar
+  - length: { reload_details: 1}
+
+  # this 404 is expected, because there are no snapshot indices
+  # but the data stream was resolved, which is what is being tested here
+  - do:
+      catch: missing
+      searchable_snapshots.clear_cache:
+        index: logs-foobar
+  - match: { error.reason: "No searchable snapshots indices found"}
+
+  # this 404 is expected, because there are no snapshot indices
+  # but the data stream was resolved, which is what is being tested here
+  - do:
+      catch: missing
+      searchable_snapshots.stats:
+        index: logs-foobar
+  - match: { error.reason: "No searchable snapshots indices found"}
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

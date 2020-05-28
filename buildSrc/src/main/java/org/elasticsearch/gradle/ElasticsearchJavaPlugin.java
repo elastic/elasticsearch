@@ -20,37 +20,60 @@
 package org.elasticsearch.gradle;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
+import nebula.plugin.info.InfoBrokerPlugin;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.util.Util;
+import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.artifacts.dsl.RepositoryHandler;
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
+import static org.elasticsearch.gradle.util.Util.toStringable;
 
 /**
  * A wrapper around Gradle's Java plugin that applies our common configuration.
@@ -63,19 +86,23 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         project.getPluginManager().apply(JavaPlugin.class);
         configureConfigurations(project);
+        configureRepositories(project);
         configureCompile(project);
         configureInputNormalization(project);
         configureTestTasks(project);
+        configureJars(project);
+        configureJarManifest(project);
+        configureJavadoc(project);
     }
 
     /**
      * Makes dependencies non-transitive.
-     *
+     * <p>
      * Gradle allows setting all dependencies as non-transitive very easily.
      * Sadly this mechanism does not translate into maven pom generation. In order
      * to effectively make the pom act as if it has no transitive dependencies,
      * we must exclude each transitive dependency of each direct dependency.
-     *
+     * <p>
      * Determining the transitive deps of a dependency which has been resolved as
      * non-transitive is difficult because the process of resolving removes the
      * transitive deps. To sidestep this issue, we create a configuration per
@@ -118,6 +145,75 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         disableTransitiveDeps.accept(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
+    }
+
+    private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
+
+    /** Adds repositories used by ES dependencies */
+    public static void configureRepositories(Project project) {
+        // ensure all repositories use secure urls
+        // TODO: remove this with gradle 7.0, which no longer allows insecure urls
+        project.getRepositories().all(repository -> {
+            if (repository instanceof MavenArtifactRepository) {
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository;
+                assertRepositoryURIIsSecure(maven.getName(), project.getPath(), maven.getUrl());
+                for (URI uri : maven.getArtifactUrls()) {
+                    assertRepositoryURIIsSecure(maven.getName(), project.getPath(), uri);
+                }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository;
+                assertRepositoryURIIsSecure(ivy.getName(), project.getPath(), ivy.getUrl());
+            }
+        });
+        RepositoryHandler repos = project.getRepositories();
+        if (System.getProperty("repos.mavenLocal") != null) {
+            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
+            // useful for development ie. bwc tests where we install stuff in the local repository
+            // such that we don't have to pass hardcoded files to gradle
+            repos.mavenLocal();
+        }
+        repos.jcenter();
+
+        String luceneVersion = VersionProperties.getLucene();
+        if (luceneVersion.contains("-snapshot")) {
+            // extract the revision number from the version with a regex matcher
+            Matcher matcher = LUCENE_SNAPSHOT_REGEX.matcher(luceneVersion);
+            if (matcher.find() == false) {
+                throw new GradleException("Malformed lucene snapshot version: " + luceneVersion);
+            }
+            String revision = matcher.group(1);
+            MavenArtifactRepository luceneRepo = repos.maven(repo -> {
+                repo.setName("lucene-snapshots");
+                repo.setUrl("https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + revision);
+            });
+            repos.exclusiveContent(exclusiveRepo -> {
+                exclusiveRepo.filter(
+                    descriptor -> descriptor.includeVersionByRegex("org\\.apache\\.lucene", ".*", ".*-snapshot-" + revision)
+                );
+                exclusiveRepo.forRepositories(luceneRepo);
+            });
+        }
+    }
+
+    private static final List<String> SECURE_URL_SCHEMES = Arrays.asList("file", "https", "s3");
+
+    private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
+        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false) {
+            String url;
+            try {
+                url = uri.toURL().toString();
+            } catch (MalformedURLException e) {
+                throw new IllegalStateException(e);
+            }
+            final String message = String.format(
+                Locale.ROOT,
+                "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
+                repositoryName,
+                projectPath,
+                url
+            );
+            throw new GradleException(message);
+        }
     }
 
     /** Adds compiler settings to the project */
@@ -241,14 +337,19 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
              */
             SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
 
-            test.doFirst(t -> {
-                project.mkdir(testOutputDir);
-                project.mkdir(heapdumpDir);
-                project.mkdir(test.getWorkingDir());
-                project.mkdir(test.getWorkingDir().toPath().resolve("temp"));
+            // We specifically use an anonymous inner class here because lambda task actions break Gradle cacheability
+            // See: https://docs.gradle.org/current/userguide/more_about_tasks.html#sec:how_does_it_work
+            test.doFirst(new Action<>() {
+                @Override
+                public void execute(Task t) {
+                    project.mkdir(testOutputDir);
+                    project.mkdir(heapdumpDir);
+                    project.mkdir(test.getWorkingDir());
+                    project.mkdir(test.getWorkingDir().toPath().resolve("temp"));
 
-                // TODO remove once jvm.options are added to test system properties
-                test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                    // TODO remove once jvm.options are added to test system properties
+                    test.systemProperty("java.locale.providers", "SPI,COMPAT");
+                }
             });
             if (BuildParams.isInFipsJvm()) {
                 project.getDependencies().add("testRuntimeOnly", "org.bouncycastle:bc-fips:1.0.1");
@@ -269,7 +370,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 
-            test.getJvmArgumentProviders().add(() -> List.of("-XX:HeapDumpPath=$heapdumpDir"));
+            test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {
@@ -369,5 +470,107 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 test.setClasspath(test.getClasspath().minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
             });
         });
+    }
+
+    /**
+     * Adds additional manifest info to jars
+     */
+    static void configureJars(Project project) {
+        project.getTasks()
+            .withType(Jar.class)
+            .configureEach(
+                jarTask -> {
+                    // we put all our distributable files under distributions
+                    jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
+                    // fixup the jar manifest
+                    jarTask.doFirst(
+                        t -> {
+                            // this doFirst is added before the info plugin, therefore it will run
+                            // after the doFirst added by the info plugin, and we can override attributes
+                            jarTask.getManifest()
+                                .attributes(
+                                    Map.of(
+                                        "Build-Date",
+                                        BuildParams.getBuildDate(),
+                                        "Build-Java-Version",
+                                        BuildParams.getCompilerJavaVersion()
+                                    )
+                                );
+                        }
+                    );
+                }
+            );
+        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
+            project.getTasks()
+                .withType(ShadowJar.class)
+                .configureEach(
+                    shadowJar -> {
+                        /*
+                         * Replace the default "-all" classifier with null
+                         * which will leave the classifier off of the file name.
+                         */
+                        shadowJar.getArchiveClassifier().set((String) null);
+                        /*
+                         * Not all cases need service files merged but it is
+                         * better to be safe
+                         */
+                        shadowJar.mergeServiceFiles();
+                    }
+                );
+            // Add "original" classifier to the non-shadowed JAR to distinguish it from the shadow JAR
+            project.getTasks().named(JavaPlugin.JAR_TASK_NAME, Jar.class).configure(jar -> jar.getArchiveClassifier().set("original"));
+            // Make sure we assemble the shadow jar
+            project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn("shadowJar"));
+        });
+    }
+
+    private static void configureJarManifest(Project project) {
+        project.getPlugins().withType(InfoBrokerPlugin.class).whenPluginAdded(manifestPlugin -> {
+            manifestPlugin.add("Module-Origin", toStringable(BuildParams::getGitOrigin));
+            manifestPlugin.add("Change", toStringable(BuildParams::getGitRevision));
+            manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
+            manifestPlugin.add("X-Compile-Lucene-Version", toStringable(VersionProperties::getLucene));
+            manifestPlugin.add(
+                "X-Compile-Elasticsearch-Snapshot",
+                toStringable(() -> Boolean.toString(VersionProperties.isElasticsearchSnapshot()))
+            );
+        });
+
+        project.getPluginManager().apply("nebula.info-broker");
+        project.getPluginManager().apply("nebula.info-basic");
+        project.getPluginManager().apply("nebula.info-java");
+        project.getPluginManager().apply("nebula.info-jar");
+    }
+
+    private static void configureJavadoc(Project project) {
+        project.getTasks().withType(Javadoc.class).configureEach(javadoc -> {
+            // only explicitly set javadoc executable if compiler JDK is different from Gradle
+            // this ensures better cacheability as setting ths input to an absolute path breaks portability
+            Path compilerJvm = BuildParams.getCompilerJavaHome().toPath();
+            Path gradleJvm = Jvm.current().getJavaHome().toPath();
+            try {
+                if (Files.isSameFile(compilerJvm, gradleJvm) == false) {
+                    javadoc.setExecutable(compilerJvm.resolve("bin/javadoc").toString());
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+            /*
+             * Generate docs using html5 to suppress a warning from `javadoc`
+             * that the default will change to html5 in the future.
+             */
+            CoreJavadocOptions javadocOptions = (CoreJavadocOptions) javadoc.getOptions();
+            javadocOptions.addBooleanOption("html5", true);
+        });
+
+        TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
+        javadoc.configure(doc ->
+        // remove compiled classes from the Javadoc classpath:
+        // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+
+        // ensure javadoc task is run with 'check'
+        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
     }
 }

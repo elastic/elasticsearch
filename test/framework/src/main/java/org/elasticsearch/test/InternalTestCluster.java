@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -504,6 +505,12 @@ public final class InternalTestCluster extends TestCluster {
             String ctx = randomFrom(random, ScriptModule.CORE_CONTEXTS.keySet());
             builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(ctx).getKey(),
                         timeValueMillis(RandomNumbers.randomIntBetween(random, 750, 10000000)).getStringRep());
+        }
+        if (random.nextBoolean()) {
+            int initialMillisBound = RandomNumbers.randomIntBetween(random,10, 100);
+            builder.put(TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.getKey(), timeValueMillis(initialMillisBound));
+            int retryTimeoutSeconds = RandomNumbers.randomIntBetween(random, 0, 60);
+            builder.put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), timeValueSeconds(retryTimeoutSeconds));
         }
 
         return builder.build();

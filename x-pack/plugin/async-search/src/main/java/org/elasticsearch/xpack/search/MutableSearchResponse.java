@@ -50,8 +50,9 @@ class MutableSearchResponse {
     private int reducePhase;
     /**
      * The response produced by the search API. Once we receive it we stop
-     * building our own {@linkplain SearchResponse}s when you get the status
-     * and instead return this.
+     * building our own {@linkplain SearchResponse}s when get async search
+     * is called, and instead return this.
+     * @see #findOrBuildResponse(AsyncSearchTask)
      */
     private SearchResponse finalResponse;
     private ElasticsearchException failure;
@@ -93,7 +94,8 @@ class MutableSearchResponse {
             throw new IllegalStateException("received partial response out of order: "
                 + reducePhase + " < " + this.reducePhase);
         }
-        this.successfulShards = successfulShards;
+        //when we get partial results skipped shards are not included in the provided number of successful shards
+        this.successfulShards = successfulShards + skippedShards;
         this.totalHits = totalHits;
         this.reducedAggsSource = reducedAggs;
         this.reducePhase = reducePhase;
@@ -105,6 +107,11 @@ class MutableSearchResponse {
      */
     synchronized void updateFinalResponse(SearchResponse response) {
         failIfFrozen();
+        assert response.getTotalShards() == totalShards : "received number of total shards differs from the one " +
+            "notified through onListShards";
+        assert response.getSkippedShards() == skippedShards : "received number of skipped shards differs from the one " +
+            "notified through onListShards";
+        assert response.getFailedShards() == buildShardFailures().length : "number of tracked failures differs from failed shards";
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
@@ -120,6 +127,8 @@ class MutableSearchResponse {
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
+        //note that when search fails, we may have gotten partial results before the failure. In that case async
+        // search will return an error plus the last partial results that were collected.
         this.isPartial = true;
         this.failure = ElasticsearchException.guessRootCauses(exc)[0];
         this.frozen = true;
@@ -157,10 +166,9 @@ class MutableSearchResponse {
         /*
          * Build the response, reducing aggs if we haven't already and
          * storing the result of the reduction so we won't have to reduce
-         * a second time if you get the response again and nothing has
-         * changed. This does cost memory because we have a reference
-         * to the reduced aggs sitting around so it can't be GCed until
-         * we get an update.
+         * the same aggregation results a second time if nothing has changed.
+         * This does cost memory because we have a reference to the finally
+         * reduced aggs sitting around which can't be GCed until we get an update.
          */
         InternalAggregations reducedAggs = reducedAggsSource.get();
         reducedAggsSource = () -> reducedAggs;
@@ -182,8 +190,6 @@ class MutableSearchResponse {
         }
         return resp;
     }
-
-
 
     private void failIfFrozen() {
         if (frozen) {

@@ -480,6 +480,11 @@ public class DefaultRestChannelTests extends ESTestCase {
         public HttpRequest releaseAndCopy() {
             return this;
         }
+
+        @Override
+        public Exception getInboundException() {
+            return null;
+        }
     }
 
     private static class TestResponse implements HttpResponse {

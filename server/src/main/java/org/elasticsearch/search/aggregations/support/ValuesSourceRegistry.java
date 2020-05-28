@@ -40,7 +40,14 @@ import java.util.Map;
  *
  */
 public class ValuesSourceRegistry {
+
     public static class Builder {
+        private final AggregationUsageService.Builder usageServiceBuilder;
+
+        public Builder() {
+            this.usageServiceBuilder = new AggregationUsageService.Builder();
+        }
+
         private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry = new HashMap<>();
 
         /**
@@ -58,6 +65,7 @@ public class ValuesSourceRegistry {
                 aggregatorRegistry.put(aggregationName, new ArrayList<>());
             }
             aggregatorRegistry.get(aggregationName).add(new AbstractMap.SimpleEntry<>(valuesSourceType, aggregatorSupplier));
+            registerUsage(aggregationName, valuesSourceType);
         }
 
         /**
@@ -75,37 +83,45 @@ public class ValuesSourceRegistry {
             }
         }
 
+        public void registerUsage(String aggregationName, ValuesSourceType valuesSourceType) {
+            usageServiceBuilder.registerAggregationUsage(aggregationName, valuesSourceType.typeName());
+        }
+
+        public void registerUsage(String aggregationName) {
+            usageServiceBuilder.registerAggregationUsage(aggregationName);
+        }
+
         public ValuesSourceRegistry build() {
-            return new ValuesSourceRegistry(aggregatorRegistry);
+            return new ValuesSourceRegistry(aggregatorRegistry, usageServiceBuilder.build());
         }
     }
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
-    private Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry;
-    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry) {
+    private final AggregationUsageService usageService;
+    private Map<String, Map<ValuesSourceType, AggregatorSupplier>> aggregatorRegistry;
+    public ValuesSourceRegistry(Map<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> aggregatorRegistry,
+                                AggregationUsageService usageService) {
         /*
          Make an immutatble copy of our input map. Since this is write once, read many, we'll spend a bit of extra time to shape this
          into a Map.of(), which is more read optimized than just using a hash map.
          */
-        Map.Entry[] copiedEntries = new Map.Entry[aggregatorRegistry.size()];
+        @SuppressWarnings("unchecked")
+        Map.Entry<String, Map<ValuesSourceType, AggregatorSupplier>>[] copiedEntries = new Map.Entry[aggregatorRegistry.size()];
         int i = 0;
         for (Map.Entry<String, List<Map.Entry<ValuesSourceType, AggregatorSupplier>>> entry : aggregatorRegistry.entrySet()) {
             String aggName = entry.getKey();
             List<Map.Entry<ValuesSourceType, AggregatorSupplier>> values = entry.getValue();
-            Map.Entry newEntry = Map.entry(aggName, List.of(values.toArray()));
+            @SuppressWarnings("unchecked") Map.Entry<String, Map<ValuesSourceType, AggregatorSupplier>> newEntry =
+                Map.entry(aggName, Map.ofEntries(values.toArray(new Map.Entry[0])));
             copiedEntries[i++] = newEntry;
         }
         this.aggregatorRegistry = Map.ofEntries(copiedEntries);
+        this.usageService = usageService;
     }
 
     private AggregatorSupplier findMatchingSuppier(ValuesSourceType valuesSourceType,
-                                                   List<Map.Entry<ValuesSourceType, AggregatorSupplier>> supportedTypes) {
-        for (Map.Entry<ValuesSourceType, AggregatorSupplier> candidate : supportedTypes) {
-            if (candidate.getKey().equals(valuesSourceType)) {
-                return candidate.getValue();
-            }
-        }
-        return null;
+                                                   Map<ValuesSourceType, AggregatorSupplier> supportedTypes) {
+        return supportedTypes.get(valuesSourceType);
     }
 
     public AggregatorSupplier getAggregator(ValuesSourceType valuesSourceType, String aggregationName) {
@@ -122,7 +138,7 @@ public class ValuesSourceRegistry {
 
     public ValuesSourceType getValuesSourceType(MappedFieldType fieldType, String aggregationName,
                                                 // TODO: the following arguments are only needed for the legacy case
-                                                IndexFieldData indexFieldData,
+                                                IndexFieldData<?> indexFieldData,
                                                 ValueType valueType,
                                                 ValuesSourceType defaultValuesSourceType) {
         if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
@@ -151,5 +167,9 @@ public class ValuesSourceRegistry {
                 }
             }
         }
+    }
+
+    public AggregationUsageService getUsageService() {
+        return usageService;
     }
 }

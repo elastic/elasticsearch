@@ -18,7 +18,6 @@ GET /twitter/_search
 [[search-request-body-api-request]]
 ==== {api-request-title}
 
-
 `GET /<index>/_search
 {
   "query": {<parameters>}
@@ -37,106 +36,10 @@ The search request can be executed with a search DSL, which includes the
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 
-
 [[search-request-body-api-request-body]]
 ==== {api-request-body-title}
 
-`allow_partial_search_results`:: 
-  (Optional, boolean) Set to `false` to fail the request if only partial results 
-  are available. Defaults to `true`, which returns partial results in the event 
-  of timeouts or partial failures You can override the default behavior for all 
-  requests by setting `search.default_allow_partial_results` to `false` in the 
-  cluster settings.
-
-`batched_reduce_size`:: 
-  (Optional, integer) The number of shard results that should be reduced at once 
-  on the coordinating node. This value should be used as a protection mechanism 
-  to reduce the memory overhead per search request if the potential number of 
-  shards in the request can be large.
-
-[[ccs-minimize-roundtrips]]
-`ccs_minimize_roundtrips`::
-  (Optional, boolean) If `true`, the network round-trips between the 
-  coordinating node and the remote clusters ewill be minimized when executing 
-  {ccs} requests. See <<ccs-network-delays>>. Defaults to `true`. 
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
-
-`request_cache`::
-  (Optional, boolean) If `true`, the caching of search results is enabled for 
-  requests where `size` is `0`. See <<shard-request-cache>>.
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
-
-`size`:: 
-  (Optional, integer) The number of hits to return. Defaults to `10`.
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_timeout]
-
-
-Out of the above, the `search_type`, `request_cache` and the 
-`allow_partial_search_results` settings must be passed as query-string 
-parameters. The rest of the search request should be passed within the body 
-itself. The body content can also be passed as a REST parameter named `source`.
-
-Both HTTP GET and HTTP POST can be used to execute search with body. Since not
-all clients support GET with body, POST is allowed as well.
-
-
-[[search-request-body-api-example]]
-==== {api-examples-title}
-
-[source,console]
---------------------------------------------------
-GET /twitter/_search
-{
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
-}
---------------------------------------------------
-// TEST[setup:twitter]
-
-
-The API returns the following response:
-
-[source,console-result]
---------------------------------------------------
-{
-    "took": 1,
-    "timed_out": false,
-    "_shards":{
-        "total" : 1,
-        "successful" : 1,
-        "skipped" : 0,
-        "failed" : 0
-    },
-    "hits":{
-        "total" : {
-            "value": 1,
-            "relation": "eq"
-        },
-        "max_score": 1.3862942,
-        "hits" : [
-            {
-                "_index" : "twitter",
-                "_id" : "0",
-                "_score": 1.3862942,
-                "_source" : {
-                    "user" : "kimchy",
-                    "message": "trying out Elasticsearch",
-                    "date" : "2009-11-15T14:12:12",
-                    "likes" : 0
-                }
-            }
-        ]
-    }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"took": 1/"took": $body.took/]
-
+See the search API's <<search-search-api-request-body,request body parameters>>.
 
 ==== Fast check for any matching docs
 
@@ -201,11 +104,7 @@ results.
 
 include::request/docvalue-fields.asciidoc[]
 
-include::request/explain.asciidoc[]
-
 include::request/collapse.asciidoc[]
-
-include::request/from-size.asciidoc[]
 
 include::request/highlighting.asciidoc[]
 
@@ -221,8 +120,6 @@ include::request/post-filter.asciidoc[]
 
 include::request/preference.asciidoc[]
 
-include::request/query.asciidoc[]
-
 include::request/rescore.asciidoc[]
 
 include::request/script-fields.asciidoc[]
@@ -233,8 +130,6 @@ include::request/search-after.asciidoc[]
 
 include::request/search-type.asciidoc[]
 
-include::request/seq-no.asciidoc[]
-
 include::request/sort.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
@@ -242,5 +137,3 @@ include::request/source-filtering.asciidoc[]
 include::request/stored-fields.asciidoc[]
 
 include::request/track-total-hits.asciidoc[]
-
-include::request/version.asciidoc[]

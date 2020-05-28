@@ -23,7 +23,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -76,7 +74,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
@@ -105,6 +103,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new MatchAllDocsQuery();
         }
 
         @Override
@@ -233,13 +236,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType().name(), MapperService.SINGLE_MAPPING_NAME, fieldType()));
+        context.doc().add(new Field(fieldType().name(), MapperService.SINGLE_MAPPING_NAME, fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(MapperService.SINGLE_MAPPING_NAME)));
         }
     }
 
@@ -253,8 +256,4 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         return builder;
     }
 
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // do nothing here, no merging, but also no exception
-    }
 }

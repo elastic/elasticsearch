@@ -46,6 +46,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -213,6 +214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final ShardBulkStats bulkOperationListener;
     private final GlobalCheckpointListeners globalCheckpointListeners;
+    private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
 
     protected volatile ShardRouting shardRouting;
@@ -339,6 +341,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners =
                 new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
+        this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
         this.replicationTracker = new ReplicationTracker(
                 shardId,
                 aId,
@@ -348,7 +351,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointListeners::globalCheckpointUpdated,
                 threadPool::absoluteTimeInMillis,
                 (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
-                this::getSafeCommitInfo);
+                this::getSafeCommitInfo,
+                pendingReplicationActions);
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -1318,7 +1322,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
                     indexShardOperationPermits.close();
                 }
             }
@@ -2323,7 +2327,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public ReplicationGroup getReplicationGroup() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.getReplicationGroup();
+        ReplicationGroup replicationGroup = replicationTracker.getReplicationGroup();
+        // PendingReplicationActions is dependent on ReplicationGroup. Every time we expose ReplicationGroup,
+        // ensure PendingReplicationActions is updated with the newest version to prevent races.
+        pendingReplicationActions.accept(replicationGroup);
+        return replicationGroup;
+    }
+
+    /**
+     * Returns the pending replication actions for the shard.
+     *
+     * @return the pending replication actions
+     */
+    public PendingReplicationActions getPendingReplicationActions() {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        return pendingReplicationActions;
     }
 
     /**

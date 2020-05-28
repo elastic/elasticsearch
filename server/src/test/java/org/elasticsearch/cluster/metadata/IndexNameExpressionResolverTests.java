@@ -895,8 +895,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final String dottedHiddenAlias = ".hidden_alias";
         final String dottedHiddenIndex = ".hidden_index";
 
-        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false, true);
-        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false, true);
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false);
 
         {
             // A visible index with a visible alias and a hidden index with a hidden alias
@@ -1029,8 +1029,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final String hiddenAlias = "my-hidden-alias";
         final String visibleAlias = "my-visible-alias";
 
-        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false, true);
-        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false, true);
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false);
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
@@ -1432,13 +1432,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
             }
         };
-        Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
+        Index writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request, false);
         assertThat(writeIndex.getName(), equalTo("test-0"));
 
         state = ClusterState.builder(state).metadata(Metadata.builder(state.metadata())
             .put(indexBuilder("test-1").putAlias(AliasMetadata.builder("test-alias")
                 .writeIndex(testZeroWriteIndex ? randomFrom(false, null) : true)))).build();
-        writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
+        writeIndex = indexNameExpressionResolver.concreteWriteIndex(state, request, false);
         assertThat(writeIndex.getName(), equalTo(testZeroWriteIndex ? "test-0" : "test-1"));
     }
 
@@ -1460,10 +1460,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             }
         };
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.concreteWriteIndex(state, requestGen.apply(null)));
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, requestGen.apply(null), false));
         assertThat(exception.getMessage(), equalTo("indices request must specify a single index expression"));
         exception = expectThrows(IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.concreteWriteIndex(state, requestGen.apply(new String[] {"too", "many"})));
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, requestGen.apply(new String[] {"too", "many"}), false));
         assertThat(exception.getMessage(), equalTo("indices request must specify a single index expression"));
 
 
@@ -1495,7 +1495,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         };
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, request, false));
         assertThat(exception.getMessage(),
             equalTo("The index expression [test-*] and options provided did not point to a single write-index"));
     }
@@ -1512,7 +1512,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
             new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, request, false));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
                 " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                 " indices without one being designated as a write index"));
@@ -1532,7 +1532,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         DocWriteRequest request = randomFrom(new IndexRequest("test-alias"),
             new UpdateRequest("test-alias", "_id"), new DeleteRequest("test-alias"));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> indexNameExpressionResolver.concreteWriteIndex(state, request));
+            () -> indexNameExpressionResolver.concreteWriteIndex(state, request, false));
         assertThat(exception.getMessage(), equalTo("no write index is defined for alias [test-alias]." +
             " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
             " indices without one being designated as a write index"));
@@ -1712,7 +1712,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "*");
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "*");
             assertEquals(1, indices.length);
             assertEquals("index", indices[0].getName());
         }
@@ -1724,18 +1724,18 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-alias");
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-alias");
             assertEquals(0, indices.length);
         }
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-*");
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "test-*");
             assertEquals(1, indices.length);
             assertEquals("index", indices[0].getName());
         }
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
-                IndicesOptions.STRICT_INCLUDE_DATA_STREAMS_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "ind*", "test-index");
+                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "ind*", "test-index");
             assertEquals(1, indices.length);
             Arrays.sort(indices, Comparator.comparing(Index::getName));
             assertEquals("index", indices[0].getName());
@@ -1774,9 +1774,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
-            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.INCLUDE_DATA_STREAMS),
-                EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream");
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-data-stream");
             assertThat(result.length, equalTo(2));
             assertThat(result[0].getName(), equalTo(dataStreamName + "-000001"));
             assertThat(result[1].getName(), equalTo(dataStreamName + "-000002"));
@@ -1785,7 +1784,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             // Ignore data streams
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream"));
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream"));
             assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
                 "data stream, specify the corresponding concrete indices instead."));
         }
@@ -1794,7 +1793,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
                 EnumSet.of(IndicesOptions.WildcardStates.OPEN));
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream"));
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream"));
             assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
                 "data stream, specify the corresponding concrete indices instead."));
         }
@@ -1803,14 +1802,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
                 IndicesOptions.Option.IGNORE_UNAVAILABLE), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, "my-data-stream"));
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-data-stream"));
             assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
                 "data stream, specify the corresponding concrete indices instead."));
         }
         {
-            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.INCLUDE_DATA_STREAMS),
-                EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false);
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, true);
             assertThat(result.getName(), equalTo(dataStreamName + "-000002"));
         }
         {
@@ -1818,7 +1816,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class),
                 EnumSet.of(IndicesOptions.WildcardStates.OPEN));
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true));
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", true, false));
             assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a " +
                 "data stream, specify the corresponding concrete indices instead."));
 
@@ -1827,7 +1825,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             // Ignore data streams and allow no indices
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false));
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false));
             assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a data stream, " +
                 "specify the corresponding concrete indices instead."));
         }
@@ -1836,7 +1834,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
                 IndicesOptions.Option.IGNORE_UNAVAILABLE), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
             Exception e = expectThrows(IllegalArgumentException.class,
-                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false));
+                () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false));
             assertThat(e.getMessage(), equalTo("The provided expression [my-data-stream] matches a data stream, " +
                 "specify the corresponding concrete indices instead."));
         }
@@ -1859,9 +1857,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
-            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
-                IndicesOptions.Option.INCLUDE_DATA_STREAMS), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(4));
             assertThat(result[0].getName(), equalTo(dataStream1 + "-000001"));
@@ -1870,9 +1867,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             assertThat(result[3].getName(), equalTo(dataStream2 + "-000002"));
         }
         {
-            IndicesOptions indicesOptions = new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
-                IndicesOptions.Option.INCLUDE_DATA_STREAMS), EnumSet.of(IndicesOptions.WildcardStates.OPEN));
-            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-m*");
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-m*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
             assertThat(result[0].getName(), equalTo(dataStream1 + "-000001"));
@@ -1905,8 +1901,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(justAnIndex, false)
                 .put(new DataStream(dataStream1, "ts", List.of(index1.getIndex(), index2.getIndex())))).build();
 
-        IndicesOptions indicesOptions = IndicesOptions.strictIncludeDataStreamsExpandOpenAndForbidClosedIgnoreThrottled();
-        Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
+        IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+        Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
         Arrays.sort(result, Comparator.comparing(Index::getName));
         assertThat(result.length, equalTo(3));
         assertThat(result[0].getName(), equalTo("logs-foobar-000001"));

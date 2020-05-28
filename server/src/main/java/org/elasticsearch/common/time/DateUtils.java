@@ -310,7 +310,7 @@ public class DateUtils {
      * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
      *
      * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
-     *       In order to ensure the performane of this methods, there are no guards or checks in it
+     *       In order to ensure the performance of this methods, there are no guards or checks in it
      *
      * @param utcMillis   the milliseconds since the epoch
      * @param unitMillis  the unit to round to

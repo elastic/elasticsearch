@@ -330,12 +330,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                                 // interval of exactly 1 year or 1 month
                                 if (value instanceof IntervalYearMonth &&
-                                        (((IntervalYearMonth) value).interval().equals(Period.ofYears(1)) 
+                                        (((IntervalYearMonth) value).interval().equals(Period.ofYears(1))
                                         || ((IntervalYearMonth) value).interval().equals(Period.ofMonths(1)))) {
                                     Period yearMonth = ((IntervalYearMonth) value).interval();
                                     String calendarInterval = yearMonth.equals(Period.ofYears(1)) ? YEAR_INTERVAL : MONTH_INTERVAL;
 
-                                    // When the histogram is `INTERVAL '1' YEAR` or `INTERVAL '1' MONTH`, the interval used in 
+                                    // When the histogram is `INTERVAL '1' YEAR` or `INTERVAL '1' MONTH`, the interval used in
                                     // the ES date_histogram will be a calendar_interval with value "1y" or "1M" respectively.
                                     if (field instanceof FieldAttribute) {
                                         key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval, h.zoneId());
@@ -344,9 +344,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     }
                                 }
                                 // interval of exactly 1 day
-                                else if (value instanceof IntervalDayTime 
+                                else if (value instanceof IntervalDayTime
                                         && ((IntervalDayTime) value).interval().equals(Duration.ofDays(1))) {
-                                    // When the histogram is `INTERVAL '1' DAY` the interval used in 
+                                    // When the histogram is `INTERVAL '1' DAY` the interval used in
                                     // the ES date_histogram will be a calendar_interval with value "1d"
                                     if (field instanceof FieldAttribute) {
                                         key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), DAY_INTERVAL, h.zoneId());

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
@@ -99,7 +101,15 @@ public class Pivot {
                 return;
             }
             listener.onResponse(true);
-        }, e -> listener.onFailure(new ElasticsearchStatusException("Failed to test query", RestStatus.SERVICE_UNAVAILABLE, e))));
+        }, e -> {
+            Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+            RestStatus status = unwrapped instanceof ElasticsearchException ?
+                ((ElasticsearchException)unwrapped).status() :
+                RestStatus.SERVICE_UNAVAILABLE;
+            listener.onFailure(new ElasticsearchStatusException("Failed to test query",
+                status,
+                unwrapped));
+        }));
     }
 
     public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {

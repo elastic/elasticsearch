@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
+import org.elasticsearch.cluster.shards.ShardCounts;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -86,7 +86,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -588,7 +588,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testOverShardLimit() {
         int nodesInCluster = randomIntBetween(1,90);
-        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+        ShardCounts counts = forDataNodeCount(nodesInCluster);
 
         Settings clusterSettings = Settings.builder()
             .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
@@ -611,7 +611,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     public void testUnderShardLimit() {
         int nodesInCluster = randomIntBetween(2,90);
         // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
-        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
+        ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
 
         Settings clusterSettings = Settings.builder()
             .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())

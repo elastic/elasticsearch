@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.EsField;
 
+import java.time.ZoneId;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -44,15 +45,17 @@ public class QueryContainerTests extends ESTestCase {
     }
 
     public void testRewriteToContainsNestedFieldWhenContainsNestedField() {
+        ZoneId zoneId = randomZone();
         Query original = new BoolQuery(source, true,
             new NestedQuery(source, path, singletonMap(name, new SimpleImmutableEntry<>(hasDocValues, format)),
                     new MatchAll(source)),
-            new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean()));
+            new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), zoneId));
         assertSame(original, QueryContainer.rewriteToContainNestedField(original, source, path, name, format, randomBoolean()));
     }
 
     public void testRewriteToContainsNestedFieldWhenCanAddNestedField() {
-        Query buddy = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean());
+        ZoneId zoneId = randomZone();
+        Query buddy = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), zoneId);
         Query original = new BoolQuery(source, true,
             new NestedQuery(source, path, emptyMap(), new MatchAll(source)),
             buddy);
@@ -64,7 +67,8 @@ public class QueryContainerTests extends ESTestCase {
     }
 
     public void testRewriteToContainsNestedFieldWhenDoesNotContainNestedFieldAndCantAdd() {
-        Query original = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean());
+        ZoneId zoneId = randomZone();
+        Query original = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), zoneId);
         Query expected = new BoolQuery(source, true,
             original,
             new NestedQuery(source, path, singletonMap(name, new SimpleImmutableEntry<>(hasDocValues, format)),

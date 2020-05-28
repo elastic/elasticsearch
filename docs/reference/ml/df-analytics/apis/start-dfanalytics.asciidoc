@@ -50,6 +50,11 @@ fails to start.
 If the destination index exists, it is used as is. You can therefore set up the
 destination index in advance with custom settings and mappings.
 
+IMPORTANT: When {es} {security-features} are enabled, the {dfanalytics-job}
+remembers which user created it and runs the job using those credentials. If you 
+provided <<http-clients-secondary-authorization,secondary authorization headers>>
+when you created the job, those credentials are used.
+
 [[ml-start-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 

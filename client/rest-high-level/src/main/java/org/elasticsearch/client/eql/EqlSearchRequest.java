@@ -77,7 +77,6 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         isCaseSensitive(isCaseSensitive);
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();

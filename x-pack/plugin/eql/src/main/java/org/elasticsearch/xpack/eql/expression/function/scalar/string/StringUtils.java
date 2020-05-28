@@ -65,15 +65,19 @@ final class StringUtils {
      *
      * @param string    string to search through.
      * @param substring string to search for.
+     * @param isCaseSensitive toggle for case sensitivity.
      * @return {@code true} if {@code string} string contains {@code substring} string.
      */
-    static boolean stringContains(String string, String substring) {
+    static boolean stringContains(String string, String substring, boolean isCaseSensitive) {
         if (hasLength(string) == false || hasLength(substring) == false) {
             return false;
         }
 
-        string = string.toLowerCase(Locale.ROOT);
-        substring = substring.toLowerCase(Locale.ROOT);
+        if (isCaseSensitive == false) {
+            string = string.toLowerCase(Locale.ROOT);
+            substring = substring.toLowerCase(Locale.ROOT);
+        }
+
         return string.contains(substring);
     }
 

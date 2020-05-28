@@ -140,14 +140,28 @@ public class StringUtilsTests extends ESTestCase {
     }
 
     public void testStringContainsWithNullOrEmpty() {
-        assertFalse(stringContains(null, null));
-        assertFalse(stringContains(null, ""));
-        assertFalse(stringContains("", null));
+        assertFalse(stringContains(null, null, true));
+        assertFalse(stringContains(null, "", true));
+        assertFalse(stringContains("", null, true));
+
+        assertFalse(stringContains(null, null, false));
+        assertFalse(stringContains(null, "", false));
+        assertFalse(stringContains("", null, false));
     }
 
-    public void testStringContainsWithRandom() throws Exception {
+    public void testStringContainsWithRandomCaseSensitive() throws Exception {
         String substring = randomAlphaOfLength(10);
         String string = randomAlphaOfLength(10) + substring + randomAlphaOfLength(10);
-        assertTrue(stringContains(string, substring));
+        assertTrue(stringContains(string, substring, true));
+    }
+
+    public void testStringContainsWithRandomCaseInsensitive() throws Exception {
+        String substring = randomAlphaOfLength(10);
+        String string = randomAlphaOfLength(10) + substring.toUpperCase() + randomAlphaOfLength(10);
+        assertTrue(stringContains(string, substring, false));
+
+        substring = randomAlphaOfLength(10);
+        string = randomAlphaOfLength(10) + substring.toLowerCase() + randomAlphaOfLength(10);
+        assertTrue(stringContains(string, substring, false));
     }
 }

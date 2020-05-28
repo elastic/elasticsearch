@@ -57,8 +57,8 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
         return (String) ToStringFunctionProcessor.doProcess(s);
     }
 
-    public static Boolean stringContains(String string, String substring) {
-        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring);
+    public static Boolean stringContains(String string, String substring, Boolean isCaseSensitive) {
+        return (Boolean) StringContainsFunctionProcessor.doProcess(string, substring, isCaseSensitive);
     }
 
     public static Number number(String source, Number base) {

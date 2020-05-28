@@ -4,7 +4,7 @@ setup:
       features: allowed_warnings
   - do:
       allowed_warnings:
-        - "index template [logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs_template] will take precedence during new index creation"
+        - "index template [logs_template] has index patterns [logs-foobar] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs_template] will take precedence during new index creation"
       indices.put_index_template:
         name: logs_template
         body:

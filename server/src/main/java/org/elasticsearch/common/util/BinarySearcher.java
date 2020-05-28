@@ -67,7 +67,7 @@ abstract public class BinarySearcher{
      **/
     public int search(int from, int to){
         while(from < to){
-            int mid = (from / 2) + (to / 2);
+            int mid = (from + to) >>> 1;
             int compareResult = compare(mid);
 
             if(compareResult == 0){

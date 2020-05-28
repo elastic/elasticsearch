@@ -1,4 +1,4 @@
-[[disk-based-shard-allocation]]
+[[disk-allocator]]
 === Disk-based shard allocation
 
 {es} considers the available disk space on a node before deciding

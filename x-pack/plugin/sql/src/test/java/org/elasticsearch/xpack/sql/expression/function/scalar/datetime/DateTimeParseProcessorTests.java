@@ -45,6 +45,11 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
     }
 
     @Override
+    protected ZoneId instanceZoneId(DateTimeParseProcessor instance) {
+        return instance.zoneId();
+    }
+
+    @Override
     protected DateTimeParseProcessor mutateInstance(DateTimeParseProcessor instance) {
         Parser replaced = randomValueOtherThan(instance.parser(), () -> randomFrom(Parser.values()));
         return new DateTimeParseProcessor(

@@ -182,7 +182,6 @@ public class TransportFieldCapabilitiesIndexAction
         private final DiscoveryNodes nodes;
         private final ActionListener<FieldCapabilitiesIndexResponse> listener;
         private final GroupShardsIterator<ShardIterator> shardsIt;
-        private final int numShardsMinus1;
 
         private volatile int shardIndex = 0;
 
@@ -207,7 +206,6 @@ public class TransportFieldCapabilitiesIndexAction
 
             shardsIt = clusterService.operationRouting().searchShards(clusterService.state(),
                 new String[]{request.index()}, null, null, null, null);
-            this.numShardsMinus1 = shardsIt.size() - 1;
         }
 
         public void start() {
@@ -222,7 +220,7 @@ public class TransportFieldCapabilitiesIndexAction
         }
 
         private ShardRouting nextRoutingOrNull()  {
-            if (shardsIt.size() == 0 || shardIndex >= numShardsMinus1) {
+            if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
                 return null;
             }
             ShardRouting next = shardsIt.get(shardIndex).nextOrNull();

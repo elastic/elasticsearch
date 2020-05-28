@@ -24,7 +24,6 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.tasks.Run
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
@@ -48,6 +47,7 @@ apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
 apply from: 'gradle/fips.gradle'
+apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -374,13 +374,6 @@ allprojects {
   tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
   // otherwise the eclipse merging is *super confusing*
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
-}
-
-tasks.register("run", Run) {
-  dependsOn ':distribution:run'
-  description = 'Runs elasticsearch in the foreground'
-  group = 'Verification'
-  impliesSubProjects = true
 }
 
 wrapper {

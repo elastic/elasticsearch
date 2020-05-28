@@ -24,12 +24,9 @@ import org.elasticsearch.gradle.DependenciesInfoTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testclusters.RunTask
 
 import java.nio.file.Files
 import java.nio.file.Path
-
-apply plugin: 'elasticsearch.testclusters'
 
 /*****************************************************************************
  *                  Third party dependencies report                          *
@@ -443,30 +440,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
   }
-}
-
-testClusters {
-  runTask {
-    testDistribution = System.getProperty('run.distribution', 'default')
-    if (System.getProperty('run.distribution', 'default') == 'default') {
-      String licenseType = System.getProperty("run.license_type", "basic")
-      if (licenseType == 'trial') {
-        setting 'xpack.ml.enabled', 'true'
-        setting 'xpack.graph.enabled', 'true'
-        setting 'xpack.watcher.enabled', 'true'
-        setting 'xpack.license.self_generated.type', 'trial'
-      } else if (licenseType != 'basic') {
-        throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
-      }
-      setting 'xpack.security.enabled', 'true'
-      keystore 'bootstrap.password', 'password'
-      user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
-    }
-  }
-}
-
-task run(type: RunTask) {
-  useCluster testClusters.runTask;
 }
 
 /**

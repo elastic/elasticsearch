@@ -6,14 +6,12 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -46,14 +44,34 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String jobId = restRequest.param(Job.ID.getPreferredName());
-        if (Strings.isNullOrEmpty(jobId)) {
-            jobId = Metadata.ALL;
+        DeleteExpiredDataAction.Request request;
+        if (restRequest.hasContent()) {
+            request = DeleteExpiredDataAction.Request.PARSER.apply(restRequest.contentParser(), null);
+        } else {
+            request = new DeleteExpiredDataAction.Request();
+
+            String perSecondParam = restRequest.param(DeleteExpiredDataAction.Request.REQUESTS_PER_SECOND.getPreferredName());
+            if (perSecondParam != null) {
+                try {
+                    request.setRequestsPerSecond(Float.parseFloat(perSecondParam));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Failed to parse float parameter [" +
+                        DeleteExpiredDataAction.Request.REQUESTS_PER_SECOND.getPreferredName() +
+                        "] with value [" + perSecondParam + "]", e);
+                }
+            }
+
+            String timeoutParam = restRequest.param(DeleteExpiredDataAction.Request.TIMEOUT.getPreferredName());
+            if (timeoutParam != null) {
+                request.setTimeout(restRequest.paramAsTime(timeoutParam, null));
+            }
         }
 
-        DeleteExpiredDataAction.Request request = restRequest.hasContent() ?
-            DeleteExpiredDataAction.Request.PARSER.apply(restRequest.contentParser(), null) :
-            new DeleteExpiredDataAction.Request();
+        String jobId = restRequest.param(Fields.JOB_ID.getPreferredName());
+        if (Strings.isNullOrEmpty(jobId) == false) {
+            request.setJobId(jobId);
+        }
+
         return channel -> client.execute(DeleteExpiredDataAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

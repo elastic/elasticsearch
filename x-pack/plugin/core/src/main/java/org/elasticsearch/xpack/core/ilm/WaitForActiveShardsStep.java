@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -64,43 +65,48 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             return new Result(true, new Info(message));
         }
 
-        String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
-        if (Strings.isNullOrEmpty(rolloverAlias)) {
-            throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
-                + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
-        }
-
-        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(rolloverAlias);
-        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
-
-        IndexMetadata aliasWriteIndex = indexAbstraction.getWriteIndex();
+        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
-        if (aliasWriteIndex != null) {
-            rolledIndexName = aliasWriteIndex.getIndex().getName();
-            waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
-        } else {
-            List<IndexMetadata> indices = indexAbstraction.getIndices();
-            int maxIndexCounter = -1;
-            IndexMetadata rolledIndexMeta = null;
-            for (IndexMetadata indexMetadata : indices) {
-                int indexNameCounter = parseIndexNameCounter(indexMetadata.getIndex().getName());
-                if (maxIndexCounter < indexNameCounter) {
-                    maxIndexCounter = indexNameCounter;
-                    rolledIndexMeta = indexMetadata;
-                }
-            }
+        if (indexAbstraction.getParentDataStream() != null) {
+            DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+            rolledIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration());
+            IndexMetadata rolledIndexMeta = clusterState.metadata().index(rolledIndexName);
             if (rolledIndexMeta == null) {
-                String errorMessage = String.format(Locale.ROOT,
-                    "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]", index.getName(),
-                    getKey().getAction());
-
-                // Index must have been since deleted
-                logger.debug(errorMessage);
-                return new Result(false, new Info(errorMessage));
+                return getErrorResultOnNullMetadata(index);
             }
-            rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
+        } else {
+            String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
+            if (Strings.isNullOrEmpty(rolloverAlias)) {
+                throw new IllegalStateException("setting [" + RolloverAction.LIFECYCLE_ROLLOVER_ALIAS
+                    + "] is not set on index [" + originalIndexMeta.getIndex().getName() + "]");
+            }
+
+            IndexAbstraction aliasAbstraction = clusterState.metadata().getIndicesLookup().get(rolloverAlias);
+            assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
+
+            IndexMetadata aliasWriteIndex = aliasAbstraction.getWriteIndex();
+            if (aliasWriteIndex != null) {
+                rolledIndexName = aliasWriteIndex.getIndex().getName();
+                waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
+            } else {
+                List<IndexMetadata> indices = aliasAbstraction.getIndices();
+                int maxIndexCounter = -1;
+                IndexMetadata rolledIndexMeta = null;
+                for (IndexMetadata indexMetadata : indices) {
+                    int indexNameCounter = parseIndexNameCounter(indexMetadata.getIndex().getName());
+                    if (maxIndexCounter < indexNameCounter) {
+                        maxIndexCounter = indexNameCounter;
+                        rolledIndexMeta = indexMetadata;
+                    }
+                }
+                if (rolledIndexMeta == null) {
+                    return getErrorResultOnNullMetadata(index);
+                }
+                rolledIndexName = rolledIndexMeta.getIndex().getName();
+                waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
+            }
         }
 
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
@@ -112,6 +118,16 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             currentActiveShards += shardRouting.value.activeShards().size();
         }
         return new Result(enoughShardsActive, new ActiveShardsInfo(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
+    }
+
+    private Result getErrorResultOnNullMetadata(Index originalIndex) {
+        String errorMessage = String.format(Locale.ROOT,
+            "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]", originalIndex.getName(),
+            getKey().getAction());
+
+        // Index must have been since deleted
+        logger.debug(errorMessage);
+        return new Result(false, new Info(errorMessage));
     }
 
     /**

@@ -11,11 +11,13 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -74,6 +76,35 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         ClusterState newState = step.performAction(indexMetadata.getIndex(), clusterState);
         long actualRolloverTime = LifecycleExecutionState
             .fromIndexMetadata(newState.metadata().index(indexMetadata.getIndex()))
+            .getLifecycleDate();
+        assertThat(actualRolloverTime, equalTo(rolloverTime));
+    }
+
+    public void testPerformActionOnDataStream() {
+        long creationDate = randomLongBetween(0, 1000000);
+        long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
+        String dataStreamName = "test-datastream";
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(dataStreamName + "-000001")
+            .putRolloverInfo(new RolloverInfo(dataStreamName, Collections.emptyList(), rolloverTime))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        IndexMetadata rolledIndexMeta= IndexMetadata.builder(dataStreamName + "-000002")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(new DataStream(dataStreamName, "timestamp", List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
+                    .put(originalIndexMeta, true)
+                    .put(rolledIndexMeta, true)
+            ).build();
+
+        UpdateRolloverLifecycleDateStep step = createRandomInstance();
+        ClusterState newState = step.performAction(originalIndexMeta.getIndex(), clusterState);
+        long actualRolloverTime = LifecycleExecutionState
+            .fromIndexMetadata(newState.metadata().index(originalIndexMeta.getIndex()))
             .getLifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }

@@ -70,6 +70,7 @@ public class AnalyticsProcessManager {
     private final TrainedModelProvider trainedModelProvider;
     private final ModelLoadingService modelLoadingService;
     private final ResultsPersisterService resultsPersisterService;
+    private final int numAllocatedProcessors;
 
     public AnalyticsProcessManager(Client client,
                                    ThreadPool threadPool,
@@ -77,7 +78,8 @@ public class AnalyticsProcessManager {
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
                                    ModelLoadingService modelLoadingService,
-                                   ResultsPersisterService resultsPersisterService) {
+                                   ResultsPersisterService resultsPersisterService,
+                                   int numAllocatedProcessors) {
         this(
             client,
             threadPool.generic(),
@@ -86,7 +88,8 @@ public class AnalyticsProcessManager {
             auditor,
             trainedModelProvider,
             modelLoadingService,
-            resultsPersisterService);
+            resultsPersisterService,
+            numAllocatedProcessors);
     }
 
     // Visible for testing
@@ -97,7 +100,8 @@ public class AnalyticsProcessManager {
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
                                    ModelLoadingService modelLoadingService,
-                                   ResultsPersisterService resultsPersisterService) {
+                                   ResultsPersisterService resultsPersisterService,
+                                   int numAllocatedProcessors) {
         this.client = Objects.requireNonNull(client);
         this.executorServiceForJob = Objects.requireNonNull(executorServiceForJob);
         this.executorServiceForProcess = Objects.requireNonNull(executorServiceForProcess);
@@ -106,6 +110,7 @@ public class AnalyticsProcessManager {
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.numAllocatedProcessors = numAllocatedProcessors;
     }
 
     public void runJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory) {
@@ -452,7 +457,7 @@ public class AnalyticsProcessManager {
             dataExtractor.set(dataExtractorFactory.newExtractor(false));
             AnalyticsProcessConfig analyticsProcessConfig =
                 createProcessConfig(dataExtractor.get(), dataExtractorFactory.getExtractedFields());
-            LOGGER.trace("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
+            LOGGER.debug("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
             // If we have no rows, that means there is no data so no point in starting the native process
             // just finish the task
             if (analyticsProcessConfig.rows() == 0) {
@@ -468,12 +473,13 @@ public class AnalyticsProcessManager {
                                                            ExtractedFields extractedFields) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
             Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
+            int threads = Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
             return new AnalyticsProcessConfig(
                 config.getId(),
                 dataSummary.rows,
                 dataSummary.cols,
                 config.getModelMemoryLimit(),
-                1,
+                threads,
                 config.getDest().getResultsField(),
                 categoricalFields,
                 config.getAnalysis(),

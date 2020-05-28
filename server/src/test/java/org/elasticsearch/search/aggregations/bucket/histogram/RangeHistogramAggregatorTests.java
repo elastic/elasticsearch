@@ -460,8 +460,10 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                     InternalHistogram.Bucket innerBucket = inner.getBuckets().get(innerIdx);
                     assertThat(innerBucket.getKey(), equalTo(5.0 * innerIdx));
                     InternalMin min = innerBucket.getAggregations().get("min");
+                    int minOuterIdxWithOverlappingRange = Math.max(0, outerIdx - 2);
+                    int minInnerIdxWithOverlappingRange = Math.max(0, innerIdx - 2);
                     assertThat(min.getValue(),
-                            equalTo(Math.max(0, outerIdx - 2) * 5.0 + Math.max(0, innerIdx - 2) * 500.0));
+                            equalTo(minOuterIdxWithOverlappingRange * 5.0 + minInnerIdxWithOverlappingRange * 500.0));
                 }
             }
         };

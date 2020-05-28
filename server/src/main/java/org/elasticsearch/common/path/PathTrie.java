@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.path;
 
+import org.elasticsearch.rest.CompatibleConstants;
+
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -59,6 +61,10 @@ public class PathTrie<T> {
 
     public interface Decoder {
         String decode(String value);
+
+        default String decodeForCompatible(String compatibleVersion, String value) {
+            return decode(value);
+        }
     }
 
     private final Decoder decoder;
@@ -269,7 +275,7 @@ public class PathTrie<T> {
 
         private void put(Map<String, String> params, TrieNode node, String value) {
             if (params != null && node.isNamedWildcard()) {
-                params.put(node.namedWildcard(), decoder.decode(value));
+                params.put(node.namedWildcard(), decoder.decodeForCompatible(params.get(CompatibleConstants.COMPATIBLE_PARAMS_KEY), value));
             }
         }
 

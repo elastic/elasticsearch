@@ -112,6 +112,8 @@ public class RestRequest implements ToXContent.Params {
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
         this.compatibleApiVersion = addCompatibleParameter(headersValidation);
+        params().put(CompatibleConstants.COMPATIBLE_PARAMS_KEY, String.valueOf(compatibleApiVersion.major));
+        param(CompatibleConstants.COMPATIBLE_PARAMS_KEY);
     }
 
     protected RestRequest(RestRequest restRequest) {

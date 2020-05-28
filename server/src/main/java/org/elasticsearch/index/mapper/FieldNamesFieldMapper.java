@@ -20,7 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -31,8 +33,10 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -213,7 +217,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         // Adding values to the _field_names field is handled by the mappers for each field type
     }
 
@@ -222,6 +226,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             @Override
             public Iterator<String> iterator() {
                 return new Iterator<String>() {
+
                     int endIndex = nextEndIndex(0);
 
                     private int nextEndIndex(int index) {
@@ -251,6 +256,36 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 };
             }
         };
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
+        if (fieldType().isEnabled() == false) {
+            return;
+        }
+        for (ParseContext.Document document : context) {
+            final List<String> paths = new ArrayList<>(document.getFields().size());
+            String previousPath = ""; // used as a sentinel - field names can't be empty
+            for (IndexableField field : document.getFields()) {
+                final String path = field.name();
+                if (path.equals(previousPath)) {
+                    // Sometimes mappers create multiple Lucene fields, eg. one for indexing,
+                    // one for doc values and one for storing. Deduplicating is not required
+                    // for correctness but this simple check helps save utf-8 conversions and
+                    // gives Lucene fewer values to deal with.
+                    continue;
+                }
+                paths.add(path);
+                previousPath = path;
+            }
+            for (String path : paths) {
+                for (String fieldName : extractFieldNames(path)) {
+                    if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                        document.add(new Field(fieldType().name(), fieldName, fieldType()));
+                    }
+                }
+            }
+        }
     }
 
     @Override

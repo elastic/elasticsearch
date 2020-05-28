@@ -86,7 +86,7 @@
         fields: [number]
         body: { index_filter: { range: { created_at: { lt: 2018 } } } }
   - match: {indices:                                    ["field_caps_index_2", "my_remote_cluster:field_caps_index_1"]}
-  - length: {fields.number:                             1
+  - length: {fields.number:                             1}
   - match: {fields.number.double.searchable:            true}
   - match: {fields.number.double.aggregatable:          true}
 

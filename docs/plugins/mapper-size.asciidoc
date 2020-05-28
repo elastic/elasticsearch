@@ -72,8 +72,7 @@ GET my_index/_search
   },
   "docvalue_fields": [
     {
-      "field": "_size",               <5>
-      "format": "use_field_mapping"
+      "field": "_size"                <5>
     }
   ]
 }

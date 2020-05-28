@@ -37,13 +37,12 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request.DURATION;
+import static org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request.FORECAST_LOCAL_STORAGE_LIMIT;
 
 public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJobAction.Request,
         ForecastJobAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportForecastJobAction.class);
-    private static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
-    private static final ByteSizeValue DEFAULT_MAX_MODEL_MEMORY = new ByteSizeValue(20, ByteSizeUnit.MB);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
@@ -140,19 +139,19 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     }
 
     static Long getAdjustedMemoryLimit(Job job, Long requestedLimit, AbstractAuditor<? extends AbstractAuditMessage> auditor) {
-        if (requestedLimit == null || requestedLimit == DEFAULT_MAX_MODEL_MEMORY.getBytes()) {
+        if (requestedLimit == null) {
             return null;
         }
         long jobLimitMegaBytes = job.getAnalysisLimits() == null || job.getAnalysisLimits().getModelMemoryLimit() == null ?
-            AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB :
+            AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB :
             job.getAnalysisLimits().getModelMemoryLimit();
         long allowedMax = (long)(new ByteSizeValue(jobLimitMegaBytes, ByteSizeUnit.MB).getBytes() * 0.40);
         long adjustedMax = Math.min(requestedLimit, allowedMax - 1);
         if (adjustedMax != requestedLimit) {
-            String msg = "requested forecast limit [" +
+            String msg = "requested forecast memory limit [" +
                 requestedLimit +
-                "] exceeded [" + allowedMax +
-                "] (40% of the anomaly job memory limit). Reducing to allowed maximum before running forecast.";
+                "] bytes is greater than or equal to [" + allowedMax +
+                "] bytes (40% of the job memory limit). Reducing to [" + adjustedMax + "].";
             logger.warn("[{}] {}", job.getId(), msg);
             auditor.warning(job.getId(), msg);
         }
@@ -175,14 +174,5 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
                                 + duration.getStringRep() + "/" + bucketSpan.getStringRep() + "]");
             }
         }
-
-        if (request.getMaxModelMemory() != null) {
-            if (request.getMaxModelMemory() >= FORECAST_LOCAL_STORAGE_LIMIT.getBytes()) {
-                throw ExceptionsHelper.badRequestException(
-                    "[{}] must be less than 500MB",
-                    ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName());
-            }
-        }
-
     }
 }

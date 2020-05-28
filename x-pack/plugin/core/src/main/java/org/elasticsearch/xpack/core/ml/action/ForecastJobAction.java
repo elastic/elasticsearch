@@ -14,14 +14,17 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,8 +44,11 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
         public static final ParseField MAX_MODEL_MEMORY = new ParseField("max_model_memory");
 
+        public static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
+
         // Max allowed duration: 10 years
         private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("3650d", "");
+        private static final long MIN_MODEL_MEMORY = new ByteSizeValue(1, ByteSizeUnit.MB).getBytes();
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -56,7 +62,7 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
                 } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                     return p.longValue();
                 }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+                throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
             }, MAX_MODEL_MEMORY, ObjectParser.ValueType.VALUE);
         }
 
@@ -135,8 +141,14 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
         }
 
         public void setMaxModelMemory(long numBytes) {
-            if (numBytes <= 0) {
-                throw new IllegalArgumentException("[" + MAX_MODEL_MEMORY.getPreferredName() + "] must be positive.");
+            if (numBytes < MIN_MODEL_MEMORY) {
+                throw new IllegalArgumentException("[" + MAX_MODEL_MEMORY.getPreferredName() + "] must be at least 1mb.");
+            }
+            if (numBytes >= FORECAST_LOCAL_STORAGE_LIMIT.getBytes()) {
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] must be less than {}",
+                    MAX_MODEL_MEMORY.getPreferredName(),
+                    FORECAST_LOCAL_STORAGE_LIMIT.getStringRep());
             }
             this.maxModelMemory = numBytes;
         }

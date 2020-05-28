@@ -73,7 +73,12 @@ public class TransportForecastJobActionRequestTests extends ESTestCase {
                 jobBuilder.build(),
                 new ByteSizeValue(20, ByteSizeUnit.MB).getBytes(),
                 auditor),
-                is(nullValue()));
+                equalTo(new ByteSizeValue(20, ByteSizeUnit.MB).getBytes()));
+            assertThat(TransportForecastJobAction.getAdjustedMemoryLimit(
+                jobBuilder.build(),
+                new ByteSizeValue(499, ByteSizeUnit.MB).getBytes(),
+                auditor),
+                equalTo(new ByteSizeValue(499, ByteSizeUnit.MB).getBytes()));
         }
 
         {

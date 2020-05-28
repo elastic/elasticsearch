@@ -59,7 +59,7 @@ public class RestForecastJobAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName())) {
                 long limit = ByteSizeValue.parseBytesSizeValue(
-                    restRequest.param(ForecastJobAction.Request.EXPIRES_IN.getPreferredName()),
+                    restRequest.param(ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName()),
                     ForecastJobAction.Request.MAX_MODEL_MEMORY.getPreferredName()
                 ).getBytes();
                 request.setMaxModelMemory(limit);

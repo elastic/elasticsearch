@@ -37,7 +37,7 @@ public class GeoShapeField extends SourceField {
     public Object[] value(SearchHit hit) {
         Object[] value = super.value(hit);
         if (value.length == 0) {
-            return new Object[0];
+            return value;
         }
         if (value.length > 1) {
             throw new IllegalStateException("Unexpected values for a geo_shape field: " + Arrays.toString(value));

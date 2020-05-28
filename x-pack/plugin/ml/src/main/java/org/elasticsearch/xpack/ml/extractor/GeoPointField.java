@@ -25,7 +25,7 @@ public class GeoPointField extends DocValueField {
     public Object[] value(SearchHit hit) {
         Object[] value = super.value(hit);
         if (value.length == 0) {
-            return new Object[0];
+            return value;
         }
         if (value.length > 1) {
             throw new IllegalStateException("Unexpected values for a geo_point field: " + Arrays.toString(value));

@@ -1,10 +1,14 @@
+import org.elasticsearch.gradle.precommit.ThirdPartyAuditPrecommitPlugin
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask
+
 
 plugins {
   id 'java'
   // bring in build-tools onto the classpath
   id 'elasticsearch.global-build-info' apply false
 }
+
+plugins.apply(ThirdPartyAuditPrecommitPlugin)
 
 repositories {
   /**
@@ -23,12 +27,10 @@ repositories {
   jcenter()
 }
 
-configurations.register("forbiddenApisCliJar")
-
 dependencies {
   forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
   compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
-  compile "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
+  implementation "org.${project.properties.compileGroup}:${project.properties.compileVersion}"
 }
 
 tasks.register("empty", ThirdPartyAuditTask) {

@@ -1,14 +1,23 @@
 ---
 "Roll over a data stream":
   - skip:
-      version: " - 7.8.99"
-      reason:  "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason:  "mute bwc until backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream:
+            timestamp_field: '@timestamp'
 
   - do:
       indices.create_data_stream:
         name: data-stream-for-rollover
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   # rollover data stream to create new backing index

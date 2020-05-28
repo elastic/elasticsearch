@@ -226,11 +226,20 @@ The API returns the following response:
 ===== Roll over a data stream
 
 [source,console]
+-----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+-----------------------------------
+// TEST
+
+[source,console]
 --------------------------------------------------
 PUT /_data_stream/my-data-stream <1>
-{
-  "timestamp_field": "date"
-}
 
 # Add > 1000 documents to my-data-stream
 
@@ -243,6 +252,7 @@ POST /my-data-stream/_rollover <2>
   }
 }
 --------------------------------------------------
+// TEST[continued]
 // TEST[setup:huge_twitter]
 // TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"my-data-stream-000001"}}/]
 <1> Creates a data stream called `my-data-stream` with one initial backing index
@@ -286,6 +296,7 @@ The API returns the following response:
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
+DELETE /_index_template/*
 -----------------------------------
 // TEST[continued]
 ////

@@ -149,7 +149,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
     private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
 
-    /** Adds repositories used by ES dependencies */
+    /**
+     * Adds repositories used by ES dependencies
+     */
     public static void configureRepositories(Project project) {
         // ensure all repositories use secure urls
         // TODO: remove this with gradle 7.0, which no longer allows insecure urls
@@ -216,7 +218,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         }
     }
 
-    /** Adds compiler settings to the project */
+    /**
+     * Adds compiler settings to the project
+     */
     public static void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
 
@@ -467,8 +471,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                     // we put all our distributable files under distributions
                     jarTask.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"));
                     // fixup the jar manifest
-                    jarTask.doFirst(
-                        t -> {
+                    // Explicitly using an Action interface as java lambdas
+                    // are not supported by Gradle up-to-date checks
+                    jarTask.doFirst(new Action<Task>() {
+                        @Override
+                        public void execute(Task task) {
                             // this doFirst is added before the info plugin, therefore it will run
                             // after the doFirst added by the info plugin, and we can override attributes
                             jarTask.getManifest()
@@ -481,7 +488,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                                     )
                                 );
                         }
-                    );
+                    });
                 }
             );
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {

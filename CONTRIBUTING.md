@@ -37,7 +37,7 @@ Contributing code and documentation changes
 If you would like to contribute a new feature or a bug fix to Elasticsearch,
 please discuss your idea first on the Github issue. If there is no Github issue
 for your idea, please open one. It may be that somebody is already working on
-it, or that there are particular issues that you should know about before
+it, or that there are particular complexities that you should know about before
 starting the implementation. There are often a number of ways to fix a problem
 and it is important to find the right approach before spending time on a PR
 that cannot be merged.

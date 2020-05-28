@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -257,30 +258,31 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         if (reduceContext.isFinalReduce()) {
             final int size = Math.min(requiredSize, buckets.size());
             CircuitBreaker requestBreaker = reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
-        try (BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(null),
-            bytes -> requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "<internal-terms-coordinator-reduce [" + name + "]>"))) {
-            for (List<B> sameTermBuckets : buckets.values()) {
-                final B b = reduceBucket(sameTermBuckets, reduceContext);
-                if (sumDocCountError == -1) {
-                    b.docCountError = -1;
-                } else {
-                    b.docCountError += sumDocCountError;
-                }
-                if (b.docCount >= minDocCount) {
-                    B removed = ordered.insertWithOverflow(b);
-                    if (removed != null) {
-                        otherDocCount += removed.getDocCount();
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+            try (BucketPriorityQueue<B> ordered = new BucketPriorityQueue<>(size, order.comparator(),
+                bytes -> requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "<internal-terms-coordinator-reduce [" + name + "]>"))) {
+                for (List<B> sameTermBuckets : buckets.values()) {
+                    final B b = reduceBucket(sameTermBuckets, reduceContext);
+                    if (sumDocCountError == -1) {
+                        b.docCountError = -1;
                     } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
+                        b.docCountError += sumDocCountError;
                     }
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
+                    if (b.docCount >= minDocCount) {
+                        B removed = ordered.insertWithOverflow(b);
+                        if (removed != null) {
+                            otherDocCount += removed.getDocCount();
+                            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                        } else {
+                            reduceContext.consumeBucketsAndMaybeBreak(1);
+                        }
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
+                    }
                 }
-            }
-            list = createBucketsArray(ordered.size());
-            for (int i = ordered.size() - 1; i >= 0; i--) {
-                list[i] = ordered.pop();
+                list = createBucketsArray(ordered.size());
+                for (int i = ordered.size() - 1; i >= 0; i--) {
+                    list[i] = ordered.pop();
+                }
             }
         } else {
             // keep all buckets on partial reduce

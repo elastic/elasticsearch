@@ -113,7 +113,7 @@ public class LongTermsAggregator extends TermsAggregator {
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
             if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false ||
-                    bucketsInOrd < bucketCountThresholds.getRequiredSize())) {
+                bucketsInOrd < bucketCountThresholds.getRequiredSize())) {
                 // we need to fill-in the blanks
                 for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                     final SortedNumericDocValues values = getValues(valuesSource, ctx);
@@ -134,34 +134,34 @@ public class LongTermsAggregator extends TermsAggregator {
 
             final int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
             try (BucketPriorityQueue<LongTerms.Bucket> ordered
-                 = new BucketPriorityQueue<>(size, order.comparator(this), this::addRequestCircuitBreakerBytes)) {
-            LongTerms.Bucket spare = null;
-            BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            while (ordsEnum.next()) {
-                if (spare == null) {
-                    spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
-                }
-                spare.term = ordsEnum.value();
-                spare.docCount = bucketDocCount(ordsEnum.ord());
-                otherDocCounts[ordIdx] += spare.docCount;
-                spare.bucketOrd = ordsEnum.ord();
-                if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                    spare = ordered.insertWithOverflow(spare);
+                     = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator, this::addRequestCircuitBreakerBytes)) {
+                LongTerms.Bucket spare = null;
+                BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                while (ordsEnum.next()) {
                     if (spare == null) {
-                        consumeBucketsAndMaybeBreak(1);
+                        spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
+                    }
+                    spare.term = ordsEnum.value();
+                    spare.docCount = bucketDocCount(ordsEnum.ord());
+                    otherDocCounts[ordIdx] += spare.docCount;
+                    spare.bucketOrd = ordsEnum.ord();
+                    if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                        spare = ordered.insertWithOverflow(spare);
+                        if (spare == null) {
+                            consumeBucketsAndMaybeBreak(1);
+                        }
                     }
                 }
-            }
 
-            // Get the top buckets
-            LongTerms.Bucket[] list = topBucketsPerOrd[ordIdx] = new LongTerms.Bucket[ordered.size()];
-            for (int b = ordered.size() - 1; b >= 0; --b) {
-                list[b] = ordered.pop();
-                list[b].docCountError = 0;
-                otherDocCounts[ordIdx] -= list[b].docCount;
+                // Get the top buckets
+                LongTerms.Bucket[] list = topBucketsPerOrd[ordIdx] = new LongTerms.Bucket[ordered.size()];
+                for (int b = ordered.size() - 1; b >= 0; --b) {
+                    list[b] = ordered.pop();
+                    list[b].docCountError = 0;
+                    otherDocCounts[ordIdx] -= list[b].docCount;
+                }
             }
         }
-
         buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
 
         InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];

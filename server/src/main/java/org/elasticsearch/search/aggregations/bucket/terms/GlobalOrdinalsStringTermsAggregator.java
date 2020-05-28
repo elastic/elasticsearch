@@ -179,52 +179,54 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         long otherDocCount = 0;
+        final StringTerms.Bucket[] list;
         try (BucketPriorityQueue<OrdBucket> ordered
-                 = new BucketPriorityQueue<>(size, order.comparator(this), this::addRequestCircuitBreakerBytes)) {
-        OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
-        final boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
-        final long maxId = needsFullScan ? valueCount : bucketOrds.size();
-        for (long ord = 0; ord < maxId; ord++) {
-            final long globalOrd;
-            final long bucketOrd;
-            if (needsFullScan) {
-                bucketOrd = bucketOrds == null ? ord : bucketOrds.find(ord);
-                globalOrd = ord;
-            } else {
-                assert bucketOrds != null;
-                bucketOrd = ord;
-                globalOrd = bucketOrds.get(ord);
-            }
-            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalOrd)) {
-                continue;
-            }
-            final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
-            if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
-                continue;
-            }
-            otherDocCount += bucketDocCount;
-            spare.globalOrd = globalOrd;
-            spare.bucketOrd = bucketOrd;
-            spare.docCount = bucketDocCount;
-            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = ordered.insertWithOverflow(spare);
-                if (spare == null) {
-                    consumeBucketsAndMaybeBreak(1);
-                    spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
+                 = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator, this::addRequestCircuitBreakerBytes)) {
+            OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
+            final boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
+            final long maxId = needsFullScan ? valueCount : bucketOrds.size();
+            for (long ord = 0; ord < maxId; ord++) {
+                final long globalOrd;
+                final long bucketOrd;
+                if (needsFullScan) {
+                    bucketOrd = bucketOrds == null ? ord : bucketOrds.find(ord);
+                    globalOrd = ord;
+                } else {
+                    assert bucketOrds != null;
+                    bucketOrd = ord;
+                    globalOrd = bucketOrds.get(ord);
+                }
+                if (includeExclude != null && !acceptedGlobalOrdinals.get(globalOrd)) {
+                    continue;
+                }
+                final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
+                if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
+                    continue;
+                }
+                otherDocCount += bucketDocCount;
+                spare.globalOrd = globalOrd;
+                spare.bucketOrd = bucketOrd;
+                spare.docCount = bucketDocCount;
+                if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                    spare = ordered.insertWithOverflow(spare);
+                    if (spare == null) {
+                        consumeBucketsAndMaybeBreak(1);
+                        spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
+                    }
                 }
             }
-        }
 
-        // Get the top buckets
-        final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; --i) {
-            final OrdBucket bucket = ordered.pop();
-            BytesRef scratch = new BytesRef();
-            copy(lookupGlobalOrd.apply(bucket.globalOrd), scratch);
-            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0, format);
-            list[i].bucketOrd = bucket.bucketOrd;
-            otherDocCount -= list[i].docCount;
-            list[i].docCountError = 0;
+            // Get the top buckets
+            list = new StringTerms.Bucket[ordered.size()];
+            for (int i = ordered.size() - 1; i >= 0; --i) {
+                final OrdBucket bucket = ordered.pop();
+                BytesRef scratch = new BytesRef();
+                copy(lookupGlobalOrd.apply(bucket.globalOrd), scratch);
+                list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0, format);
+                list[i].bucketOrd = bucket.bucketOrd;
+                otherDocCount -= list[i].docCount;
+                list[i].docCountError = 0;
+            }
         }
         buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
 

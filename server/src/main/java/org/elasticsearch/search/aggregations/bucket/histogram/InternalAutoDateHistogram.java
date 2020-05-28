@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -319,7 +318,7 @@ public final class InternalAutoDateHistogram extends
                     pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
                 }
             }
-        }
+
 
             if (pq.size() > 0) {
                 // list of buckets coming from different shards that have the same key

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
@@ -50,11 +51,13 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;
     private IntArray docCounts;
+    private final CircuitBreaker breaker;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, metadata);
         bigArrays = context.bigArrays();
+        breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         docCounts = bigArrays.newIntArray(1, true);
     }
 
@@ -84,6 +87,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+        if (doc == 1) {
+            breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+        }
         docCounts.increment(bucketOrd, 1);
         subCollector.collect(doc, bucketOrd);
     }

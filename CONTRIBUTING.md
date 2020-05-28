@@ -42,6 +42,10 @@ starting the implementation. There are often a number of ways to fix a problem
 and it is important to find the right approach before spending time on a PR
 that cannot be merged.
 
+We add the `help wanted` label to existing Github issues for which community
+contributions are particularly welcome, and we use the `good first issue` label
+to mark issues that we think will be suitable for new contributors.
+
 The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
 
 ### Fork and clone the repository
@@ -587,47 +591,49 @@ appropriate branches ourselves.
 We really appreciate everyone who is interested in contributing to
 Elasticsearch and regret that we sometimes have to reject contributions even
 when they might appear to make genuine improvements to the system. Reviewing
-contributions can be a very time-consuming task, yet the review team is small
-and our time is very limited. In some cases the time we would need to spend on
-reviews would outweigh the benefits of a change by a significant margin.
+contributions can be a very time-consuming task, yet the team is small and our
+time is very limited. In some cases the time we would need to spend on reviews
+would outweigh the benefits of a change by a significant margin.
 
-We strongly recommend you discuss your change in a Github issue before spending
-much time on its implementation. We may have to reject your contribution if it
-takes the wrong approach to solving a problem or if it solves a problem that
-does not need solving. We do not enjoy seeing time wasted like that.
+Please discuss your change in a Github issue before spending much time on its
+implementation. We sometimes have to reject contributions that duplicate other
+efforts, take the wrong approach to solving a problem, or solve a problem which
+does not need solving. An up-front discussion would have saved a good deal of
+wasted time in these cases.
 
-We often reject contributions due to the low quality of the submission since
-low-quality submissions tend to take unreasonable effort to review properly.
-Quality is rather subjective so it is hard to describe exactly how to avoid
-this, but there are some basic steps you can take to reduce the chances of
-rejection. Follow the guidelines listed above when preparing your changes. Your
-PR must at least pass the test suite and you must add tests that correspond
-with your changes too. The code must be formatted neatly and must not include
-unnecessary extra changes since these can consume a lot of extra effort during
-reviews.
+We normally immediately reject isolated PRs that only perform simple
+refactorings or otherwise "tidy up" certain aspects of the code. We think the
+benefits of this kind of change are very small, and in our experience it is not
+worth investing the substantial effort needed to review them. This especially
+includes changes suggested by tools.
 
-We sometimes reject contributions if we find ourselves performing a lot of
-review iterations without making significant progress. This usually indicates
-that there are a large number of small or superficial issues that we would
-normally expect to be addressed ahead of a review, and dealing with these
-leaves us with less time to consider the deeper implications of your changes.
-It is a good idea to review your contribution yourself or in your own team
-before asking us for a review. You may be surprised how many comments you can
-anticipate and address by taking a short break and then carefully looking over
-your changes again.
+We sometimes reject contributions due to the low quality of the submission
+since low-quality submissions tend to take unreasonable effort to review
+properly. Quality is rather subjective so it is hard to describe exactly how to
+avoid this, but there are some basic steps you can take to reduce the chances
+of rejection. Follow the guidelines listed above when preparing your changes.
+You should add tests that correspond with your changes, and your PR should pass
+the full test suite too. It makes it much easier to review if your code is
+formatted correctly and does not include unnecessary extra changes.
 
-We expect you to follow up on review comments reasonably promptly, but
-recognise that everyone has many priorities for their time and may not be able
-to respond for several days. We will understand if you find yourself without
-the time to complete your contribution, but please let us know that you have
-stopped working on it. We will try to send you a reminder if we haven't heard
-from you in a while, but may end up closing your PR if you do not respond for
-too long.
+We sometimes reject contributions if we find ourselves performing many review
+iterations without making significant progress. Some iteration is expected,
+particularly on technically complicated changes, and there's no fixed limit on
+the acceptable number of review cycles since it depends so much on the nature
+of the change. However some contributions consume too much review time on
+superficial issues, leaving us with less time to consider their deeper
+implications and ultimately outweighing their benefits. It is a good idea to
+review your contribution yourself or in your own team before asking us for a
+review. You may be surprised how many comments you can anticipate and address
+by taking a short break and then carefully looking over your changes again.
 
-We almost always reject isolated PRs that perform simple refactorings or
-otherwise "tidy up" certain aspects of the code. Reviewing this kind of change
-takes substantial effort, outweighing its benefits by a wide margin. This
-especially includes changes suggested by tools.
+We expect you to follow up on review comments somewhat promptly, but recognise
+that everyone has many priorities for their time and may not be able to respond
+for several days. We will understand if you find yourself without the time to
+complete your contribution, but please let us know that you have stopped
+working on it. We will try to send you a reminder if we haven't heard from you
+in a while, but may end up closing your PR if you do not respond for too long.
+
 
 Contributing as part of a class
 -------------------------------

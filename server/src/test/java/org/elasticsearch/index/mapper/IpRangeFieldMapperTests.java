@@ -20,10 +20,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -79,5 +82,15 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
                     InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
             assertThat(storedField.stringValue(), containsString(strVal));
         }
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP).build(context);
+        Map<String, Object> range = Map.of("gte", "2001:db8:0:0:0:0:2:1");
+        assertEquals(Map.of("gte", "2001:db8::2:1"), mapper.parseSourceValue(range));
+        assertEquals("2001:db8::2:1/32", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1/32"));
     }
 }

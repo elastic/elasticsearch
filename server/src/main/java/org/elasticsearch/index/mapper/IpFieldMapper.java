@@ -401,6 +401,12 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected String parseSourceValue(Object value) {
+        InetAddress address = InetAddresses.forString(value.toString());
+        return InetAddresses.toAddrString(address);
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         IpFieldMapper mergeWith = (IpFieldMapper) other;
         if (mergeWith.nullValue != this.nullValue) {

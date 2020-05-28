@@ -49,7 +49,9 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -1330,5 +1332,17 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         mapper = indexService.mapperService().merge("_doc",
                 new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        FieldMapper fieldMapper = newBuilder().build(context);
+        TextFieldMapper mapper = (TextFieldMapper) fieldMapper;
+
+        assertEquals("value", mapper.parseSourceValue("value"));
+        assertEquals("42", mapper.parseSourceValue(42L));
+        assertEquals("true", mapper.parseSourceValue(true));
     }
 }

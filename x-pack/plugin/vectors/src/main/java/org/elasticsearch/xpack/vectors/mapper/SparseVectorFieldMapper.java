@@ -137,10 +137,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
-
     @Override
     protected void parseCreateField(ParseContext context) {
         throw new IllegalStateException("parse is implemented directly");
+    }
+
+    @Override
+    protected Object parseSourceValue(Object value) {
+        throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 
     @Override

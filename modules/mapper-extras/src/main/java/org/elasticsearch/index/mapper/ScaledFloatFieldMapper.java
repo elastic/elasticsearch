@@ -474,6 +474,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return doubleValue;
     }
 
+    @Override
+    protected Double parseSourceValue(Object value) {
+        double doubleValue = objectToDouble(value);
+        double scalingFactor = fieldType().getScalingFactor();
+        return Math.round(doubleValue * scalingFactor) / scalingFactor;
+    }
+
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {
 
         private final IndexNumericFieldData scaledFieldData;

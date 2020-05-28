@@ -384,4 +384,17 @@ public class InetAddresses {
             throw new IllegalArgumentException("Expected [ip/prefix] but was [" + maskedAddress + "]");
         }
     }
+
+    /**
+     * Given an address and prefix length, returns the string representation of the range in CIDR notation.
+     *
+     * See {@link #toAddrString} for details on how the address is represented.
+     */
+    public static String toCidrString(InetAddress address, int prefixLength) {
+        return new StringBuilder()
+            .append(toAddrString(address))
+            .append("/")
+            .append(prefixLength)
+            .toString();
+    }
 }

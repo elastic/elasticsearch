@@ -531,6 +531,15 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    @Override
+    protected List<?> parseSourceValue(Object value) {
+        if (value instanceof List) {
+            return (List<?>) value;
+        } else {
+            return List.of(value);
+        }
+    }
+
     static class CompletionInputMetadata {
         public final String input;
         public final Map<String, Set<String>> contexts;

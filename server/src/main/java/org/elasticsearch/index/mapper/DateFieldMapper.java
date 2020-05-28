@@ -53,6 +53,7 @@ import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -268,6 +269,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             return dateMathParser;
         }
 
+        // Visible for testing.
         public long parse(String value) {
             return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
@@ -541,6 +543,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    @Override
+    public String parseSourceValue(Object value) {
+        String date = value.toString();
+        long timestamp = fieldType().parse(date);
+
+        ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
+        return fieldType().dateTimeFormatter().format(dateTime);
+    }
 
     public boolean getIgnoreMalformed() {
         return ignoreMalformed;

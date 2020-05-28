@@ -6,10 +6,14 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -22,7 +26,8 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
+        return Collections.singletonList(
+            new Route(DELETE, MachineLearning.BASE_PATH + "_delete_expired_data/{" + Fields.JOB_ID.getPreferredName() + "}"));
     }
 
     @Override
@@ -41,6 +46,11 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        String jobId = restRequest.param(Job.ID.getPreferredName());
+        if (Strings.isNullOrEmpty(jobId)) {
+            jobId = Metadata.ALL;
+        }
+
         DeleteExpiredDataAction.Request request = restRequest.hasContent() ?
             DeleteExpiredDataAction.Request.PARSER.apply(restRequest.contentParser(), null) :
             new DeleteExpiredDataAction.Request();

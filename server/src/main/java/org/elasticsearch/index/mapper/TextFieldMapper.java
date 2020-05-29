@@ -770,6 +770,7 @@ public class TextFieldMapper extends FieldMapper {
                 CoreValuesSourceType.BYTES
             );
         }
+
     }
 
     private int positionIncrementGap;

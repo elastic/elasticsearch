@@ -126,6 +126,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
     }
 
     @Override
+    protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
+
+    }
+
+    @Override
     protected void addStoredFields(ParseContext context, Geometry geometry) {
         // noop: we currently do not store geo_shapes
         // @todo store as geojson string?

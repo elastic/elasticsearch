@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 public class NioCorsHandler extends ChannelDuplexHandler {
 
     public static final String ANY_ORIGIN = "*";
-    private static Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
+    private static final Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
 
     private final CorsHandler.Config config;
     private NioHttpRequest request;
@@ -94,20 +94,20 @@ public class NioCorsHandler extends ChannelDuplexHandler {
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         assert msg instanceof NioHttpResponse : "Invalid message type: " + msg.getClass();
         NioHttpResponse response = (NioHttpResponse) msg;
-        setCorsResponseHeaders(response.getRequest().nettyRequest(), response, config);
+        setCorsResponseHeaders(response.requestHeaders(), response, config);
         ctx.write(response, promise);
     }
 
-    public static void setCorsResponseHeaders(HttpRequest request, HttpResponse resp, CorsHandler.Config config) {
+    public static void setCorsResponseHeaders(HttpHeaders headers, HttpResponse resp, CorsHandler.Config config) {
         if (!config.isCorsSupportEnabled()) {
             return;
         }
-        String originHeader = request.headers().get(HttpHeaderNames.ORIGIN);
+        String originHeader = headers.get(HttpHeaderNames.ORIGIN);
         if (!Strings.isNullOrEmpty(originHeader)) {
             final String originHeaderVal;
             if (config.isAnyOriginSupported()) {
                 originHeaderVal = ANY_ORIGIN;
-            } else if (config.isOriginAllowed(originHeader) || isSameOrigin(originHeader, request.headers().get(HttpHeaderNames.HOST))) {
+            } else if (config.isOriginAllowed(originHeader) || isSameOrigin(originHeader, headers.get(HttpHeaderNames.HOST))) {
                 originHeaderVal = originHeader;
             } else {
                 originHeaderVal = null;

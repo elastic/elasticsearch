@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -106,13 +109,18 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
             .put(metadata.persistentSettings())
             .put(UNSAFE_BOOTSTRAP.getKey(), true)
             .build();
-        Metadata newMetadata = Metadata.builder(metadata)
+        Metadata.Builder newMetadata = Metadata.builder(metadata)
             .clusterUUID(Metadata.UNKNOWN_CLUSTER_UUID)
             .generateClusterUuidIfNeeded()
             .clusterUUIDCommitted(true)
             .persistentSettings(persistentSettings)
-            .coordinationMetadata(newCoordinationMetadata)
-            .build();
+            .coordinationMetadata(newCoordinationMetadata);
+        for (ObjectCursor<IndexMetadata> idx : metadata.indices().values()) {
+            IndexMetadata indexMetadata = idx.value;
+            newMetadata.put(IndexMetadata.builder(indexMetadata).settings(
+                Settings.builder().put(indexMetadata.getSettings())
+                    .put(IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID())));
+        }
 
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
             .metadata(newMetadata).build();

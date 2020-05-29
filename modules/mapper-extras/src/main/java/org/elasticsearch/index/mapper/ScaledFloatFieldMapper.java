@@ -214,14 +214,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (scalingFactor != ((ScaledFloatFieldType) other).getScalingFactor()) {
-                conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
-            }
-        }
-
-        @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
@@ -450,14 +442,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        ScaledFloatFieldMapper other = (ScaledFloatFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ScaledFloatFieldMapper mergeWith = (ScaledFloatFieldMapper) other;
+        ScaledFloatFieldType ft = (ScaledFloatFieldType) other.fieldType();
+        if (fieldType().scalingFactor != ft.getScalingFactor()) {
+            conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
         }
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+        if (mergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = mergeWith.ignoreMalformed;
+        }
+        if (mergeWith.coerce.explicit()) {
+            this.coerce = mergeWith.coerce;
         }
     }
 

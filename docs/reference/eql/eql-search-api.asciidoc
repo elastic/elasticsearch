@@ -33,7 +33,7 @@ PUT /my_index/_bulk?refresh
 
 [source,console]
 ----
-GET my_index/_eql/search
+GET /my_index/_eql/search
 {
   "query": """
     process where process.name = "regsvr32.exe"
@@ -298,7 +298,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ==== {api-examples-title}
 
 [[eql-search-api-basic-query-ex]]
-==== Basic query example
+===== Basic query example
 
 The following EQL search request searches for events with an `event.category` of
 `file` that meet the following conditions:
@@ -308,7 +308,7 @@ The following EQL search request searches for events with an `event.category` of
 
 [source,console]
 ----
-GET my_index/_eql/search
+GET /my_index/_eql/search
 {
   "query": """
     file where (file.name == "cmd.exe" and agent.id != "my_user")
@@ -395,7 +395,7 @@ in ascending order.
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
 
 [[eql-search-api-sequence-ex]]
-==== Sequence query example
+===== Sequence query example
 
 The following EQL search request matches a <<eql-sequences,sequence>> of events
 that:
@@ -418,7 +418,7 @@ These events must also share the same `agent.id` value.
 
 [source,console]
 ----
-GET my_index/_eql/search
+GET /my_index/_eql/search
 {
   "query": """
     sequence by agent.id

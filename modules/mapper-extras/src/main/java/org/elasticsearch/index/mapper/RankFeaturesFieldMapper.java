@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -125,6 +126,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     @Override
     protected RankFeaturesFieldMapper clone() {
         return (RankFeaturesFieldMapper) super.clone();
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

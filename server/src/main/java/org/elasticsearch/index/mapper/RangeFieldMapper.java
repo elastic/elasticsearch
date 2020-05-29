@@ -54,6 +54,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -209,7 +210,7 @@ public class RangeFieldMapper extends FieldMapper {
         public RangeType rangeType() { return rangeType; }
 
         @Override
-        public MappedFieldType clone() {
+        public RangeFieldType clone() {
             return new RangeFieldType(this);
         }
 
@@ -402,11 +403,10 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        RangeFieldMapper other = (RangeFieldMapper) mergeWith;
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        RangeFieldMapper mergeWith = (RangeFieldMapper) other;
+        if (mergeWith.coerce.explicit()) {
+            this.coerce = mergeWith.coerce;
         }
     }
 

@@ -1019,7 +1019,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getNodes(), not(empty()));
 
             //tag::clear-privileges-cache-response
-            List<ClearPrivilegesCacheResponse.Node> nodes = response.getNodes(); // <2>
+            List<ClearPrivilegesCacheResponse.Node> nodes = response.getNodes(); // <1>
             //end::clear-privileges-cache-response
         }
 

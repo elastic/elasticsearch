@@ -134,7 +134,8 @@ public class NativePrivilegeStore {
         Set<String> concreteApplicationNames = applicationNamesCache.get(applicationNamesCacheKey);
 
         if (concreteApplicationNames != null && concreteApplicationNames.size() == 0) {
-            logger.debug("returning empty application privileges as application names result in empty list");
+            logger.debug("returning empty application privileges for [{}] as application names result in empty list",
+                applicationNamesCacheKey);
             listener.onResponse(Collections.emptySet());
         } else {
             final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = cachedDescriptorsForApplicationNames(

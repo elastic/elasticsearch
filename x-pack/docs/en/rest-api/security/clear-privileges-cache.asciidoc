@@ -6,6 +6,7 @@
 ++++
 
 Evicts privileges from the native application privilege cache.
+The cache is also automatically cleared for applications that have their privileges updated.
 
 [[security-api-clear-privilege-cache-request]]
 ==== {api-request-title}

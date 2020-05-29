@@ -42,7 +42,7 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
         return applicationNames;
     }
 
-    public boolean isClearRolesCache() {
+    public boolean clearRolesCache() {
         return clearRolesCache;
     }
 
@@ -72,7 +72,7 @@ public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilege
             return applicationNames;
         }
 
-        public boolean isClearRolesCache() {
+        public boolean clearRolesCache() {
             return clearRolesCache;
         }
 

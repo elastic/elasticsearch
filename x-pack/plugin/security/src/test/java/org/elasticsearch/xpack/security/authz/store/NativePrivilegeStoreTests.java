@@ -61,6 +61,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -156,7 +157,9 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
-        assertThat(query, containsString("{\"terms\":{\"application\":[\"myapp\",\"yourapp\"]"));
+        assertThat(query, anyOf(
+            containsString("{\"terms\":{\"application\":[\"myapp\",\"yourapp\"]"),
+            containsString("{\"terms\":{\"application\":[\"yourapp\",\"myapp\"]")));
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);

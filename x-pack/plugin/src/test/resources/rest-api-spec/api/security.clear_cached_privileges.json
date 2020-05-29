@@ -14,8 +14,8 @@
           ],
           "parts":{
             "application":{
-              "type":"string",
-              "description":"Application name"
+              "type":"list",
+              "description":"A comma-separated list of application names"
             }
           }
         }

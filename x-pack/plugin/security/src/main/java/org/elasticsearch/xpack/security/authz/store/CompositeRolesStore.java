@@ -410,7 +410,6 @@ public class CompositeRolesStore {
             final Set<String> applicationPrivilegeNames = applicationPrivilegesMap.values().stream()
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
-            // Role itself is cached, so skipping caching for application privileges
             privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, ActionListener.wrap(appPrivileges -> {
                 applicationPrivilegesMap.forEach((key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
                     .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2())));

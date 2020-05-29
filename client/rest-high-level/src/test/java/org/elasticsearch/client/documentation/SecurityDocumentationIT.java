@@ -1009,7 +1009,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             //tag::clear-privileges-cache-request
-            ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest("my_app");
+            ClearPrivilegesCacheRequest request = new ClearPrivilegesCacheRequest("my_app"); // <1>
             //end::clear-privileges-cache-request
             //tag::clear-privileges-cache-execute
             ClearPrivilegesCacheResponse response = client.security().clearPrivilegesCache(request, RequestOptions.DEFAULT);
@@ -1019,7 +1019,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getNodes(), not(empty()));
 
             //tag::clear-privileges-cache-response
-            List<ClearPrivilegesCacheResponse.Node> nodes = response.getNodes(); // <1>
+            List<ClearPrivilegesCacheResponse.Node> nodes = response.getNodes(); // <2>
             //end::clear-privileges-cache-response
         }
 

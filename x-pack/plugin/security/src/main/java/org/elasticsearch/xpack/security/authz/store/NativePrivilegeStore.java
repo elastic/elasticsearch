@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,6 +62,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -127,7 +130,7 @@ public class NativePrivilegeStore {
 
         // TODO: We should have a way to express true Zero applications
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*")) ?
-            Set.of("*") : new LinkedHashSet<>(applications);
+            Set.of("*") : Set.copyOf(applications);
 
         // Always fetch for the concrete application names even when the passed-in application names has no wildcard.
         // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
@@ -170,8 +173,7 @@ public class NativePrivilegeStore {
         }
     }
 
-    private void innerGetPrivileges(Collection<String> applications,
-        ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
+    private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
 
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
@@ -199,7 +201,6 @@ public class NativePrivilegeStore {
                         new ParameterizedMessage("Searching for [{}] privileges with query [{}]",
                             applications, Strings.toString(query)));
                     request.indicesOptions().ignoreUnavailable();
-                    // TODO: not parsing source of cached entries?
                     ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener),
                         hit -> buildPrivilege(hit.getId(), hit.getSourceRef()));
                 }
@@ -217,9 +218,9 @@ public class NativePrivilegeStore {
     public void invalidate(Collection<String> updatedApplicationNames) {
         logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
         numInvalidation.incrementAndGet();
+        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
         // Always completely invalidate application names cache due to wildcard
         applicationNamesCache.invalidateAll();
-        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
         uniqueNames.forEach(descriptorsCache::invalidate);
     }
 

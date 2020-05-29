@@ -29,4 +29,5 @@ The returned +{response}+ allows to retrieve information about where the cache w
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> the list of nodes that the cache was cleared on
+<1> the name of the application(s) for which the cache should be cleared
+<2> the list of nodes that the cache was cleared on

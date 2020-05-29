@@ -26,7 +26,6 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
     @Nullable
     private String content;
     private List<String> validRequestIds;
-    @Nullable
     private String realm;
 
     public SamlCompleteLogoutRequest(StreamInput in) throws IOException {
@@ -39,6 +38,9 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
+        if (Strings.hasText(realm) == false) {
+            validationException = addValidationError("realm may not be empty", validationException);
+        }
         if (Strings.hasText(queryString) == false && Strings.hasText(content) == false) {
             validationException = addValidationError("queryString and content may not both be empty", validationException);
         }

@@ -64,7 +64,7 @@ search is ongoing.
 
 `wait_for_completion_timeout`::
 (Optional, <<time-units,time value>>)
-Timeout duration to wait for the request to complete. Defaults to no timeout,
+Timeout duration to wait for the request to finish. Defaults to no timeout,
 meaning the request waits for complete search results.
 +
 If this parameter is specified and the request completes during this period,

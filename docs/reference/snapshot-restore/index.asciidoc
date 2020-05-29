@@ -63,6 +63,10 @@ or 6.x, snapshots of indices created in 2.x **cannot** be restored to 6.x
 or 7.x, and snapshots of indices created in 5.x **cannot** be restored to 7.x
 or 8.x.
 
+We do not recommend restoring snapshots from later {es} versions in earlier
+versions. In some cases, the snapshots cannot be restored. For example, a
+snapshot taken in 7.6.0 cannot be restored to 7.5.0.
+
 Each snapshot can contain indices created in various versions of {es},
 and when restoring a snapshot it must be possible to restore all of the indices
 into the target cluster. If any indices in a snapshot were created in an
@@ -89,5 +93,4 @@ include::take-snapshot.asciidoc[]
 include::restore-snapshot.asciidoc[]
 include::monitor-snapshot-restore.asciidoc[]
 include::../slm/index.asciidoc[]
-
 

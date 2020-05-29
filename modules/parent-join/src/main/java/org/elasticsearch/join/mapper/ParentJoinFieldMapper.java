@@ -34,6 +34,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -85,7 +87,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     public static ParentJoinFieldMapper getMapper(MapperService service) {
         MetaJoinFieldMapper.MetaJoinFieldType fieldType =
             (MetaJoinFieldMapper.MetaJoinFieldType) service.fieldType(MetaJoinFieldMapper.NAME);
-        return fieldType == null ? null : fieldType.getMapper();
+        if (fieldType == null) {
+            return null;
+        }
+        DocumentMapper mapper = service.documentMapper();
+        String joinField = fieldType.getJoinField();
+        DocumentFieldMappers fieldMappers = mapper.mappers();
+        return (ParentJoinFieldMapper) fieldMappers.getMapper(joinField);
     }
 
     private static String getParentIdFieldName(String joinFieldName, String parentName) {
@@ -160,7 +168,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 })
                 .forEach(parentIdFields::add);
             checkParentFields(name(), parentIdFields);
-            MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder().build(context);
+            MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder(name).build(context);
             return new ParentJoinFieldMapper(name, fieldType, context.indexSettings(),
                 unique, Collections.unmodifiableList(parentIdFields), eagerGlobalOrdinals);
         }
@@ -262,7 +270,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
-        this.uniqueFieldMapper.setFieldMapper(this);
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
     }
 
@@ -353,20 +360,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
         this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper);
-        uniqueFieldMapper.setFieldMapper(this);
-    }
-
-    @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        ParentJoinFieldMapper fieldMapper = (ParentJoinFieldMapper) super.updateFieldType(fullNameToFieldType);
-        final List<ParentIdFieldMapper> newMappers = new ArrayList<> ();
-        for (ParentIdFieldMapper mapper : fieldMapper.parentIdFields) {
-            newMappers.add((ParentIdFieldMapper) mapper.updateFieldType(fullNameToFieldType));
-        }
-        fieldMapper.parentIdFields = Collections.unmodifiableList(newMappers);
-        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.updateFieldType(fullNameToFieldType);
-        uniqueFieldMapper.setFieldMapper(this);
-        return fieldMapper;
     }
 
     @Override

@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
@@ -288,7 +289,13 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
 
         final TransformConfig config = request.getConfig();
-        final Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
+        // final Pivot pivot = new Pivot(config.getPivotConfig(), config.getId());
+        Function function;
+        if (config.getPivotConfig() != null) {
+            function = new Pivot(config.getPivotConfig(), config.getId());
+        } else {
+            function = new org.elasticsearch.xpack.transform.transforms.map.Map(config.getMapConfig(), config.getId());
+        }
 
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
@@ -322,7 +329,8 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
         );
 
         try {
-            pivot.validateConfig();
+            function.validateConfig();
+
         } catch (ElasticsearchStatusException e) {
             listener.onFailure(
                 new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, e.status(), e)
@@ -353,7 +361,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
                     return;
                 }
             }
-            pivot.validateQuery(client, config.getSource(), pivotValidationListener);
+            function.validateQuery(client, config.getSource(), pivotValidationListener);
         }
     }
 }

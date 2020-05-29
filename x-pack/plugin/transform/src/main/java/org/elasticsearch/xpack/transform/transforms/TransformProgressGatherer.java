@@ -60,16 +60,18 @@ public final class TransformProgressGatherer {
         SearchRequest request = new SearchRequest(config.getSource().getIndex());
         request.allowPartialSearchResults(false);
         BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
-        config.getPivotConfig()
-            .getGroupConfig()
-            .getGroups()
-            .values()
-            // TODO change once we allow missing_buckets
-            .forEach(src -> {
-                if (src.getField() != null) {
-                    existsClauses.must(QueryBuilders.existsQuery(src.getField()));
-                }
-            });
+        if (config.getPivotConfig() != null) {
+            config.getPivotConfig()
+                .getGroupConfig()
+                .getGroups()
+                .values()
+                // TODO change once we allow missing_buckets
+                .forEach(src -> {
+                    if (src.getField() != null) {
+                        existsClauses.must(QueryBuilders.existsQuery(src.getField()));
+                    }
+                });
+        }
 
         request.source(
             new SearchSourceBuilder().size(0)

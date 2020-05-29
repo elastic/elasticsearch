@@ -229,7 +229,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         ActionListener<Void> finalListener = ActionListener.wrap(r -> {
             try {
-                function = new Pivot(getConfig().getPivotConfig(), getJobId());
+                // todo: super hack
+                if (getConfig().getPivotConfig() != null) {
+                    function = new Pivot(getConfig().getPivotConfig(), getJobId());
+                } else {
+                    function = new org.elasticsearch.xpack.transform.transforms.map.Map(getConfig().getMapConfig(), getJobId());
+                }
+
                 if (isContinuous()) {
                     changeCollector = function.buildChangeCollector(getConfig().getSyncConfig().getField());
                 }
@@ -617,6 +623,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
 
         List<IndexRequest> indexRequests = indexRequestStream.collect(Collectors.toList());
+        logger.info("index requests: {}", indexRequests.size());
         IterationResult<TransformIndexerPosition> result = new IterationResult<>(indexRequests, newPosition, indexRequests.isEmpty());
 
         // NOTE: progress is also mutated in onFinish
@@ -666,7 +673,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder(); // .size(0);
 
         switch (runState) {
             case APPLY_RESULTS:
@@ -710,6 +717,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformConfig config = getConfig();
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
+        function.source(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
         AggregationBuilder aggregation = function.aggregation(position != null ? position.getIndexerPosition() : null, pageSize);
 
         if (aggregation != null) {

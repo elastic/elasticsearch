@@ -6,9 +6,13 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 
 import java.util.Map;
@@ -29,6 +33,8 @@ public interface Function {
      */
     int getInitialPageSize();
 
+    SearchSourceBuilder source(SearchSourceBuilder builder, Map<String, Object> position, int pageSize);
+
     AggregationBuilder aggregation(Map<String, Object> position, int pageSize);
 
     ChangeCollector buildChangeCollector(String synchronizationField);
@@ -44,5 +50,9 @@ public interface Function {
     );
 
     Map<String, Object> getAfterKey(SearchResponse searchResponse);
+
+    void validateQuery(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener);
+
+    void validateConfig();
 
 }

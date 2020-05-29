@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.map.MapConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -46,6 +47,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
+    public static final ParseField MAP_TRANSFORM = new ParseField("map");
 
     private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);
@@ -65,6 +67,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     private Instant createTime;
 
     private final PivotConfig pivotConfig;
+    private final MapConfig mapConfig;
 
     private static void validateStrictParsingParams(Object arg, String parameterName) {
         if (arg != null) {
@@ -98,16 +101,18 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             // on strict parsing do not allow injection of headers, transform version, or create time
             if (lenient == false) {
                 validateStrictParsingParams(args[6], HEADERS.getPreferredName());
-                validateStrictParsingParams(args[10], TransformField.CREATE_TIME.getPreferredName());
-                validateStrictParsingParams(args[11], TransformField.VERSION.getPreferredName());
+                validateStrictParsingParams(args[11], TransformField.CREATE_TIME.getPreferredName());
+                validateStrictParsingParams(args[12], TransformField.VERSION.getPreferredName());
             }
 
             @SuppressWarnings("unchecked")
             Map<String, String> headers = (Map<String, String>) args[6];
 
             PivotConfig pivotConfig = (PivotConfig) args[7];
-            String description = (String) args[8];
-            SettingsConfig settings = (SettingsConfig) args[9];
+            MapConfig mapConfig = (MapConfig) args[8];
+
+            String description = (String) args[9];
+            SettingsConfig settings = (SettingsConfig) args[10];
             return new TransformConfig(
                 id,
                 source,
@@ -116,10 +121,11 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 syncConfig,
                 headers,
                 pivotConfig,
+                mapConfig,
                 description,
                 settings,
-                (Instant) args[10],
-                (String) args[11]
+                (Instant) args[11],
+                (String) args[12]
             );
         });
 
@@ -131,6 +137,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         parser.declareString(optionalConstructorArg(), TransformField.INDEX_DOC_TYPE);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> MapConfig.fromXContent(p, lenient), MAP_TRANSFORM);
         parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareObject(optionalConstructorArg(), (p, c) -> SettingsConfig.fromXContent(p, lenient), TransformField.SETTINGS);
         parser.declareField(
@@ -163,6 +170,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         final SyncConfig syncConfig,
         final Map<String, String> headers,
         final PivotConfig pivotConfig,
+        final MapConfig mapConfig,
         final String description,
         final SettingsConfig settings,
         final Instant createTime,
@@ -175,13 +183,19 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         this.syncConfig = syncConfig;
         this.setHeaders(headers == null ? Collections.emptyMap() : headers);
         this.pivotConfig = pivotConfig;
+        this.mapConfig = mapConfig;
         this.description = description;
         this.settings = settings == null ? new SettingsConfig() : settings;
 
         // at least one function must be defined
-        if (this.pivotConfig == null) {
+        if (this.pivotConfig == null && this.mapConfig == null) {
             throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_NO_TRANSFORM);
         }
+        // check that not both are given
+        if (this.pivotConfig != null && this.mapConfig != null) {
+            throw new IllegalArgumentException("only 1 function allowed");
+        }
+
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
@@ -200,7 +214,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         final String description,
         final SettingsConfig settings
     ) {
-        this(id, source, dest, frequency, syncConfig, headers, pivotConfig, description, settings, null, null);
+        this(id, source, dest, frequency, syncConfig, headers, pivotConfig, null, description, settings, null, null);
     }
 
     public TransformConfig(final StreamInput in) throws IOException {
@@ -228,6 +242,11 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             settings = new SettingsConfig(in);
         } else {
             settings = new SettingsConfig();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo 7.9.0
+            mapConfig = in.readOptionalWriteable(MapConfig::new);
+        } else {
+            mapConfig = null;
         }
     }
 
@@ -281,6 +300,10 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
     public PivotConfig getPivotConfig() {
         return pivotConfig;
+    }
+
+    public MapConfig getMapConfig() {
+        return mapConfig;
     }
 
     @Nullable
@@ -346,6 +369,9 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         }
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
+        }
+        if (mapConfig != null) {
+            builder.field(MAP_TRANSFORM.getPreferredName(), mapConfig);
         }
         if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
@@ -469,6 +495,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         private Version transformVersion;
         private Instant createTime;
         private PivotConfig pivotConfig;
+        private MapConfig mapConfig;
         private SettingsConfig settings;
 
         public Builder() {}
@@ -531,6 +558,11 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
             return this;
         }
 
+        public Builder setMapConfig(MapConfig mapConfig) {
+            this.mapConfig = mapConfig;
+            return this;
+        }
+
         Builder setVersion(Version version) {
             this.transformVersion = version;
             return this;
@@ -545,6 +577,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 syncConfig,
                 headers,
                 pivotConfig,
+                mapConfig,
                 description,
                 settings,
                 createTime,
@@ -571,6 +604,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 && Objects.equals(this.syncConfig, that.syncConfig)
                 && Objects.equals(this.headers, that.headers)
                 && Objects.equals(this.pivotConfig, that.pivotConfig)
+                && Objects.equals(this.mapConfig, that.mapConfig)
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.settings, that.settings)
                 && Objects.equals(this.createTime, that.createTime)
@@ -587,6 +621,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                 syncConfig,
                 headers,
                 pivotConfig,
+                mapConfig,
                 description,
                 settings,
                 createTime,

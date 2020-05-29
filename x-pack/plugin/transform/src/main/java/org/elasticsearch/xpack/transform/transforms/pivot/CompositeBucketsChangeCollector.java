@@ -213,7 +213,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         CompositeAggregationBuilder changesAgg = this.compositeAggregation;
         changesAgg.size(pageSize).aggregateAfter(position);
         sourceBuilder.aggregation(changesAgg);
-
+        sourceBuilder.size(0);
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
             AggregationBuilder aggregationForField = fieldCollector.aggregateChanges();
 

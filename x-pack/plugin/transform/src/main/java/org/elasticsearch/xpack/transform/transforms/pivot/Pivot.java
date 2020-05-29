@@ -80,6 +80,7 @@ public class Pivot implements Function {
         this.supportsIncrementalBucketUpdate = supportsIncrementalBucketUpdate;
     }
 
+    @Override
     public void validateConfig() {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
@@ -88,6 +89,7 @@ public class Pivot implements Function {
         }
     }
 
+    @Override
     public void validateQuery(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
         SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
 
@@ -153,6 +155,11 @@ public class Pivot implements Function {
 
         logger.trace("Search request: {}", searchRequest);
         return searchRequest;
+    }
+
+    @Override
+    public SearchSourceBuilder source(SearchSourceBuilder builder, Map<String, Object> position, int pageSize) {
+        return builder.size(0);
     }
 
     @Override

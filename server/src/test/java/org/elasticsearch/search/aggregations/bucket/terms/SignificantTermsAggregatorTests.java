@@ -416,12 +416,6 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private NumberFieldMapper.NumberFieldType longField(String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        type.setName(name);
-        return type;
-    }
-
     private void addMixedTextDocs(TextFieldType textFieldType, IndexWriter w) throws IOException {
         for (int i = 0; i < 10; i++) {
             Document doc = new Document();

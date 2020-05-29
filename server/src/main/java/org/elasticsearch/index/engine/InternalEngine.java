@@ -1628,12 +1628,6 @@ public class InternalEngine extends Engine {
             throw new IllegalArgumentException(
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing);
         }
-        /*
-         * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
-         * if we are flushing at the end of the recovery while holding the write lock we can deadlock if:
-         *  Thread 1: flushes via API and gets the flush lock but blocks on the readlock since Thread 2 has the writeLock
-         *  Thread 2: flushes at the end of the recovery holding the writeLock and blocks on the flushLock owned by Thread 1
-         */
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (flushLock.tryLock() == false) {

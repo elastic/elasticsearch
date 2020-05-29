@@ -5,6 +5,17 @@ integTest.runner {
   systemProperty 'tests.ssl.enabled', 'true'
 }
 
+configurations {
+  nodeKeystores
+  clientKeyStores
+}
+
+dependencies {
+  testRuntime(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'certificateJars'))
+  nodeKeystores(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'nodeKeyStores'))
+  clientKeyStores(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'clientKeyStores'))
+}
+
 forbiddenPatterns {
   exclude '**/*.cert'
 }
@@ -37,7 +48,7 @@ tasks.register("resolveKeyStores") {
   }
 }
 
-tasks.withType(org.elasticsearch.gradle.testclusters.TestClustersAware){
+tasks.withType(org.elasticsearch.gradle.testclusters.TestClustersAware).configureEach {
   dependsOn "resolveKeyStores"
 }
 

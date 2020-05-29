@@ -22,7 +22,7 @@ File clientCertificate = file("$keystoreDir/test-client.cert")
 // Generate the client's keystore
 ext.clientKeyStore = file("$keystoreDir/test-client.jks")
 
-tasks.withType(org.elasticsearch.gradle.testclusters.TestClustersAware) {
+tasks.withType(org.elasticsearch.gradle.testclusters.TestClustersAware).configureEach {
   dependsOn "resolveKeyStores"
 }
 

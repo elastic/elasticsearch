@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -58,7 +58,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveV2Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
@@ -173,7 +172,8 @@ public class TransportSimulateIndexTemplateAction
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         // empty request mapping as the user can't specify any explicit mappings via the simulate api
-        Map<String, Object> mappings = resolveV2Mappings("{}", simulatedState, matchingTemplate, xContentRegistry);
+        // TODO: merge mappings together here using the indexService.
+        Map<String, Object> mappings = Map.of();
         String mappingsJson = Strings.toString(XContentFactory.jsonBuilder().map(mappings));
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulatedState.metadata(),

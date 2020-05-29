@@ -87,6 +87,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          */
         MAPPING_UPDATE,
         /**
+         * Merge mappings from a composable index template.
+         */
+        INDEX_TEMPLATE,
+        /**
          * Recovery of an existing mapping, for instance because of a restart,
          * if a shard was moved to a different node or for administrative
          * purposes.
@@ -343,7 +347,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper oldMapper = this.mapper;
         DocumentMapper newMapper;
         if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping());
+            newMapper = oldMapper.merge(mapper.mapping(), reason);
         } else {
             newMapper = mapper;
         }

@@ -393,4 +393,12 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
             "\"string\"}}], caused by [No mapper found for type [string]]");
     }
+
+    public void testFieldReplacement() {
+        // TODO: fill this in
+    }
+
+    public void testDeduplicateDynamicTemplates() {
+        // TODO: fill this in
+    }
 }

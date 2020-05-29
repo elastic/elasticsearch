@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -302,9 +303,14 @@ public class DocumentMapper implements ToXContentFragment {
         return nestedObjectMapper;
     }
 
-    public DocumentMapper merge(Mapping mapping) {
-        Mapping merged = this.mapping.merge(mapping);
+    public DocumentMapper merge(Mapping mapping, MergeReason reason) {
+        Mapping merged = this.mapping.merge(mapping, reason);
         return new DocumentMapper(mapperService, merged);
+    }
+
+    // TODO: update test code then remove this.
+    public DocumentMapper merge(Mapping mapping) {
+        return merge(mapping, MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

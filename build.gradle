@@ -54,8 +54,6 @@ allprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
-BuildPlugin.configureRepositories(project)
-
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
   licenseCommit = BuildParams.gitRevision ?: "master" // leniency for non git builds

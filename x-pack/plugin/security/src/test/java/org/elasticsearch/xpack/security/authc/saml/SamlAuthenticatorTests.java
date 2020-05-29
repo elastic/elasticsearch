@@ -403,7 +403,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final String xml = getSimpleResponseAsString(now);
 
         // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
-        final Response encrypted = encryptAttributes(xml, readKeyPair("RSA_4096_updated"));
+        final Response encrypted = encryptAttributes(xml, readKeyPair("ENCRYPTION_RSA_4096_updated"));
         final String encryptedString = SamlUtils.getXmlContent(encrypted, false);
         assertThat(encryptedString, not(equalTo(xml)));
 

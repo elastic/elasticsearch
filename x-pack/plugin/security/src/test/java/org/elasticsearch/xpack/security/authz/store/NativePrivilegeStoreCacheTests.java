@@ -108,7 +108,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(6, putPrivilegesResponse.created().values().stream().mapToInt(List::size).sum());
     }
 
-    public void testGetPrivileges() {
+    public void testGetPrivilegesUsesCache() {
         final Client client = client();
 
         ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client)

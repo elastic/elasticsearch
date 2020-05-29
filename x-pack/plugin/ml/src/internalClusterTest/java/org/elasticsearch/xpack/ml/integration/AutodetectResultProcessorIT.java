@@ -478,7 +478,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
     }
 
     private static Annotation createAnnotation() {
-        return AnnotationTests.randomAnnotation();
+        return AnnotationTests.randomAnnotation(JOB_ID);
     }
 
     private static ModelSizeStats createModelSizeStats() {

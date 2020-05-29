@@ -96,7 +96,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             modelPlot = null;
         }
         if (randomBoolean()) {
-            annotation = AnnotationTests.randomAnnotation();
+            annotation = AnnotationTests.randomAnnotation(jobId);
         } else {
             annotation = null;
         }

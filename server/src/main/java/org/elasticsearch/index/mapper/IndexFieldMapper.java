@@ -29,7 +29,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -118,10 +117,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName, CoreValuesSourceType.BYTES);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
     private IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {

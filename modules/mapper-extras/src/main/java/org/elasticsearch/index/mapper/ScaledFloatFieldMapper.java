@@ -60,7 +60,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
@@ -296,11 +295,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
                 }
             };
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.NUMERIC;
         }
 
         @Override

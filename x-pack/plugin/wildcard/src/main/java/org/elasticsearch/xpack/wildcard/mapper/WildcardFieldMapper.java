@@ -471,12 +471,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 }};
         }
 
-         @Override
-         public ValuesSourceType getValuesSourceType() {
-             return CoreValuesSourceType.BYTES;
-         }
-
-    }
+     }
 
     static class WildcardBytesBinaryIndexFieldData extends BytesBinaryIndexFieldData {
 

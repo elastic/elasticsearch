@@ -349,10 +349,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return new KeyedFlatObjectFieldData.Builder(key, CoreValuesSourceType.BYTES);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
     /**
@@ -546,10 +542,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
     private FlatObjectFieldParser fieldParser;

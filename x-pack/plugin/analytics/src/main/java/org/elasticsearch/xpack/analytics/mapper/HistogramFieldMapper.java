@@ -50,7 +50,6 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
@@ -274,11 +273,6 @@ public class HistogramFieldMapper extends FieldMapper {
                     };
                 }
             };
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return AnalyticsValuesSourceType.HISTOGRAM;
         }
 
         @Override

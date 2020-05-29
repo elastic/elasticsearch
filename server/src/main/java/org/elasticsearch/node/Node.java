@@ -140,6 +140,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.RepositoriesStatsCollector;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptContext;
@@ -513,6 +514,7 @@ public class Node implements Closeable {
             RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, threadPool, xContentRegistry);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
+            RepositoriesStatsCollector repositoriesStatsCollector = new RepositoriesStatsCollector(settings, clusterService, repositoryService::repositoriesStats, threadPool);
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
                     clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters());
@@ -606,6 +608,7 @@ public class Node implements Closeable {
                     b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                     b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
                     b.bind(RepositoriesService.class).toInstance(repositoryService);
+                    b.bind(RepositoriesStatsCollector.class).toInstance(repositoriesStatsCollector);
                     b.bind(SnapshotsService.class).toInstance(snapshotsService);
                     b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
                     b.bind(RestoreService.class).toInstance(restoreService);
@@ -702,6 +705,7 @@ public class Node implements Closeable {
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
         injector.getInstance(RepositoriesService.class).start();
+        injector.getInstance(RepositoriesStatsCollector.class).start();
         injector.getInstance(SearchService.class).start();
         nodeService.getMonitorService().start();
 
@@ -827,6 +831,7 @@ public class Node implements Closeable {
 
         injector.getInstance(SnapshotsService.class).stop();
         injector.getInstance(SnapshotShardsService.class).stop();
+        injector.getInstance(RepositoriesStatsCollector.class).stop();
         injector.getInstance(RepositoriesService.class).stop();
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();

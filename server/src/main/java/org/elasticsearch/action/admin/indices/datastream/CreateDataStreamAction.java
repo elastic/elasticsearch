@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -74,20 +73,12 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
-            // TODO: remove when backported
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                in.readString();
-            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
-            // TODO: remove when backported
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeString("");
-            }
         }
 
         @Override

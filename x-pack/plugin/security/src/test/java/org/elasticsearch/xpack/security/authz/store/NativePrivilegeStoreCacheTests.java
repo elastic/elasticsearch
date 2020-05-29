@@ -91,12 +91,12 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
     @Before
     public void configureApplicationPrivileges() {
         final List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = Arrays.asList(
-            new ApplicationPrivilegeDescriptor("app-1", "read", Set.of("a:b:c", "x:y:z"), emptyMap()),
-            new ApplicationPrivilegeDescriptor("app-1", "write", Set.of("a:b:c", "x:y:z"), emptyMap()),
-            new ApplicationPrivilegeDescriptor("app-1", "admin", Set.of("a:b:c", "x:y:z"), emptyMap()),
-            new ApplicationPrivilegeDescriptor("app-2", "read", Set.of("e:f:g", "t:u:v"), emptyMap()),
-            new ApplicationPrivilegeDescriptor("app-2", "write", Set.of("e:f:g", "t:u:v"), emptyMap()),
-            new ApplicationPrivilegeDescriptor("app-2", "admin", Set.of("e:f:g", "t:u:v"), emptyMap()));
+            new ApplicationPrivilegeDescriptor("app-1", "read", Set.of("r:a:b:c", "r:x:y:z"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("app-1", "write", Set.of("w:a:b:c", "w:x:y:z"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("app-1", "admin", Set.of("a:a:b:c", "a:x:y:z"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("app-2", "read", Set.of("r:e:f:g", "r:t:u:v"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("app-2", "write", Set.of("w:e:f:g", "w:t:u:v"), emptyMap()),
+            new ApplicationPrivilegeDescriptor("app-2", "admin", Set.of("a:e:f:g", "a:t:u:v"), emptyMap()));
 
         final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest();
         putPrivilegesRequest.setPrivileges(applicationPrivilegeDescriptors);
@@ -168,7 +168,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(5, new GetPrivilegesRequestBuilder(client).execute().actionGet().privileges().length);
 
         // Now put it back and wild expression expansion should be invalidated again
-        addApplicationPrivilege("app-2", "read", "e:f:g", "t:u:v");
+        addApplicationPrivilege("app-2", "read", "r:e:f:g", "r:t:u:v");
 
         assertEquals(6, new GetPrivilegesRequestBuilder(client).execute().actionGet().privileges().length);
 
@@ -214,7 +214,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
             .get("app-1").stream().findFirst().orElseThrow().getPrivileges().get("check"));
 
         // Add the app-1 check privilege and it should be picked up
-        addApplicationPrivilege("app-1", "check", "a:b:c");
+        addApplicationPrivilege("app-1", "check", "c:a:b:c");
         assertTrue(checkPrivilege("app-1", "check").getApplicationPrivileges()
             .get("app-1").stream().findFirst().orElseThrow().getPrivileges().get("check"));
 
@@ -264,7 +264,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         if (randomBoolean()) {
             deleteApplicationPrivilege("app-1", "read");
         } else {
-            addApplicationPrivilege("app-3", "read", "t:u:v");
+            addApplicationPrivilege("app-3", "read", "r:q:r:s");
         }
         // Since role cache is cleared, the cluster health action is no longer authorized
         expectThrows(ElasticsearchSecurityException.class,

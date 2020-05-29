@@ -9,6 +9,7 @@ package org.elasticsearch.test.eql;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 public class EqlSpec {
     private String description;
@@ -100,10 +101,26 @@ public class EqlSpec {
         return str;
     }
 
-    public boolean equals(EqlSpec other) {
-        return this.query().equals(other.query()) &&
-            this.supportsCaseSensitive() == other.supportsCaseSensitive() &&
-            this.supportsCaseInsensitive() == other.supportsCaseInsensitive();
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        EqlSpec that = (EqlSpec) other;
+
+        return Objects.equals(this.query(), that.query())
+                && Objects.equals(this.caseSensitiveOnly, that.caseSensitiveOnly)
+                && Objects.equals(this.caseInsensitiveOnly, that.caseInsensitiveOnly);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.query, this.caseSensitiveOnly, this.caseInsensitiveOnly);
     }
 
     private static String appendWithComma(String str, String name, String append) {

@@ -442,6 +442,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
         settings.remove(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
         settings.remove(IndexMetadata.SETTING_INDEX_UUID);
+        settings.remove(IndexMetadata.SETTING_HISTORY_UUID);
         settings.remove(IndexMetadata.SETTING_INDEX_PROVIDED_NAME);
         settings.remove(IndexMetadata.SETTING_CREATION_DATE);
 

@@ -62,7 +62,6 @@ public abstract class TransportWriteAction<
 
     private final WriteMemoryLimits writeMemoryLimits;
     private final String executor;
-    private final boolean forceExecutionOnPrimary;
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
@@ -73,15 +72,20 @@ public abstract class TransportWriteAction<
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
         this.writeMemoryLimits = writeMemoryLimits;
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
     }
 
     @Override
     protected Releasable checkPrimaryLimits(Request request) {
         super.checkPrimaryLimits(request);
         long operationSizeInBytes = primaryOperationSize(request);
-        writeMemoryLimits.markPrimaryOperationStarted(operationSizeInBytes, forceExecutionOnPrimary);
-        return () -> writeMemoryLimits.markPrimaryOperationFinished(operationSizeInBytes);
+        Object writeBytesMarked = threadPool.getThreadContext().getTransient(WriteMemoryLimits.WRITE_BYTES_MARKED);
+        if (Boolean.TRUE.equals(writeBytesMarked)) {
+            return () -> {};
+        } else {
+            threadPool.getThreadContext().putTransient(WriteMemoryLimits.WRITE_BYTES_MARKED, true);
+            writeMemoryLimits.markOperationStarted(operationSizeInBytes);
+            return () -> writeMemoryLimits.markOperationFinished(operationSizeInBytes);
+        }
     }
 
     protected long primaryOperationSize(Request request) {

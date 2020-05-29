@@ -259,7 +259,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     // A heuristic for the bytes overhead of a single indexing operation
-    int WRITE_REQUEST_BYTES_OVERHEAD = 256;
+    int WRITE_REQUEST_BYTES_OVERHEAD = 4096;
 
     static long writeSizeInBytes(Stream<DocWriteRequest<?>> requestStream) {
         return requestStream.mapToLong(request -> {

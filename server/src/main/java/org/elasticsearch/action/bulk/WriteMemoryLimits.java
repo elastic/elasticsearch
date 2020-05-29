@@ -23,14 +23,16 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryLimits {
 
-    private final AtomicLong primaryBytes = new AtomicLong(0);
+    public static final String WRITE_BYTES_MARKED = "write_bytes_marked";
+
+    private final AtomicLong primaryCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong replicaBytes = new AtomicLong(0);
 
-    public void markPrimaryOperationStarted(long bytes, boolean forceExecution) {
-        primaryBytes.addAndGet(bytes);
+    public void markOperationStarted(long bytes) {
+        primaryCoordinatingBytes.addAndGet(bytes);
     }
 
-    public void markPrimaryOperationFinished(long bytes) {
+    public void markOperationFinished(long bytes) {
         decrementPendingBytes(bytes);
     }
 

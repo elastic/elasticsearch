@@ -375,10 +375,7 @@ public class InternalVariableWidthHistogramTests extends
 
     @Override
     protected void assertReduced(InternalVariableWidthHistogram reduced, List<InternalVariableWidthHistogram> inputs) {
-        testSingleShardReduceLong();
-        testSingleShardReduceDouble();
-        testMultipleShardsReduce();
-        testOverlappingReduceResult();
-        testSameMinMerge();
+        // It's very difficult to determine what the buckets should be without running the clustering algorithm.
+        // For now, randomized tests are avoided. Refer to the hardcoded written tests above.
     }
 }

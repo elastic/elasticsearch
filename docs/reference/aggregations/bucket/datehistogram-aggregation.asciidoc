@@ -186,6 +186,7 @@ a calendar interval like month or quarter will throw an exception.
 The accepted units for fixed intervals are:
 
 milliseconds (`ms`) ::
+A single millisecond. This is a very, very small interval.
 
 seconds (`s`) ::
 Defined as 1000 milliseconds each.
@@ -355,11 +356,14 @@ rounding is also done in UTC. Use the `time_zone` parameter to indicate
 that bucketing should use a different time zone.
 
 For example, if the interval is a calendar day and the time zone is
-`America/New_York` then `2020-01-03T01:00:01Z` is converted to
-`2020-01-02T18:00:01`, rounded down to `2020-01-02T00:00:00` and then
-converted back to UTC to produce `2020-01-02T05:00:00:00Z`. Finally, when the
-bucket is turned into a string key it is printed in `America/New_York` so it'll
-display as `"2020-01-02T00:00:00"`. Values are converted as follows:
+`America/New_York` then `2020-01-03T01:00:01Z` is :
+# Converted to `2020-01-02T18:00:01`
+# Rounded down to `2020-01-02T00:00:00`
+# Then converted back to UTC to produce `2020-01-02T05:00:00:00Z`
+# Finally, when the bucket is turned into a string key it is printed in
+  `America/New_York` so it'll display as `"2020-01-02T00:00:00"`.
+
+It looks like:
 
 [source,java]
 ----

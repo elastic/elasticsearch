@@ -441,7 +441,6 @@ public class InternalEngine extends Engine {
 
     @Override
     public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (pendingTranslogRecovery.get() == false) {
@@ -458,8 +457,6 @@ public class InternalEngine extends Engine {
                 }
                 throw e;
             }
-        } finally {
-            flushLock.unlock();
         }
         return this;
     }

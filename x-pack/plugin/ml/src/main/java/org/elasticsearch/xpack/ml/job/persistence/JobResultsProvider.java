@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -63,7 +64,10 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -136,6 +140,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 
 public class JobResultsProvider {
     private static final Logger LOGGER = LogManager.getLogger(JobResultsProvider.class);
@@ -1270,6 +1275,40 @@ public class JobResultsProvider {
                         },
                         handler::onFailure),
                 client::search);
+    }
+
+    public void setRunningForecastsToFailed(String jobId, ActionListener<Boolean> listener) {
+        QueryBuilder forecastQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
+            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+            .filter(QueryBuilders.termsQuery(ForecastRequestStats.STATUS.getPreferredName(),
+                ForecastRequestStats.ForecastRequestStatus.SCHEDULED.toString(),
+                ForecastRequestStats.ForecastRequestStatus.STARTED.toString()));
+
+        UpdateByQueryRequest request = new UpdateByQueryRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
+            .setQuery(forecastQuery)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setAbortOnVersionConflict(false)
+            .setMaxRetries(3)
+            .setRefresh(true)
+            .setScript(new Script("ctx._source.forecast_status='failed';" +
+                "ctx._source.forecast_messages=['" + JOB_FORECAST_NATIVE_PROCESS_KILLED + "']"));
+
+        client.execute(UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
+            response -> {
+                LOGGER.info("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
+                if (response.getBulkFailures().size() > 0) {
+                    LOGGER.warn(
+                        "[{}] failed to set [{}] forecasts to failed. Bulk failures experienced {}",
+                        jobId,
+                        response.getTotal() - response.getUpdated(),
+                        response.getBulkFailures().stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.toList())
+                    );
+                }
+                listener.onResponse(true);
+            },
+            listener::onFailure
+        ));
     }
 
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,

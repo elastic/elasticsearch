@@ -27,8 +27,6 @@ include::how-monitoring-works.asciidoc[]
 
 include::production.asciidoc[]
 
-include::esms.asciidoc[]
-
 include::collecting-monitoring-data.asciidoc[]
 include::pause-export.asciidoc[]
 

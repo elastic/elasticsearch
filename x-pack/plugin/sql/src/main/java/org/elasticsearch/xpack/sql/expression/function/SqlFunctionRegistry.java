@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthName
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeParse;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
@@ -182,6 +183,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(MonthName.class, MonthName::new, "MONTH_NAME", "MONTHNAME"),
                 def(MonthOfYear.class, MonthOfYear::new, "MONTH_OF_YEAR", "MONTH"),
                 def(SecondOfMinute.class, SecondOfMinute::new, "SECOND_OF_MINUTE", "SECOND"),
+                def(TimeParse.class, TimeParse::new, "TIME_PARSE"),
                 def(Quarter.class, Quarter::new, "QUARTER"),
                 def(Year.class, Year::new, "YEAR"),
                 def(WeekOfYear.class, WeekOfYear::new, "WEEK_OF_YEAR", "WEEK")

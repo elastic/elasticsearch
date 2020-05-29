@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.precommit;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.util.Util;
+import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
@@ -62,17 +63,22 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
             copyCheckstyleConf.configure(t -> t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
         }
 
-        copyCheckstyleConf.configure(t -> t.doLast(task -> {
-            checkstyleDir.mkdirs();
-            try (InputStream stream = checkstyleConfUrl.openStream()) {
-                Files.copy(stream, checkstyleConf.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            try (InputStream stream = checkstyleSuppressionsUrl.openStream()) {
-                Files.copy(stream, checkstyleSuppressions.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        // Explicitly using an Action interface as java lambdas
+        // are not supported by Gradle up-to-date checks
+        copyCheckstyleConf.configure(t -> t.doLast(new Action<Task>() {
+            @Override
+            public void execute(Task task) {
+                checkstyleDir.mkdirs();
+                try (InputStream stream = checkstyleConfUrl.openStream()) {
+                    Files.copy(stream, checkstyleConf.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                try (InputStream stream = checkstyleSuppressionsUrl.openStream()) {
+                    Files.copy(stream, checkstyleSuppressions.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
         }));
 

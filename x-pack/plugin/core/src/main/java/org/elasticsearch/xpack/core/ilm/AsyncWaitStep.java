@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.index.Index;
 
 /**
  * A step which will be called periodically, waiting for some condition to become true.
@@ -30,7 +31,7 @@ public abstract class AsyncWaitStep extends Step {
         return client;
     }
 
-    public abstract void evaluateCondition(Metadata metadata, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout);
+    public abstract void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout);
 
     public interface Listener {
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,17 +45,16 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
-        String indexName = indexMetadata.getIndex().getName();
+        String indexName = index.getName();
         request.indices(indexName);
         getClient().admin().indices().stats(request, ActionListener.wrap((response) -> {
             IndexStats indexStats = response.getIndex(indexName);
             if (indexStats == null) {
                 // Index was probably deleted
-                logger.debug("got null shard stats for index {}, proceeding on the assumption it has been deleted",
-                    indexMetadata.getIndex());
+                logger.debug("got null shard stats for index {}, proceeding on the assumption it has been deleted", indexName);
                 listener.onResponse(true, null);
                 return;
             }

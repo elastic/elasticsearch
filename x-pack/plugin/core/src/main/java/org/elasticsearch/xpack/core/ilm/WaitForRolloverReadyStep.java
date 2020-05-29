@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -50,25 +51,26 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
-        assert indexAbstraction != null : "invalid cluster metadata. index [" + indexMetadata.getIndex().getName() + "] was not found";
+    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
+        assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
             rolloverTarget = indexAbstraction.getParentDataStream().getDataStream().getName();
         } else {
+            IndexMetadata indexMetadata = metadata.index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                     "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
-                    indexMetadata.getIndex().getName())));
+                    index.getName())));
                 return;
             }
 
             if (indexMetadata.getRolloverInfos().get(rolloverAlias) != null) {
                 logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
-                    indexMetadata.getIndex().getName(), rolloverAlias);
+                    index.getName(), rolloverAlias);
                 listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
                 return;
             }
@@ -91,7 +93,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
 
             boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
             if (indexingComplete) {
-                logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
+                logger.trace(index + " has lifecycle complete set, skipping " + WaitForRolloverReadyStep.NAME);
                 // If this index is still the write index for this alias, skipping rollover and continuing with the policy almost certainly
                 // isn't what we want, as something likely still expects to be writing to this index.
                 // If the alias doesn't point to this index, that's okay as that will be the result if this index is using a
@@ -99,7 +101,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 if (aliasPointsToThisIndex && Boolean.TRUE.equals(isWriteIndex)) {
                     listener.onFailure(new IllegalStateException(String.format(Locale.ROOT,
                         "index [%s] has [%s] set to [true], but is still the write index for alias [%s]",
-                        indexMetadata.getIndex().getName(), LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, rolloverAlias)));
+                        index.getName(), LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, rolloverAlias)));
                     return;
                 }
 
@@ -111,14 +113,14 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             if (aliasPointsToThisIndex == false) {
                 listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                     "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
-                    indexMetadata.getIndex().getName())));
+                    index.getName())));
                 return;
             }
 
             // Similarly, if isWriteIndex is false (see note above on false vs. null), we can't roll over this index, so error out.
             if (Boolean.FALSE.equals(isWriteIndex)) {
                 listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                    "index [%s] is not the write index for alias [%s]", indexMetadata.getIndex().getName(), rolloverAlias)));
+                    "index [%s] is not the write index for alias [%s]", index.getName(), rolloverAlias)));
                 return;
             }
 

@@ -69,7 +69,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata,
+        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -104,7 +104,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata,
+        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -138,7 +138,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata,
+        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {

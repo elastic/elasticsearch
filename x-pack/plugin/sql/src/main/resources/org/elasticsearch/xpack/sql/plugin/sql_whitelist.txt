@@ -135,6 +135,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Integer datePart(String, Object, String)
   String dateTimeFormat(Object, String, String)
   def dateTimeParse(String, String, String)
+  def timeParse(String, String, String)
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)
   ZonedDateTime asDateTime(Object)

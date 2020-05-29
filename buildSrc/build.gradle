@@ -174,8 +174,9 @@ if (project != rootProject) {
     'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
-  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
     test.enabled = false
+    testingConventions.enabled = false
   }
 
   configurations {

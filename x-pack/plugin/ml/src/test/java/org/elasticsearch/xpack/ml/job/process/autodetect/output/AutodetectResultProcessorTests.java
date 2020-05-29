@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.time.Clock;
@@ -273,6 +273,17 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkBuilder).persistModelPlot(modelPlot);
     }
 
+    public void testProcessResult_annotation() {
+        AutodetectResult result = mock(AutodetectResult.class);
+        Annotation annotation = AnnotationTests.randomAnnotation();
+        when(result.getAnnotation()).thenReturn(annotation);
+
+        processorUnderTest.processResult(result);
+
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(annotationPersister).persistAnnotation(null, annotation, "[" + JOB_ID + "] failed to create annotation.");
+    }
+
     public void testProcessResult_modelSizeStats() {
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSizeStats modelSizeStats = mock(ModelSizeStats.class);
@@ -380,12 +391,6 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister).persistModelSnapshot(eq(modelSnapshot), eq(WriteRequest.RefreshPolicy.IMMEDIATE), any());
-
-        ArgumentCaptor<Annotation> annotationCaptor = ArgumentCaptor.forClass(Annotation.class);
-        verify(annotationPersister).persistAnnotation(eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture());
-        Annotation annotation = annotationCaptor.getValue();
         Annotation expectedAnnotation =
             new Annotation.Builder()
                 .setAnnotation("Job model snapshot with id [a_snapshot_id] stored")
@@ -399,11 +404,15 @@ public class AutodetectResultProcessorTests extends ESTestCase {
                 .setType(Annotation.Type.ANNOTATION)
                 .setEvent(Annotation.Event.MODEL_SNAPSHOT_STORED)
                 .build();
-        assertThat(annotation, is(equalTo(expectedAnnotation)));
-
         UpdateJobAction.Request expectedJobUpdateRequest = UpdateJobAction.Request.internal(JOB_ID,
-                new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());
+            new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());
 
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).persistModelSnapshot(eq(modelSnapshot), eq(WriteRequest.RefreshPolicy.IMMEDIATE), any());
+        verify(annotationPersister).persistAnnotation(
+            ModelSnapshot.annotationDocumentId(modelSnapshot),
+            expectedAnnotation,
+            "[" + JOB_ID + "] failed to create annotation for model snapshot.");
         verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
     }
 

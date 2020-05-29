@@ -270,6 +270,10 @@ public class AutodetectResultProcessor {
         if (modelPlot != null) {
             bulkResultsPersister.persistModelPlot(modelPlot);
         }
+        Annotation annotation = result.getAnnotation();
+        if (annotation != null) {
+            annotationPersister.persistAnnotation(null, annotation, "[" + jobId + "] failed to create annotation.");
+        }
         Forecast forecast = result.getForecast();
         if (forecast != null) {
             bulkResultsPersister.persistForecast(forecast);

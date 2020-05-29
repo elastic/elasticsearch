@@ -377,7 +377,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
             final Engine.Warmer warmer = createTestWarmer(indexSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
+            CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings,
+                Collections.emptyList(),
+                clusterSettings);
             indexShard = new IndexShard(
                     routing,
                     indexSettings,

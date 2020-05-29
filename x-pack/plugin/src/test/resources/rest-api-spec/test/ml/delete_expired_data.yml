@@ -59,16 +59,6 @@ setup:
 
 ---
 "Test delete expired data with job id":
-
-# open the job to create the state index and alias
-  - do:
-      ml.open_job:
-        job_id: delete-expired-data-a
-
-  - do:
-      ml.close_job:
-        job_id: delete-expired-data-a
-
   - do:
       headers:
         Content-Type: application/json

@@ -58,12 +58,11 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -142,47 +141,43 @@ public class FetchPhase implements SearchPhase {
         }
 
         try {
-            // group docIds by segment in order to better use LRU cache
-            Map<Integer, List<Integer>> segmentTasks = new HashMap<>();
+            int[] sortedDocIds = Arrays.copyOfRange(context.docIdsToLoad(), context.docIdsToLoadFrom(), context.docIdsToLoadSize());
+            Arrays.sort(sortedDocIds);
+
+            // preserve the original order of hits in inverted index
             Map<Integer, Integer> docIdToIndex = new HashMap<>();
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
-                int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                 docIdToIndex.put(docId, index);
-                segmentTasks.putIfAbsent(readerIndex, new ArrayList<>());
-                segmentTasks.get(readerIndex).add(docId);
             }
 
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+            SearchHit[] sortedHits = new SearchHit[context.docIdsToLoadSize()];
             FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-            Iterator<Map.Entry<Integer, List<Integer>>> readerIndexIterator = segmentTasks.entrySet().iterator();
-            while (readerIndexIterator.hasNext()) {
-                Map.Entry<Integer, List<Integer>> entry = readerIndexIterator.next();
-                int readerIndex = entry.getKey();
-                Iterator<Integer> docIdIterator = entry.getValue().iterator();
-                while (docIdIterator.hasNext()) {
-                    if (context.isCancelled()) {
-                        throw new TaskCancelledException("cancelled");
-                    }
-                    int docId = docIdIterator.next();
-                    LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
-                    int subDocId = docId - subReaderContext.docBase;
+            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+                if (context.isCancelled()) {
+                    throw new TaskCancelledException("cancelled");
+                }
+                int docId = sortedDocIds[index];
+                int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
+                LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+                int subDocId = docId - subReaderContext.docBase;
 
-                    final SearchHit searchHit;
-                    int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
-                    if (rootDocId != -1) {
-                        searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId,
-                            storedToRequestedFields, subReaderContext);
-                    } else {
-                        searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId,
-                            storedToRequestedFields, subReaderContext);
-                    }
+                final SearchHit searchHit;
+                int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
+                if (rootDocId != -1) {
+                    searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId,
+                        storedToRequestedFields, subReaderContext);
+                } else {
+                    searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId,
+                        storedToRequestedFields, subReaderContext);
+                }
 
-                    hits[docIdToIndex.get(docId)] = searchHit;
-                    hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
-                    for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                        fetchSubPhase.hitExecute(context, hitContext);
-                    }
+                sortedHits[index] = searchHit;
+                hits[docIdToIndex.get(docId)] = searchHit;
+                hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
+                for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
+                    fetchSubPhase.hitExecute(context, hitContext);
                 }
             }
             if (context.isCancelled()) {
@@ -190,7 +185,7 @@ public class FetchPhase implements SearchPhase {
             }
 
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitsExecute(context, hits);
+                fetchSubPhase.hitsExecute(context, sortedHits);
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }

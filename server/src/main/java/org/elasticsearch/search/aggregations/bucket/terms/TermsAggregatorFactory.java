@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -52,16 +50,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TermsAggregatorFactory.class));
-
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
-
-    private final BucketOrder order;
-    private final IncludeExclude includeExclude;
-    private final String executionHint;
-    private final SubAggCollectionMode collectMode;
-    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
-    private final boolean showTermDocCountError;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(TermsAggregationBuilder.NAME,
@@ -98,7 +87,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
                 ExecutionMode execution = null;
                 if (executionHint != null) {
-                    execution = ExecutionMode.fromString(executionHint, deprecationLogger);
+                    execution = ExecutionMode.fromString(executionHint);
                 }
                 // In some cases, using ordinals is just not supported: override it
                 if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
@@ -109,11 +98,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
                 if (subAggCollectMode == null) {
-                    subAggCollectMode = SubAggCollectionMode.DEPTH_FIRST;
-                    // TODO can we remove concept of AggregatorFactories.EMPTY?
-                    if (factories != AggregatorFactories.EMPTY) {
-                        subAggCollectMode = subAggCollectionMode(bucketCountThresholds.getShardSize(), maxOrd);
-                    }
+                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), maxOrd);
                 }
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
@@ -165,12 +150,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
 
                 if (subAggCollectMode == null) {
-                    // TODO can we remove concept of AggregatorFactories.EMPTY?
-                    if (factories != AggregatorFactories.EMPTY) {
-                        subAggCollectMode = subAggCollectionMode(bucketCountThresholds.getShardSize(), -1);
-                    } else {
-                        subAggCollectMode = SubAggCollectionMode.DEPTH_FIRST;
-                    }
+                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
                 }
 
                 ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource; 
@@ -197,6 +177,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             }
         };
     }
+
+    private final BucketOrder order;
+    private final IncludeExclude includeExclude;
+    private final String executionHint;
+    private final SubAggCollectionMode collectMode;
+    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+    private final boolean showTermDocCountError;
 
     TermsAggregatorFactory(String name,
                            ValuesSourceConfig config,
@@ -280,17 +267,29 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             showTermDocCountError, collectsFromSingleBucket, metadata);
     }
 
-    // return the SubAggCollectionMode that this aggregation should use based on the expected size
-    // and the cardinality of the field
-    static SubAggCollectionMode subAggCollectionMode(int expectedSize, long maxOrd) {
+    /**
+     * Pick a {@link SubAggCollectionMode} based on heuristics about what
+     * we're collecting.
+     */
+    static SubAggCollectionMode pickSubAggColectMode(AggregatorFactories factories, int expectedSize, long maxOrd) {
+        if (factories.countAggregators() == 0) {
+            // Without sub-aggregations we pretty much ignore this field value so just pick something
+            return SubAggCollectionMode.DEPTH_FIRST;
+        }
         if (expectedSize == Integer.MAX_VALUE) {
-            // return all buckets
+            // We expect to return all buckets so delaying them won't save any time
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (maxOrd == -1 || maxOrd > expectedSize) {
-            // use breadth_first if the cardinality is bigger than the expected size or unknown (-1)
+            /*
+             * We either don't know how many buckets we expect there to be
+             * (maxOrd == -1) or we expect there to be more buckets than
+             * we will collect from this shard. So delaying collection of
+             * the sub-buckets *should* save time.
+             */
             return SubAggCollectionMode.BREADTH_FIRST;
         }
+        // We expect to collect so many buckets that we may as well collect them all.
         return SubAggCollectionMode.DEPTH_FIRST;
     }
 
@@ -398,7 +397,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             }
         };
 
-        public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
+        public static ExecutionMode fromString(String value) {
             switch (value) {
                 case "global_ordinals":
                     return GLOBAL_ORDINALS;

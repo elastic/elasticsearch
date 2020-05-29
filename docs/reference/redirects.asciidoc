@@ -569,9 +569,8 @@ See <<add-elasticsearch-nodes>>.
 
 We have stopped adding new customers to our {esms}.
 
-If you are interested in similar capabilities,
-https://support.elastic.co/customers/s/login/[Elastic Support portal][contact
-Elastic Support] to discuss available options.
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.
 
 ////
 [role="exclude",id="search-request-body"]

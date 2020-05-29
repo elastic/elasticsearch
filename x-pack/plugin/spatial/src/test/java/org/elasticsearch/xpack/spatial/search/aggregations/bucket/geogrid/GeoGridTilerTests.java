@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;

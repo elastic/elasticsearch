@@ -71,12 +71,19 @@ path.logs: /var/log/elasticsearch
 
 Environment variables referenced with the `${...}` notation within the
 configuration file will be replaced with the value of the environment
-variable, for instance:
+variable. For example:
 
 [source,yaml]
 --------------------------------------------------
 node.name:    ${HOSTNAME}
 network.host: ${ES_NETWORK_HOST}
+--------------------------------------------------
+
+When specifying values for environment variables, you can only use strings. More complex data structures like lists are not supported. However, settings that accept data structures such as lists also accepted comma-separated strings. For example, you can specify multiple values for the `${HOSTNAME}` variable from the previous example:
+
+[source,console]
+--------------------------------------------------
+export HOSTNAME=“host1”, “host2"
 --------------------------------------------------
 
 [discrete]
@@ -88,7 +95,7 @@ Cluster and node settings can be categorized based on how they are configured:
 [[dynamic-cluster-setting]]
 Dynamic::
 You can configure and update dynamic settings on a running cluster using the
-<<cluster-update-settings,cluster update settings API>>. 
+<<cluster-update-settings,cluster update settings API>>.
 +
 You can also configure dynamic settings locally on an unstarted or shut down
 node using `elasticsearch.yml`.

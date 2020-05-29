@@ -202,7 +202,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     protected void doClose() {
-        Releasables.close(collectionStrategy);
+        Releasables.close(resultStrategy, collectionStrategy);
     }
 
     /**
@@ -278,7 +278,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         protected void doClose() {
-            Releasables.close(segmentDocCounts);
+            Releasables.close(resultStrategy, segmentDocCounts, collectionStrategy);
         }
 
         private void mapSegmentCountsToGlobalCounts(LongUnaryOperator mapping) throws IOException {
@@ -501,7 +501,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     abstract class ResultStrategy<
         R extends InternalAggregation,
         B extends InternalMultiBucketAggregation.InternalBucket,
-        TB extends InternalMultiBucketAggregation.InternalBucket> {
+        TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
@@ -671,6 +671,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         StringTerms buildEmptyResult() {
             return buildEmptyTermsAggregation();
         }
+
+        @Override
+        public void close() {}
     }
 
     /**
@@ -758,6 +761,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         SignificantStringTerms buildEmptyResult() {
             return buildEmptySignificantTermsAggregation(significanceHeuristic);
+        }
+
+        @Override
+        public void close() {
+            termsAggFactory.close();
         }
 
         /**

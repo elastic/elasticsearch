@@ -3,17 +3,17 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.search.action;
+package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 
-public class DeleteAsyncSearchAction extends ActionType<AcknowledgedResponse> {
-    public static final DeleteAsyncSearchAction INSTANCE = new DeleteAsyncSearchAction();
-    public static final String NAME = "indices:data/read/async_search/delete";
+public class DeleteAsyncResultAction extends ActionType<AcknowledgedResponse> {
+    public static final DeleteAsyncResultAction INSTANCE = new DeleteAsyncResultAction();
+    public static final String NAME = "indices:data/read/async_result/delete";
 
-    private DeleteAsyncSearchAction() {
+    private DeleteAsyncResultAction() {
         super(NAME, AcknowledgedResponse::new);
     }
 

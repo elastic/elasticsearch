@@ -72,6 +72,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             this.expirationTimeMillis = expirationTimeMillis;
         }
 
+        @Override
+        public void cancelTask(TaskManager taskManager, Runnable runnable) {
+            taskManager.cancelTaskAndDescendants(this, "test", true, ActionListener.wrap(runnable));
+        }
+
         public long getExpirationTime() {
             return this.expirationTimeMillis;
         }
@@ -125,16 +130,21 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
     private AsyncResultsService<TestTask, TestAsyncResponse> createResultsService(boolean updateInitialResultsInStore) {
         return new AsyncResultsService<>(indexService, updateInitialResultsInStore, TestTask.class, TestTask::addListener,
-            (task, listener) ->taskManager.cancelTaskAndDescendants(task, "deletion", true, listener), taskManager, clusterService);
+            taskManager, clusterService);
+    }
+
+    private DeleteAsyncResultsService createDeleteResultsService() {
+        return new DeleteAsyncResultsService(indexService, taskManager);
     }
 
     public void testRecordNotFound() {
         AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(randomBoolean());
+        DeleteAsyncResultsService deleteService = createDeleteResultsService();
         PlainActionFuture<TestAsyncResponse> listener = new PlainActionFuture<>();
         service.retrieveResult(new GetAsyncResultRequest(randomAsyncId().getEncoded()), listener);
         assertFutureThrows(listener, ResourceNotFoundException.class);
         PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
-        service.deleteResult(new DeleteAsyncResultRequest(randomAsyncId().getEncoded()), deleteListener);
+        deleteService.deleteResult(new DeleteAsyncResultRequest(randomAsyncId().getEncoded()), deleteListener);
         assertFutureThrows(listener, ResourceNotFoundException.class);
     }
 
@@ -220,6 +230,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     public void testRetrieveFromDisk() throws Exception {
         boolean updateInitialResultsInStore = randomBoolean();
         AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(updateInitialResultsInStore);
+        DeleteAsyncResultsService deleteService = createDeleteResultsService();
         TestRequest request = new TestRequest("test request");
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
@@ -255,11 +266,11 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         assertThat(response.test, equalTo("final_response"));
 
         PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
-        service.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
+        deleteService.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
         assertThat(deleteListener.actionGet().isAcknowledged(), equalTo(true));
 
         deleteListener = new PlainActionFuture<>();
-        service.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
+        deleteService.deleteResult(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);
         assertFutureThrows(deleteListener, ResourceNotFoundException.class);
     }
 }

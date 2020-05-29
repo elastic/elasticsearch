@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.search;
+package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -19,37 +19,41 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.async.AsyncResultsService;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
-import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
-import static org.elasticsearch.xpack.search.TransportGetAsyncSearchAction.createResultsService;
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
-public class TransportDeleteAsyncSearchAction extends HandledTransportAction<DeleteAsyncResultRequest, AcknowledgedResponse> {
-    private final AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> resultsService;
+public class TransportDeleteAsyncResultAction extends HandledTransportAction<DeleteAsyncResultRequest, AcknowledgedResponse> {
+    private final DeleteAsyncResultsService deleteResultsService;
+    private final ClusterService clusterService;
     private final TransportService transportService;
 
     @Inject
-    public TransportDeleteAsyncSearchAction(TransportService transportService,
+    public TransportDeleteAsyncResultAction(TransportService transportService,
                                             ActionFilters actionFilters,
                                             ClusterService clusterService,
-                                            ThreadPool threadPool,
                                             NamedWriteableRegistry registry,
-                                            Client client) {
-        super(DeleteAsyncSearchAction.NAME, transportService, actionFilters, DeleteAsyncResultRequest::new);
+                                            Client client,
+                                            ThreadPool threadPool) {
+        super(DeleteAsyncResultAction.NAME, transportService, actionFilters, DeleteAsyncResultRequest::new);
         this.transportService = transportService;
-        this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool);
+        this.clusterService = clusterService;
+        AsyncTaskIndexService<?> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
+            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN,
+            (in) -> {throw new UnsupportedOperationException("Reading is not supported during deletion");}, registry);
+        this.deleteResultsService = new DeleteAsyncResultsService(store, transportService.getTaskManager());
     }
+
 
     @Override
     protected void doExecute(Task task, DeleteAsyncResultRequest request, ActionListener<AcknowledgedResponse> listener) {
-        DiscoveryNode node = resultsService.getNode(request.getId());
-        if (node == null || resultsService.isLocalNode(node)) {
-            resultsService.deleteResult(request, listener);
+        AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
+        DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
+        if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
+            deleteResultsService.deleteResult(request, listener);
         } else {
             TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-            transportService.sendRequest(node, DeleteAsyncSearchAction.NAME, request, builder.build(),
+            transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request, builder.build(),
                 new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::new, ThreadPool.Names.SAME));
         }
     }

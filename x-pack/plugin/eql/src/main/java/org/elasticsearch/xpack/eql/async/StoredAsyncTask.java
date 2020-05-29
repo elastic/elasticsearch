@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 
@@ -94,4 +95,8 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      */
     protected abstract Response getCurrentResult();
 
+    @Override
+    public void cancelTask(TaskManager taskManager, Runnable runnable) {
+        taskManager.cancelTaskAndDescendants(this, "task deleted", true, ActionListener.wrap(runnable));
+    }
 }

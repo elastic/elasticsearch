@@ -21,6 +21,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
@@ -62,8 +63,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.planExecutor = planExecutor;
         this.threadPool = threadPool;
 
-        this.asyncTaskManagementService = new AsyncTaskManagementService<>(EqlPlugin.INDEX, client, ASYNC_SEARCH_ORIGIN, registry,
-            taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool);
+        this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
+            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool);
     }
 
     @Override

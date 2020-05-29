@@ -10,7 +10,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 
 
 import java.io.IOException;
@@ -35,6 +35,6 @@ public class RestDeleteAsyncSearchAction extends BaseRestHandler  {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DeleteAsyncResultRequest delete = new DeleteAsyncResultRequest(request.param("id"));
-        return channel -> client.execute(DeleteAsyncSearchAction.INSTANCE, delete, new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteAsyncResultAction.INSTANCE, delete, new RestToXContentListener<>(channel));
     }
 }

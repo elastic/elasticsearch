@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 
@@ -30,7 +31,7 @@ public class AsyncSearchMaintenanceService extends AsyncTaskMaintenanceService {
                                   Settings nodeSettings,
                                   ThreadPool threadPool,
                                   AsyncTaskIndexService<?> indexService) {
-        super(clusterService, AsyncSearch.INDEX, localNodeId, threadPool, indexService,
+        super(clusterService, XPackPlugin.ASYNC_RESULTS_INDEX, localNodeId, threadPool, indexService,
             ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.get(nodeSettings));
     }
 }

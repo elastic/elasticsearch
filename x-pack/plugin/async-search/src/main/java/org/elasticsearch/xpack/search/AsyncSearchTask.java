@@ -24,6 +24,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
@@ -130,6 +131,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     @Override
     public void setExpirationTime(long expirationTimeMillis) {
         this.expirationTimeMillis = expirationTimeMillis;
+    }
+
+    @Override
+    public void cancelTask(TaskManager taskManager, Runnable runnable) {
+        cancelTask(runnable);
     }
 
     /**

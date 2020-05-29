@@ -152,8 +152,6 @@ final class DefaultSearchContext extends SearchContext {
                          ShardSearchRequest request,
                          SearchShardTarget shardTarget,
                          ClusterService clusterService,
-                         IndexService indexService,
-                         IndexShard indexShard,
                          BigArrays bigArrays,
                          LongSupplier relativeTimeSupplier,
                          TimeValue timeout,
@@ -169,8 +167,8 @@ final class DefaultSearchContext extends SearchContext {
         this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
         this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
         this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
-        this.indexShard = indexShard;
-        this.indexService = indexService;
+        this.indexService = readerContext.indexService();
+        this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
         this.engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),

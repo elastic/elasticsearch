@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
@@ -37,9 +38,9 @@ public class LegacyReaderContext extends ReaderContext {
     private Engine.Searcher searcher;
     private Releasable onClose;
 
-    public LegacyReaderContext(long id, IndexShard indexShard, Engine.SearcherSupplier reader,
+    public LegacyReaderContext(long id, IndexService indexService, IndexShard indexShard, Engine.SearcherSupplier reader,
                                ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
-        super(id, indexShard, reader, keepAliveInMillis, false);
+        super(id, indexService, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
         this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest);

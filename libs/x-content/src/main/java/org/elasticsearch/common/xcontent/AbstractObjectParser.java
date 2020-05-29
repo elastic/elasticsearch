@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
@@ -222,6 +223,22 @@ public abstract class AbstractObjectParser<Value, Context> {
                 field, ValueType.INT_OR_NULL);
     }
 
+    /**
+     * Declare a field of type {@code T} parsed from string and converted to {@code T} using provided function.
+     * Throws if the next token is not a string.
+     */
+    public <T> void declareStringField(BiConsumer<Value, T> consumer, Function<String, T> fromStringFunction, ParseField field) {
+        declareField(
+            consumer,
+            p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return fromStringFunction.apply(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            },
+            field,
+            ValueType.STRING);
+    }
 
     public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
         declareField(consumer, XContentParser::text, field, ValueType.STRING);

@@ -12,7 +12,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -66,12 +65,7 @@ public class Regression implements DataFrameAnalysis {
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
         parser.declareDouble(optionalConstructorArg(), TRAINING_PERCENT);
         parser.declareLong(optionalConstructorArg(), RANDOMIZE_SEED);
-        parser.declareField(optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return LossFunction.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, LOSS_FUNCTION, ObjectParser.ValueType.STRING);
+        parser.declareStringField(optionalConstructorArg(), LossFunction::fromString, LOSS_FUNCTION);
         parser.declareDouble(optionalConstructorArg(), LOSS_FUNCTION_PARAMETER);
         return parser;
     }

@@ -78,15 +78,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
             CREATE_TIME,
             ValueType.VALUE);
-        PARSER.declareField(Builder::setVersion,
-            p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return Version.fromString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            },
-            VERSION,
-            ValueType.STRING);
+        PARSER.declareStringField(Builder::setVersion, Version::fromString, VERSION);
         PARSER.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
     }
 

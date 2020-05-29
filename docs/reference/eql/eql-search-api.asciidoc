@@ -33,7 +33,7 @@ PUT /my_index/_bulk?refresh
 
 [source,console]
 ----
-GET my_index/_eql/search
+GET /my_index/_eql/search
 {
   "query": """
     process where process.name = "regsvr32.exe"
@@ -84,6 +84,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 [[eql-search-api-request-body]]
 ==== {api-request-body-title}
 
+`case_sensitive`::
+(Optional, boolean)
+If `true`, matching for the <<eql-search-api-request-query-param,EQL query>> is
+case sensitive. Defaults to `false`.
+
 `event_category_field`::
 (Required*, string)
 Field containing the event classification, such as `process`, `file`, or
@@ -102,6 +107,7 @@ runs.
 (Optional, string)
 Reserved for future use.
 
+[[eql-search-api-request-query-param]]
 `query`::
 (Required, string)
 <<eql-syntax,EQL>> query you wish to run.
@@ -292,7 +298,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ==== {api-examples-title}
 
 [[eql-search-api-basic-query-ex]]
-==== Basic query example
+===== Basic query example
 
 The following EQL search request searches for events with an `event.category` of
 `file` that meet the following conditions:
@@ -302,7 +308,7 @@ The following EQL search request searches for events with an `event.category` of
 
 [source,console]
 ----
-GET my_index/_eql/search
+GET /my_index/_eql/search
 {
   "query": """
     file where (file.name == "cmd.exe" and agent.id != "my_user")
@@ -389,7 +395,7 @@ in ascending order.
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
 
 [[eql-search-api-sequence-ex]]
-==== Sequence query example
+===== Sequence query example
 
 The following EQL search request matches a <<eql-sequences,sequence>> of events
 that:
@@ -412,7 +418,7 @@ These events must also share the same `agent.id` value.
 
 [source,console]
 ----
-GET my_index/_eql/search
+GET /my_index/_eql/search
 {
   "query": """
     sequence by agent.id

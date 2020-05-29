@@ -50,6 +50,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class IndexMetadataTests extends ESTestCase {
@@ -282,6 +284,51 @@ public class IndexMetadataTests extends ESTestCase {
         iae = expectThrows(IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
+    }
+
+    public void testMissingNumberOfShards() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").build());
+        assertThat(e.getMessage(), containsString("must specify number of shards for index [test]"));
+    }
+
+    public void testNumberOfShardsIsNotZero() {
+        runTestNumberOfShardsIsPositive(0);
+    }
+
+    public void testNumberOfShardsIsNotNegative() {
+        runTestNumberOfShardsIsPositive(-randomIntBetween(1, Integer.MAX_VALUE));
+    }
+
+    private void runTestNumberOfShardsIsPositive(final int numberOfShards) {
+        final Settings settings =
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1"));
+    }
+
+    public void testMissingNumberOfReplicas() {
+        final Settings settings =
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8)).build();
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        assertThat(e.getMessage(), containsString("must specify number of replicas for index [test]"));
+    }
+
+    public void testNumberOfReplicasIsNonNegative() {
+        final int numberOfReplicas = -randomIntBetween(1, Integer.MAX_VALUE);
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 8))
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+            .build();
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Failed to parse value [" + numberOfReplicas + "] for setting [index.number_of_replicas] must be >= 0"));
     }
 
 }

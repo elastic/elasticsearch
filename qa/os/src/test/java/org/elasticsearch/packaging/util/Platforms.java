@@ -59,13 +59,6 @@ public class Platforms {
         return new Shell().runIgnoreExitCode("which systemctl").isSuccess();
     }
 
-    public static boolean isSysVInit() {
-        if (WINDOWS) {
-            return false;
-        }
-        return new Shell().runIgnoreExitCode("which service").isSuccess();
-    }
-
     public static boolean isDocker() {
         return new Shell().runIgnoreExitCode("which docker").isSuccess();
     }

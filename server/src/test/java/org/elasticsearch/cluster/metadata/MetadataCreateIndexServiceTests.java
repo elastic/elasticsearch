@@ -999,7 +999,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         boolean shouldBeText = randomBoolean();
         List<String> composedOf = shouldBeText ? Arrays.asList("ct2", "ct1") : Arrays.asList("ct1", "ct2");
         logger.info("--> the {} analyzer should win ({})", shouldBeText ? "text" : "keyword", composedOf);
-        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, composedOf, null, null, null, null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
+            null, composedOf, null, null, null, null);
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
@@ -1057,8 +1058,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
         ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
 
-        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, Arrays.asList("ct2", "ct1"),
-            null, null, null, null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
+            null, Arrays.asList("ct2", "ct1"), null, null, null, null);
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
@@ -1134,7 +1135,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 "     }\n" +
                 "}]}}"), null);
 
-        IndexTemplateV2 indexTemplate = new IndexTemplateV2(Collections.singletonList("index"), template, null, null, null, null);
+        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList("index"),
+            template, null, null, null, null);
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
@@ -1190,7 +1192,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             "]}}";
         Template template = new Template(null, new CompressedXContent(templateMappingJson), null);
 
-        IndexTemplateV2 indexTemplate = new IndexTemplateV2(Collections.singletonList("index"), template, null, null, null, null);
+        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList("index"),
+            template, null, null, null, null);
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
@@ -1254,8 +1257,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
         ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
 
-        IndexTemplateV2 template = new IndexTemplateV2(Collections.singletonList("index"), null, Arrays.asList("ct1", "ct2"),
-            null, null, null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
+            null, Arrays.asList("ct1", "ct2"), null, null, null);
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)

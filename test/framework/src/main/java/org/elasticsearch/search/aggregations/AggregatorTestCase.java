@@ -55,7 +55,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -74,10 +73,11 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -295,10 +295,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MapperService mapperService = mapperServiceMock();
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
-        DocumentMapper mapper = mock(DocumentMapper.class);
-        when(mapper.typeText()).thenReturn(new Text(TYPE_NAME));
-        when(mapper.type()).thenReturn(TYPE_NAME);
-        when(mapperService.documentMapper()).thenReturn(mapper);
         when(searchContext.mapperService()).thenReturn(mapperService);
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
             new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
@@ -495,7 +491,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.preCollection();
             subSearcher.search(weight, a);
             a.postCollection();
-            InternalAggregation agg = a.buildTopLevel(); 
+            InternalAggregation agg = a.buildTopLevel();
             aggs.add(agg);
             InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
@@ -553,12 +549,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory);
                     IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
-                /*
-                 * Only allow the randomized testing to wrap the reader if
-                 * the test didn't explicitly wrap the reader.
-                 */
-                boolean maybeWrap = unwrapped == indexReader;
-                IndexSearcher indexSearcher = newSearcher(indexReader, maybeWrap, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);
@@ -874,5 +865,51 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
+    }
+
+    /**
+     * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
+     */
+    protected DateFieldMapper.DateFieldType dateField(String name, DateFieldMapper.Resolution resolution) {
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
+        builder.withResolution(resolution);
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
+        return builder.build(new BuilderContext(settings, new ContentPath())).fieldType();
+    }
+
+    /**
+     * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code double}.
+     */
+    protected NumberFieldMapper.NumberFieldType doubleField(String name) {
+        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+        result.setName(name);
+        return result;
+    }
+
+    /**
+     * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
+     */
+    protected KeywordFieldMapper.KeywordFieldType keywordField(String name) {
+        KeywordFieldMapper.KeywordFieldType result = new KeywordFieldMapper.KeywordFieldType();
+        result.setName(name);
+        return result;
+    }
+
+    /**
+     * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code long}.
+     */
+    protected NumberFieldMapper.NumberFieldType longField(String name) {
+        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        result.setName(name);
+        return result;
+    }
+
+    /**
+     * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code range}.
+     */
+    protected RangeFieldMapper.RangeFieldType rangeField(String name, RangeType rangeType) {
+        RangeFieldMapper.RangeFieldType result = new RangeFieldMapper.Builder(name, rangeType).fieldType();
+        result.setName(name);
+        return result;
     }
 }

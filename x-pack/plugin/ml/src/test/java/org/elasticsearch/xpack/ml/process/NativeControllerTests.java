@@ -43,12 +43,12 @@ public class NativeControllerTests extends ESTestCase {
 
     public void testStartProcessCommand() throws IOException {
 
-        NamedPipeHelper namedPipeHelper = mock(NamedPipeHelper.class);
-        InputStream logStream = mock(InputStream.class);
-        CountDownLatch wait = new CountDownLatch(1);
+        final NamedPipeHelper namedPipeHelper = mock(NamedPipeHelper.class);
+        final InputStream logStream = mock(InputStream.class);
+        final CountDownLatch mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
         doAnswer(
             invocationOnMock -> {
-                wait.await();
+                mockNativeProcessLoggingStreamEnds.await();
                 return -1;
             }).when(logStream).read(any());
         when(namedPipeHelper.openNamedPipeInputStream(contains("log"), any(Duration.class))).thenReturn(logStream);
@@ -67,7 +67,7 @@ public class NativeControllerTests extends ESTestCase {
         assertEquals("start\tmy_process\t--arg1\t--arg2=42\t--arg3=something with spaces\n",
                 commandStream.toString(StandardCharsets.UTF_8.name()));
 
-        wait.countDown();
+        mockNativeProcessLoggingStreamEnds.countDown();
     }
 
     public void testGetNativeCodeInfo() throws IOException, TimeoutException {

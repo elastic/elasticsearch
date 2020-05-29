@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.mockito.Mockito;
 
-public class TypeFieldTypeTests extends FieldTypeTestCase {
+public class TypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new TypeFieldMapper.TypeFieldType();

@@ -129,7 +129,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, "index2");
             mapperService.updateMapping(null, followIMD);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, mapperService));
-            assertThat(e.getMessage(), equalTo("mapper [field] of different type, current_type [text], merged_type [keyword]"));
+            assertThat(e.getMessage(), equalTo("mapper [field] cannot be changed from type [text] to [keyword]"));
         }
         {
             // should fail because of non whitelisted settings not the same between leader and follow index

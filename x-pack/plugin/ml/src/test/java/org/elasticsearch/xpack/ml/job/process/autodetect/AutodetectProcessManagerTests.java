@@ -151,7 +151,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
-        when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(mock(JobResultsPersister.Builder.class));
+        JobResultsPersister.Builder bulkPersisterBuilder = mock(JobResultsPersister.Builder.class);
+        when(bulkPersisterBuilder.shouldRetry(any())).thenReturn(bulkPersisterBuilder);
+        when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(bulkPersisterBuilder);
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         annotationPersister = mock(AnnotationPersister.class);
         autodetectCommunicator = mock(AutodetectCommunicator.class);

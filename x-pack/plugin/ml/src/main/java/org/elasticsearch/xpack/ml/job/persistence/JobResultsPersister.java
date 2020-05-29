@@ -89,21 +89,25 @@ public class JobResultsPersister {
         this.auditor = auditor;
     }
 
-    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
-        return new Builder(jobId, shouldRetry);
+    public Builder bulkPersisterBuilder(String jobId) {
+        return new Builder(jobId);
     }
 
     public class Builder {
         private BulkRequest bulkRequest;
         private final String jobId;
         private final String indexName;
-        private final Supplier<Boolean> shouldRetry;
+        private Supplier<Boolean> shouldRetry = () -> true;
 
-        private Builder(String jobId, Supplier<Boolean> shouldRetry) {
+        private Builder(String jobId) {
             this.bulkRequest = new BulkRequest();
             this.jobId = Objects.requireNonNull(jobId);
             this.indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-            this.shouldRetry = shouldRetry;
+        }
+
+        public Builder shouldRetry(Supplier<Boolean> shouldRetry) {
+            this.shouldRetry = Objects.requireNonNull(shouldRetry);
+            return this;
         }
 
         /**

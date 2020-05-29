@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 public class DeleteAsyncResultAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteAsyncResultAction INSTANCE = new DeleteAsyncResultAction();
-    public static final String NAME = "indices:data/read/async_result/delete";
+    public static final String NAME = "indices:data/read/async_search/delete";
 
     private DeleteAsyncResultAction() {
         super(NAME, AcknowledgedResponse::new);

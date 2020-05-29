@@ -104,10 +104,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
-    public HierarchyCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
-        this(settings, Collections.emptyList(), clusterSettings);
-    }
-
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         super();
         HashMap<String, CircuitBreaker> childCircuitBreakers = new HashMap<>();
@@ -138,7 +134,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.PERMANENT
         )));
-        for(BreakerSettings breakerSettings : customBreakers) {
+        for (BreakerSettings breakerSettings : customBreakers) {
             if (childCircuitBreakers.containsKey(breakerSettings.getName())) {
                 throw new IllegalArgumentException("More than one circuit breaker with the name ["
                     + breakerSettings.getName()

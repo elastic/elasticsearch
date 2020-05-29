@@ -55,6 +55,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
             @Override
@@ -113,6 +114,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final AtomicInteger parentTripped = new AtomicInteger(0);
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
             @Override
@@ -184,6 +186,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
             .build();
         try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
             CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(CircuitBreaker.FIELDDATA);
@@ -222,6 +225,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         AtomicLong memoryUsage = new AtomicLong();
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
             @Override
             long currentMemoryUsage() {
@@ -274,6 +278,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
             .build();
         try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
             CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(CircuitBreaker.FIELDDATA);
@@ -306,6 +311,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .build();
 
         try (HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
 
             long parentLimitBytes = service.getParentLimit();

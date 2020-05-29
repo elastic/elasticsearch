@@ -17,7 +17,7 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation doParseInstance(XContentParser parser) {
-        return Annotation.PARSER.apply(parser, null).build();
+        return Annotation.fromXContent(parser, null);
     }
 
     @Override

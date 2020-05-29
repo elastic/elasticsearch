@@ -69,7 +69,11 @@ public class Annotation implements ToXContentObject, Writeable {
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(ANNOTATION.getPreferredName(), true, Builder::new);
+    public static Annotation fromXContent(XContentParser parser, Void context) {
+        return PARSER.apply(parser, context).build();
+    }
+
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(ANNOTATION.getPreferredName(), true, Builder::new);
 
     static {
         PARSER.declareString(Builder::setAnnotation, ANNOTATION);

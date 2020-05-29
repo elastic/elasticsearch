@@ -74,7 +74,7 @@ affect later search and scroll requests.
 
 `<scroll_id>`::
 deprecated:[7.0.0]
-(Required*, string)
+(Optional, string)
 Scroll ID of the search.
 +
 IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using

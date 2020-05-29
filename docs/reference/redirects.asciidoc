@@ -564,6 +564,15 @@ For other information, see:
 
 See <<add-elasticsearch-nodes>>.
 
+[role="exclude",id="esms"]
+=== {esms}
+
+We have stopped adding new customers to our {esms}.
+
+If you are interested in similar capabilities,
+https://support.elastic.co/customers/s/login/[Elastic Support portal][contact
+Elastic Support] to discuss available options.
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search

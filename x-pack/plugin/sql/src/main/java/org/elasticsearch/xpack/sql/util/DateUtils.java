@@ -211,21 +211,21 @@ public final class DateUtils {
     public static ZonedDateTime atTimeZone(LocalDateTime ldt, ZoneId zoneId) {
         return ZonedDateTime.ofInstant(ldt, zoneId.getRules().getValidOffsets(ldt).get(0), zoneId);
     }
-    
+
     public static OffsetTime atTimeZone(OffsetTime ot, ZoneId zoneId) {
-        LocalDateTime ldt = ot.atDate(LocalDate.EPOCH).toLocalDateTime();
+        LocalDateTime ldt = ot.atDate(EPOCH).toLocalDateTime();
         return ot.withOffsetSameInstant(zoneId.getRules().getValidOffsets(ldt).get(0));
     }
-    
+
     public static OffsetTime atTimeZone(LocalTime lt, ZoneId zoneId) {
-        LocalDateTime ldt = lt.atDate(LocalDate.EPOCH);
+        LocalDateTime ldt = lt.atDate(EPOCH);
         return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
-    
+
     public static ZonedDateTime atTimeZone(ZonedDateTime zdt, ZoneId zoneId) {
         return zdt.withZoneSameInstant(zoneId);
     }
-    
+
     public static TemporalAccessor atTimeZone(TemporalAccessor ta, ZoneId zoneId) {
         if (ta instanceof LocalDateTime) {
             return atTimeZone((LocalDateTime) ta, zoneId);

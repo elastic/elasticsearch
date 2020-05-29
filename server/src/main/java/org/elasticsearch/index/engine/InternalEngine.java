@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -485,11 +486,11 @@ public class InternalEngine extends Engine {
         // note: if opsRecovered == 0 and we have older translogs it means they are corrupted or 0 length.
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
+        logger.trace(() -> new ParameterizedMessage(
+                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+                opsRecovered, translog.currentFileGeneration()));
+        flush(false, true);
         if (opsRecovered > 0) {
-            logger.trace("flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
-                opsRecovered, translog.currentFileGeneration());
-            commitIndexWriter(indexWriter, translog);
-            refreshLastCommittedSegmentInfos();
             refresh("translog_recovery");
         }
         translog.trimUnreferencedReaders();
@@ -1654,10 +1655,12 @@ public class InternalEngine extends Engine {
             }
             try {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
-                // newly created commit points to a different translog generation (can free translog)
+                // newly created commit points to a different translog generation (can free translog),
+                // or (4) the processed local checkpoint is ahead of the local checkpoint tracked in the safe commit
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
-                if (hasUncommittedChanges || force || shouldPeriodicallyFlush) {
+                if (hasUncommittedChanges || force || shouldPeriodicallyFlush
+                        || getProcessedLocalCheckpoint() > getPersistedLocalCheckpoint()) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();

@@ -6,15 +6,21 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -22,25 +28,29 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterServiceTests;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -54,6 +64,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -61,6 +72,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -76,11 +88,11 @@ public class DatafeedJobTests extends ESTestCase {
     private DataExtractor dataExtractor;
     private DatafeedTimingStatsReporter timingStatsReporter;
     private Client client;
+    private ResultsPersisterService resultsPersisterService;
     private DelayedDataDetector delayedDataDetector;
     private DataDescription.Builder dataDescription;
     private ActionFuture<PostDataAction.Response> postDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
-    private ActionFuture<IndexResponse> indexFuture;
     private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
     private FlushJobAction.Response flushJobResponse;
     private String annotationDocId;
@@ -100,11 +112,12 @@ public class DatafeedJobTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        resultsPersisterService =
+            ResultsPersisterServiceTests.buildResultsPersisterService(new OriginSettingClient(client, ClientHelper.ML_ORIGIN));
         dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
-        indexFuture = mock(ActionFuture.class);
         annotationDocId = "AnnotationDocId";
         flushJobResponse = new FlushJobAction.Response(true, new Date());
         delayedDataDetector = mock(DelayedDataDetector.class);
@@ -129,8 +142,8 @@ public class DatafeedJobTests extends ESTestCase {
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
 
-        when(indexFuture.actionGet()).thenReturn(new IndexResponse(new ShardId("index", "uuid", 0), annotationDocId, 0, 0, 0, true));
-        when(client.index(any())).thenReturn(indexFuture);
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(annotationDocId) }, 0L)))
+            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -272,26 +285,32 @@ public class DatafeedJobTests extends ESTestCase {
             10,
             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
 
-        Annotation expectedAnnotation = new Annotation.Builder()
-            .setAnnotation(msg)
-            .setCreateTime(new Date(currentTime))
-            .setCreateUsername(XPackUser.NAME)
-            .setTimestamp(bucket.getTimestamp())
-            .setEndTimestamp(new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000))
-            .setJobId(jobId)
-            .setModifiedTime(new Date(currentTime))
-            .setModifiedUsername(XPackUser.NAME)
-            .setType("annotation")
-            .build();
+        long annotationCreateTime = currentTime;
+        {  // What we expect the created annotation to be indexed as
+            Annotation expectedAnnotation = new Annotation.Builder()
+                .setAnnotation(msg)
+                .setCreateTime(new Date(annotationCreateTime))
+                .setCreateUsername(XPackUser.NAME)
+                .setTimestamp(bucket.getTimestamp())
+                .setEndTimestamp(new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000))
+                .setJobId(jobId)
+                .setModifiedTime(new Date(annotationCreateTime))
+                .setModifiedUsername(XPackUser.NAME)
+                .setType("annotation")
+                .build();
+            BytesReference expectedSource =
+                BytesReference.bytes(expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
 
-        IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
-        try (XContentBuilder xContentBuilder = expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            request.source(xContentBuilder);
+            ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+            verify(client, atMost(2)).execute(eq(BulkAction.INSTANCE), bulkRequestArgumentCaptor.capture(), any());
+            BulkRequest bulkRequest = bulkRequestArgumentCaptor.getValue();
+            assertThat(bulkRequest.requests(), hasSize(1));
+            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            assertThat(indexRequest.index(), equalTo(AnnotationIndex.WRITE_ALIAS_NAME));
+            assertThat(indexRequest.id(), nullValue());
+            assertThat(indexRequest.source(), equalTo(expectedSource));
+            assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
-        ArgumentCaptor<IndexRequest> indexRequestArgumentCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(client, atMost(2)).index(indexRequestArgumentCaptor.capture());
-        assertThat(request.index(), equalTo(indexRequestArgumentCaptor.getValue().index()));
-        assertThat(request.source(), equalTo(indexRequestArgumentCaptor.getValue().source()));
 
         // Execute a fourth time, this time we return a new delayedDataDetector response to verify annotation gets updated
         Bucket bucket2 = mock(Bucket.class);
@@ -311,26 +330,33 @@ public class DatafeedJobTests extends ESTestCase {
         msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             15,
             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(6000));
-        // What we expect the updated annotation to be indexed as
-        IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
-        indexRequest.id(annotationDocId);
-        Annotation updatedAnnotation = new Annotation.Builder(expectedAnnotation)
-            .setAnnotation(msg)
-            .setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000))
-            .setModifiedTime(new Date(currentTime))
-            .build();
-        try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            indexRequest.source(xContentBuilder);
+
+        long annotationUpdateTime = currentTime;
+        {  // What we expect the updated annotation to be indexed as
+            Annotation expectedUpdatedAnnotation = new Annotation.Builder()
+                .setAnnotation(msg)
+                .setCreateTime(new Date(annotationCreateTime))
+                .setCreateUsername(XPackUser.NAME)
+                .setTimestamp(bucket.getTimestamp())
+                .setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000))
+                .setJobId(jobId)
+                .setModifiedTime(new Date(annotationUpdateTime))
+                .setModifiedUsername(XPackUser.NAME)
+                .setType("annotation")
+                .build();
+            BytesReference expectedSource =
+                BytesReference.bytes(expectedUpdatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+
+            ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+            verify(client, atMost(2)).execute(eq(BulkAction.INSTANCE), bulkRequestArgumentCaptor.capture(), any());
+            BulkRequest bulkRequest = bulkRequestArgumentCaptor.getValue();
+            assertThat(bulkRequest.requests(), hasSize(1));
+            IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
+            assertThat(indexRequest.index(), equalTo(AnnotationIndex.WRITE_ALIAS_NAME));
+            assertThat(indexRequest.id(), equalTo(annotationDocId));
+            assertThat(indexRequest.source(), equalTo(expectedSource));
+            assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
-
-        ArgumentCaptor<IndexRequest> updateRequestArgumentCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-
-        verify(client, atMost(2)).index(updateRequestArgumentCaptor.capture());
-        assertThat(indexRequest.index(), equalTo(updateRequestArgumentCaptor.getValue().index()));
-        assertThat(indexRequest.id(), equalTo(updateRequestArgumentCaptor.getValue().id()));
-        assertThat(indexRequest.source().utf8ToString(),
-            equalTo(updateRequestArgumentCaptor.getValue().source().utf8ToString()));
-        assertThat(updateRequestArgumentCaptor.getValue().opType(), equalTo(DocWriteRequest.OpType.INDEX));
 
         // Execute a fifth time, no changes should occur as annotation is the same
         currentTime = currentTime + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
@@ -461,7 +487,23 @@ public class DatafeedJobTests extends ESTestCase {
                                           long latestRecordTimeMs, boolean haveSeenDataPreviously) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, new AnnotationPersister(client, auditor), currentTimeSupplier, delayedDataDetector, null,
-            latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
+            client, auditor, new AnnotationPersister(resultsPersisterService, auditor), currentTimeSupplier,
+            delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <Response> Answer<Response> withResponse(Response response) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = (ActionListener<Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        };
+    }
+
+    private static BulkItemResponse bulkItemSuccess(String docId) {
+        return new BulkItemResponse(
+            1,
+            DocWriteRequest.OpType.INDEX,
+            new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), docId, 0, 0, 1, true));
     }
 }

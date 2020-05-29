@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -451,6 +454,22 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         // the following two strings are in-range for a long after coercion
         parseRequest(NumberType.LONG, createIndexRequest("9223372036854775807.9"));
         parseRequest(NumberType.LONG, createIndexRequest("-9223372036854775808.9"));
+    }
+
+    public void testLongIndexingOutOfRange() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties")
+            .startObject("number")
+            .field("type", "long")
+            .field("ignore_malformed", true)
+            .endObject().endObject()
+            .endObject().endObject());
+        createIndex("test57287");
+        client().admin().indices().preparePutMapping("test57287").setSource(mapping, XContentType.JSON).get();
+        String doc = "{\"number\" : 9223372036854775808}";
+        IndexResponse response = client().index(new IndexRequest("test57287").source(doc, XContentType.JSON)).get();
+        assertTrue(response.status() == RestStatus.CREATED);
     }
 
     private void parseRequest(NumberType type, BytesReference content) throws IOException {

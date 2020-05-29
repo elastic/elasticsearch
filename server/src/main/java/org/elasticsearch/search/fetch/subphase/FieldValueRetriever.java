@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -53,7 +54,7 @@ public class FieldValueRetriever {
             for (String field : concreteFields) {
                 if (fieldMappers.getMapper(field) != null) {
                     Set<String> sourcePath = mapperService.sourcePath(field);
-                    fields.add(new FieldContext(field, sourcePath));
+                    fields.add(new FieldContext(field, sourcePath, format));
                 }
             }
         }
@@ -69,18 +70,16 @@ public class FieldValueRetriever {
 
     public Map<String, DocumentField> retrieve(SourceLookup sourceLookup, Set<String> ignoredFields) {
         Map<String, DocumentField> documentFields = new HashMap<>();
-        for (FieldContext fieldContext : fieldContexts) {
-            String field = fieldContext.fieldName;
-            Set<String> sourcePath = fieldContext.sourcePath;
-
+        for (FieldContext context : fieldContexts) {
+            String field = context.fieldName;
             if (ignoredFields.contains(field)) {
                 continue;
             }
 
             List<Object> parsedValues = new ArrayList<>();
-            for (String path : sourcePath) {
+            for (String path : context.sourcePath) {
                 FieldMapper fieldMapper = (FieldMapper) fieldMappers.getMapper(path);
-                List<?> values = fieldMapper.lookupValues(sourceLookup);
+                List<?> values = fieldMapper.lookupValues(sourceLookup, context.format);
                 parsedValues.addAll(values);
             }
 
@@ -94,11 +93,14 @@ public class FieldValueRetriever {
     private static class FieldContext {
         final String fieldName;
         final Set<String> sourcePath;
+        final @Nullable String format;
 
         FieldContext(String fieldName,
-                     Set<String> sourcePath) {
+                     Set<String> sourcePath,
+                     @Nullable String format) {
             this.fieldName = fieldName;
             this.sourcePath = sourcePath;
+            this.format = format;
         }
     }
 }

@@ -852,18 +852,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Adds a field to load and return as part of the search request.
      */
-    public SearchSourceBuilder fetchField(String fieldName) {
-        return fetchField(fieldName, null);
+    public SearchSourceBuilder fetchField(String name) {
+        return fetchField(name, null);
     }
 
     /**
      * Adds a field to load and return as part of the search request.
+     * @param name the field name.
+     * @param format an optional format string used when formatting values, for example a date format.
      */
-    public SearchSourceBuilder fetchField(String fieldName, @Nullable String format) {
+    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(fieldName, format));
+        fetchFields.add(new FieldAndFormat(name, format));
         return this;
     }
 
@@ -1264,18 +1266,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (docValueFields != null) {
             builder.startArray(DOCVALUE_FIELDS_FIELD.getPreferredName());
             for (FieldAndFormat docValueField : docValueFields) {
-                builder.startObject()
-                    .field("field", docValueField.field);
-                if (docValueField.format != null) {
-                    builder.field("format", docValueField.format);
-                }
-                builder.endObject();
+               docValueField.toXContent(builder, params);
             }
             builder.endArray();
         }
 
         if (fetchFields != null) {
-            builder.array(FETCH_FIELDS_FIELD.getPreferredName(), fetchFields);
+            builder.startArray(FETCH_FIELDS_FIELD.getPreferredName());
+            for (FieldAndFormat docValueField : fetchFields) {
+                docValueField.toXContent(builder, params);
+            }
+            builder.endArray();
         }
 
         if (scriptFields != null) {

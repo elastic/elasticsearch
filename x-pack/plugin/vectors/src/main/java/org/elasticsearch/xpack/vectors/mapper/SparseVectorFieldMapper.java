@@ -151,7 +151,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
+    protected Object parseSourceValue(Object value, String format) {
         throw new UnsupportedOperationException(ERROR_MESSAGE_7X);
     }
 

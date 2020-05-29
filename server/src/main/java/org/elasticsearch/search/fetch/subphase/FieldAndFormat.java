@@ -25,7 +25,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,15 +37,17 @@ import java.util.Objects;
  * Wrapper around a field name and the format that should be used to
  * display values of this field.
  */
-public final class FieldAndFormat implements Writeable {
+public final class FieldAndFormat implements Writeable, ToXContentObject {
+    private static final ParseField FIELD_FIELD = new ParseField("field");
+    private static final ParseField FORMAT_FIELD = new ParseField("format");
 
     private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER =
         new ConstructingObjectParser<>("fetch_field_and_format",
         a -> new FieldAndFormat((String) a[0], (String) a[1]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("format"));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FORMAT_FIELD);
     }
 
     /**
@@ -56,6 +60,17 @@ public final class FieldAndFormat implements Writeable {
         } else {
             return PARSER.apply(parser, null);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(FIELD_FIELD.getPreferredName(), field);
+        if (format != null) {
+            builder.field(FORMAT_FIELD.getPreferredName(), format);
+        }
+        builder.endObject();
+        return builder;
     }
 
     /** The name of the field. */
@@ -97,5 +112,4 @@ public final class FieldAndFormat implements Writeable {
         FieldAndFormat other = (FieldAndFormat) obj;
         return field.equals(other.field) && Objects.equals(format, other.format);
     }
-
 }

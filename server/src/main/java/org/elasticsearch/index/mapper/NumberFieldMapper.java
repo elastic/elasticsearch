@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
@@ -1088,7 +1087,10 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Number parseSourceValue(Object value) {
+    protected Number parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
         return fieldType().type.parse(value, coerce.value());
     }
 

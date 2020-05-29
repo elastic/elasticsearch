@@ -160,17 +160,22 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
     public void testDateFormat() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
             .field("date_field", "1990-12-29T00:00:00.000Z")
         .endObject();
 
-        FieldAndFormat fieldAndFormat = new FieldAndFormat("date_field", "yyyy/MM/dd");
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, List.of(fieldAndFormat));
-        assertThat(fields.size(), equalTo(1));
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, List.of(
+            new FieldAndFormat("field", null),
+            new FieldAndFormat("date_field", "yyyy/MM/dd")));
+        assertThat(fields.size(), equalTo(2));
 
-        DocumentField field = fields.get("date_field");
+        DocumentField field = fields.get("field");
         assertNotNull(field);
-        assertThat(field.getValues().size(), equalTo(1));
-        assertThat(field.getValue(), equalTo("1990/12/29"));
+
+        DocumentField dateField = fields.get("date_field");
+        assertNotNull(dateField);
+        assertThat(dateField.getValues().size(), equalTo(1));
+        assertThat(dateField.getValue(), equalTo("1990/12/29"));
     }
 
     public void testFieldAliases() throws IOException {

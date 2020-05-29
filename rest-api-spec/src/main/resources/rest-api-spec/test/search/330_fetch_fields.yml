@@ -51,8 +51,12 @@ setup:
       indices.create:
         index:  test
         body:
+          settings:
+            index.number_of_shards: 1
           mappings:
             properties:
+              keyword:
+                type: keyword
               date:
                 type: date
 
@@ -61,6 +65,7 @@ setup:
         index:  test
         id:     1
         body:
+          keyword: "value"
           date: "1990-12-29T22:30:00.000Z"
 
   - do:
@@ -77,9 +82,16 @@ setup:
 
   - is_true: hits.hits.0._id
   - is_true: hits.hits.0._source
-
   - match: { hits.hits.0.fields.date.0: "1990/12/29" }
 
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields:
+            - field: keyword
+              format: "yyyy/MM/dd"
 ---
 "Test disable source":
   - do:

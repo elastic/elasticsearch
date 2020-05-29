@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFu
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.SqlBinaryArithmeticOperation;
@@ -65,10 +64,6 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
     //
     // Conditional
     //
-    public static Object caseFunction(List<Object> expressions) {
-        return CaseProcessor.apply(expressions);
-    }
-
     public static Object coalesce(List<Object> expressions) {
         return ConditionalOperation.COALESCE.apply(expressions);
     }

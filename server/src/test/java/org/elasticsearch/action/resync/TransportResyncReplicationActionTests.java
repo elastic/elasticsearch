@@ -20,6 +20,7 @@ package org.elasticsearch.action.resync;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.index.Index;
@@ -143,7 +145,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexServices.indexServiceSafe(eq(index))).thenReturn(indexService);
 
                 final TransportResyncReplicationAction action = new TransportResyncReplicationAction(Settings.EMPTY, transportService,
-                    clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()));
+                    clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()),
+                    new WriteMemoryLimits(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
 
                 assertThat(action.globalBlockLevel(), nullValue());
                 assertThat(action.indexBlockLevel(), nullValue());

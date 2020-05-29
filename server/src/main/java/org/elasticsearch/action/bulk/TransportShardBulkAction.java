@@ -51,10 +51,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -91,18 +89,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
-    private final BulkIndexingMemoryLimits indexingMemoryLimits;
 
     @Inject
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
-                                    BulkIndexingMemoryLimits indexingMemoryLimits) {
+                                    WriteMemoryLimits writeMemoryLimits) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false);
+            BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.WRITE, false, writeMemoryLimits);
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
-        this.indexingMemoryLimits = indexingMemoryLimits;
     }
 
     @Override
@@ -113,14 +109,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected BulkShardResponse newResponseInstance(StreamInput in) throws IOException {
         return new BulkShardResponse(in);
-    }
-
-    @Override
-    protected Releasable checkPrimaryLimits(BulkShardRequest request) throws EsRejectedExecutionException {
-        super.checkPrimaryLimits(request);
-        long operationSizeInBytes = operationSizeInBytes(request.items());
-        indexingMemoryLimits.markPrimaryOperationStarted(operationSizeInBytes);
-        return () -> indexingMemoryLimits.markPrimaryOperationFinished(operationSizeInBytes);
     }
 
     @Override
@@ -418,14 +406,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             response = new BulkItemResponse(operationResponse.getItemId(), DocWriteRequest.OpType.UPDATE, updateResponse);
         }
         return response;
-    }
-
-    @Override
-    protected Releasable checkReplicaLimits(BulkShardRequest request) throws EsRejectedExecutionException {
-        super.checkReplicaLimits(request);
-        long operationSizeInBytes = operationSizeInBytes(request.items());
-        indexingMemoryLimits.markReplicaOperationStarted(operationSizeInBytes);
-        return () -> indexingMemoryLimits.markReplicaOperationFinished(operationSizeInBytes);
     }
 
     @Override

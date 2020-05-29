@@ -27,7 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-public class BulkIndexingMemoryLimits {
+public class WriteMemoryLimits {
 
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
         Setting.memorySizeSetting("indices.indexing_bytes.limit", "20%", Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -36,15 +36,15 @@ public class BulkIndexingMemoryLimits {
 
     private final AtomicLong pendingBytes = new AtomicLong(0);
 
-    public BulkIndexingMemoryLimits(Settings settings, ClusterSettings clusterSettings) {
+    public WriteMemoryLimits(Settings settings, ClusterSettings clusterSettings) {
         this.indexingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
         clusterSettings.addSettingsUpdateConsumer(MAX_INDEXING_BYTES, value -> indexingLimits = value.getBytes());
     }
 
-    public void markPrimaryOperationStarted(long bytes) {
+    public void markPrimaryOperationStarted(long bytes, boolean forceExecution) {
         long pendingWithOperation = pendingBytes.addAndGet(bytes);
 
-        if (pendingWithOperation > indexingLimits) {
+        if (forceExecution== false && pendingWithOperation > indexingLimits) {
             decrementPendingBytes(bytes);
             long pendingPreOperation = pendingWithOperation - bytes;
             throw new EsRejectedExecutionException("rejected execution of primary shard operation [" +

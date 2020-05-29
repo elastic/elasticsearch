@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class BulkIndexingMemoryLimitsIT extends ESIntegTestCase {
+public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

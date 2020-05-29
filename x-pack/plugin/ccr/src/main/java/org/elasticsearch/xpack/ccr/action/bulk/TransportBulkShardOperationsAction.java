@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -43,7 +44,8 @@ public class TransportBulkShardOperationsAction
             final IndicesService indicesService,
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
-            final ActionFilters actionFilters) {
+            final ActionFilters actionFilters,
+            final WriteMemoryLimits writeMemoryLimits) {
         super(
                 settings,
                 BulkShardOperationsAction.NAME,
@@ -55,7 +57,7 @@ public class TransportBulkShardOperationsAction
                 actionFilters,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE, false);
+                ThreadPool.Names.WRITE, false, writeMemoryLimits);
     }
 
     @Override

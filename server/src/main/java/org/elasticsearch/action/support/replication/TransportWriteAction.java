@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -33,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -58,15 +60,44 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
+    private final WriteMemoryLimits writeMemoryLimits;
     private final String executor;
+    private final boolean forceExecutionOnPrimary;
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
+                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary,
+                                   WriteMemoryLimits writeMemoryLimits) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-              request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
+            request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
+        this.writeMemoryLimits = writeMemoryLimits;
+        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+    }
+
+    @Override
+    protected Releasable checkPrimaryLimits(Request request) {
+        super.checkPrimaryLimits(request);
+        long operationSizeInBytes = primaryOperationSize(request);
+        writeMemoryLimits.markPrimaryOperationStarted(operationSizeInBytes, forceExecutionOnPrimary);
+        return () -> writeMemoryLimits.markPrimaryOperationFinished(operationSizeInBytes);
+    }
+
+    protected long primaryOperationSize(Request request) {
+        return 4096;
+    }
+
+    @Override
+    protected Releasable checkReplicaLimits(ReplicaRequest request) {
+        super.checkReplicaLimits(request);
+        long operationSizeInBytes = replicaOperationSize(request);
+        writeMemoryLimits.markReplicaOperationStarted(operationSizeInBytes);
+        return () -> writeMemoryLimits.markReplicaOperationFinished(operationSizeInBytes);
+    }
+
+    protected long replicaOperationSize(ReplicaRequest request) {
+        return 4096;
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */

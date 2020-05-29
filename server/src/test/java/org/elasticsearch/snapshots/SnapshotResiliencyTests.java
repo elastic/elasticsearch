@@ -63,7 +63,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkIndexingMemoryLimits;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -1483,7 +1483,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             indicesService,
                             threadPool,
                             shardStateAction,
-                            actionFilters)),
+                            actionFilters,
+                            new WriteMemoryLimits(settings, clusterSettings))),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
@@ -1497,7 +1498,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters, indexNameExpressionResolver
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
-                final BulkIndexingMemoryLimits indexingMemoryLimits = new BulkIndexingMemoryLimits(settings, clusterSettings);
+                final WriteMemoryLimits indexingMemoryLimits = new WriteMemoryLimits(settings, clusterSettings);
                 mappingUpdatedAction.setClient(client);
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,

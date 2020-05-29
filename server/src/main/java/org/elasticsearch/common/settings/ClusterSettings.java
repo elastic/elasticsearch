@@ -21,7 +21,7 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.bulk.BulkIndexingMemoryLimits;
+import org.elasticsearch.action.bulk.WriteMemoryLimits;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -190,7 +190,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.THRESHOLD_SETTING,
-            BulkIndexingMemoryLimits.MAX_INDEXING_BYTES,
+            WriteMemoryLimits.MAX_INDEXING_BYTES,
             BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
             BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
             BreakerSettings.CIRCUIT_BREAKER_TYPE,

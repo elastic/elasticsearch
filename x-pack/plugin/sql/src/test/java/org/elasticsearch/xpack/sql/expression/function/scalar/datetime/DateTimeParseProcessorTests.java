@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
@@ -14,7 +13,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
-import org.junit.Assume;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -187,7 +185,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
         );
         assertEquals(
             dateTime(2020, 4, 7, 1, 50, 30, 123456789, zoneId),
-            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123456789 +05:30"), l("dd/MM/uuuu HH:mm:ss.SSSSSSSSS zz"), zoneId)
+            new DateTimeParse(Source.EMPTY, l("07/04/2020 10:20:30.123456789 +0530"), l("dd/MM/uuuu HH:mm:ss.SSSSSSSSS xx"), zoneId)
                 .makePipe()
                 .asProcessor()
                 .process(null)
@@ -199,16 +197,11 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 .asProcessor()
                 .process(null)
         );
-        assumeJava9PlusAndCompatLocaleProviderSetting();
         assertEquals(
             time(10, 20, 30, 123456789, ZoneOffset.of("+05:30"), zoneId),
-            new TimeParse(Source.EMPTY, l("10:20:30.123456789 +05:30"), l("HH:mm:ss.SSSSSSSSS zz"), zoneId).makePipe()
+            new TimeParse(Source.EMPTY, l("10:20:30.123456789 +0530"), l("HH:mm:ss.SSSSSSSSS xx"), zoneId).makePipe()
                 .asProcessor()
                 .process(null)
         );
-    }
-
-    private void assumeJava9PlusAndCompatLocaleProviderSetting() {
-        Assume.assumeTrue(JavaVersion.current().compareTo(JavaVersion.parse("9")) > 0);
     }
 }

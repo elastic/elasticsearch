@@ -108,7 +108,7 @@ SELECT MAX(salary) FROM test_emp GROUP BY CURRENT_TIME;
 selectTimeParse
 schema::tp_time1:time|tp_time2:time
 SELECT TIME_PARSE('11:22:33', 'HH:mm:ss') AS tp_time1,
-TIME_PARSE('11:22:33 -05:33', 'HH:mm:ss zz') AS tp_time2;
+TIME_PARSE('11:22:33 -0533', 'HH:mm:ss xx') AS tp_time2;
 
        tp_time1             |    tp_time2
 ----------------------------+----------------------------
@@ -125,7 +125,7 @@ FROM logs WHERE client_ip = '10.0.1.13' ORDER BY "@timestamp" desc;
 2017-11-10 20:36:15.000Z | 20:36:15.000Z
 2017-11-10 20:36:07.000Z | 20:36:07.000Z
 2017-11-10 20:35:55.000Z | 20:35:55.000Z
-2017-11-10 20:35:54.000Z | 20:35:54.000Z 
+2017-11-10 20:35:54.000Z | 20:35:54.000Z
 2017-11-10 17:54:43.000Z | 17:54:43.000Z
 ;
 

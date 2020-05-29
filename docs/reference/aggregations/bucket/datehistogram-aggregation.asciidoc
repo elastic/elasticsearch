@@ -10,9 +10,9 @@ that here the interval can be specified using date/time expressions. Time-based
 data requires special support because time-based intervals are not always a
 fixed length.
 
-Just like the histogram, values are rounded *down* into the closest bucket. So
-`2020-01-03T07:00:01Z` is rounded to `2020-01-03T00:00:00Z` if the interval is
-a calendar day. This look like
+Like the histogram, values are rounded *down* into the closest bucket. For
+example, if the interval is a calendar day, `2020-01-03T07:00:01Z` is rounded to
+`2020-01-03T00:00:00Z`. Values are rounded as follows:
 
 [source,java]
 --------------------------------------------------

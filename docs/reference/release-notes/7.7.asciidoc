@@ -3,6 +3,15 @@
 
 Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 
+[[known-issues-7.7.0]]
+[float]
+=== Known issues
+
+* Slow loggers are causing log4j loggers to leak over time. When new index is created, new log4j logger was associated with it.
+However when deleting an index it, log4j was keeping a reference internally to its loggers causing a memory leak.
+https://github.com/elastic/elasticsearch/issues/56171 Fixed in 7.7.1
+
+
 [[breaking-7.7.0]]
 [float]
 === Breaking changes

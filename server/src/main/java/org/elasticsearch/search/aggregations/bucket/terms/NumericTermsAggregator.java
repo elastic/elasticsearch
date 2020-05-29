@@ -78,7 +78,7 @@ public class NumericTermsAggregator extends TermsAggregator {
     )
         throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
-        this.resultStrategy = resultStrategy.apply(this);
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);

@@ -111,7 +111,7 @@ public class AnnotationPersister {
             if (bulkRequest.numberOfActions() == 0) {
                 return null;
             }
-            logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
+            logger.trace("[{}] ES API CALL: bulk request with {} actions", () -> jobId, () -> bulkRequest.numberOfActions());
             BulkResponse bulkResponse =
                 resultsPersisterService.bulkIndexWithRetry(
                     bulkRequest, jobId, shouldRetry, msg -> auditor.warning(jobId, "Bulk indexing of annotations failed " + msg));

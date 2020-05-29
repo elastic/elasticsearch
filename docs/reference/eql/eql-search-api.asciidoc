@@ -126,9 +126,8 @@ parameter. If both parameters are specified, only the query parameter is used.
 +
 --
 (Optional, <<time-units,time value>>)
-Timeout duration to block other requests while waiting for the search request to
-finish. Defaults to no timeout, meaning the search request waits for complete
-search results.
+Timeout duration to wait for the request to finish. Defaults to no
+timeout, meaning the request waits for complete search results.
 
 If this parameter is specified and the request completes during this period,
 complete search results are returned.
@@ -250,9 +249,8 @@ ascending order.
 +
 --
 (Optional, <<time-units,time value>>)
-Timeout duration to block other requests while waiting for the search request to
-finish. Defaults to no timeout, meaning the search request waits for complete
-search results.
+Timeout duration to wait for the request to finish. Defaults to no
+timeout, meaning the request waits for complete search results.
 
 If this parameter is specified and the request completes during this period,
 complete search results are returned.

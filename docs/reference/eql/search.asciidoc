@@ -468,9 +468,8 @@ GET /sec_logs/_eql/search
 
 EQL searches in {es} are designed to run on large volumes of data quickly,
 often returning results in milliseconds. Because of this, the EQL search API
-runs _synchronous_ searches by default. This means the search request
-blocks other requests and waits for complete results before returning a
-response.
+runs _synchronous_ searches by default. This means the search request waits for
+complete results before returning a response.
 
 However, complete results can take longer for searches across:
 

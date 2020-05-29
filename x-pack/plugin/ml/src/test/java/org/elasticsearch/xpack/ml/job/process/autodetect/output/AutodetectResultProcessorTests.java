@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -105,8 +105,9 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         renormalizer = mock(Renormalizer.class);
         persister = mock(JobResultsPersister.class);
         bulkBuilder = mock(JobResultsPersister.Builder.class);
+        when(bulkBuilder.shouldRetry(any())).thenReturn(bulkBuilder);
         annotationPersister = mock(AnnotationPersister.class);
-        when(persister.bulkPersisterBuilder(eq(JOB_ID), any())).thenReturn(bulkBuilder);
+        when(persister.bulkPersisterBuilder(eq(JOB_ID))).thenReturn(bulkBuilder);
         process = mock(AutodetectProcess.class);
         flushListener = mock(FlushListener.class);
         processorUnderTest = new AutodetectResultProcessor(
@@ -138,7 +139,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertThat(processorUnderTest.completionLatch.getCount(), is(equalTo(0L)));
 
         verify(renormalizer).waitUntilIdle();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
         verify(persister).commitStateWrites(JOB_ID);
     }
@@ -156,7 +157,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkBuilder).persistTimingStats(any(TimingStats.class));
         verify(bulkBuilder).persistBucket(bucket);
         verify(bulkBuilder).executeRequest();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, never()).deleteInterimResults(JOB_ID);
     }
 
@@ -173,7 +174,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(bulkBuilder).persistTimingStats(any(TimingStats.class));
         verify(bulkBuilder).persistBucket(bucket);
         verify(bulkBuilder).executeRequest();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).deleteInterimResults(JOB_ID);
     }
 
@@ -190,7 +191,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(bulkBuilder).persistRecords(records);
         verify(bulkBuilder, never()).executeRequest();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
     }
 
     public void testProcessResult_influencers() {
@@ -206,7 +207,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(bulkBuilder).persistInfluencers(influencers);
         verify(bulkBuilder, never()).executeRequest();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
     }
 
     public void testProcessResult_categoryDefinition() {
@@ -220,7 +221,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(bulkBuilder, never()).executeRequest();
         verify(persister).persistCategoryDefinition(eq(categoryDefinition), any());
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
     }
 
     public void testProcessResult_flushAcknowledgement() {
@@ -233,7 +234,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.processResult(result);
         assertTrue(processorUnderTest.isDeleteInterimRequired());
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
         verify(persister).commitResultWrites(JOB_ID);
         verify(bulkBuilder).executeRequest();
@@ -253,7 +254,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertTrue(processorUnderTest.isDeleteInterimRequired());
 
         InOrder inOrder = inOrder(persister, bulkBuilder, flushListener);
-        inOrder.verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        inOrder.verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         inOrder.verify(persister).persistCategoryDefinition(eq(categoryDefinition), any());
         inOrder.verify(bulkBuilder).executeRequest();
         inOrder.verify(persister).commitResultWrites(JOB_ID);
@@ -268,7 +269,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(bulkBuilder).persistModelPlot(modelPlot);
     }
 
@@ -281,7 +282,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.processResult(result);
         assertThat(processorUnderTest.modelSizeStats(), is(equalTo(modelSizeStats)));
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).persistModelSizeStats(eq(modelSizeStats), any());
     }
 
@@ -313,7 +314,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, times(4)).persistModelSizeStats(any(ModelSizeStats.class), any());
         // We should have only fired two notifications: one for soft_limit and one for hard_limit
         verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
@@ -340,7 +341,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, times(3)).persistModelSizeStats(any(ModelSizeStats.class), any());
         // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
         verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
@@ -356,7 +357,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).persistModelSizeStats(any(ModelSizeStats.class), any());
         // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
         verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
@@ -379,12 +380,11 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).persistModelSnapshot(eq(modelSnapshot), eq(WriteRequest.RefreshPolicy.IMMEDIATE), any());
 
         ArgumentCaptor<Annotation> annotationCaptor = ArgumentCaptor.forClass(Annotation.class);
-        verify(annotationPersister).persistAnnotation(
-            eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture(), any());
+        verify(annotationPersister).persistAnnotation(eq(ModelSnapshot.annotationDocumentId(modelSnapshot)), annotationCaptor.capture());
         Annotation annotation = annotationCaptor.getValue();
         Annotation expectedAnnotation =
             new Annotation.Builder()
@@ -415,7 +415,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).persistQuantiles(eq(quantiles), any());
         verify(bulkBuilder).executeRequest();
         verify(persister).commitResultWrites(JOB_ID);
@@ -432,7 +432,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).persistQuantiles(eq(quantiles), any());
         verify(bulkBuilder).executeRequest();
         verify(renormalizer).isEnabled();
@@ -447,7 +447,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertThat(processorUnderTest.completionLatch.getCount(), is(equalTo(0L)));
         assertThat(processorUnderTest.updateModelSnapshotSemaphore.availablePermits(), is(equalTo(1)));
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer).waitUntilIdle();
@@ -466,7 +466,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.process();
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, times(2)).persistModelSnapshot(any(), eq(WriteRequest.RefreshPolicy.IMMEDIATE), any());
     }
 
@@ -485,7 +485,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             processorUnderTest.waitForFlushAcknowledgement(JOB_ID, Duration.of(300, ChronoUnit.SECONDS));
         assertThat(flushAcknowledgement, is(nullValue()));
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
     }
 
     public void testKill() throws TimeoutException {
@@ -498,7 +498,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertThat(processorUnderTest.completionLatch.getCount(), is(equalTo(0L)));
         assertThat(processorUnderTest.updateModelSnapshotSemaphore.availablePermits(), is(equalTo(1)));
 
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());

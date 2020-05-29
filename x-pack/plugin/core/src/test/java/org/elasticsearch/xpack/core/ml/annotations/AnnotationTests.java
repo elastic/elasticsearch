@@ -22,17 +22,17 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation createTestInstance() {
-        return randomAnnotation();
+        return randomAnnotation(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null);
     }
 
-    static Annotation randomAnnotation() {
+    public static Annotation randomAnnotation(String jobId) {
         return new Annotation.Builder()
             .setAnnotation(randomAlphaOfLengthBetween(100, 1000))
             .setCreateTime(new Date(randomNonNegativeLong()))
             .setCreateUsername(randomAlphaOfLengthBetween(5, 20))
             .setTimestamp(new Date(randomNonNegativeLong()))
             .setEndTimestamp(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
-            .setJobId(randomBoolean() ? randomAlphaOfLengthBetween(10, 30) : null)
+            .setJobId(jobId)
             .setModifiedTime(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
             .setModifiedUsername(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
             .setType(randomAlphaOfLengthBetween(10, 15))

@@ -44,8 +44,8 @@ tasks.register("resolveKeyStores") {
   inputs.files(configurations.nodeKeystores)
   inputs.files(configurations.clientKeyStores)
   doLast {
-    Files.copy(nodeKeystores.files.singleFile.toPath(), nodeKeystore.toPath())
-    Files.copy(clientKeyStores.files.singleFile.toPath(), clientKeyStore.toPath())
+    Files.copy(configurations.nodeKeystores.files.singleFile.toPath(), nodeKeystore.toPath())
+    Files.copy(configurations.clientKeyStores.files.singleFile.toPath(), clientKeyStore.toPath())
   }
 }
 

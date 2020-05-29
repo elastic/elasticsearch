@@ -18,10 +18,14 @@ File nodeKeystore = file("$keystoreDir/test-node.jks")
 // Generate the client's keystore
 File clientKeyStore = file("$keystoreDir/test-client.jks")
 
-// Export the client's certificate
-File clientCertificate = file("$keystoreDir/test-client.cert")
-// Generate the client's keystore
-ext.clientKeyStore = file("$keystoreDir/test-client.jks")
+tasks.register("resolveKeyStores") {
+  inputs.files(configurations.nodeKeystores)
+  inputs.files(configurations.clientKeyStores)
+  doLast {
+    Files.copy(configurations.nodeKeystores.files.singleFile.toPath(), nodeKeystore.toPath())
+    Files.copy(configurations.clientKeyStores.files.singleFile.toPath(), clientKeyStore.toPath())
+  }
+}
 
 tasks.withType(org.elasticsearch.gradle.testclusters.TestClustersAware).configureEach {
   dependsOn "resolveKeyStores"

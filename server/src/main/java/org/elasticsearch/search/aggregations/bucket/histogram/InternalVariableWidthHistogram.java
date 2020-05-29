@@ -133,21 +133,19 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             return format.format((double) getKey()).toString();
         }
 
+        /**
+         * Buckets are compared using their centroids. But, in the final XContent returned by the aggregation,
+         * we want the bucket's key to be its min. Otherwise, it would look like the distances between centroids
+         * are buckets, which is incorrect.
+         */
         @Override
-        public Object getKey() { return centroid; }
+        public Object getKey() { return bounds.min; }
 
         public double min() { return bounds.min; }
 
         public double max() { return bounds.max; }
 
         public double centroid() { return centroid; }
-
-        /**
-         * Buckets are compared using their centroids. But, in the final XContent returned by the aggregation,
-         * we want the bucket's key to be its min. Otherwise, it would look like the distances between centroids
-         * are buckets, which is incorrect.
-         */
-        public double getKeyForXContent(){ return bounds.min; }
 
         @Override
         public long getDocCount() {
@@ -166,7 +164,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             if (format != DocValueFormat.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
             }
-            builder.field(CommonFields.KEY.getPreferredName(), getKeyForXContent());
+            builder.field(CommonFields.KEY.getPreferredName(), getKey());
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
@@ -175,7 +173,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
         @Override
         public int compareKey(InternalVariableWidthHistogram.Bucket other) {
-            return Double.compare(centroid, other.centroid);
+            return Double.compare(centroid, other.centroid); // Use centroid for bucket ordering
         }
 
         public DocValueFormat getFormatter() {
@@ -325,7 +323,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             docCount += bucket.docCount;
             min = Math.min(min, bucket.bounds.min);
             max = Math.max(max, bucket.bounds.max);
-            sum += bucket.docCount * (double) bucket.getKey();
+            sum += bucket.docCount * bucket.centroid;
             aggregations.add((InternalAggregations) bucket.getAggregations());
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
@@ -352,10 +350,11 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         while (pq.size() > 0) {
             IteratorAndCurrent top = pq.top();
             reducedBuckets.add(top.current);
+            reduceContext.consumeBucketsAndMaybeBreak(1);
 
             if (top.iterator.hasNext()) {
                 Bucket next = top.iterator.next();
-                assert next.compareKey(top.current) >= 0 : "shards must return data sorted by key";
+                assert next.compareKey(top.current) >= 0 : "shards must return data sorted by centroid";
                 top.current = next;
                 pq.updateTop();
             } else {
@@ -415,7 +414,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             }
             toMerge.add(buckets.get(startIdx)); // Don't remove the startIdx bucket because it will be replaced by the merged bucket
 
-            reduceContext.consumeBucketsAndMaybeBreak(-(toMerge.size() - 1));
+            reduceContext.consumeBucketsAndMaybeBreak(- (toMerge.size() - 1));
             Bucket merged_bucket = reduceBucket(toMerge, reduceContext);
 
             buckets.set(startIdx, merged_bucket);
@@ -459,7 +458,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
                     smallest_distance = new_distance;
                 }
             }
-
             // Merge the two closest ranges
             ranges.get(closestIdx).mergeWith(ranges.get(closestIdx + 1));
             ranges.remove(closestIdx + 1);

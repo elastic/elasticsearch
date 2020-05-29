@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -55,11 +57,40 @@ public class InternalVariableWidthHistogramTests extends
         this.numBuckets = 3;
     }
 
+    private InternalVariableWidthHistogram createEmptyTestInstance(){
+        String name = randomAlphaOfLength(5);
+        Map<String, Object> metadata = null;
+        if (randomBoolean()) {
+            metadata = new HashMap<>();
+            int metadataCount = between(0, 10);
+            while (metadata.size() < metadataCount) {
+                metadata.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            }
+        }
+        List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
+        return new InternalVariableWidthHistogram(name, buckets, emptyBucktInfo, numBuckets, format, metadata);
+    }
+
     @Override
     protected InternalVariableWidthHistogram createTestInstance(String name,
                                                                 Map<String, Object> metaData,
                                                                 InternalAggregations aggregations) {
+        final double base = randomIntBetween(-50, 50);
+        final int numBuckets = randomIntBetween(1, 5);
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
+        double curKey = base;
+        for (int i = 0; i < numBuckets; ++i) {
+            final int docCount = TestUtil.nextInt(random(), 1, 50);
+            double add = randomDoubleBetween(1, 10, true);
+            curKey += add;
+            buckets.add(new InternalVariableWidthHistogram.Bucket(
+                curKey,
+                new InternalVariableWidthHistogram.Bucket.BucketBounds(curKey - (add / 3), curKey + (add / 3)),
+                docCount,
+                format,
+                InternalAggregations.EMPTY
+            ));
+        }
         return new InternalVariableWidthHistogram(name, buckets, emptyBucktInfo, numBuckets, format, metaData);
     }
 
@@ -106,7 +137,7 @@ public class InternalVariableWidthHistogramTests extends
     }
 
     public void testSingleShardReduceLong() {
-        InternalVariableWidthHistogram dummy_histogram = createTestInstance();
+        InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         for (long value : new long[]{1, 2, 5, 10, 12, 200}) {
             InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(value, value + 1);
@@ -130,22 +161,22 @@ public class InternalVariableWidthHistogramTests extends
         List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context)).getBuckets();
 
         // Final clusters should be [ (1,2,5), (10,12), 200) ]
-        // Final centroids should be [ 1.5, 10, 200 ]
+        // Final centroids should be [ 3, 11, 200 ]
         // Final keys should be [ 1, 5, 200 ]
         double double_error = 1d / 10000d;
         assertEquals((8d/3d), reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(1d, reduced_buckets.get(0).getKeyForXContent(), double_error);
+        assertEquals(1d, (double) reduced_buckets.get(0).getKey(), double_error);
         assertEquals(9, reduced_buckets.get(0).getDocCount());
         assertEquals(11d, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(10d, reduced_buckets.get(1).getKeyForXContent(), double_error);
+        assertEquals(10d, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(6, reduced_buckets.get(1).getDocCount());
         assertEquals(200d, reduced_buckets.get(2).centroid(), double_error);
-        assertEquals(200d, reduced_buckets.get(2).getKeyForXContent(), double_error);
+        assertEquals(200d, (double) reduced_buckets.get(2).getKey(), double_error);
         assertEquals(3, reduced_buckets.get(2).getDocCount());
     }
 
     public void testSingleShardReduceDouble() {
-        InternalVariableWidthHistogram dummy_histogram = createTestInstance();
+        InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         for (double value : new double[]{-1.3, -1.3, 12.0, 13.0, 20.0, 21.5, 23.0, 24.5}) {
             InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(value - 0.7, value + 1);
@@ -173,18 +204,18 @@ public class InternalVariableWidthHistogramTests extends
         // Final keys should be [ -1.3, 11.7, 19.7 ]
         double double_error = 1d / 10000d;
         assertEquals(-1.3, reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(-2.0, reduced_buckets.get(0).getKeyForXContent(), double_error);
+        assertEquals(-2.0, (double)reduced_buckets.get(0).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(0).getDocCount());
         assertEquals(12.5, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(11.3, reduced_buckets.get(1).getKeyForXContent(), double_error);
+        assertEquals(11.3, (double)reduced_buckets.get(1).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(1).getDocCount());
         assertEquals(22.25, reduced_buckets.get(2).centroid(), double_error);
-        assertEquals(19.3, reduced_buckets.get(2).getKeyForXContent(), double_error);
+        assertEquals(19.3, (double)reduced_buckets.get(2).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(2).getDocCount());
     }
 
     public void testMultipleShardsReduce() {
-        InternalVariableWidthHistogram dummy_histogram = createTestInstance();
+        InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
 
         List<InternalVariableWidthHistogram.Bucket> buckets1 = new ArrayList<>();
         for (long value : new long[]{1, 5, 6, 10}) {
@@ -238,18 +269,18 @@ public class InternalVariableWidthHistogramTests extends
         // Final keys should be [ 1, 5, 10 ]
         double double_error = 1d / 10000d;
         assertEquals(1.6d, reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(0d, reduced_buckets.get(0).getKeyForXContent(), double_error);
+        assertEquals(0d, (double)reduced_buckets.get(0).getKey(), double_error);
         assertEquals(5, reduced_buckets.get(0).getDocCount());
         assertEquals(6d, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(5d, reduced_buckets.get(1).getKeyForXContent(), double_error);
+        assertEquals(5d, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(1).getDocCount());
         assertEquals(11d, reduced_buckets.get(2).centroid(), double_error);
-        assertEquals(10d, reduced_buckets.get(2).getKeyForXContent(), double_error);
+        assertEquals(10d, (double) reduced_buckets.get(2).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(2).getDocCount());
     }
 
     public void testOverlappingReduceResult() {
-        InternalVariableWidthHistogram dummy_histogram = createTestInstance();
+        InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         for (long value : new long[]{1, 2, 4, 10}) {
             InternalVariableWidthHistogram.Bucket.BucketBounds bounds =  new InternalVariableWidthHistogram.Bucket.BucketBounds(
@@ -281,13 +312,13 @@ public class InternalVariableWidthHistogramTests extends
         // Expected doc counts: [8, 4, 4]
         double double_error = 1d / 10000d;
         assertEquals(1.5, reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(1d, reduced_buckets.get(0).getKeyForXContent(), double_error);
+        assertEquals(1d, (double) reduced_buckets.get(0).getKey(), double_error);
         assertEquals(8, reduced_buckets.get(0).getDocCount());
         assertEquals(4d, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(4.5, reduced_buckets.get(1).getKeyForXContent(), double_error);
+        assertEquals(4.5, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(1).getDocCount());
         assertEquals(10d, reduced_buckets.get(2).centroid(), double_error);
-        assertEquals(10d, reduced_buckets.get(2).getKeyForXContent(), double_error);
+        assertEquals(10d, (double) reduced_buckets.get(2).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(2).getDocCount());
     }
 
@@ -295,7 +326,7 @@ public class InternalVariableWidthHistogramTests extends
      * When buckets have the same min after the reduce phase, they should be merged.
      */
     public void testSameMinMerge() {
-        InternalVariableWidthHistogram dummy_histogram = createTestInstance();
+        InternalVariableWidthHistogram dummy_histogram = createEmptyTestInstance();
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>();
         for (long value : new long[]{1, 100, 700}) {
             InternalVariableWidthHistogram.Bucket.BucketBounds bounds;
@@ -335,10 +366,10 @@ public class InternalVariableWidthHistogramTests extends
         double double_error = 1d / 10000d;
         assertEquals(2, reduced_buckets.size());
         assertEquals((101d/2d), reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(1d, reduced_buckets.get(0).getKeyForXContent(), double_error);
+        assertEquals(1d, (double) reduced_buckets.get(0).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(0).getDocCount());
         assertEquals(700d, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(700d, reduced_buckets.get(1).getKeyForXContent(), double_error);
+        assertEquals(700d, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(1, reduced_buckets.get(1).getDocCount());
     }
 

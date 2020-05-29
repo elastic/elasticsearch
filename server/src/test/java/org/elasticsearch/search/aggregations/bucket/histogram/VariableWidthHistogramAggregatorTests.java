@@ -86,12 +86,13 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalVariableWidthHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
 
+                double double_error = 1d / 10000d;
                 assertEquals(3, histogram.getBuckets().size());
-                assertEquals(-200d, histogram.getBuckets().get(0).getKey());
+                assertEquals(-200, histogram.getBuckets().get(0).centroid(), double_error);
                 assertEquals(1, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(3d, histogram.getBuckets().get(1).getKey());
+                assertEquals(3, histogram.getBuckets().get(1).centroid(), double_error);
                 assertEquals(1, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(10d, histogram.getBuckets().get(2).getKey());
+                assertEquals(10, histogram.getBuckets().get(2).centroid(), double_error);
                 assertEquals(1, histogram.getBuckets().get(2).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
@@ -123,11 +124,11 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
                 double double_error = 1d / 10000d;
                 assertEquals(3, histogram.getBuckets().size());
-                assertEquals(-2.5d, (double) histogram.getBuckets().get(0).getKey(), double_error);
+                assertEquals(-2.5, histogram.getBuckets().get(0).centroid(), double_error);
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(1d, (double) histogram.getBuckets().get(1).getKey(), double_error);
+                assertEquals(1, histogram.getBuckets().get(1).centroid(), double_error);
                 assertEquals(1, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(4.5d, (double) histogram.getBuckets().get(2).getKey(), double_error);
+                assertEquals(4.5, histogram.getBuckets().get(2).centroid(), double_error);
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
@@ -163,14 +164,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
                 double double_error = 1d / 10000d;
                 assertEquals(4, histogram.getBuckets().size());
-                assertEquals(0.4d, (double) histogram.getBuckets().get(0).getKey(), double_error);
+                assertEquals(0.4, histogram.getBuckets().get(0).centroid(), double_error);
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(2.78d, (double) histogram.getBuckets().get(1).getKey(), double_error);
+                assertEquals(2.78, histogram.getBuckets().get(1).centroid(), double_error);
                 assertEquals(2, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(5.6d, (double) histogram.getBuckets().get(2).getKey(), double_error);
+                assertEquals(5.6, histogram.getBuckets().get(2).centroid(), double_error);
                 assertEquals(2, histogram.getBuckets().get(2).getDocCount());
-                assertEquals(8.8d, histogram.getBuckets().get(3).getKey());
-                assertEquals(1, (double) histogram.getBuckets().get(3).getDocCount(), double_error);
+                assertEquals(8.8, histogram.getBuckets().get(3).centroid(), double_error);
+                assertEquals(1, histogram.getBuckets().get(3).getDocCount(), double_error);
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -207,17 +208,17 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(15, histogram.getBuckets().size());
                 for(int i = 0; i <= 10; i++){
                     double expectedKey = (2 * i) - 1;
-                    assertEquals(expectedKey, (double) histogram.getBuckets().get(i).getKey(), double_error);
+                    assertEquals(expectedKey, histogram.getBuckets().get(i).centroid(), double_error);
                     assertEquals(1, histogram.getBuckets().get(i).getDocCount());
                 }
-                assertEquals(29d, (double) histogram.getBuckets().get(11).getKey(), double_error);
+                assertEquals(29d, histogram.getBuckets().get(11).centroid(), double_error);
                 assertEquals(3, histogram.getBuckets().get(11).getDocCount());
-                assertEquals(39d, (double) histogram.getBuckets().get(12).getKey(), double_error);
+                assertEquals(39d, histogram.getBuckets().get(12).centroid(), double_error);
                 assertEquals(2, histogram.getBuckets().get(12).getDocCount());
-                assertEquals(50d, (double) histogram.getBuckets().get(13).getKey(), double_error);
+                assertEquals(50d, histogram.getBuckets().get(13).centroid(), double_error);
                 assertEquals(1, histogram.getBuckets().get(13).getDocCount());
-                assertEquals(77.5d, (double) histogram.getBuckets().get(14).getKey(), double_error);
-                assertEquals(2, (double) histogram.getBuckets().get(14).getDocCount(), double_error);
+                assertEquals(77.5d, histogram.getBuckets().get(14).centroid(), double_error);
+                assertEquals(2, histogram.getBuckets().get(14).getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -249,14 +250,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
                 double double_error = 1d / 10000d;
                 assertEquals(4, histogram.getBuckets().size());
-                assertEquals(-299d, (double) histogram.getBuckets().get(0).getKey(), double_error);
+                assertEquals(-299, histogram.getBuckets().get(0).centroid(), double_error);
                 assertEquals(3, histogram.getBuckets().get(0).getDocCount());
-                assertEquals(3.5d, (double) histogram.getBuckets().get(1).getKey(), double_error);
+                assertEquals(3.5, histogram.getBuckets().get(1).centroid(), double_error);
                 assertEquals(2, histogram.getBuckets().get(1).getDocCount());
-                assertEquals(5d, (double) histogram.getBuckets().get(2).getKey(), double_error);
+                assertEquals(5, histogram.getBuckets().get(2).centroid(), double_error);
                 assertEquals(1, histogram.getBuckets().get(2).getDocCount());
-                assertEquals(1116d, histogram.getBuckets().get(3).getKey());
-                assertEquals(5, (double) histogram.getBuckets().get(3).getDocCount(), double_error);
+                assertEquals(1116, histogram.getBuckets().get(3).centroid(), double_error);
+                assertEquals(5, histogram.getBuckets().get(3).getDocCount(), double_error);
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }

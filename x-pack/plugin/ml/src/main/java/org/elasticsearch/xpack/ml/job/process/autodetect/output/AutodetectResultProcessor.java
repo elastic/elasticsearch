@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -223,7 +224,7 @@ public class AutodetectResultProcessor {
                 for (ForecastRequestStats forecastRequestStats : runningForecasts.values()) {
                     ForecastRequestStats failedStats = new ForecastRequestStats(forecastRequestStats);
                     failedStats.setStatus(ForecastRequestStats.ForecastRequestStatus.FAILED);
-                    failedStats.setMessages(List.of(JOB_FORECAST_NATIVE_PROCESS_KILLED));
+                    failedStats.setMessages(Collections.singletonList(JOB_FORECAST_NATIVE_PROCESS_KILLED));
                     bulkResultsPersister.persistForecastRequestStats(failedStats);
                 }
                 bulkResultsPersister.executeRequest();

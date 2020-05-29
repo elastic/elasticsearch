@@ -307,8 +307,8 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         });
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
-            "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
-            indexMetadata.getIndex().getName())));
+            "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias pointing to the group of " +
+                "indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexMetadata.getIndex().getName())));
     }
 
     public void testPerformActionAliasDoesNotPointToIndex() {

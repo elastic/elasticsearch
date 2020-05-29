@@ -78,7 +78,7 @@ minutes of the following hour in the specified time zone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the hour
 is the same at the start and end.
 
-`day` aka `1d` ::
+`day`, `1d` ::
 
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).

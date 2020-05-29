@@ -159,12 +159,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValuesSourceType getValuesSourceType() {
-            // TODO: should this even exist? Is aggregating on the ID field valid?
-            return CoreValuesSourceType.BYTES;
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("Fielddata access on the _id field is disallowed");

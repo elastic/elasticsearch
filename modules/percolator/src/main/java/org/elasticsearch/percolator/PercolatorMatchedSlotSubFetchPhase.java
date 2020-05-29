@@ -32,15 +32,14 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -57,11 +56,12 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        innerHitsExecute(context.query(), context.searcher(), hits);
+        innerHitsExecute(context.query(), context.searcher(), context.mapperService(), hits);
     }
 
     static void innerHitsExecute(Query mainQuery,
                                  IndexSearcher indexSearcher,
+                                 MapperService mapperService,
                                  SearchHit[] hits) throws IOException {
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
         if (percolateQueries.isEmpty()) {
@@ -101,13 +101,9 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     continue;
                 }
 
-                Map<String, DocumentField> fields = hit.fieldsOrNull();
-                if (fields == null) {
-                    fields = new HashMap<>();
-                    hit.fields(fields);
-                }
                 IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
-                hit.setField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                hit.setField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())),
+                    mapperService.isMetadataField(fieldName));
             }
         }
     }

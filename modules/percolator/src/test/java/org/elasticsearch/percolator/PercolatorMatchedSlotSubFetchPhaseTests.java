@@ -34,9 +34,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.stream.IntStream;
@@ -44,6 +46,8 @@ import java.util.stream.IntStream;
 public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
 
     public void testHitsExecute() throws Exception {
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        Mockito.when(mapperService.isMetadataField(Mockito.anyString())).thenReturn(false);
         try (Directory directory = newDirectory()) {
             // Need a one doc index:
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -64,7 +68,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, mapperService, hits);
                     assertNotNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                     assertEquals(0, (int) hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
                 }
@@ -79,7 +83,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, mapperService, hits);
                     assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }
 
@@ -93,7 +97,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, mapperService, hits);
                     assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }
             }

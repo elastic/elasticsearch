@@ -29,8 +29,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -101,10 +104,16 @@ public class DocumentFieldTests extends ESTestCase {
     }
 
     public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType) {
-        if (randomBoolean()) {
+        return randomDocumentField(xContentType, randomBoolean());
+    }
+
+    public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType, boolean isMetafield) {
+        if (isMetafield) {
             String metaField = randomValueOtherThanMany(field -> field.equals(TypeFieldMapper.NAME)
-                    || field.equals(IndexFieldMapper.NAME) || field.equals(IdFieldMapper.NAME),
-                () -> randomFrom(MapperService.getAllMetaFields()));
+                    || field.equals(IndexFieldMapper.NAME) || field.equals(IdFieldMapper.NAME)
+                    || field.equals(VersionFieldMapper.NAME) || field.equals(SourceFieldMapper.NAME)
+                    || field.equals(SeqNoFieldMapper.NAME),
+                () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
             DocumentField documentField;
             if (metaField.equals(IgnoredFieldMapper.NAME)) {
                 int numValues = randomIntBetween(1, 3);

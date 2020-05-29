@@ -1484,7 +1484,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             threadPool,
                             shardStateAction,
                             actionFilters,
-                            new WriteMemoryLimits(settings, clusterSettings))),
+                            new WriteMemoryLimits())),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
@@ -1498,7 +1498,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters, indexNameExpressionResolver
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
-                final WriteMemoryLimits indexingMemoryLimits = new WriteMemoryLimits(settings, clusterSettings);
+                final WriteMemoryLimits indexingMemoryLimits = new WriteMemoryLimits();
                 mappingUpdatedAction.setClient(client);
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,

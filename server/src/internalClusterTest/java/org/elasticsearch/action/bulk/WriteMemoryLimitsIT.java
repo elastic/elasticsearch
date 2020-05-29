@@ -47,7 +47,6 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             // Need at least two threads because we are going to block one
             .put("thread_pool.write.size", 2)
-            .put("indices.indexing_bytes.limit", "1KB")
             .build();
     }
 

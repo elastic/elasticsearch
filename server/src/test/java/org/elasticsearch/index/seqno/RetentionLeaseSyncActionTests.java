@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
@@ -107,7 +106,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                new WriteMemoryLimits());
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.dispatchedShardOperationOnPrimary(request, indexShard,
@@ -144,7 +143,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                new WriteMemoryLimits());
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -183,7 +182,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                new WriteMemoryLimits());
 
         assertNull(action.indexBlockLevel());
     }

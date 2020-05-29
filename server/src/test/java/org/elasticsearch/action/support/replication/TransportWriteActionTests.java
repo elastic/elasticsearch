@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -368,7 +367,7 @@ public class TransportWriteActionTests extends ESTestCase {
                     new TransportService(Settings.EMPTY, mock(Transport.class), null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                         x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false,
-                new WriteMemoryLimits(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                new WriteMemoryLimits());
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
@@ -378,7 +377,7 @@ public class TransportWriteActionTests extends ESTestCase {
             super(settings, actionName, transportService, clusterService,
                     mockIndicesService(clusterService), threadPool, shardStateAction,
                     new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, ThreadPool.Names.SAME, false,
-                    new WriteMemoryLimits(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                    new WriteMemoryLimits());
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
         }

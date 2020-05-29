@@ -504,6 +504,6 @@ public class DatafeedJobTests extends ESTestCase {
         return new BulkItemResponse(
             1,
             DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), docId, 0, 0, 1, true));
+            new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), "doc", docId, 0, 0, 1, true));
     }
 }

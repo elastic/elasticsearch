@@ -149,7 +149,7 @@ public class NativePrivilegeStoreCacheTests extends SecuritySingleNodeTestCase {
         assertEquals(0, privileges.length);
     }
 
-    public void testWildcard() {
+    public void testPopulationOfCacheWhenLoadingPrivilegesForAllApplications() {
         final Client client = client();
 
         ApplicationPrivilegeDescriptor[] privileges = new GetPrivilegesRequestBuilder(client)

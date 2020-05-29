@@ -3,7 +3,7 @@ setup:
       features: allowed_warnings
   - do:
       allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template1
         body:
@@ -12,7 +12,7 @@ setup:
             timestamp_field: '@timestamp'
   - do:
       allowed_warnings:
-        - "index template [my-template2] has index patterns [simple-data-stream2*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template2
         body:

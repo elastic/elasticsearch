@@ -33,8 +33,8 @@ public class SLMFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeOptionalWriteable(this.slmStats);
     }
 
-    public SLMFeatureSetUsage(boolean available, @Nullable SnapshotLifecycleStats slmStats) {
-        super(XPackField.SNAPSHOT_LIFECYCLE, available, true);
+    public SLMFeatureSetUsage(boolean available, boolean enabled, @Nullable SnapshotLifecycleStats slmStats) {
+        super(XPackField.SNAPSHOT_LIFECYCLE, available, enabled);
         this.slmStats = slmStats;
     }
 

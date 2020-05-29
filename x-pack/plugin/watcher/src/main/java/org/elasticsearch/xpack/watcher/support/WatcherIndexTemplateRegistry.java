@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistry
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 

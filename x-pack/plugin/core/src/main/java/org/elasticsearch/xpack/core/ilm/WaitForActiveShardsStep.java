@@ -76,10 +76,10 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
             IndexMetadata rolledIndexMeta = dataStreamAbstraction.getWriteIndex();
             if (rolledIndexMeta == null) {
-                return getErrorResultOnNullMetadata(index);
+                return getErrorResultOnNullMetadata(getKey(), index);
             }
             rolledIndexName = rolledIndexMeta.getIndex().getName();
-            waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
+            waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(originalIndexMeta.getSettings());
             if (Strings.isNullOrEmpty(rolloverAlias)) {
@@ -93,7 +93,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             IndexMetadata aliasWriteIndex = aliasAbstraction.getWriteIndex();
             if (aliasWriteIndex != null) {
                 rolledIndexName = aliasWriteIndex.getIndex().getName();
-                waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get("index.write.wait_for_active_shards");
+                waitForActiveShardsSettingValue = aliasWriteIndex.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
             } else {
                 List<IndexMetadata> indices = aliasAbstraction.getIndices();
                 int maxIndexCounter = -1;
@@ -106,7 +106,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                     }
                 }
                 if (rolledIndexMeta == null) {
-                    return getErrorResultOnNullMetadata(index);
+                    return getErrorResultOnNullMetadata(getKey(), index);
                 }
                 rolledIndexName = rolledIndexMeta.getIndex().getName();
                 waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get("index.write.wait_for_active_shards");
@@ -124,10 +124,10 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         return new Result(enoughShardsActive, new ActiveShardsInfo(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
     }
 
-    private Result getErrorResultOnNullMetadata(Index originalIndex) {
+    private static Result getErrorResultOnNullMetadata(StepKey key, Index originalIndex) {
         String errorMessage = String.format(Locale.ROOT,
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]", originalIndex.getName(),
-            getKey().getAction());
+            key.getAction());
 
         // Index must have been since deleted
         logger.debug(errorMessage);

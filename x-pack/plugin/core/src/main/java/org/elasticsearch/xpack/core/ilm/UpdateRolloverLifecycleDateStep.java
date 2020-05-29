@@ -72,11 +72,11 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
             .put(newIndexMetadata)).build();
     }
 
-    private String getRolloverTarget(Index index, ClusterState currentState) {
+    private static String getRolloverTarget(Index index, ClusterState currentState) {
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(index.getName());
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
-            rolloverTarget = indexAbstraction.getParentDataStream().getDataStream().getName();
+            rolloverTarget = indexAbstraction.getParentDataStream().getName();
         } else {
             // find the newly created index from the rollover and fetch its index.creation_date
             IndexMetadata indexMetadata = currentState.metadata().index(index);

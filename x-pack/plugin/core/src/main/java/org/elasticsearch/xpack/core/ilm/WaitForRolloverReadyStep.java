@@ -56,7 +56,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
-            rolloverTarget = indexAbstraction.getParentDataStream().getDataStream().getName();
+            rolloverTarget = indexAbstraction.getParentDataStream().getName();
         } else {
             IndexMetadata indexMetadata = metadata.index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());

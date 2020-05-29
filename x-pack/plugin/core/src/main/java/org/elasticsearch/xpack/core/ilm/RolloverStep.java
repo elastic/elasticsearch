@@ -40,30 +40,31 @@ public class RolloverStep extends AsyncActionStep {
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
-        IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexMetadata.getIndex().getName());
+        String indexName = indexMetadata.getIndex().getName();
+        boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
+        if (indexingComplete) {
+            logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
+            listener.onResponse(true);
+            return;
+        }
+        IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
+        assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
-            rolloverTarget = indexAbstraction.getParentDataStream().getDataStream().getName();
+            rolloverTarget = indexAbstraction.getParentDataStream().getName();
         } else {
-            boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
-            if (indexingComplete) {
-                logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
-                listener.onResponse(true);
-                return;
-            }
-
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                    "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
-                    indexMetadata.getIndex().getName())));
+                    "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias pointing to the group " +
+                        "of indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexName)));
                 return;
             }
 
             if (indexMetadata.getRolloverInfos().get(rolloverAlias) != null) {
                 logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
-                    indexMetadata.getIndex().getName(), rolloverAlias);
+                    indexName, rolloverAlias);
                 listener.onResponse(true);
                 return;
             }
@@ -71,7 +72,7 @@ public class RolloverStep extends AsyncActionStep {
             if (indexMetadata.getAliases().containsKey(rolloverAlias) == false) {
                 listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                     "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
-                    indexMetadata.getIndex().getName())));
+                    indexName)));
                 return;
             }
 

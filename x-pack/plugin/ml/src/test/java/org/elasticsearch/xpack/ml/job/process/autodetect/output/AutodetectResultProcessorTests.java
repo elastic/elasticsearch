@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
+import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -504,6 +505,63 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).shutdown();
         verify(renormalizer).waitUntilIdle();
         verify(flushListener).clear();
+    }
+
+    public void testProcessingOpenedForecasts() {
+        when(bulkBuilder.persistForecastRequestStats(any(ForecastRequestStats.class))).thenReturn(bulkBuilder);
+        AutodetectResult result = mock(AutodetectResult.class);
+        ForecastRequestStats forecastRequestStats = new ForecastRequestStats("foo", "forecast");
+        forecastRequestStats.setStatus(ForecastRequestStats.ForecastRequestStatus.OK);
+        when(result.getForecastRequestStats()).thenReturn(forecastRequestStats);
+
+        ArgumentCaptor<ForecastRequestStats> argument = ArgumentCaptor.forClass(ForecastRequestStats.class);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+        processorUnderTest.handleOpenForecasts();
+
+        verify(bulkBuilder, times(2)).persistForecastRequestStats(argument.capture());
+        verify(bulkBuilder, times(1)).executeRequest();
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
+        verify(persister, never()).deleteInterimResults(JOB_ID);
+
+        // Get all values is in reverse call order
+        List<ForecastRequestStats> stats = argument.getAllValues();
+        assertThat(stats.get(0).getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.OK));
+        assertThat(stats.get(1).getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FAILED));
+    }
+
+    public void testProcessingForecasts() {
+        when(bulkBuilder.persistForecastRequestStats(any(ForecastRequestStats.class))).thenReturn(bulkBuilder);
+        AutodetectResult result = mock(AutodetectResult.class);
+        ForecastRequestStats forecastRequestStats = new ForecastRequestStats("foo", "forecast");
+        forecastRequestStats.setStatus(ForecastRequestStats.ForecastRequestStatus.OK);
+        when(result.getForecastRequestStats()).thenReturn(forecastRequestStats);
+
+        ArgumentCaptor<ForecastRequestStats> argument = ArgumentCaptor.forClass(ForecastRequestStats.class);
+
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+
+
+        result = mock(AutodetectResult.class);
+        forecastRequestStats = new ForecastRequestStats("foo", "forecast");
+        forecastRequestStats.setStatus(ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        when(result.getForecastRequestStats()).thenReturn(forecastRequestStats);
+
+        processorUnderTest.processResult(result);
+        // There shouldn't be any opened forecasts. This call should do nothing
+        processorUnderTest.handleOpenForecasts();
+
+        verify(bulkBuilder, times(2)).persistForecastRequestStats(argument.capture());
+        verify(bulkBuilder, times(1)).executeRequest();
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
+        verify(persister, never()).deleteInterimResults(JOB_ID);
+
+        List<ForecastRequestStats> stats = argument.getAllValues();
+        assertThat(stats.get(0).getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.OK));
+        assertThat(stats.get(1).getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FINISHED));
     }
 
 }

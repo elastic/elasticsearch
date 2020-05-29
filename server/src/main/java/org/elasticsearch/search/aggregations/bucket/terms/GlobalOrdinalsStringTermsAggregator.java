@@ -78,21 +78,24 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         BytesRef apply(long ord) throws IOException;
     }
 
-    public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories,
-                                               Function<GlobalOrdinalsStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
-                                               ValuesSource.Bytes.WithOrdinals valuesSource,
-                                               BucketOrder order,
-                                               DocValueFormat format,
-                                               BucketCountThresholds bucketCountThresholds,
-                                               IncludeExclude.OrdinalsFilter includeExclude,
-                                               SearchContext context,
-                                               Aggregator parent,
-                                               boolean remapGlobalOrds,
-                                               SubAggCollectionMode collectionMode,
-                                               boolean showTermDocCountError,
-                                               Map<String, Object> metadata) throws IOException {
+    public GlobalOrdinalsStringTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        Function<GlobalOrdinalsStringTermsAggregator, ResultStrategy<?, ?, ?>> resultStrategy,
+        ValuesSource.Bytes.WithOrdinals valuesSource,
+        BucketOrder order,
+        DocValueFormat format,
+        BucketCountThresholds bucketCountThresholds,
+        IncludeExclude.OrdinalsFilter includeExclude,
+        SearchContext context,
+        Aggregator parent,
+        boolean remapGlobalOrds,
+        SubAggCollectionMode collectionMode,
+        boolean showTermDocCountError,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
-        this.resultStrategy = resultStrategy.apply(this);
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         final IndexReader reader = context.searcher().getIndexReader();
         final SortedSetDocValues values = reader.leaves().size() > 0 ?
@@ -206,27 +209,34 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     /**
-     * Variant of {@link GlobalOrdinalsStringTermsAggregator} that resolves global ordinals post segment collection
-     * instead of on the fly for each match.This is beneficial for low cardinality fields, because it can reduce
-     * the amount of look-ups significantly.
+     * Variant of {@link GlobalOrdinalsStringTermsAggregator} that
+     * resolves global ordinals post segment collection instead of on the fly
+     * for each match.This is beneficial for low cardinality fields, because
+     * it can reduce the amount of look-ups significantly.
+     * <p>
+     * This is only supported for the standard {@code terms} aggregation and
+     * doesn't support {@code significant_terms} so this forces
+     * {@link StandardTermsResults}.
      */
     static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
         private LongUnaryOperator mapping;
         private IntArray segmentDocCounts;
 
-        LowCardinality(String name,
-                       AggregatorFactories factories,
-                       ValuesSource.Bytes.WithOrdinals valuesSource,
-                       BucketOrder order,
-                       DocValueFormat format,
-                       BucketCountThresholds bucketCountThresholds,
-                       SearchContext context,
-                       Aggregator parent,
-                       boolean forceDenseMode,
-                       SubAggCollectionMode collectionMode,
-                       boolean showTermDocCountError,
-                       Map<String, Object> metadata) throws IOException {
+        LowCardinality(
+            String name,
+            AggregatorFactories factories,
+            ValuesSource.Bytes.WithOrdinals valuesSource,
+            BucketOrder order,
+            DocValueFormat format,
+            BucketCountThresholds bucketCountThresholds,
+            SearchContext context,
+            Aggregator parent,
+            boolean forceDenseMode,
+            SubAggCollectionMode collectionMode,
+            boolean showTermDocCountError,
+            Map<String, Object> metadata
+        ) throws IOException {
             super(name, factories, a -> a.new StandardTermsResults(), valuesSource, order, format, bucketCountThresholds, null,
                 context, parent, forceDenseMode, collectionMode, showTermDocCountError, metadata);
             assert factories == null || factories.countAggregators() == 0;

@@ -43,9 +43,10 @@ File clientKeyStore = file("$keystoreDir/test-client.jks")
 tasks.register("resolveKeyStores") {
   inputs.files(configurations.nodeKeystores)
   inputs.files(configurations.clientKeyStores)
+  outputs.dir(keystoreDir)
   doLast {
-    Files.copy(configurations.nodeKeystores.files.singleFile.toPath(), nodeKeystore.toPath())
-    Files.copy(configurations.clientKeyStores.files.singleFile.toPath(), clientKeyStore.toPath())
+    Files.copy(configurations.nodeKeystores.singleFile.toPath(), nodeKeystore.toPath())
+    Files.copy(configurations.clientKeyStores.singleFile.toPath(), clientKeyStore.toPath())
   }
 }
 

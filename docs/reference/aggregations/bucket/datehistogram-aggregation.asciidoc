@@ -62,7 +62,7 @@ Multiple quantities, such as `2d`, are not supported.
 
 The accepted calendar intervals are:
 
-`minute` aka `1m` ::
+`minute`, `1m` ::
 
 All minutes begin at 00 seconds.
 One minute is the interval between 00 seconds of the first minute and 00
@@ -70,7 +70,7 @@ seconds of the following minute in the specified time zone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the
 hour is the same at the start and end.
 
-`hour` aka `1h` ::
+`hour`, `1h` ::
 
 All hours begin at 00 minutes and 00 seconds.
 One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
@@ -86,26 +86,26 @@ One day (1d) is the interval between the start of the day and the start of
 of the following day in the specified time zone, compensating for any intervening
 time changes.
 
-`week` aka `1w` ::
+`week`, `1w` ::
 
 One week is the interval between the start day_of_week:hour:minute:second
 and the same day of the week and time of the following week in the specified
 time zone.
 
-`month` aka `1M` ::
+`month`, `1M` ::
 
 One month is the interval between the start day of the month and time of
 day and the same day of the month and time of the following month in the specified
 time zone, so that the day of the month and time of day are the same at the start
 and end.
 
-`quarter` aka `1q` ::
+`quarter`, `1q` ::
 
 One quarter is the interval between the start day of the month and
 time of day and the same day of the month and time of day three months later,
 so that the day of the month and time of day are the same at the start and end. +
 
-`year` aka `1y` ::
+`year`, `1y` ::
 
 One year is the interval between the start day of the month and time of
 day and the same day of the month and time of day the following year in the
@@ -188,20 +188,20 @@ The accepted units for fixed intervals are:
 milliseconds (`ms`) ::
 
 seconds (`s`) ::
-Defined as 1000 milliseconds each
+Defined as 1000 milliseconds each.
 
 minutes (`m`) ::
+Defined as 60 seconds each (60,000 milliseconds).
 All minutes begin at 00 seconds.
-Defined as 60 seconds each (60,000 milliseconds)
 
 hours (`h`) ::
+Defined as 60 minutes each (3,600,000 milliseconds).
 All hours begin at 00 minutes and 00 seconds.
-Defined as 60 minutes each (3,600,000 milliseconds)
 
 days (`d`) ::
+Defined as 24 hours (86,400,000 milliseconds).
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
-Defined as 24 hours (86,400,000 milliseconds)
 
 [[fixed_interval_examples]]
 ===== Fixed interval examples
@@ -350,25 +350,25 @@ Response:
 
 ===== Time zone
 
-Date-times are stored in Elasticsearch in UTC. By default, all bucketing and
+{es} stores date-times in Coordinated Universal Time (UTC). By default, all bucketing and
 rounding is also done in UTC. Use the `time_zone` parameter to indicate
 that bucketing should use a different time zone.
 
-For example, if the inverval is a calendar day and the time zone is
+For example, if the interval is a calendar day and the time zone is
 `America/New_York` then `2020-01-03T01:00:01Z` is converted to
 `2020-01-02T18:00:01`, rounded down to `2020-01-02T00:00:00` and then
 converted back to UTC to produce `2020-01-02T05:00:00:00Z`. Finally, when the
 bucket is turned into a string key it is printed in `America/New_York` so it'll
-display as `"2020-01-02T00:00:00"`. More formally, this make the rounding look like:
+display as `"2020-01-02T00:00:00"`. Values are converted as follows:
 
 [source,java]
---------------------------------------------------
+----
 bucket_key = localToUtc(Math.floor(utcToLocal(value) / interval) * interval))
---------------------------------------------------
+----
 
-You can specify time zones as either an ISO 8601 UTC offset (e.g. `+01:00` or
-`-08:00`) or as a time zone ID as specified in the IANA time zone database,
-such as` America/Los_Angeles`.
+You can specify time zones as an ISO 8601 UTC offset (e.g. `+01:00` or
+`-08:00`) or as an IANA time zone ID,
+such as `America/Los_Angeles`.
 
 Consider the following example:
 
@@ -470,14 +470,14 @@ second document falls into the bucket for 1 October 2015:
 <1> The `key_as_string` value represents midnight on each day
     in the specified time zone.
 
-WARNING: Most time zones shift their clocks for daylight savings time. Buckets
-lose to the moment when those changes happen can have slightly different sizes
-than you would expect from the used `calendar_interval` or `fixed_interval`.
+WARNING: Many time zones shift their clocks for daylight savings time. Buckets
+close to the moment when those changes happen can have slightly different sizes
+than you would expect from the `calendar_interval` or `fixed_interval`.
 For example, consider a DST start in the `CET` time zone: on 27 March 2016 at 2am,
-clocks were turned forward 1 hour to 3am local time. If you use `day` as
+clocks were turned forward 1 hour to 3am local time. If you use `day` as the
 `calendar_interval`, the bucket covering that day will only hold data for 23
 hours instead of the usual 24 hours for other buckets. The same is true for
-shorter intervals, like `fixed_interval` of `12h`, where you'll have only a 11h
+shorter intervals, like a `fixed_interval` of `12h`, where you'll have only a 11h
 bucket on the morning of 27 March when the DST shift happens.
 
 [[search-aggregations-bucket-datehistogram-offset]]

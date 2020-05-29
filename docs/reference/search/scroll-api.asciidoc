@@ -78,7 +78,7 @@ deprecated:[7.0.0]
 Scroll ID of the search.
 +
 IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
-the <<scroll-api-scroll-id-param,`scroll_id` request body parameter.
+the <<scroll-api-scroll-id-param,`scroll_id` request body parameter>>.
 
 [[scroll-api-query-params]]
 ==== {api-query-parms-title}
@@ -103,7 +103,7 @@ deprecated:[7.0.0]
 Scroll ID for the search.
 +
 IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
-the <<scroll-api-scroll-id-param,`scroll_id` request body parameter.
+the <<scroll-api-scroll-id-param,`scroll_id` request body parameter>>.
 
 `rest_total_hits_as_int`::
 (Optional, boolean)

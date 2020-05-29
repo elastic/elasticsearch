@@ -648,16 +648,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        SearchAsYouTypeFieldMapper fieldMapper = (SearchAsYouTypeFieldMapper) super.updateFieldType(fullNameToFieldType);
-        fieldMapper.prefixField = (PrefixFieldMapper) fieldMapper.prefixField.updateFieldType(fullNameToFieldType);
-        for (int i = 0; i < fieldMapper.shingleFields.length; i++) {
-            fieldMapper.shingleFields[i] = (ShingleFieldMapper) fieldMapper.shingleFields[i].updateFieldType(fullNameToFieldType);
-        }
-        return fieldMapper;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
         if (value == null) {

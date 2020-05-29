@@ -849,18 +849,6 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        TextFieldMapper mapper = (TextFieldMapper) super.updateFieldType(fullNameToFieldType);
-        if (mapper.prefixFieldMapper != null) {
-            mapper.prefixFieldMapper = (PrefixFieldMapper) mapper.prefixFieldMapper.updateFieldType(fullNameToFieldType);
-        }
-        if (mapper.phraseFieldMapper != null) {
-            mapper.phraseFieldMapper = (PhraseFieldMapper) mapper.phraseFieldMapper.updateFieldType(fullNameToFieldType);
-        }
-        return mapper;
-    }
-
-    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         TextFieldMapper mw = (TextFieldMapper) other;
         if (mw.fieldType().indexPhrases != this.fieldType().indexPhrases) {

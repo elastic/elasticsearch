@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -16,7 +18,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
+import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -24,6 +29,7 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.nio.file.Path;
@@ -31,27 +37,30 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request.DURATION;
+import static org.elasticsearch.xpack.core.ml.action.ForecastJobAction.Request.FORECAST_LOCAL_STORAGE_LIMIT;
 
 public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJobAction.Request,
         ForecastJobAction.Response> {
 
-    private static final ByteSizeValue FORECAST_LOCAL_STORAGE_LIMIT = new ByteSizeValue(500, ByteSizeUnit.MB);
+    private static final Logger logger = LogManager.getLogger(TransportForecastJobAction.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
     private final NativeStorageProvider nativeStorageProvider;
+    private final AnomalyDetectionAuditor auditor;
 
     @Inject
     public TransportForecastJobAction(TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters,
                                       JobResultsProvider jobResultsProvider, AutodetectProcessManager processManager,
-                                      JobManager jobManager, NativeStorageProvider nativeStorageProvider) {
+                                      JobManager jobManager, NativeStorageProvider nativeStorageProvider, AnomalyDetectionAuditor auditor) {
         super(ForecastJobAction.NAME, clusterService, transportService, actionFilters,
             ForecastJobAction.Request::new, ForecastJobAction.Response::new,
                 ThreadPool.Names.SAME, processManager);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.nativeStorageProvider = nativeStorageProvider;
+        this.auditor = auditor;
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
@@ -70,6 +79,11 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
                     if (request.getExpiresIn() != null) {
                         paramsBuilder.expiresIn(request.getExpiresIn());
+                    }
+
+                    Long adjustedLimit = getAdjustedMemoryLimit(job, request.getMaxModelMemory(), auditor);
+                    if (adjustedLimit != null) {
+                        paramsBuilder.maxModelMemory(adjustedLimit);
                     }
 
                     // tmp storage might be null, we do not log here, because it might not be
@@ -122,6 +136,26 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
         };
 
         jobResultsProvider.getForecastRequestStats(jobId, forecastId, forecastRequestStatsHandler, listener::onFailure);
+    }
+
+    static Long getAdjustedMemoryLimit(Job job, Long requestedLimit, AbstractAuditor<? extends AbstractAuditMessage> auditor) {
+        if (requestedLimit == null) {
+            return null;
+        }
+        long jobLimitMegaBytes = job.getAnalysisLimits() == null || job.getAnalysisLimits().getModelMemoryLimit() == null ?
+            AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB :
+            job.getAnalysisLimits().getModelMemoryLimit();
+        long allowedMax = (long)(new ByteSizeValue(jobLimitMegaBytes, ByteSizeUnit.MB).getBytes() * 0.40);
+        long adjustedMax = Math.min(requestedLimit, allowedMax - 1);
+        if (adjustedMax != requestedLimit) {
+            String msg = "requested forecast memory limit [" +
+                requestedLimit +
+                "] bytes is greater than or equal to [" + allowedMax +
+                "] bytes (40% of the job memory limit). Reducing to [" + adjustedMax + "].";
+            logger.warn("[{}] {}", job.getId(), msg);
+            auditor.warning(job.getId(), msg);
+        }
+        return adjustedMax;
     }
 
     static void validate(Job job, ForecastJobAction.Request request) {

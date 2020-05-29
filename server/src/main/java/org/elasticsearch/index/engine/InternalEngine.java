@@ -490,9 +490,6 @@ public class InternalEngine extends Engine {
                 "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
                 opsRecovered, translog.currentFileGeneration()));
         flush(false, true);
-        if (opsRecovered > 0) {
-            refresh("translog_recovery");
-        }
         translog.trimUnreferencedReaders();
     }
 
@@ -1656,11 +1653,12 @@ public class InternalEngine extends Engine {
             try {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
-                // or (4) the processed local checkpoint is ahead of the local checkpoint tracked in the safe commit
+                // or (4) the local checkpoint information in the last commit is stale, which slows down future recoveries.
                 boolean hasUncommittedChanges = indexWriter.hasUncommittedChanges();
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (hasUncommittedChanges || force || shouldPeriodicallyFlush
-                        || getProcessedLocalCheckpoint() > getPersistedLocalCheckpoint()) {
+                        || getProcessedLocalCheckpoint() > Long.parseLong(
+                                lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();

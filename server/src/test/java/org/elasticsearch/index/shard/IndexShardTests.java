@@ -1021,8 +1021,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertNull(onFailure.get());
                     assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration,
                         // if rollback happens we roll translog twice: one when we flush a commit before opening a read-only engine
-                        // and two or three times after replaying translog (upto the global checkpoint); otherwise we roll translog once.
-                        oneOf(translogGen + 1, translogGen + 2, translogGen + 3));
+                        // and one after replaying translog (upto the global checkpoint); otherwise we roll translog once.
+                        either(equalTo(translogGen + 1)).or(equalTo(translogGen + 2)));
                     assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                     assertThat(indexShard.getLastKnownGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                 }

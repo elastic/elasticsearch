@@ -504,7 +504,7 @@ See <<search-search>>.
 [role="exclude",id="modules-gateway-dangling-indices"]
 === Dangling indices
 
-See <<modules-gateway-dangling-indices>>.
+See <<dangling-indices>>.
 
 [role="exclude",id="shards-allocation"]
 === Cluster-level shard allocation

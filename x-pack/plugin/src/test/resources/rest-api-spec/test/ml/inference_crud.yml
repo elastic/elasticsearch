@@ -80,7 +80,259 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.put_trained_model:
-        model_id: yyy-classification-model
+        model_id: b-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: c-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: d-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: e-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: f-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: g-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: h-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: i-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: j-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: k-classification-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "input": {"field_names": ["field1", "field2"]},
+            "tags": ["classification", "tag2"],
+            "inference_config": {"classification": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "classification",
+                     "classification_labels": ["no", "yes"]
+                  }
+               }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: y-classification-model
         body: >
           {
             "description": "empty model for tests",
@@ -106,7 +358,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.put_trained_model:
-        model_id: zzz-classification-model
+        model_id: z-classification-model
         body: >
           {
             "description": "empty model for tests",
@@ -157,14 +409,16 @@ setup:
   - do:
       ml.get_trained_models:
         model_id: "*"
-  - match: { count: 6 }
-  - length: { trained_model_configs: 6 }
-  - match: { trained_model_configs.0.model_id: "a-classification-model" }
-  - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
-  - match: { trained_model_configs.2.model_id: "a-regression-model-1" }
-  - match: { trained_model_configs.3.model_id: "lang_ident_model_1" }
-  - match: { trained_model_configs.4.model_id: "yyy-classification-model" }
-  - match: { trained_model_configs.5.model_id: "zzz-classification-model" }
+        size: 10
+  - match: { count: 16 }
+  - length: { trained_model_configs: 10 }
+
+  - do:
+      ml.get_trained_models:
+        model_id: "*"
+        size: 100
+  - match: { count: 16 }
+  - length: { trained_model_configs: 16 }
 
   - do:
       ml.get_trained_models:
@@ -179,7 +433,7 @@ setup:
         model_id: "*"
         from: 0
         size: 2
-  - match: { count: 6 }
+  - match: { count: 16 }
   - length: { trained_model_configs: 2 }
   - match: { trained_model_configs.0.model_id: "a-classification-model" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-0" }
@@ -189,7 +443,7 @@ setup:
         model_id: "*"
         from: 1
         size: 1
-  - match: { count: 6 }
+  - match: { count: 16 }
   - length: { trained_model_configs: 1 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-0" }
 
@@ -198,43 +452,43 @@ setup:
         model_id: "*"
         from: 2
         size: 2
-  - match: { count: 6 }
+  - match: { count: 16 }
   - length: { trained_model_configs: 2 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-1" }
-  - match: { trained_model_configs.1.model_id: "lang_ident_model_1" }
+  - match: { trained_model_configs.1.model_id: "b-classification-model" }
 
   - do:
       ml.get_trained_models:
         model_id: "*"
-        from: 3
+        from: 13
         size: 1
-  - match: { count: 6 }
+  - match: { count: 16 }
   - length: { trained_model_configs: 1 }
   - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
 
   - do:
       ml.get_trained_models:
         model_id: "*"
-        from: 3
+        from: 13
         size: 2
-  - match: { count: 6 }
+  - match: { count: 16 }
   - length: { trained_model_configs: 2 }
   - match: { trained_model_configs.0.model_id: "lang_ident_model_1" }
-  - match: { trained_model_configs.1.model_id: "yyy-classification-model" }
+  - match: { trained_model_configs.1.model_id: "y-classification-model" }
 
   - do:
       ml.get_trained_models:
         model_id: "*"
-        from: 4
+        from: 14
         size: 2
-  - match: { count: 6 }
+  - match: { count: 16 }
   - length: { trained_model_configs: 2 }
-  - match: { trained_model_configs.0.model_id: "yyy-classification-model" }
-  - match: { trained_model_configs.1.model_id: "zzz-classification-model" }
+  - match: { trained_model_configs.0.model_id: "y-classification-model" }
+  - match: { trained_model_configs.1.model_id: "z-classification-model" }
 
   - do:
       ml.get_trained_models:
-        model_id: "a-*,lang*,zzz*"
+        model_id: "a-*,lang*,z*"
         allow_no_match: true
         from: 3
         size: 1
@@ -244,22 +498,22 @@ setup:
 
   - do:
       ml.get_trained_models:
-        model_id: "a-*,lang*,zzz*"
+        model_id: "a-*,lang*,z*"
         allow_no_match: true
         from: 4
         size: 1
   - match: { count: 5 }
   - length: { trained_model_configs: 1 }
-  - match: { trained_model_configs.0.model_id: "zzz-classification-model" }
+  - match: { trained_model_configs.0.model_id: "z-classification-model" }
 
   - do:
       ml.get_trained_models:
-        model_id: "a-*,lang*,zzz*"
+        model_id: "a-*,lang*,z*"
         from: 4
         size: 100
   - match: { count: 5 }
   - length: { trained_model_configs: 1 }
-  - match: { trained_model_configs.0.model_id: "zzz-classification-model" }
+  - match: { trained_model_configs.0.model_id: "z-classification-model" }
 
 ---
 "Test get models with tags":
@@ -281,7 +535,7 @@ setup:
       ml.get_trained_models:
         model_id: "*"
         tags: "tag2"
-  - match: { count: 2 }
+  - match: { count: 12 }
   - match: { trained_model_configs.0.model_id: "a-classification-model" }
   - match: { trained_model_configs.1.model_id: "a-regression-model-1" }
 
@@ -291,7 +545,7 @@ setup:
         tags: "tag2"
         from: 1
         size: 1
-  - match: { count: 2 }
+  - match: { count: 12 }
   - match: { trained_model_configs.0.model_id: "a-regression-model-1" }
 ---
 "Test delete given unused trained model":

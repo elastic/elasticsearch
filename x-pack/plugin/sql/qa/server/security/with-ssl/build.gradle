@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.info.BuildParams
+import java.nio.file.Files
 
 // Tell the tests we're running with ssl enabled
 integTest.runner {

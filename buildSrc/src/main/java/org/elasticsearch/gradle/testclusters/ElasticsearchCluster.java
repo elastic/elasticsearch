@@ -348,6 +348,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         writeUnicastHostsFiles();
     }
 
+    public void fullRestart() {
+        stop(false);
+        start();
+    }
+
     public void nextNodeToNextVersion() {
         if (nodeIndex + 1 > nodes.size()) {
             throw new TestClustersException("Ran out of nodes to take to the next version");

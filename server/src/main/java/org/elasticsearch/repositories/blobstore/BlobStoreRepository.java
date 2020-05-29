@@ -69,6 +69,7 @@ import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -1701,10 +1702,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // in the commit with files already in the repository
             if (filesFromSegmentInfos == null) {
                 indexCommitPointFiles = new ArrayList<>();
-                store.incRef();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try {
+                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
                     // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                     try {
                         logger.trace(
@@ -1714,8 +1714,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } catch (IOException e) {
                         throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
                     }
-                } finally {
-                    store.decRef();
                 }
                 for (String fileName : fileNames) {
                     if (snapshotStatus.isAborted()) {
@@ -1840,14 +1838,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 executor.execute(ActionRunnable.run(filesListener, () -> {
                     BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
                     if (snapshotFileInfo != null) {
-                        store.incRef();
-                        try {
+                        try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
                             do {
                                 snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
                                 snapshotFileInfo = filesToSnapshot.poll(0L, TimeUnit.MILLISECONDS);
                             } while (snapshotFileInfo != null);
-                        } finally {
-                            store.decRef();
                         }
                     }
                 }));
@@ -1855,6 +1850,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
+        if (store.tryIncRef() == false) {
+            if (snapshotStatus.isAborted()) {
+                throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+            } else {
+                assert false : "Store should not be closed concurrently unless snapshot is aborted";
+                throw new IndexShardSnapshotFailedException(shardId, "Store got closed concurrently");
+            }
+        }
+        return store::decRef;
     }
 
     private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
@@ -2132,8 +2139,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return new Tuple<>(shardSnapshots, latest);
         } else if (blobs.stream().anyMatch(b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(INDEX_FILE_PREFIX)
                                                                               || b.startsWith(UPLOADED_DATA_BLOB_PREFIX))) {
-            throw new IllegalStateException(
-                "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]");
+            logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]");
         }
         return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }

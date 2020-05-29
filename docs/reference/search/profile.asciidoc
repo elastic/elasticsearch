@@ -782,7 +782,7 @@ This yields the following aggregation profile output:
       {
         "aggregations" : [
           {
-            "type" : "LongTermsAggregator",
+            "type" : "NumericTermsAggregator",
             "description" : "my_scoped_agg",
             "time_in_nanos" : 195386,
             "breakdown" : {
@@ -796,6 +796,7 @@ This yields the following aggregation profile output:
               "collect_count" : 4
             },
             "debug": {
+              "result_strategy": "long_terms",
               "total_buckets": 4
             }
           },
@@ -815,7 +816,7 @@ This yields the following aggregation profile output:
             },
             "children" : [
               {
-                "type" : "LongTermsAggregator",
+                "type" : "NumericTermsAggregator",
                 "description" : "my_level_agg",
                 "time_in_nanos" : 160329,
                 "breakdown" : {
@@ -829,6 +830,7 @@ This yields the following aggregation profile output:
                   "collect_count" : 4,
                 },
                 "debug": {
+                  "result_strategy": "long_terms",
                   "total_buckets": 4
                 }
               }
@@ -845,10 +847,10 @@ This yields the following aggregation profile output:
 // TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
 
 From the profile structure we can see that the `my_scoped_agg` is internally 
-being run as a `LongTermsAggregator` (because the field it is aggregating, 
+being run as a `NumericTermsAggregator` (because the field it is aggregating, 
 `likes`, is a numeric field). At the same level, we see a `GlobalAggregator` 
 which comes from `my_global_agg`. That aggregation then has a child 
-`LongTermsAggregator` which comes from the second term's aggregation on `likes`.
+`NumericTermsAggregator` which comes from the second term's aggregation on `likes`.
 
 The `time_in_nanos` field shows the time executed by each aggregation, and is 
 inclusive of all children.  While the overall time is useful, the `breakdown` 

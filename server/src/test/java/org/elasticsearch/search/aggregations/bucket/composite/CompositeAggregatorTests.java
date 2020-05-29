@@ -51,16 +51,19 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -101,6 +104,8 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
@@ -151,6 +156,16 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         FIELD_TYPES = null;
+    }
+
+    @Override
+    protected MapperService mapperServiceMock() {
+        MapperService mapperService = mock(MapperService.class);
+        DocumentMapper mapper = mock(DocumentMapper.class);
+        when(mapper.typeText()).thenReturn(new Text("_doc"));
+        when(mapper.type()).thenReturn("_doc");
+        when(mapperService.documentMapper()).thenReturn(mapper);
+        return mapperService;
     }
 
     public void testUnmappedField() throws Exception {
@@ -2102,7 +2117,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         }
         return sortFields.size() > 0 ? new Sort(sortFields.toArray(new SortField[0])) : null;
     }
-    
+
     private static SortField sortFieldFrom(MappedFieldType type) {
         if (type instanceof KeywordFieldMapper.KeywordFieldType) {
             return new SortedSetSortField(type.name(), false);

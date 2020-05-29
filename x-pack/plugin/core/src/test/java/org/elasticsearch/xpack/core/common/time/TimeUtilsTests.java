@@ -72,6 +72,12 @@ public class TimeUtilsTests extends ESTestCase {
         assertEquals(1477058573500L, TimeUtils.dateStringToEpoch("1477058573500"));
     }
 
+    public void testParseToEpochMs() {
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000"));
+        assertEquals(1462096800000L, TimeUtils.parseToEpochMs("1462096800000.005"));
+        assertEquals(0L, TimeUtils.parseToEpochMs(".005"));
+    }
+
     public void testCheckMultiple_GivenMultiples() {
         TimeUtils.checkMultiple(TimeValue.timeValueHours(1), TimeUnit.SECONDS, new ParseField("foo"));
         TimeUtils.checkMultiple(TimeValue.timeValueHours(1), TimeUnit.MINUTES, new ParseField("foo"));

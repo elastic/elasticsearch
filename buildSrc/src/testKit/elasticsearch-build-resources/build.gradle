@@ -9,13 +9,13 @@ buildResources {
   copy 'checkstyle.xml'
 }
 
-task sampleCopyAll(type: Sync) {
+tasks.register("sampleCopyAll", Sync) {
   /** Note: no explicit dependency. This works with tasks that use the Provider API a.k.a "Lazy Configuration" **/
   from buildResources
   into "$buildDir/sampleCopyAll"
 }
 
-task sample {
+tasks.register("sample") {
   // This does not work, task dependencies can't be providers
   // dependsOn buildResources.resource('minimumRuntimeVersion')
   // Nor does this, despite https://github.com/gradle/gradle/issues/3811
@@ -29,7 +29,7 @@ task sample {
   }
 }
 
-task noConfigAfterExecution {
+tasks.register("noConfigAfterExecution") {
   dependsOn buildResources
   doLast {
     println "This should cause an error because we are refferencing " +

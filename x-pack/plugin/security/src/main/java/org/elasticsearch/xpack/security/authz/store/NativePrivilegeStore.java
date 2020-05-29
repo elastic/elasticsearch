@@ -172,7 +172,7 @@ public class NativePrivilegeStore {
 
     private void innerGetPrivileges(Collection<String> applications,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
-        assert Objects.requireNonNull(applications).isEmpty() == false;
+        assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
 
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
         if (frozenSecurityIndex.indexExists() == false) {

@@ -56,9 +56,9 @@ will be removed in the future.
 ===== Calendar intervals
 
 Calendar-aware intervals are configured with the `calendar_interval` parameter.
-Calendar intervals can be specifies as the name of the unit like `month` or in
-singular quantities of the unit like `1M`. Multiples, such as `2d`, are not
-supported.
+You can specify calendar intervals using the unit name, such as `month`, or as a
+single unit quantity, such as `1M`. For example, `day` and `1d` are equivalent.
+Multiple quantities, such as `2d`, are not supported.
 
 The accepted calendar intervals are:
 

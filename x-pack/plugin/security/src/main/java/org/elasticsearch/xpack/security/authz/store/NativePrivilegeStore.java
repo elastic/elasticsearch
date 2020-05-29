@@ -141,7 +141,7 @@ public class NativePrivilegeStore {
             final Set<ApplicationPrivilegeDescriptor> cachedDescriptors = cachedDescriptorsForApplicationNames(
                 concreteApplicationNames != null ? concreteApplicationNames : applicationNamesCacheKey);
             if (cachedDescriptors != null) {
-                logger.debug("All application privileges found in cache");
+                logger.debug("All application privileges for [{}] found in cache", applicationNamesCacheKey);
                 listener.onResponse(filterDescriptorsForPrivilegeNames(cachedDescriptors, names));
             } else {
                 final long invalidationCounter = numInvalidation.get();

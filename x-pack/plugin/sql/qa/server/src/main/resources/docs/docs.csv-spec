@@ -285,6 +285,7 @@ TIMESTAMPADD     |SCALAR
 TIMESTAMPDIFF    |SCALAR
 TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
+TIME_PARSE       |SCALAR
 TODAY            |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
@@ -2802,6 +2803,42 @@ schema::datetime:ts
 -----------------------------
 2020-04-07T10:20:30.000+03:00
 // end::dateTimeParse3
+;
+
+timeParse1
+schema::time:time
+// tag::timeParse1
+SELECT TIME_PARSE('10:20:30.123', 'HH:mm:ss.SSS') AS "time";
+
+     time
+---------------
+10:20:30.123Z
+// end::timeParse1
+;
+
+timeParse2
+schema::time:time
+// tag::timeParse2
+SELECT TIME_PARSE('10:20:30-01:00', 'HH:mm:ssXXX') AS "time";
+
+     time
+---------------
+11:20:30.000Z
+// end::timeParse2
+;
+
+timeParse3-Ignore
+schema::time:time
+// tag::timeParse3
+{
+    "query" : "SELECT DATETIME_PARSE('10:20:30', 'HH:mm:ss') AS \"time\"",
+    "time_zone" : "Europe/Athens"
+}
+
+      time
+------------------------------------
+10:20:30.000+02:00
+// end::timeParse3
 ;
 
 datePartDateTimeYears

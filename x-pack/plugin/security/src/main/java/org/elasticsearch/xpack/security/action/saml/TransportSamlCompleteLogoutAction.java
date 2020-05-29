@@ -40,7 +40,7 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
     protected void doExecute(Task task, SamlCompleteLogoutRequest request, ActionListener<SamlCompleteLogoutResponse> listener) {
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealm(), null);
         if (realms.isEmpty()) {
-            listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
+            listener.onFailure(SamlUtils.samlException("Cannot find any matching realm with name [{}]", request.getRealm()));
         } else if (realms.size() > 1) {
             listener.onFailure(SamlUtils.samlException("Found multiple matching realms [{}] for [{}]", realms, request));
         } else {

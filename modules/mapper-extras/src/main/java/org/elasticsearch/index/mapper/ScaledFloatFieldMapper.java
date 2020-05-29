@@ -518,6 +518,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         protected boolean sortRequiresCustomComparator() {
+            /*
+             * We need to use a custom comparator because the non-custom
+             * comparator wouldn't properly decode the long bits into the
+             * double. Sorting on the long representation *would* put the
+             * docs in order. We just don't have a way to convert the long
+             * into a double the right way afterwords.
+             */
             return true;
         }
 
@@ -533,7 +540,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public NumericType getNumericType() {
-            /**
+            /*
              * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
              */
             return NumericType.DOUBLE;

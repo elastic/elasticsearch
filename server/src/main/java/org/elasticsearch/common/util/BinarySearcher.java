@@ -28,6 +28,8 @@ package org.elasticsearch.common.util;
  * These things should be determined by the subclass in its overridden methods.
  *
  * Refer to {@link BigArrays.DoubleBinarySearcher} for an example.
+ *
+ * NOTE: this class is not thread safe
  */
 abstract public class BinarySearcher{
 

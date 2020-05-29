@@ -466,7 +466,8 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
             .endObject().endObject()
             .endObject().endObject());
         createIndex("test57287");
-        client().admin().indices().preparePutMapping("test57287").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test57287")
+            .setType("_doc").setSource(mapping, XContentType.JSON).get();
         String doc = "{\"number\" : 9223372036854775808}";
         IndexResponse response = client().index(new IndexRequest("test57287").source(doc, XContentType.JSON)).get();
         assertTrue(response.status() == RestStatus.CREATED);

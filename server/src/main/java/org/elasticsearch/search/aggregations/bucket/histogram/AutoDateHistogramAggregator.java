@@ -323,7 +323,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        correctRounding(owningBucketOrds);
+//        correctRounding(owningBucketOrds);
         /*
          * Now that we have the perfect rounding rebucket everything to merge
          * all of the buckets together that we were too lazy to merge while
@@ -355,7 +355,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     }
 
     /**
-     * Pick the correct rounding for the specifies {@code owningBucketOrds}.
+     * Pick the correct rounding for the specified {@code owningBucketOrds}.
      */
     private void correctRounding(long[] owningBucketOrds) {
         for (long owningBucketOrd : owningBucketOrds) {
@@ -377,13 +377,14 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         long newKey = preparedRounding.round(oldKey);
                         min = Math.min(min, newKey);
                         max = Math.max(max, newKey);
-                        bucketOrds.add(owningBucketOrd, newKey);
+                        perfect.add(newKey);
                     }
                     count = perfect.size();
                 }
             } while (newRounding < roundingInfos.length - 1 && (
                     count > targetBuckets * roundingInfos[newRounding].getMaximumInnerInterval()
                         || max - min > targetBuckets * roundingInfos[newRounding].getMaximumRoughEstimateDurationMillis()));
+            assert newRounding == oldRounding;
             setRounding(owningBucketOrd, newRounding);
             wastedBucketsOverestimate += bucketOrds.bucketsInOrd(owningBucketOrd) - count;
         }

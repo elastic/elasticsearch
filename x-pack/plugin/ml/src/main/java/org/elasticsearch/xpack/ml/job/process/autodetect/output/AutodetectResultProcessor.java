@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -130,7 +130,7 @@ public class AutodetectResultProcessor {
         this.process = Objects.requireNonNull(autodetectProcess);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
-        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId, this::isAlive);
+        this.bulkResultsPersister = persister.bulkPersisterBuilder(jobId).shouldRetry(this::isAlive);
         this.timingStatsReporter = new TimingStatsReporter(timingStats, bulkResultsPersister);
         this.clock = Objects.requireNonNull(clock);
         this.deleteInterimRequired = true;
@@ -280,9 +280,7 @@ public class AutodetectResultProcessor {
                 updateModelSnapshotOnJob(modelSnapshot);
             }
             annotationPersister.persistAnnotation(
-                ModelSnapshot.annotationDocumentId(modelSnapshot),
-                createModelSnapshotAnnotation(modelSnapshot),
-                "[" + jobId + "] failed to create annotation for model snapshot.");
+                ModelSnapshot.annotationDocumentId(modelSnapshot), createModelSnapshotAnnotation(modelSnapshot));
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {

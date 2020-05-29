@@ -77,18 +77,8 @@ deprecated:[7.0.0]
 (Required*, string)
 Scroll ID of the search.
 +
-[IMPORTANT]
-====
-You can specify this value using multiple parameters. If multiple scroll IDs
-are provided, {es} determines which one to use by checking the following
-parameters in order:
-
-. The `<scroll_id>` path parameter
-. The `scroll_id` query parameter
-. The `scroll_id` request body parameter
-
-One of these parameters must be specified.
-====
+IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
+the <<scroll-api-scroll-id-param,`scroll_id` request body parameter.
 
 [[scroll-api-query-params]]
 ==== {api-query-parms-title}
@@ -108,21 +98,12 @@ IMPORTANT: You can also specify this value using the `scroll` request body
 parameter. If both parameters are specified, only the query parameter is used.
 
 `scroll_id`::
-(Required*, string)
+deprecated:[7.0.0]
+(Optional, string)
 Scroll ID for the search.
 +
-[IMPORTANT]
-====
-You can specify this value using multiple parameters. If multiple scroll IDs
-are provided, {es} determines which one to use by checking the following
-parameters in order:
-
-. The `<scroll_id>` path parameter
-. The `scroll_id` query parameter
-. The `scroll_id` request body parameter
-
-One of these parameters must be specified.
-====
+IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
+the <<scroll-api-scroll-id-param,`scroll_id` request body parameter.
 
 `rest_total_hits_as_int`::
 (Optional, boolean)
@@ -148,22 +129,10 @@ this limit using the `search.max_keep_alive` cluster-level setting.
 IMPORTANT: You can also specify this value using the `scroll` query
 parameter. If both parameters are specified, only the query parameter is used.
 
+[[scroll-api-scroll-id-param]]
 `scroll_id`::
-(Required*, string)
+(Required, string)
 Scroll ID for the search.
-+
-[IMPORTANT]
-====
-You can specify this value using multiple parameters. If multiple scroll IDs
-are provided, {es} determines which one to use by checking the following
-parameters in order:
-
-. The `<scroll_id>` path parameter
-. The `scroll_id` query parameter
-. The `scroll_id` request body parameter
-
-One of these parameters must be specified.
-====
 
 [role="child_attributes"]
 [[scroll-api-response-body]]

@@ -46,10 +46,13 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -57,6 +60,7 @@ import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 
 /**
  * A runnable class that reads the autodetect process output in the
@@ -94,6 +98,7 @@ public class AutodetectResultProcessor {
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
+    private final Map<String, ForecastRequestStats> runningForecasts;
     private final long priorRunsBucketCount;
     private long currentRunBucketCount; // only used from the process() thread, so doesn't need to be volatile
     private final JobResultsPersister.Builder bulkResultsPersister;
@@ -135,6 +140,7 @@ public class AutodetectResultProcessor {
         this.clock = Objects.requireNonNull(clock);
         this.deleteInterimRequired = true;
         this.priorRunsBucketCount = timingStats.getBucketCount();
+        this.runningForecasts = new ConcurrentHashMap<>();
     }
 
     public void process() {
@@ -174,6 +180,7 @@ public class AutodetectResultProcessor {
             }
         } finally {
             flushListener.clear();
+            handleOpenForecasts();
             completionLatch.countDown();
         }
     }
@@ -204,6 +211,27 @@ public class AutodetectResultProcessor {
     public void setProcessKilled() {
         processKilled = true;
         renormalizer.shutdown();
+    }
+
+    void handleOpenForecasts() {
+        try {
+            if (runningForecasts.isEmpty() == false) {
+                LOGGER.warn("[{}] still had forecasts {} executing. Attempting to set them to failed.",
+                    jobId,
+                    runningForecasts.keySet());
+                // There may be many docs in the results persistence queue. But we only want to bother updating the running forecasts
+                bulkResultsPersister.clearBulkRequest();
+                for (ForecastRequestStats forecastRequestStats : runningForecasts.values()) {
+                    ForecastRequestStats failedStats = new ForecastRequestStats(forecastRequestStats);
+                    failedStats.setStatus(ForecastRequestStats.ForecastRequestStatus.FAILED);
+                    failedStats.setMessages(Collections.singletonList(JOB_FORECAST_NATIVE_PROCESS_KILLED));
+                    bulkResultsPersister.persistForecastRequestStats(failedStats);
+                }
+                bulkResultsPersister.executeRequest();
+            }
+        } catch (Exception ex) {
+            LOGGER.warn(new ParameterizedMessage("[{}] failure setting running forecasts to failed.", jobId), ex);
+        }
     }
 
     void processResult(AutodetectResult result) {
@@ -252,6 +280,12 @@ public class AutodetectResultProcessor {
             LOGGER.trace("Received Forecast Stats [{}]", forecastRequestStats.getId());
             bulkResultsPersister.persistForecastRequestStats(forecastRequestStats);
 
+            if (forecastRequestStats.getStatus()
+                .isAnyOf(ForecastRequestStats.ForecastRequestStatus.FAILED, ForecastRequestStats.ForecastRequestStatus.FINISHED)) {
+                runningForecasts.remove(forecastRequestStats.getForecastId());
+            } else {
+                runningForecasts.put(forecastRequestStats.getForecastId(), forecastRequestStats);
+            }
             // execute the bulk request only in some cases or in doubt
             // otherwise rely on the count-based trigger
             switch (forecastRequestStats.getStatus()) {

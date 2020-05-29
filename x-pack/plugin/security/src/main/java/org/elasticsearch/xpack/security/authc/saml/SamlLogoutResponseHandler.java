@@ -41,9 +41,10 @@ public class SamlLogoutResponseHandler extends SamlResponseHandler {
         if (LOGOUT_RESPONSE_TAG_NAME.equals(root.getLocalName()) && SAML_NAMESPACE.equals(root.getNamespaceURI())) {
             final LogoutResponse logoutResponse = buildXmlObject(root, LogoutResponse.class);
             // For HTTP-Redirect, we validate the signature while parsing the object from the query string
-            if (httpRedirect == false && logoutResponse.getSignature() == null) {
-                throw samlException("LogoutResponse is not signed, but a signature is required for HTTP-Post binding");
-            } else if (httpRedirect == false) {
+            if (httpRedirect == false) {
+                if (logoutResponse.getSignature() == null) {
+                    throw samlException("LogoutResponse is not signed, but a signature is required for HTTP-Post binding");
+                }    
                 validateSignature(logoutResponse.getSignature());
             }
             checkInResponseTo(logoutResponse, allowedSamlRequestIds);

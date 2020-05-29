@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
+import org.junit.Assume;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -110,20 +112,20 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
             siae.getMessage()
         );
     }
-    
+
     public void testTimeInvalidInputs() {
         SqlIllegalArgumentException siae = expectThrows(
                 SqlIllegalArgumentException.class,
                 () -> new TimeParse(Source.EMPTY, l(10), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals("A string is required; received [10]", siae.getMessage());
-        
+
         siae = expectThrows(
                 SqlIllegalArgumentException.class,
                 () -> new TimeParse(Source.EMPTY, randomStringLiteral(), l(20), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals("A string is required; received [20]", siae.getMessage());
-        
+
         siae = expectThrows(
                 SqlIllegalArgumentException.class,
                 () -> new TimeParse(Source.EMPTY, l("11:04:07"), l("invalid"), randomZone()).makePipe().asProcessor().process(null)
@@ -132,7 +134,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 "Invalid time string [11:04:07] or pattern [invalid] is received; Unknown pattern letter: i",
                 siae.getMessage()
         );
-        
+
         siae = expectThrows(
                 SqlIllegalArgumentException.class,
                 () -> new TimeParse(Source.EMPTY, l("11:04:07"), l("HH:mm"), randomZone()).makePipe().asProcessor().process(null)
@@ -142,7 +144,7 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                         "Text '11:04:07' could not be parsed, unparsed text found at index 5",
                 siae.getMessage()
         );
-        
+
         siae = expectThrows(
                 SqlIllegalArgumentException.class,
                 () -> new TimeParse(Source.EMPTY, l("07/05/2020"), l("dd/MM/uuuu"), randomZone()).makePipe().asProcessor().process(null)
@@ -197,11 +199,16 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 .asProcessor()
                 .process(null)
         );
+        assumeJava9PlusAndCompatLocaleProviderSetting();
         assertEquals(
             time(10, 20, 30, 123456789, ZoneOffset.of("+05:30"), zoneId),
             new TimeParse(Source.EMPTY, l("10:20:30.123456789 +05:30"), l("HH:mm:ss.SSSSSSSSS zz"), zoneId).makePipe()
                 .asProcessor()
                 .process(null)
         );
+    }
+
+    private void assumeJava9PlusAndCompatLocaleProviderSetting() {
+        Assume.assumeTrue(JavaVersion.current().compareTo(JavaVersion.parse("9")) > 0);
     }
 }

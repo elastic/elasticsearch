@@ -62,6 +62,7 @@ setup:
   - do:
       headers:
         Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index:  .ml-anomalies-shared
         id:     "delete-expired-data-a_model_snapshot_inactive-snapshot"
@@ -79,6 +80,7 @@ setup:
   - do:
       headers:
         Content-Type: application/json
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index:  .ml-anomalies-shared
         id:     "delete-expired-data-a_model_snapshot_active-snapshot"
@@ -104,6 +106,8 @@ setup:
           }
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       indices.refresh:
         index: [.ml-anomalies-shared]
 
@@ -137,6 +141,8 @@ setup:
         job_id: delete-expired-data-a
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       indices.refresh: {}
 
   - do:

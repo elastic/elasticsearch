@@ -15,15 +15,24 @@ public class SamlCompleteLogoutRequestTests extends ESTestCase {
 
     public void testValidateFailsWhenQueryAndBodyBothNotExist() {
         final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();
+        samlCompleteLogoutRequest.setRealm("realm");
         final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
         assertThat(validationException.getMessage(), containsString("queryString and content may not both be empty"));
     }
 
     public void testValidateFailsWhenQueryAndBodyBothSet() {
         final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();
+        samlCompleteLogoutRequest.setRealm("realm");
         samlCompleteLogoutRequest.setQueryString("queryString");
         samlCompleteLogoutRequest.setContent("content");
         final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
         assertThat(validationException.getMessage(), containsString("queryString and content may not both present"));
+    }
+
+    public void testValidateFailsWhenRealmIsNotSet() {
+        final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();
+        samlCompleteLogoutRequest.setQueryString("queryString");
+        final ActionRequestValidationException validationException = samlCompleteLogoutRequest.validate();
+        assertThat(validationException.getMessage(), containsString("realm may not be empty"));
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
 import java.util.Iterator;
 import java.util.List;
@@ -35,7 +36,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     public void remove(float requestsPerSecond,
                        ActionListener<Boolean> listener,
                        Supplier<Boolean> isTimedOutSupplier) {
-        removeData(jobs.iterator(), requestsPerSecond, listener, isTimedOutSupplier);
+        removeData(new VolatileCursorIterator<>(jobs), requestsPerSecond, listener, isTimedOutSupplier);
     }
 
     private void removeData(Iterator<Job> jobIterator,

@@ -48,9 +48,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     // For serialization
     FieldCapabilitiesIndexRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            shardId = new ShardId(in);
-        }
+        shardId = in.readOptionalWriteable(ShardId::new);
         index = in.readOptionalString();
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);

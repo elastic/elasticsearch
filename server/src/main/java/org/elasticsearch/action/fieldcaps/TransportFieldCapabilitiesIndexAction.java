@@ -173,8 +173,8 @@ public class TransportFieldCapabilitiesIndexAction
     }
 
     /**
-     * An action that executes on each shard until it finds a replica that can match the provided
-     * {@link FieldCapabilitiesIndexRequest#indexFilter()}. In which case the replica is used
+     * An action that executes on each shard sequentially until it finds one that can match the provided
+     * {@link FieldCapabilitiesIndexRequest#indexFilter()}. In which case the shard is used
      * to create the final {@link FieldCapabilitiesIndexResponse}.
      */
     class AsyncShardsAction {

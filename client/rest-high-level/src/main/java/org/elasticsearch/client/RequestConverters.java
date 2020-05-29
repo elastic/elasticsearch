@@ -522,7 +522,7 @@ final class RequestConverters {
     }
 
     static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) throws IOException {
-        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPut.METHOD_NAME  : HttpGet.METHOD_NAME;
+        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPost.METHOD_NAME  : HttpGet.METHOD_NAME;
         Request request = new Request(methodName, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
 
         Params params = new Params();

@@ -10,42 +10,42 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunctio
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.DATE_TIME;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.TIME;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
 
-public class DateTimeParse extends BaseDateTimeParseFunction {
-
-    public DateTimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
+public class TimeParse extends BaseDateTimeParseFunction {
+    
+    public TimeParse(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
         super(source, timestamp, pattern, zoneId);
     }
 
     @Override
     protected Parser parser() {
-        return DATE_TIME;
+        return TIME;
     }
-
+    
     @Override
     protected NodeInfo.NodeCtor3<Expression, Expression, ZoneId, BaseDateTimeParseFunction> ctorForInfo() {
-        return DateTimeParse::new;
+        return TimeParse::new;
     }
 
     @Override
     public DataType dataType() {
-        return DataTypes.DATETIME;
+        return SqlDataTypes.TIME;
     }
 
     @Override
     protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {
-        return new DateTimeParse(source(), timestamp, pattern, zoneId());
+        return new TimeParse(source(), timestamp, pattern, zoneId());
     }
 
     @Override
     protected String scriptMethodName() {
-        return "dateTimeParse";
+        return "timeParse";
     }
     
 }

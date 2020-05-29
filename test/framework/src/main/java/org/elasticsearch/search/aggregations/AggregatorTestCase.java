@@ -717,18 +717,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                     ValuesSourceType vst = fieldType.getValuesSourceType();
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
+                    AssertionError failure = null;
                     try {
                         searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
                         if (supportedVSTypes.contains(vst) == false || unsupportedMappedFieldTypes.contains(fieldType.typeName())) {
-                            fail("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
+                            failure = new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
                                 + fieldType.typeName() + "] but executing against the field did not throw an exception");
                         }
                     } catch (Exception | AssertionError e) {
                         if (supportedVSTypes.contains(vst) && unsupportedMappedFieldTypes.contains(fieldType.typeName()) == false) {
-                            throw new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
+                            failure = new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
                                 + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]",
                                 e);
                         }
+                    }
+                    if (failure != null) {
+                        throw failure;
                     }
                 }
             }

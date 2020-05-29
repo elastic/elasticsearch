@@ -21,27 +21,19 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * An aggregator for numeric values. For a given {@code interval},
@@ -49,39 +41,43 @@ import java.util.function.BiConsumer;
  * written as {@code interval * x + offset} and yet is less than or equal to
  * {@code value}.
  */
-public class NumericHistogramAggregator extends BucketsAggregator {
-
+public class NumericHistogramAggregator extends AbstractHistogramAggregator {
     private final ValuesSource.Numeric valuesSource;
-    private final DocValueFormat formatter;
-    private final double interval, offset;
-    private final BucketOrder order;
-    private final boolean keyed;
-    private final long minDocCount;
-    private final double minBound, maxBound;
 
-    private final LongHash bucketOrds;
-
-    public NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
-                               BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                               @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-                               SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
-
-        super(name, factories, context, parent, metadata);
-        if (interval <= 0) {
-            throw new IllegalArgumentException("interval must be positive, got: " + interval);
-        }
-        this.interval = interval;
-        this.offset = offset;
-        this.order = order;
-        order.validate(this);
-        this.keyed = keyed;
-        this.minDocCount = minDocCount;
-        this.minBound = minBound;
-        this.maxBound = maxBound;
-        this.valuesSource = valuesSource;
-        this.formatter = formatter;
-
-        bucketOrds = new LongHash(1, context.bigArrays());
+    public NumericHistogramAggregator(
+        String name,
+        AggregatorFactories factories,
+        double interval,
+        double offset,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        double minBound,
+        double maxBound,
+        @Nullable ValuesSource valuesSource,
+        DocValueFormat formatter,
+        SearchContext context,
+        Aggregator parent,
+        boolean collectsFromSingleBucket,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            minBound,
+            maxBound,
+            formatter,
+            context,
+            parent,
+            collectsFromSingleBucket,
+            metadata
+        );
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
     }
 
     @Override
@@ -102,8 +98,7 @@ public class NumericHistogramAggregator extends BucketsAggregator {
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
-            public void collect(int doc, long bucket) throws IOException {
-                assert bucket == 0;
+            public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
 
@@ -115,7 +110,7 @@ public class NumericHistogramAggregator extends BucketsAggregator {
                         if (key == previousKey) {
                             continue;
                         }
-                        long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
+                        long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
                         if (bucketOrd < 0) { // already seen
                             bucketOrd = -1 - bucketOrd;
                             collectExistingBucket(sub, doc, bucketOrd);
@@ -127,44 +122,5 @@ public class NumericHistogramAggregator extends BucketsAggregator {
                 }
             }
         };
-    }
-
-    @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
-            (bucketValue, docCount, subAggregationResults) -> {
-                double roundKey = Double.longBitsToDouble(bucketValue);
-                double key = roundKey * interval + offset;
-                return new InternalHistogram.Bucket(key, docCount, keyed, formatter, subAggregationResults);
-            }, buckets -> {
-                // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
-                CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
-
-                EmptyBucketInfo emptyBucketInfo = null;
-                if (minDocCount == 0) {
-                    emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
-                }
-                return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
-            });
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        EmptyBucketInfo emptyBucketInfo = null;
-        if (minDocCount == 0) {
-            emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
-        }
-        return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metadata());
-    }
-
-    @Override
-    public void doClose() {
-        Releasables.close(bucketOrds);
-    }
-
-    @Override
-    public void collectDebugInfo(BiConsumer<String, Object> add) {
-        add.accept("total_buckets", bucketOrds.size());
-        super.collectDebugInfo(add);
     }
 }

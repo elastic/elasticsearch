@@ -82,6 +82,12 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=size]
 (Optional, string)
 include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
 
+`for_export`::
+(Optional, boolean)
+Indicates if certain fields should be removed from the model configuration on
+retrieval. This allows the model to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+
 [role="child_attributes"]
 [[ml-get-inference-results]]
 ==== {api-response-body-title}

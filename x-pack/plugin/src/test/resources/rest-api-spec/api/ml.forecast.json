@@ -31,6 +31,11 @@
         "type":"time",
         "required":false,
         "description":"The time interval after which the forecast expires. Expired forecasts will be deleted at the first opportunity."
+      },
+      "max_model_memory":{
+        "type":"string",
+        "required":false,
+        "description":"The max memory able to be used by the forecast. Default is 20mb."
       }
     }
   }

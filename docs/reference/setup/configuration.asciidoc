@@ -83,7 +83,7 @@ When specifying values for environment variables, you can only use strings. More
 
 [source,yaml]
 ----
-export HOSTNAME=“host1”, “host2"
+export HOSTNAME=“host1,host2"
 ----
 
 [discrete]

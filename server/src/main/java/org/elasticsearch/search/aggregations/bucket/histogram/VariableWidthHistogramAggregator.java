@@ -161,15 +161,17 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             // Target shardSizes * (3/4) buckets so that there's room for more distant buckets to be added during rest of collection
             bucketCachedDocs(cachedValues, numCachedDocs, shardSize * 3 / 4);
 
-            // Calculate the average distance between buckets
-            // Subsequent documents will be compared with this value to determine if they should be collected into
-            // an existing bucket or into a new bucket
-            // This can be done in a single linear scan because buckets are sorted by centroid
-            int sum = 0;
-            for (int i = 0; i < numClusters - 1; i++) {
-                sum += clusterCentroids.get(i + 1) - clusterCentroids.get(i);
+            if(numCachedDocs > 1) {
+                // Calculate the average distance between buckets
+                // Subsequent documents will be compared with this value to determine if they should be collected into
+                // an existing bucket or into a new bucket
+                // This can be done in a single linear scan because buckets are sorted by centroid
+                int sum = 0;
+                for (int i = 0; i < numClusters - 1; i++) {
+                    sum += clusterCentroids.get(i + 1) - clusterCentroids.get(i);
+                }
+                avgBucketDistance = (sum / (numClusters - 1));
             }
-            avgBucketDistance = (sum / (numClusters - 1));
         }
 
         /**

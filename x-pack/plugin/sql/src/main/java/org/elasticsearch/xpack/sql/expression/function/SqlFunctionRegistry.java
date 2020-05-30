@@ -27,31 +27,7 @@ import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormat;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParse;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoDayOfWeek;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfDay;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfHour;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthName;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeParse;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.*;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StGeometryType;
@@ -171,7 +147,8 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
                 def(DateAdd.class, DateAdd::new, "DATEADD", "DATE_ADD", "TIMESTAMPADD", "TIMESTAMP_ADD"),
                 def(DateDiff.class, DateDiff::new, "DATEDIFF", "DATE_DIFF", "TIMESTAMPDIFF", "TIMESTAMP_DIFF"),
-                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"),
+                def(DatePart.class, DatePart::new, "DATEPART", "DATE_PART"), 
+                def(DateParse.class, DateParse::new, "PATEPARSE", "DATE_PARSE"),
                 def(DateTimeFormat.class, DateTimeFormat::new, "DATETIME_FORMAT"),
                 def(DateTimeParse.class, DateTimeParse::new, "DATETIME_PARSE"),
                 def(DateTrunc.class, DateTrunc::new, "DATETRUNC", "DATE_TRUNC"),

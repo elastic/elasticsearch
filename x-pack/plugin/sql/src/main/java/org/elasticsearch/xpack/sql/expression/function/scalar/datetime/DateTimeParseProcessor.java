@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetTime;
@@ -31,7 +32,8 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public enum Parser {
         DATE_TIME("datetime", ZonedDateTime::from, LocalDateTime::from), 
-        TIME("time", OffsetTime::from, LocalTime::from);
+        TIME("time", OffsetTime::from, LocalTime::from),
+        DATE("date", LocalDate::from, (TemporalAccessor ta) -> {throw new RuntimeException();});
         
         private final BiFunction<String, String, TemporalAccessor> parser;
         

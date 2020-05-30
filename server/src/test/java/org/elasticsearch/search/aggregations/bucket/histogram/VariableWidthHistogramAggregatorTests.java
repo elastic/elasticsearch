@@ -264,13 +264,6 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.field(NUMERIC_FIELD) .setNumBuckets(2).setShardSize(4).setCacheLimit(5),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
-                for(InternalVariableWidthHistogram.Bucket b : histogram.getBuckets() ){
-                    System.out.println("-");
-                    System.out.println("Cenroid = " + b.centroid());
-                    System.out.println("doc count = " + b.getDocCount());
-                    System.out.println("key = " + b.getKey());
-                    System.out.println("-");
-                }
                 assertEquals(expectedDocCount.size(), buckets.size());
                 buckets.forEach(bucket -> {
                     assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount());

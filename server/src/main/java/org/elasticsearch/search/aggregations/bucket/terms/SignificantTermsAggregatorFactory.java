@@ -355,8 +355,21 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               Map<String, Object> metadata) throws IOException {
 
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
-                return new SignificantStringTermsAggregator(name, factories, valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, metadata);
+                return new MapStringTermsAggregator(
+                    name,
+                    factories,
+                    a -> a.new SignificantTermsResults(termsAggregatorFactory, significanceHeuristic),
+                    valuesSource,
+                    null,
+                    format,
+                    bucketCountThresholds,
+                    filter,
+                    aggregationContext,
+                    parent,
+                    SubAggCollectionMode.BREADTH_FIRST,
+                    false,
+                    metadata
+                );
 
             }
 

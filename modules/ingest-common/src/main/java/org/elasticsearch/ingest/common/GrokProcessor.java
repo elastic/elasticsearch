@@ -54,6 +54,9 @@ public final class GrokProcessor extends AbstractProcessor {
         this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
+        // Joni warnings are only emitted on an attempt to match, and the warning emitted for every call to match which is too verbose
+        // so here we emit a warning (if there is one) to the logfile at warn level on construction / processor creation.
+        new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::warn).match("___nomatch___");
     }
 
     @Override

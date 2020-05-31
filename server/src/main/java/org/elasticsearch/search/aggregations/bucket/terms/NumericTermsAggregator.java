@@ -164,17 +164,18 @@ public class NumericTermsAggregator extends TermsAggregator {
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
                 while (ordsEnum.next()) {
+                    long docCount = bucketDocCount(ordsEnum.ord());
+                    otherDocCounts[ordIdx] += docCount;
+                    if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                        continue;
+                    }
                     if (spare == null) {
                         spare = emptyBucketBuilder.get();
                     }
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    otherDocCounts[ordIdx] += docCount;
-                    if (bucketCountThresholds.getShardMinDocCount() <= docCount) {
-                        updateBucket(spare, ordsEnum, docCount);
-                        spare = ordered.insertWithOverflow(spare);
-                        if (spare == null) {
-                            consumeBucketsAndMaybeBreak(1);
-                        }
+                    updateBucket(spare, ordsEnum, docCount);
+                    spare = ordered.insertWithOverflow(spare);
+                    if (spare == null) {
+                        consumeBucketsAndMaybeBreak(1);
                     }
                 }
 

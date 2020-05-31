@@ -104,7 +104,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                     previous.clear();
                     for (int i = 0; i < valuesCount; ++i) {
                         final BytesRef bytes = values.nextValue();
-                        if (includeExclude != null && !includeExclude.accept(bytes)) {
+                        if (includeExclude != null && false == includeExclude.accept(bytes)) {
                             continue;
                         }
                         if (i > 0 && previous.get().equals(bytes)) {
@@ -155,50 +155,33 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
 
-            if (bucketCountThresholds.getMinDocCount() == 0
-                && (InternalOrder.isCountDesc(order) == false
-                        || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
-                // we need to fill-in the blanks
-                for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
-                    final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-                    // brute force
-                    for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                        if (values.advanceExact(docId)) {
-                            final int valueCount = values.docValueCount();
-                            for (int i = 0; i < valueCount; ++i) {
-                                final BytesRef term = values.nextValue();
-                                if (includeExclude == null || includeExclude.accept(term)) {
-                                    bucketOrds.add(term);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            collectZeroDocEntriesIfNeeded();
 
-            final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
+            int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
             long otherDocCount = 0;
             PriorityQueue<B> ordered = buildPriorityQueue(size);
             B spare = null;
             for (int bucketOrd = 0; bucketOrd < bucketOrds.size(); bucketOrd++) {
+                long docCount = bucketDocCount(bucketOrd);
+                otherDocCount += docCount;
+                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                    continue;
+                }
                 if (spare == null) {
                     spare = buildEmptyBucket();
                 }
-                long docCount = bucketDocCount(bucketOrd);
-                otherDocCount += docCount;
-                if (docCount > bucketCountThresholds.getShardMinDocCount()) {
-                    updateBucket(spare, bucketOrd, docCount);
-                    spare = ordered.insertWithOverflow(spare);
-                    if (spare == null) {
-                        consumeBucketsAndMaybeBreak(1);
-                    }
+                updateBucket(spare, bucketOrd, docCount);
+                spare = ordered.insertWithOverflow(spare);
+                if (spare == null) {
+                    consumeBucketsAndMaybeBreak(1);
                 }
             }
 
             B[] topBuckets = buildBuckets(ordered.size());
             for (int i = ordered.size() - 1; i >= 0; --i) {
                 topBuckets[i] = ordered.pop();
+                otherDocCount -= topBuckets[i].getDocCount();
                 finalizeBucket(topBuckets[i]);
             }
 
@@ -219,6 +202,12 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
          * information that this result type may need.
          */
         abstract LeafBucketCollector wrapCollector(LeafBucketCollector primary);
+
+        /**
+         * Collect extra entries for "zero" hit documents if they were requested
+         * and required.
+         */
+        abstract void collectZeroDocEntriesIfNeeded() throws IOException;
 
         /**
          * Build an empty temporary bucket.
@@ -279,6 +268,32 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         @Override
         LeafBucketCollector wrapCollector(LeafBucketCollector primary) {
             return primary;
+        }
+
+        @Override
+        void collectZeroDocEntriesIfNeeded() throws IOException {
+            if (bucketCountThresholds.getMinDocCount() != 0) {
+                return;
+            }
+            if (InternalOrder.isCountDesc(order) && bucketOrds.size() >= bucketCountThresholds.getRequiredSize()) {
+                return;
+            }
+            // we need to fill-in the blanks
+            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+                SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+                // brute force
+                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                    if (values.advanceExact(docId)) {
+                        int valueCount = values.docValueCount();
+                        for (int i = 0; i < valueCount; ++i) {
+                            BytesRef term = values.nextValue();
+                            if (includeExclude == null || includeExclude.accept(term)) {
+                                bucketOrds.add(term);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         @Override
@@ -366,6 +381,9 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         }
 
         @Override
+        void collectZeroDocEntriesIfNeeded() throws IOException {}
+
+        @Override
         SignificantStringTerms.Bucket buildEmptyBucket() {
             return new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format, 0);
         }
@@ -378,8 +396,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         @Override
         void updateBucket(SignificantStringTerms.Bucket spare, long bucketOrd, long docCount) throws IOException {
             bucketOrds.get(bucketOrd, spare.termBytes);
-            spare.bucketOrd = bucketOrd;
             spare.subsetDf = docCount;
+            spare.bucketOrd = bucketOrd;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = termsAggFactory.getSupersetNumDocs();

@@ -80,7 +80,10 @@ public class FieldValueRetriever {
                 List<?> values = fieldMapper.lookupValues(sourceLookup);
                 parsedValues.addAll(values);
             }
-            documentFields.put(field, new DocumentField(field, parsedValues));
+
+            if (parsedValues.isEmpty() == false) {
+                documentFields.put(field, new DocumentField(field, parsedValues));
+            }
         }
         return documentFields;
     }

@@ -496,6 +496,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> complete relocation");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -180,7 +181,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                     }
                 }
             }
-            // TODO should we remove ones that are not part of full list?
 
             final int currentNodeCount = shardPerAttribute.get(node.node().getAttributes().get(awarenessAttribute));
             final int maximumNodeCount = (shardCount + numberOfAttributes - 1) / numberOfAttributes; // ceil(shardCount/numberOfAttributes)
@@ -194,6 +194,16 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                         numberOfAttributes,
                         currentNodeCount,
                         maximumNodeCount);
+            } else if (shardCount > numberOfAttributes) {
+                int remainingAttributes = numberOfAttributes - shardPerAttribute.size(); // remaining attributes are not assign the shard copies
+                int remainingShards = shardCount - Arrays.stream(shardPerAttribute.values).sum(); // remaining shard copies are not allocated
+                if (remainingAttributes > 0 && remainingShards < remainingAttributes) {
+                    return allocation.decision(Decision.NO, NAME,
+                        "remaining attributes [%d] are not assign the shard copies, remaining shard copies [%d] are not allocated, " +
+                            "the shard is allocated to the node, it will cause that the later shard copies allocation does not reach absolute high availability",
+                        remainingAttributes,
+                        remainingShards);
+                }
             }
         }
 

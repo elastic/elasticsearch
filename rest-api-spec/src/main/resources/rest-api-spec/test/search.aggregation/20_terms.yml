@@ -724,7 +724,7 @@ setup:
         body: { "size" : 0, "aggs" : { "no_field_terms" : { "terms" : { "size": 1 } } } }
 
 ---
-"numeric terms profiler":
+"profiler":
   - skip:
       version: " - 7.8.99"
       reason: debug information added in 7.9.0

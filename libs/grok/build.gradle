@@ -18,7 +18,6 @@
  */
 
 dependencies {
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   compile 'org.jruby.joni:joni:2.1.29'
   // joni dependencies:
   compile 'org.jruby.jcodings:jcodings:1.0.44'
@@ -31,17 +30,3 @@ dependencies {
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
-
-
-thirdPartyAudit.ignoreMissingClasses(
-  // from log4j
-  'org.osgi.framework.AdaptPermission',
-  'org.osgi.framework.AdminPermission',
-  'org.osgi.framework.Bundle',
-  'org.osgi.framework.BundleActivator',
-  'org.osgi.framework.BundleContext',
-  'org.osgi.framework.BundleEvent',
-  'org.osgi.framework.SynchronousBundleListener',
-  'org.osgi.framework.wiring.BundleWire',
-  'org.osgi.framework.wiring.BundleWiring'
-)

@@ -753,7 +753,7 @@ setup:
               terms:
                 field: str
                 collect_mode: breadth_first
-                execution_mode: global_ordinals
+                execution_hint: global_ordinals
               aggs:
                 max_number:
                   max:
@@ -784,7 +784,7 @@ setup:
               terms:
                 field: str
                 collect_mode: breadth_first
-                execution_mode: map
+                execution_hint: map
               aggs:
                 max_number:
                   max:

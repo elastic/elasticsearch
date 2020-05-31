@@ -43,6 +43,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /**
@@ -131,6 +132,12 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return buildEmptyTermsAggregation();
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("result_strategy", resultStrategy.describe());
     }
 
     @Override

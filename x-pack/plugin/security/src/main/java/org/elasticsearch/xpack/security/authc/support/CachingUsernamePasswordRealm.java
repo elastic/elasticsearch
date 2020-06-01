@@ -285,40 +285,50 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     private void lookupWithCache(String username, ActionListener<User> listener) {
         assert lookupCache != null;
+        assert latestValidCredentialsCache != null;
+        final CachedResult latestValidCredentials = latestValidCredentialsCache.get(username);
+        if (latestValidCredentials != null) {
+            listener.onResponse(latestValidCredentials.user);
+            return;
+        }
+
+        final AtomicBoolean lookupInCache = new AtomicBoolean(true);
+        final ListenableFuture<CachedResult> listenableCacheEntry;
         try {
-            final AtomicBoolean lookupInCache = new AtomicBoolean(true);
-            final ListenableFuture<CachedResult> listenableCacheEntry = lookupCache.computeIfAbsent(username, key -> {
+            listenableCacheEntry = lookupCache.computeIfAbsent(username, key -> {
                 lookupInCache.set(false);
                 return new ListenableFuture<>();
             });
-            if (false == lookupInCache.get()) {
-                // attempt lookup against the user directory
-                doLookupUser(username, ActionListener.wrap(user -> {
-                    final CachedResult result = new CachedResult(AuthenticationResult.notHandled(), cacheHasher, user, null);
-                    if (user == null) {
-                        // user not found, invalidate cache so that subsequent requests are forwarded to
-                        // the user directory
-                        lookupCache.invalidate(username, listenableCacheEntry);
-                    }
-                    // notify forestalled request listeners
-                    listenableCacheEntry.onResponse(result);
-                }, e -> {
-                    // the next request should be forwarded, not halted by a failed lookup attempt
-                    lookupCache.invalidate(username, listenableCacheEntry);
-                    // notify forestalled listeners
-                    listenableCacheEntry.onFailure(e);
-                }));
-            }
-            listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
-                if (cachedResult.user != null) {
-                    listener.onResponse(cachedResult.user);
-                } else {
-                    listener.onResponse(null);
-                }
-            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
-        } catch (final ExecutionException e) {
+        } catch (ExecutionException e) {
             listener.onFailure(e);
+            return;
         }
+
+        if (false == lookupInCache.get()) {
+            // attempt lookup against the user directory
+            doLookupUser(username, ActionListener.wrap(user -> {
+                final CachedResult result = new CachedResult(AuthenticationResult.notHandled(), cacheHasher, user, null);
+                if (user == null) {
+                    // user not found, invalidate cache so that subsequent requests are forwarded to
+                    // the user directory
+                    lookupCache.invalidate(username, listenableCacheEntry);
+                }
+                // notify forestalled request listeners
+                listenableCacheEntry.onResponse(result);
+            }, e -> {
+                // the next request should be forwarded, not halted by a failed lookup attempt
+                lookupCache.invalidate(username, listenableCacheEntry);
+                // notify forestalled listeners
+                listenableCacheEntry.onFailure(e);
+            }));
+        }
+        listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
+            if (cachedResult.user != null) {
+                listener.onResponse(cachedResult.user);
+            } else {
+                listener.onResponse(null);
+            }
+        }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
     }
 
     protected abstract void doLookupUser(String username, ActionListener<User> listener);

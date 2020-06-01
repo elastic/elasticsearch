@@ -110,7 +110,7 @@ scores are not applicable to causes.
 
 `detector_index`::
 (number)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-index]
 
 `field_name`::
 (string) Certain functions require a field to operate on, for example, `sum()`.

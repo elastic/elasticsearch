@@ -84,6 +84,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.HunspellService;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -188,6 +189,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
             BalancedShardsAllocator.THRESHOLD_SETTING,
+            BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
+            BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            BreakerSettings.CIRCUIT_BREAKER_TYPE,
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING,
             ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
             DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING,

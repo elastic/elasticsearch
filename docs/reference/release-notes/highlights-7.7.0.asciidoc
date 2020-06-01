@@ -86,11 +86,10 @@ therefore helps interpret these results.
 [float]
 === Finer memory control for bucket aggregations
 
-We introduced a new `search.check_buckets_step_size` setting to
-better control how the coordinating node allocates memory when aggregating
-buckets. The allocation of buckets is now be done in steps, each step
-allocating a number of buckets equal to this setting. To avoid an `OutOfMemory`
-error, a parent circuit breaker check is performed on allocation.
+While building buckets, aggregations will now periodically check the
+real-memory circuit breaker before continuing to allocate more buckets.  This
+allows better responsivity to memory pressure and avoids `OutOfMemory`
+situations due to allocating more buckets than the node can handle.
 
 // end::notable-highlights[]
 

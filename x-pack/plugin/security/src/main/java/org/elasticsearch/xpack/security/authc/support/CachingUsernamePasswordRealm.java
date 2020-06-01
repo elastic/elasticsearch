@@ -35,11 +35,12 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private final Cache<String, CachedResult> latestKnownGoodCredentialsCache;
     private final ThreadPool threadPool;
     private final boolean authenticationEnabled;
+    // package-private for tests
     final Hasher cacheHasher;
 
     protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
         super(config);
-        cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
+        this.cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
         final TimeValue ttl = this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
@@ -134,90 +135,87 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
         assert stallCache != null;
         assert latestKnownGoodCredentialsCache != null;
+        final CachedResult latestKnownGoodCredentials = latestKnownGoodCredentialsCache.get(token.principal());
+        if (latestKnownGoodCredentials != null && latestKnownGoodCredentials.verify(token.credentials())) {
+            // these credentials have been previously validated with the authentication source
+            handleCachedAuthentication(latestKnownGoodCredentials.user, ActionListener.wrap(cacheResult -> {
+                if (cacheResult.isAuthenticated()) {
+                    logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
+                            name(), token.principal(), cacheResult.getUser().roles());
+                } else {
+                    logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
+                            name(), token.principal(), cacheResult.getMessage());
+                }
+                listener.onResponse(cacheResult);
+            }, listener::onFailure));
+            return;
+        }
+
+        // the current credentials for the given principal must be validated against the authentication source
+        final AtomicBoolean stallCurrentRequest = new AtomicBoolean(true);
+        final ListenableFuture<CachedResult> listenableCacheEntry;
         try {
-            CachedResult latestKnownGoodCredentials = latestKnownGoodCredentialsCache.get(token.principal());
-            if (latestKnownGoodCredentials != null && latestKnownGoodCredentials.verify(token.credentials())) {
-                // these credentials have been previously validated with the authentication source
-                handleCachedAuthentication(latestKnownGoodCredentials.user, ActionListener.wrap(cacheResult -> {
-                    if (cacheResult.isAuthenticated()) {
-                        logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
-                                name(), token.principal(), cacheResult.getUser().roles());
-                    } else {
-                        logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
-                                name(), token.principal(), cacheResult.getMessage());
-                    }
-                    listener.onResponse(cacheResult);
-                }, listener::onFailure));
-                return;
-            }
-            final AtomicBoolean authenticationInCache = new AtomicBoolean(true);
-            final ListenableFuture<CachedResult> listenableCacheEntry = stallCache.computeIfAbsent(token.principal(), k -> {
+            listenableCacheEntry = stallCache.computeIfAbsent(token.principal(), k -> {
                 // let through at most one concurrent request (to the authentication source) for a given principal
-                authenticationInCache.set(false);
+                stallCurrentRequest.set(false);
                 return new ListenableFuture<>();
             });
-            if (authenticationInCache.get()) {
-                // there is already an inflight authenticate request for the given principal
-                // register as a listener for its response
-                // if the inflight request returned already, then reuse its result if credentials validated successfully
-                // stop reusing if the current credentials are different
-                listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
-                    final boolean credsMatch = cachedResult.verify(token.credentials());
-                    if (cachedResult.authenticationResult.isAuthenticated()) {
-                        if (credsMatch) {
-                            // the validated credentials match the credentials for the current request
-                            handleCachedAuthentication(cachedResult.user, ActionListener.wrap(cacheResult -> {
-                                if (cacheResult.isAuthenticated()) {
-                                    logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
-                                        name(), token.principal(), cacheResult.getUser().roles());
-                                } else {
-                                    logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
-                                        name(), token.principal(), cacheResult.getMessage());
-                                }
-                                listener.onResponse(cacheResult);
-                            }, listener::onFailure));
-                        } else {
-                            // the validated credentials do NOT match the credentials for the current request
-                            // the validated credentials MIGHT be stale, hence the credentials for the current request need to be
-                            // validated against the authentication source
-                            stallCache.invalidate(token.principal(), listenableCacheEntry);
-                            authenticateWithCache(token, listener);
-                        }
-                    } else if (credsMatch) {
-                        // the current credentials match the credentials of the request that reached the authentication source (for the
-                        // same given principal) but they are invalid
-                        listener.onResponse(cachedResult.authenticationResult);
-                    } else {
-                        // the credentials for the request that reached the authentication source are invalid
-                        // retry the current request against the authentication source
-                        stallCache.invalidate(token.principal(), listenableCacheEntry);
-                        authenticateWithCache(token, listener);
-                    }
-                }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
-            } else {
-                // attempt authentication against the authentication source
-                doAuthenticate(token, ActionListener.wrap(authResult -> {
-                    CachedResult cachedResult = new CachedResult(authResult, cacheHasher, authResult.getUser(), token.credentials());
-                    if (authResult.isAuthenticated() == false || authResult.getUser().enabled() == false) {
-                        // do not cache failures, a subsequent request must reach for the authentication source
-                        stallCache.invalidate(token.principal(), listenableCacheEntry);
-                    } else {
-                        latestKnownGoodCredentialsCache.put(token.principal(), cachedResult);
-                    }
-                    // notify the stalled request listeners; they will not reach to the
-                    // authentication source but instead reuse the current result if their credentials match
-                    listenableCacheEntry.onResponse(cachedResult);
-                    listener.onResponse(authResult);
-                }, e -> {
-                    stallCache.invalidate(token.principal(), listenableCacheEntry);
-                    // notify the stalled listeners to propagate the current error
-                    listenableCacheEntry.onFailure(e);
-                    // notify the listener of the inflight authentication request
-                    listener.onFailure(e);
-                }));
-            }
-        } catch (final ExecutionException e) {
+        } catch (ExecutionException e) {
             listener.onFailure(e);
+            return;
+        }
+
+        if (stallCurrentRequest.get()) {
+            // there is already an inflight authenticate request for the given principal;
+            // register as a listener for its response
+            listenableCacheEntry.addListener(ActionListener.wrap(cachedResult -> {
+                final boolean credsMatch = cachedResult.verify(token.credentials());
+                if (cachedResult.authenticationResult.isAuthenticated() && credsMatch) {
+                    // the validated credentials match the credentials for the current request
+                    handleCachedAuthentication(cachedResult.user, ActionListener.wrap(cacheResult -> {
+                        if (cacheResult.isAuthenticated()) {
+                            logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
+                                    name(), token.principal(), cacheResult.getUser().roles());
+                        } else {
+                            logger.debug("realm [{}] authenticated user [{}] from cache, but then failed [{}]",
+                                    name(), token.principal(), cacheResult.getMessage());
+                        }
+                        listener.onResponse(cacheResult);
+                    }, listener::onFailure));
+                } else if (credsMatch) {
+                    // the current credentials match the credentials of the request that reached the authentication source (for the
+                    // same given principal) and they are both invalid
+                    listener.onResponse(cachedResult.authenticationResult);
+                } else {
+                    // the credentials for the request that reached the authentication source MAY be valid but the current credentials
+                    // differ; retry the current credentials against the authentication source
+                    authenticateWithCache(token, listener);
+                }
+            }, listener::onFailure), threadPool.executor(ThreadPool.Names.GENERIC), threadPool.getThreadContext());
+        } else {
+            // attempt authentication against the authentication source
+            doAuthenticate(token, ActionListener.wrap(authResult -> {
+                final CachedResult cachedResult = new CachedResult(authResult, cacheHasher, authResult.getUser(), token.credentials());
+                if (authResult.isAuthenticated() && authResult.getUser().enabled()) {
+                    // subsequent requests for the same credentials for this given principal will be honored from the
+                    // {@code latestKnownGoodCredentialsCache} until the cache entry expires
+                    latestKnownGoodCredentialsCache.put(token.principal(), cachedResult);
+                }
+                // always invalidate the {@code stallCache} so that subsequent requests reach for the authentication source (if they are
+                // not honored from the {@code latestKnownGoodCredentialsCache})
+                stallCache.invalidate(token.principal(), listenableCacheEntry);
+                // notify the stalled request listeners so they can reuse the current authentication response or retry reaching the
+                // authentication source
+                listenableCacheEntry.onResponse(cachedResult);
+                listener.onResponse(authResult);
+            }, e -> {
+                // always invalidate the {@code stallCache}
+                stallCache.invalidate(token.principal(), listenableCacheEntry);
+                // notify the stalled listeners to propagate the current error
+                listenableCacheEntry.onFailure(e);
+                // notify the listener of the current authentication request
+                listener.onFailure(e);
+            }));
         }
     }
 
@@ -240,7 +238,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     protected int getCacheSize() {
-        return stallCache == null ? -1 : stallCache.count();
+        // the {@code latestKnownGoodCredentialsCache} contains entries for successfully validated credentials, against which
+        // incoming to-be-validated credentials are first checked
+        // the {@code stalledCache} is only used momentarily to defer authentication requests for the same principal, hence its size is
+        // not important (but it is still bounded)
+        return latestKnownGoodCredentialsCache == null ? -1 : latestKnownGoodCredentialsCache.count();
     }
 
     protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener);

@@ -46,6 +46,10 @@ Name of the snapshot repository to register or update.
 [[put-snapshot-repo-api-query-params]]
 ==== {api-query-parms-title}
 
+IMPORTANT: Several options for this API can be specified using a query parameter
+or a request body parameter. If both parameters are specified, only the query
+parameter is used.
+
 `master_timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
 a connection to the master node. If no response is received before the timeout
@@ -56,46 +60,35 @@ body parameter. If both parameters are specified, only the query parameter is
 used.
 
 `timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
-+
-IMPORTANT: You can also specify this value using the `timeout` request body
-parameter. If both parameters are specified, only the query parameter is used.
+(Optional{multi-param}, <<time-units, time units>>)
+Specifies the period of time to wait for a response. If no response is received
+before the timeout expires, the request fails and returns an error. Defaults to
+`30s`.
 
 `verify`::
-(Optional, boolean)
+(Optional{multi-param-ref}, boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.
 +
 You can manually perform this verification using the
 <<verify-snapshot-repo-api,verify snapshot repository API>>.
-+
-IMPORTANT: You can also specify this value using the `verify` request body
-parameter. If both parameters are specified, only the query parameter is used.
 
 [role="child_attributes"]
 [[put-snapshot-repo-api-request-body]]
 ==== {api-request-body-title}
 
 `master_timeout`::
-(Optional, <<time-units, time units>>)
+(Optional{multi-param-ref}, <<time-units, time units>>)
 Specifies the period of time to wait for
 a connection to the master node. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
-+
-IMPORTANT: You can also specify this value using the `master_timeout` query
-parameter. If both parameters are specified, only the query parameter is used.
 
 `timeout`::
-(Optional, <<time-units, time units>>)
+(Optional{multi-param-ref}, <<time-units, time units>>)
 Specifies the period of time to wait for
 a response. If no response is received before the timeout expires, the request
 fails and returns an error. Defaults to `30s`.
-+
-IMPORTANT: You can also specify this value using the `timeout` query
-parameter. If both parameters are specified, only the query parameter is used.
 
 [[put-snapshot-repo-api-request-type]]
 `type`::
@@ -255,13 +248,10 @@ place of a host, path, query, or fragment in the URL.
 --
 
 `verify`::
-(Optional, boolean)
+(Optional{multi-param-ref}, boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.
 +
 You can manually perform this verification using the
 <<snapshots-repository-verification,verify snapshot repository API>>.
-+
-IMPORTANT: You can also specify this value using the `verify` query
-parameter. If both parameters are specified, only the query parameter is used.

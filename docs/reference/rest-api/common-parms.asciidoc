@@ -968,7 +968,7 @@ tag::target-index[]
 (Required, string)
 Name of the target index to create.
 
-include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
 

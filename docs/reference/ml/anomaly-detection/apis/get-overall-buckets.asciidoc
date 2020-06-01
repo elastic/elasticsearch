@@ -76,7 +76,7 @@ time.
 
 `exclude_interim`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 +
 --
 If any of the job bucket results within the overall bucket interval are interim

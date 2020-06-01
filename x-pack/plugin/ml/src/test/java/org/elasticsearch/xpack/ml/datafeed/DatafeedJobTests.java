@@ -110,8 +110,9 @@ public class DatafeedJobTests extends ESTestCase {
         timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.settings()).thenReturn(Settings.EMPTY);
         resultsPersisterService =
             ResultsPersisterServiceTests.buildResultsPersisterService(new OriginSettingClient(client, ClientHelper.ML_ORIGIN));
         dataDescription = new DataDescription.Builder();

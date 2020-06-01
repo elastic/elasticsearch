@@ -28,7 +28,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -57,19 +56,19 @@ import java.util.function.Function;
  * <p>
  * Initially it uses the most fine grained rounding configuration possible but
  * as more data arrives it uses two heuristics to shift to coarser and coarser
- * rounding. The first heuristic is the number of buckets, specifically, it
+ * rounding. The first heuristic is the number of buckets, specifically,
  * when there are more buckets than can "fit" in the current rounding it shifts
  * to the next rounding. Instead of redoing the rounding, it estimates the
  * number of buckets that will "survive" at the new rounding and uses
  * <strong>that</strong> as the initial value for the bucket count that it
  * increments in order to trigger another promotion to another coarser
  * rounding. This works fairly well at containing the number of buckets, but
- * it the estimate of the number of buckets will be wrong if the buckets are
+ * the estimate of the number of buckets will be wrong if the buckets are
  * quite a spread out compared to the rounding.
  * <p>
  * The second heuristic it uses to trigger promotion to a coarser rounding is
  * the distance between the min and max bucket. When that distance is greater
- * than what the current rounding supports it promotes. This is heuristic
+ * than what the current rounding supports it promotes. This heuristic
  * isn't good at limiting the number of buckets but is great when the buckets
  * are spread out compared to the rounding. So it should complement the first
  * heuristic.
@@ -122,10 +121,13 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      */
     private ByteArray roundingIndices;
     /**
-     * The min and max of each bucket's keys. min lives in indices of the form
-     * {@code 2n} and max in {@code 2n + 1}.
+     * The minimum key per {@code owningBucketOrd}.
      */
-    private LongArray bounds;
+    private LongArray mins;
+    /**
+     * The max key per {@code owningBucketOrd}.
+     */
+    private LongArray maxes;
     /**
      * A reference to the collector so we can
      * {@link MergingBucketsDeferringCollector#mergeBuckets(long[])}.
@@ -138,7 +140,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private IntArray liveBucketCountUnderestimate;
     /**
      * An over estimate of the number of wasted buckets. When this gets
-     * too high we {@link #rebucket()} which sets it to 0.
+     * too high we {@link #rebucket} which sets it to 0.
      */
     private long wastedBucketsOverestimate = 0;
     /**
@@ -176,9 +178,10 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.collectsFromSingleBucket = collectsFromSingleBucket;
         assert roundingInfos.length < 127 : "Rounding must fit in a signed byte";
         roundingIndices = context.bigArrays().newByteArray(1, true);
-        bounds = context.bigArrays().newLongArray(2, true);
-        bounds.set(0, Long.MAX_VALUE);
-        bounds.set(1, Long.MIN_VALUE);
+        mins = context.bigArrays().newLongArray(1, false);
+        mins.set(0, Long.MAX_VALUE);
+        maxes = context.bigArrays().newLongArray(1, false);
+        maxes.set(1, Long.MIN_VALUE);
         preparedRoundings = new Rounding.Prepared[roundingInfos.length];
         // Prepare the first rounding because we know we'll need it.
         preparedRoundings[0] = roundingPreparer.apply(roundingInfos[0].rounding);
@@ -243,7 +246,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 collectBucket(sub, doc, bucketOrd);
                 liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
                 int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
-                return increaseRounding(owningBucketOrd, estimatedBucketCount, rounded, roundingIdx);
+                return increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, roundingIdx);
             }
 
             /**
@@ -251,21 +254,25 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
              * estimated, bucket counts, {@link #rebucket() rebucketing} the all
              * buckets if the estimated number of wasted buckets is too high.
              */
-            private byte increaseRounding(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, byte oldRounding) {
+            private byte increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, byte oldRounding) {
                 if (oldRounding >= roundingInfos.length - 1) {
                     return oldRounding;
                 }
-                if (bounds.size() < owningBucketOrd * 2 + 2) {
-                    long oldSize = bounds.size();
-                    bounds = context.bigArrays().grow(bounds, owningBucketOrd * 2 + 2);
-                    for (long b = oldSize; b < bounds.size(); b++) {
-                        bounds.set(b, (b & 1L) == 0L ? Long.MAX_VALUE : Long.MIN_VALUE);
-                    }
+                if (mins.size() < owningBucketOrd + 1) {
+                    long oldSize = mins.size();
+                    mins = context.bigArrays().grow(mins, owningBucketOrd + 1);
+                    mins.fill(oldSize, mins.size(), Long.MAX_VALUE);
                 }
-                long min = Math.min(bounds.get(owningBucketOrd * 2), newKey);
-                bounds.set(owningBucketOrd * 2, min);
-                long max = Math.max(bounds.get(owningBucketOrd * 2 + 1), newKey);
-                bounds.set(owningBucketOrd * 2 + 1, max);
+                if (maxes.size() < owningBucketOrd + 1) {
+                    long oldSize = maxes.size();
+                    maxes = context.bigArrays().grow(maxes, owningBucketOrd + 1);
+                    maxes.fill(oldSize, maxes.size(), Long.MIN_VALUE);
+                }
+
+                long min = Math.min(mins.get(owningBucketOrd), newKey);
+                mins.set(owningBucketOrd, min);
+                long max = Math.max(maxes.get(owningBucketOrd * 2 + 1), newKey);
+                maxes.set(owningBucketOrd, max);
                 if (oldEstimatedBucketCount <= targetBuckets * roundingInfos[oldRounding].getMaximumInnerInterval()
                         && max - min <= targetBuckets * roundingInfos[oldRounding].getMaximumRoughEstimateDurationMillis()) {
                     return oldRounding;
@@ -281,8 +288,8 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     newEstimatedBucketCount > targetBuckets * roundingInfos[newRounding].getMaximumInnerInterval()
                         || max - min > targetBuckets * roundingInfos[newRounding].getMaximumRoughEstimateDurationMillis()));
                 setRounding(owningBucketOrd, newRounding);
-                bounds.set(owningBucketOrd * 2, preparedRoundings[newRounding].round(bounds.get(owningBucketOrd * 2)));
-                bounds.set(owningBucketOrd * 2 + 1, preparedRoundings[newRounding].round(bounds.get(owningBucketOrd * 2 + 1)));
+                mins.set(owningBucketOrd, preparedRoundings[newRounding].round(mins.get(owningBucketOrd)));
+                maxes.set(owningBucketOrd, preparedRoundings[newRounding].round(maxes.get(owningBucketOrd)));
                 wastedBucketsOverestimate += oldEstimatedBucketCount - newEstimatedBucketCount;
                 if (wastedBucketsOverestimate > nextRebucketAt) {
                     rebucket();
@@ -323,7 +330,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-//        correctRounding(owningBucketOrds);
+        // NOCOMMIT fix the comment
         /*
          * Now that we have the perfect rounding rebucket everything to merge
          * all of the buckets together that we were too lazy to merge while
@@ -352,42 +359,6 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
                     return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, metadata(), 1);
                 });
-    }
-
-    /**
-     * Pick the correct rounding for the specified {@code owningBucketOrds}.
-     */
-    private void correctRounding(long[] owningBucketOrds) {
-        for (long owningBucketOrd : owningBucketOrds) {
-            byte oldRounding = roundingIndexFor(owningBucketOrd);
-            if (oldRounding >= roundingInfos.length - 1) {
-                continue;
-            }
-            byte newRounding = (byte)(oldRounding - 1);
-            long count;
-            long min = Long.MAX_VALUE;
-            long max = Long.MIN_VALUE;
-            do {
-                newRounding++;
-                try (LongHash perfect = new LongHash(liveBucketCountUnderestimate.get(owningBucketOrd), context.bigArrays())) {
-                    LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-                    Rounding.Prepared preparedRounding = preparedRoundings[roundingIndexFor(owningBucketOrd)];
-                    while (ordsEnum.next()) {
-                        long oldKey = ordsEnum.value();
-                        long newKey = preparedRounding.round(oldKey);
-                        min = Math.min(min, newKey);
-                        max = Math.max(max, newKey);
-                        perfect.add(newKey);
-                    }
-                    count = perfect.size();
-                }
-            } while (newRounding < roundingInfos.length - 1 && (
-                    count > targetBuckets * roundingInfos[newRounding].getMaximumInnerInterval()
-                        || max - min > targetBuckets * roundingInfos[newRounding].getMaximumRoughEstimateDurationMillis()));
-            assert newRounding == oldRounding;
-            setRounding(owningBucketOrd, newRounding);
-            wastedBucketsOverestimate += bucketOrds.bucketsInOrd(owningBucketOrd) - count;
-        }
     }
 
     private void setRounding(long owningBucketOrd, byte newRounding) {
@@ -420,6 +391,6 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(bucketOrds, roundingIndices, bounds, liveBucketCountUnderestimate);
+        Releasables.close(bucketOrds, roundingIndices, mins, maxes, liveBucketCountUnderestimate);
     }
 }

@@ -30,6 +30,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -67,6 +68,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -120,6 +122,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final Version MULTI_DELETE_VERSION = Version.V_7_8_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
@@ -225,6 +228,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
                     request.indicesOptions(), request.indices()));
+                checkForExpandWildcardDeprecations(snapshotName, indices, request, currentState);
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
@@ -280,6 +284,41 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return request.masterNodeTimeout();
             }
         }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+    }
+
+    private void checkForExpandWildcardDeprecations(String snapshotName, List<String> resolvedIndices, CreateSnapshotRequest request,
+                                                    ClusterState state) {
+        if (request.hasDefaultExpandWildcards() == false) {
+            // If the request specified indices options (rather than using the default), there won't be deprecation warnings.
+            return;
+        }
+
+        IndicesOptions givenOptions = request.indicesOptions();
+        // The future default is `IndicesOptions.strictExpand()`, but the only difference is whether to expand wildcards to hidden indices.
+        final IndicesOptions futureOptions = IndicesOptions.fromOptions(
+            givenOptions.ignoreUnavailable(),
+            givenOptions.allowNoIndices(),
+            givenOptions.expandWildcardsOpen(),
+            givenOptions.expandWildcardsClosed(),
+            false, // This is the one value that will change, so only override this one.
+            givenOptions.allowAliasesToMultipleIndices(),
+            givenOptions.forbidClosedIndices(),
+            givenOptions.ignoreAliases(),
+            givenOptions.ignoreThrottled());
+        final Set<String> indicesResolvedWithFutureDefault = Set.of(indexNameExpressionResolver.concreteIndexNames(state,
+            futureOptions, request.indices()));
+
+        final List<String> indicesThatWillBeLost = resolvedIndices.stream()
+            .filter(index -> indicesResolvedWithFutureDefault.contains(index) == false)
+            .collect(Collectors.toList());
+
+        if (indicesThatWillBeLost.isEmpty() == false) {
+            deprecationLogger.deprecatedAndMaybeLog("snapshot_expand_wildcards_default",
+                "Snapshot [{}] is using the default value for [expand_wildcards]. In a future major version, this default will " +
+                    "change from [all] to [open,closed], which will result in hidden indices [{}] not being included in snapshots unless " +
+                    "the value of [expand_wildcards] is set explicitly to [all].",
+                snapshotName, indicesThatWillBeLost);
+        }
     }
 
     /**

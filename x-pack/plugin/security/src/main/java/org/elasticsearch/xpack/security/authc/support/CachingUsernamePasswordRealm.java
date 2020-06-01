@@ -291,6 +291,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private void lookupWithCache(String username, ActionListener<User> listener) {
         assert lookupCache != null;
         assert latestValidCredentialsCache != null;
+        // valid credentials authentication cache is considered for lookups, but not vice-versa
         final CachedResult latestValidCredentials = latestValidCredentialsCache.get(username);
         if (latestValidCredentials != null) {
             listener.onResponse(latestValidCredentials.user);

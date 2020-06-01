@@ -42,7 +42,7 @@ it to ensure it is returning the expected data.
 
 `<datafeed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-preview-datafeed-example]]
 ==== {api-examples-title}

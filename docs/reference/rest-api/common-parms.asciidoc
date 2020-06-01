@@ -673,6 +673,7 @@ Defines how to group the data. More than one grouping can be defined
 * <<_terms,Terms>>
 * <<_histogram,Histogram>>
 * <<_date_histogram,Date histogram>>
+* <<_geotile_grid,Geotile Grid>>
 --
 end::pivot-group-by[]
 

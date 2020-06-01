@@ -34,6 +34,7 @@ public class GetTrainedModelsRequest implements Validatable {
 
     public static final String ALLOW_NO_MATCH = "allow_no_match";
     public static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
+    public static final String FOR_EXPORT = "for_export";
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
     public static final String TAGS = "tags";
 
@@ -41,6 +42,7 @@ public class GetTrainedModelsRequest implements Validatable {
     private Boolean allowNoMatch;
     private Boolean includeDefinition;
     private Boolean decompressDefinition;
+    private Boolean forExport;
     private PageParams pageParams;
     private List<String> tags;
 
@@ -137,6 +139,23 @@ public class GetTrainedModelsRequest implements Validatable {
         return setTags(Arrays.asList(tags));
     }
 
+    public Boolean getForExport() {
+        return forExport;
+    }
+
+    /**
+     * Setting this flag to `true` removes certain fields from the model definition on retrieval.
+     *
+     * This is useful when getting the model and wanting to put it in another cluster.
+     *
+     * Default value is false.
+     * @param forExport Boolean value indicating if certain fields should be removed from the mode on GET
+     */
+    public GetTrainedModelsRequest setForExport(Boolean forExport) {
+        this.forExport = forExport;
+        return this;
+    }
+
     @Override
     public Optional<ValidationException> validate() {
         if (ids == null || ids.isEmpty()) {
@@ -155,11 +174,12 @@ public class GetTrainedModelsRequest implements Validatable {
             && Objects.equals(allowNoMatch, other.allowNoMatch)
             && Objects.equals(decompressDefinition, other.decompressDefinition)
             && Objects.equals(includeDefinition, other.includeDefinition)
+            && Objects.equals(forExport, other.forExport)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includeDefinition);
+        return Objects.hash(ids, allowNoMatch, pageParams, decompressDefinition, includeDefinition, forExport);
     }
 }

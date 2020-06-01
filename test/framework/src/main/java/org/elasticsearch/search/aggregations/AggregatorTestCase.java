@@ -73,9 +73,11 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -713,18 +715,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                     ValuesSourceType vst = fieldType.getValuesSourceType();
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
+                    AssertionError failure = null;
                     try {
                         searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
                         if (supportedVSTypes.contains(vst) == false || unsupportedMappedFieldTypes.contains(fieldType.typeName())) {
-                            fail("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
+                            failure = new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
                                 + fieldType.typeName() + "] but executing against the field did not throw an exception");
                         }
                     } catch (Exception | AssertionError e) {
                         if (supportedVSTypes.contains(vst) && unsupportedMappedFieldTypes.contains(fieldType.typeName()) == false) {
-                            throw new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
+                            failure = new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
                                 + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]",
                                 e);
                         }
+                    }
+                    if (failure != null) {
+                        throw failure;
                     }
                 }
             }
@@ -861,5 +867,51 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
+    }
+
+    /**
+     * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
+     */
+    protected DateFieldMapper.DateFieldType dateField(String name, DateFieldMapper.Resolution resolution) {
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
+        builder.withResolution(resolution);
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
+        return builder.build(new BuilderContext(settings, new ContentPath())).fieldType();
+    }
+
+    /**
+     * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code double}.
+     */
+    protected NumberFieldMapper.NumberFieldType doubleField(String name) {
+        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+        result.setName(name);
+        return result;
+    }
+
+    /**
+     * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
+     */
+    protected KeywordFieldMapper.KeywordFieldType keywordField(String name) {
+        KeywordFieldMapper.KeywordFieldType result = new KeywordFieldMapper.KeywordFieldType();
+        result.setName(name);
+        return result;
+    }
+
+    /**
+     * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code long}.
+     */
+    protected NumberFieldMapper.NumberFieldType longField(String name) {
+        NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        result.setName(name);
+        return result;
+    }
+
+    /**
+     * Make a {@linkplain NumberFieldMapper.NumberFieldType} for a {@code range}.
+     */
+    protected RangeFieldMapper.RangeFieldType rangeField(String name, RangeType rangeType) {
+        RangeFieldMapper.RangeFieldType result = new RangeFieldMapper.Builder(name, rangeType).fieldType();
+        result.setName(name);
+        return result;
     }
 }

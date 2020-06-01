@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -54,27 +53,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(MedianAbsoluteDeviationAggregationBuilder.NAME,
-            CoreValuesSourceType.NUMERIC,
-            new MedianAbsoluteDeviationAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        DocValueFormat format,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata,
-                                        double compression) throws IOException {
-                    return new MedianAbsoluteDeviationAggregator(
-                        name,
-                        context,
-                        parent,
-                        metadata,
-                        (ValuesSource.Numeric) valuesSource,
-                        format,
-                        compression
-                    );
-                }
-            });
+            CoreValuesSourceType.NUMERIC, (MedianAbsoluteDeviationAggregatorSupplier) MedianAbsoluteDeviationAggregator::new);
     }
 
     @Override
@@ -84,11 +63,11 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
         return new MedianAbsoluteDeviationAggregator(
             name,
+            null,
+            config.format(),
             searchContext,
             parent,
             metadata,
-            null,
-            config.format(),
             compression
         );
     }

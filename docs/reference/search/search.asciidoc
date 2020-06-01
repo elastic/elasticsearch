@@ -12,7 +12,6 @@ GET /twitter/_search
 ----
 // TEST[setup:twitter]
 
-
 [[search-search-api-request]]
 ==== {api-request-title}
 
@@ -23,7 +22,6 @@ GET /twitter/_search
 `POST /<index>/_search`
 
 `POST /_search`
-
 
 [[search-search-api-desc]]
 ==== {api-description-title}
@@ -99,9 +97,9 @@ multiple shards, each shard must generate its own sorted results. These separate
 results must then be combined and sorted to ensure that the overall order is
 correct.
 
-As an alternative to deep paging, we recommend using the
-<<request-body-search-scroll,Scroll>> or
-<<request-body-search-search-after,Search After>> APIs.
+As an alternative to deep paging, we recommend using
+<<request-body-search-scroll,scroll>> or the
+<<request-body-search-search-after,`search_after`>> parameter.
 
 [IMPORTANT]
 ====
@@ -196,9 +194,9 @@ multiple shards, each shard must generate its own sorted results. These separate
 results must then be combined and sorted to ensure that the overall order is
 correct.
 
-As an alternative to deep paging, we recommend using the
-<<request-body-search-scroll,Scroll>> or
-<<request-body-search-search-after,Search After>> APIs.
+As an alternative to deep paging, we recommend using
+<<request-body-search-scroll,scroll>> or the
+<<request-body-search-search-after,`search_after`>> parameter.
 
 [IMPORTANT]
 ====
@@ -319,9 +317,9 @@ multiple shards, each shard must generate its own sorted results. These separate
 results must then be combined and sorted to ensure that the overall order is
 correct.
 
-As an alternative to deep paging, we recommend using the
-<<request-body-search-scroll,Scroll>> or
-<<request-body-search-search-after,Search After>> APIs.
+As an alternative to deep paging, we recommend using
+<<request-body-search-scroll,scroll>> or the
+<<request-body-search-search-after,`search_after`>> parameter.
 
 [IMPORTANT]
 ====
@@ -363,9 +361,9 @@ multiple shards, each shard must generate its own sorted results. These separate
 results must then be combined and sorted to ensure that the overall order is
 correct.
 
-As an alternative to deep paging, we recommend using the
-<<request-body-search-scroll,Scroll>> or
-<<request-body-search-search-after,Search After>> APIs.
+As an alternative to deep paging, we recommend using
+<<request-body-search-scroll,scroll>> or the
+<<request-body-search-search-after,`search_after`>> parameter.
 
 [IMPORTANT]
 ====

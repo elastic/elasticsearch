@@ -517,7 +517,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
     public void testRolloverClusterStateForDataStream() throws Exception {
         final DataStream dataStream = DataStreamTests.randomInstance();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStream.getName() + "*"), null, null, null, null, null,
+            new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
         Metadata.Builder builder = Metadata.builder();
+        builder.put("template", template);
         for (Index index : dataStream.getIndices()) {
             builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
         }
@@ -575,6 +578,38 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         } finally {
             testThreadPool.shutdown();
         }
+    }
+
+    public void testRolloverClusterStateForDataStreamNoTemplate() throws Exception {
+        final DataStream dataStream = DataStreamTests.randomInstance();
+        Metadata.Builder builder = Metadata.builder();
+        for (Index index : dataStream.getIndices()) {
+            builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
+        }
+        builder.put(dataStream);
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+
+        ThreadPool testThreadPool = mock(ThreadPool.class);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
+        Environment env = mock(Environment.class);
+        AllocationService allocationService = mock(AllocationService.class);
+        IndicesService indicesService = mockIndicesServices();
+        IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+
+        MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
+            clusterService, indicesService, allocationService, null, env, null, testThreadPool, null, Collections.emptyList(), false);
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
+            new AliasValidator(), null, xContentRegistry());
+        MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
+            mockIndexNameExpressionResolver);
+
+        MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
+        List<Condition<?>> metConditions = Collections.singletonList(condition);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> rolloverService.rolloverClusterState(clusterState,
+            dataStream.getName(), null, createIndexRequest, metConditions, false));
+        assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + dataStream.getName() + "]"));
     }
 
     private IndicesService mockIndicesServices() throws Exception {

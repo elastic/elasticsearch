@@ -323,7 +323,10 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
             // make sure used bytes is greater than the total circuit breaker limit
             breaker.addWithoutBreaking(200);
-
+            // make sure that we check on the the following call
+            for (int i = 0; i < 1023; i++) {
+                multiBucketConsumer.accept(0);
+            }
             CircuitBreakingException exception =
                 expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(1024));
             assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));

@@ -396,7 +396,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
                 .setJobId(JOB_ID)
                 .setModifiedTime(Date.from(CURRENT_TIME))
                 .setModifiedUsername(XPackUser.NAME)
-                .setType("annotation")
+                .setType(Annotation.Type.ANNOTATION)
+                .setEvent(Annotation.Event.MODEL_SNAPSHOT_STORED)
                 .build();
         assertThat(annotation, is(equalTo(expectedAnnotation)));
 

@@ -75,11 +75,6 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public Mapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        return this;
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
     }

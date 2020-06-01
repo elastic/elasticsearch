@@ -123,7 +123,7 @@ node.ingest: false <4>
 node.ml: false <5>
 xpack.ml.enabled: true <6>
 node.transform: false <7>
-node.remote_client_client: false <8>
+node.remote_cluster_client: false <8>
 -------------------
 <1> The `node.master` role is enabled by default.
 <2> The `node.voting_only` role is disabled by default.

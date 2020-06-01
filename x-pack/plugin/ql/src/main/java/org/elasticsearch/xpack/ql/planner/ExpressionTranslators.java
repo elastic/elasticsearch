@@ -216,7 +216,7 @@ public final class ExpressionTranslators {
 
         public static void checkBinaryComparison(BinaryComparison bc) {
             Check.isTrue(bc.right().foldable(),
-                         "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                         "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
                          bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
                          Expressions.name(bc.right()), bc.symbol());
         }

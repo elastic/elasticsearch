@@ -31,8 +31,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
-    private final Cache<String, ListenableFuture<CachedResult>> stallCache;
-    private final Cache<String, CachedResult> latestKnownGoodCredentialsCache;
+    private final Cache<String, ListenableFuture<CachedResult>> authenticationStallCache;
+    private final Cache<String, ListenableFuture<CachedResult>> lookupCache;
+    private final Cache<String, CachedResult> latestValidCredentialsCache;
+    private final boolean cacheEnabled;
     private final ThreadPool threadPool;
     private final boolean authenticationEnabled;
     // package-private for tests
@@ -43,39 +45,51 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         this.cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
         final TimeValue ttl = this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
-        if (ttl.getNanos() > 0) {
-            stallCache = CacheBuilder.<String, ListenableFuture<CachedResult>>builder()
+        this.cacheEnabled = ttl.getNanos() > 0;
+        if (cacheEnabled) {
+            authenticationStallCache = CacheBuilder.<String, ListenableFuture<CachedResult>>builder()
                     .setExpireAfterWrite(ttl)
                     .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
                     .build();
-            latestKnownGoodCredentialsCache = CacheBuilder.<String, CachedResult>builder()
+            lookupCache = CacheBuilder.<String, ListenableFuture<CachedResult>>builder()
+                    .setExpireAfterWrite(ttl)
+                    .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
+                    .build();
+            latestValidCredentialsCache = CacheBuilder.<String, CachedResult>builder()
                     .setExpireAfterWrite(ttl)
                     .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
                     .build();
         } else {
-            stallCache = null;
-            latestKnownGoodCredentialsCache = null;
+            authenticationStallCache = null;
+            lookupCache = null;
+            latestValidCredentialsCache = null;
         }
         this.authenticationEnabled = config.getSetting(CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING);
     }
 
     @Override
     public final void expire(String username) {
-        if (stallCache != null) {
-            assert latestKnownGoodCredentialsCache != null;
+        if (cacheEnabled) {
+            assert authenticationStallCache != null;
+            assert lookupCache != null;
+            assert latestValidCredentialsCache != null;
             logger.trace("invalidating cache for user [{}] in realm [{}]", username, name());
-            stallCache.invalidate(username);
-            latestKnownGoodCredentialsCache.invalidate(username);
+            authenticationStallCache.invalidate(username);
+            lookupCache.invalidate(username);
+            latestValidCredentialsCache.invalidate(username);
         }
     }
 
     @Override
     public final void expireAll() {
-        if (stallCache != null) {
-            assert latestKnownGoodCredentialsCache != null;
+        if (cacheEnabled) {
+            assert authenticationStallCache != null;
+            assert lookupCache != null;
+            assert latestValidCredentialsCache != null;
             logger.trace("invalidating cache for all users in realm [{}]", name());
-            stallCache.invalidateAll();
-            latestKnownGoodCredentialsCache.invalidateAll();
+            authenticationStallCache.invalidateAll();
+            lookupCache.invalidateAll();
+            latestValidCredentialsCache.invalidateAll();
         }
     }
 
@@ -109,8 +123,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         }
         final UsernamePasswordToken token = (UsernamePasswordToken) authToken;
         try {
-            if (stallCache == null) {
-                assert latestKnownGoodCredentialsCache == null;
+            if (false == cacheEnabled) {
+                assert latestValidCredentialsCache == null;
+                assert authenticationStallCache == null;
                 doAuthenticate(token, listener);
             } else {
                 authenticateWithCache(token, listener);
@@ -133,12 +148,12 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * @param listener to be called at completion
      */
     private void authenticateWithCache(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-        assert stallCache != null;
-        assert latestKnownGoodCredentialsCache != null;
-        final CachedResult latestKnownGoodCredentials = latestKnownGoodCredentialsCache.get(token.principal());
-        if (latestKnownGoodCredentials != null && latestKnownGoodCredentials.verify(token.credentials())) {
+        assert authenticationStallCache != null;
+        assert latestValidCredentialsCache != null;
+        final CachedResult latestValidCredentials = latestValidCredentialsCache.get(token.principal());
+        if (latestValidCredentials != null && latestValidCredentials.verify(token.credentials())) {
             // these credentials have been previously validated with the authentication source
-            handleCachedAuthentication(latestKnownGoodCredentials.user, ActionListener.wrap(cacheResult -> {
+            handleCachedAuthentication(latestValidCredentials.user, ActionListener.wrap(cacheResult -> {
                 if (cacheResult.isAuthenticated()) {
                     logger.debug("realm [{}] authenticated user [{}], with roles [{}]",
                             name(), token.principal(), cacheResult.getUser().roles());
@@ -155,7 +170,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         final AtomicBoolean stallCurrentRequest = new AtomicBoolean(true);
         final ListenableFuture<CachedResult> listenableCacheEntry;
         try {
-            listenableCacheEntry = stallCache.computeIfAbsent(token.principal(), k -> {
+            listenableCacheEntry = authenticationStallCache.computeIfAbsent(token.principal(), k -> {
                 // let through at most one concurrent request (to the authentication source) for a given principal
                 stallCurrentRequest.set(false);
                 return new ListenableFuture<>();
@@ -198,19 +213,19 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 final CachedResult cachedResult = new CachedResult(authResult, cacheHasher, authResult.getUser(), token.credentials());
                 if (authResult.isAuthenticated() && authResult.getUser().enabled()) {
                     // subsequent requests for the same credentials for this given principal will be honored from the
-                    // {@code latestKnownGoodCredentialsCache} until the cache entry expires
-                    latestKnownGoodCredentialsCache.put(token.principal(), cachedResult);
+                    // {@code latestValidCredentialsCache} until the cache entry expires
+                    latestValidCredentialsCache.put(token.principal(), cachedResult);
                 }
-                // always invalidate the {@code stallCache} so that subsequent requests reach for the authentication source (if they are
-                // not honored from the {@code latestKnownGoodCredentialsCache})
-                stallCache.invalidate(token.principal(), listenableCacheEntry);
+                // always invalidate the {@code authenticationStallCache} so that subsequent requests reach for the authentication source
+                // (if they are not honored from the {@code latestValidCredentialsCache})
+                authenticationStallCache.invalidate(token.principal(), listenableCacheEntry);
                 // notify the stalled request listeners so they can reuse the current authentication response or retry reaching the
                 // authentication source
                 listenableCacheEntry.onResponse(cachedResult);
                 listener.onResponse(authResult);
             }, e -> {
-                // always invalidate the {@code stallCache}
-                stallCache.invalidate(token.principal(), listenableCacheEntry);
+                // always invalidate the {@code authenticationStallCache}
+                authenticationStallCache.invalidate(token.principal(), listenableCacheEntry);
                 // notify the stalled listeners to propagate the current error
                 listenableCacheEntry.onFailure(e);
                 // notify the listener of the current authentication request
@@ -238,11 +253,17 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     protected int getCacheSize() {
-        // the {@code latestKnownGoodCredentialsCache} contains entries for successfully validated credentials, against which
+        // the {@code latestValidCredentialsCache} contains entries for successfully validated credentials, against which
         // incoming to-be-validated credentials are first checked
         // the {@code stalledCache} is only used momentarily to defer authentication requests for the same principal, hence its size is
         // not important (but it is still bounded)
-        return latestKnownGoodCredentialsCache == null ? -1 : latestKnownGoodCredentialsCache.count();
+        if (cacheEnabled) {
+            assert lookupCache != null;
+            assert latestValidCredentialsCache != null;
+            return latestValidCredentialsCache.count() + lookupCache.count();
+        } else {
+            return -1;
+        }
     }
 
     protected abstract void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener);
@@ -250,7 +271,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     @Override
     public final void lookupUser(String username, ActionListener<User> listener) {
         try {
-            if (stallCache == null) {
+            if (lookupCache == null) {
                 doLookupUser(username, listener);
             } else {
                 lookupWithCache(username, listener);
@@ -263,10 +284,10 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     private void lookupWithCache(String username, ActionListener<User> listener) {
-        assert stallCache != null;
+        assert lookupCache != null;
         try {
             final AtomicBoolean lookupInCache = new AtomicBoolean(true);
-            final ListenableFuture<CachedResult> listenableCacheEntry = stallCache.computeIfAbsent(username, key -> {
+            final ListenableFuture<CachedResult> listenableCacheEntry = lookupCache.computeIfAbsent(username, key -> {
                 lookupInCache.set(false);
                 return new ListenableFuture<>();
             });
@@ -277,13 +298,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     if (user == null) {
                         // user not found, invalidate cache so that subsequent requests are forwarded to
                         // the user directory
-                        stallCache.invalidate(username, listenableCacheEntry);
+                        lookupCache.invalidate(username, listenableCacheEntry);
                     }
                     // notify forestalled request listeners
                     listenableCacheEntry.onResponse(result);
                 }, e -> {
                     // the next request should be forwarded, not halted by a failed lookup attempt
-                    stallCache.invalidate(username, listenableCacheEntry);
+                    lookupCache.invalidate(username, listenableCacheEntry);
                     // notify forestalled listeners
                     listenableCacheEntry.onFailure(e);
                 }));

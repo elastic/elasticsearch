@@ -212,9 +212,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             doAuthenticate(token, ActionListener.wrap(authResult -> {
                 final CachedResult cachedResult = new CachedResult(authResult, cacheHasher, authResult.getUser(), token.credentials());
                 if (authResult.isAuthenticated() && authResult.getUser().enabled()) {
-                    // subsequent requests for the same credentials for this given principal will be honored from the
-                    // {@code latestValidCredentialsCache} until the cache entry expires
-                    latestValidCredentialsCache.put(token.principal(), cachedResult);
+                    if (authResult.getUser().enabled()) {
+                        // subsequent requests for the same credentials for this given principal will be honored from the
+                        // {@code latestValidCredentialsCache} until the cache entry expires
+                        latestValidCredentialsCache.put(token.principal(), cachedResult);
+                    } else {
+                        latestValidCredentialsCache.invalidate(token.principal());
+                    }
                 }
                 // always invalidate the {@code authenticationStallCache} so that subsequent requests reach for the authentication source
                 // (if they are not honored from the {@code latestValidCredentialsCache})

@@ -362,29 +362,31 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateContract() {
-        Realm realm = new FailingAuthenticationRealm(globalSettings, threadPool);
+        TestAuthenticateCachingRealm realm = new TestAuthenticateCachingRealm(globalSettings, threadPool);
+        realm.setAuthenticateUsers(false);
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
         User user = future.actionGet().getUser();
         assertThat(user, nullValue());
 
-        realm = new ThrowingAuthenticationRealm(globalSettings, threadPool);
+        Realm errorRealm = new ThrowingAuthenticationRealm(globalSettings, threadPool);
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
+        errorRealm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
         RuntimeException e = expectThrows(RuntimeException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("whatever exception"));
     }
 
     public void testLookupContract() {
-        Realm realm = new FailingAuthenticationRealm(globalSettings, threadPool);
+        TestAuthenticateCachingRealm realm = new TestAuthenticateCachingRealm(globalSettings, threadPool);
+        realm.setLookupUsers(false);
         PlainActionFuture<User> future = new PlainActionFuture<>();
         realm.lookupUser("user", future);
         User user = future.actionGet();
         assertThat(user, nullValue());
 
-        realm = new ThrowingAuthenticationRealm(globalSettings, threadPool);
+        Realm errorRealm = new ThrowingAuthenticationRealm(globalSettings, threadPool);
         future = new PlainActionFuture<>();
-        realm.lookupUser("user", future);
+        errorRealm.lookupUser("user", future);
         RuntimeException e = expectThrows(RuntimeException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("lookup exception"));
     }
@@ -737,32 +739,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final User user = lookupFuture.get();
         assertThat(user, notNullValue());
         assertThat(user.principal(), equalTo(token.principal()));
-    }
-
-    static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
-
-        FailingAuthenticationRealm(Settings global, ThreadPool threadPool) {
-            super(new RealmConfig(
-                new RealmConfig.RealmIdentifier("caching", "failing-test"),
-                Settings.builder()
-                    .put(global)
-                    .put(getFullSettingKey(
-                        new RealmConfig.RealmIdentifier("caching", "failing-test"),
-                        RealmSettings.ORDER_SETTING), 0)
-                    .build(),
-                TestEnvironment.newEnvironment(global),
-                threadPool.getThreadContext()), threadPool);
-        }
-
-        @Override
-        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-            listener.onResponse(AuthenticationResult.notHandled());
-        }
-
-        @Override
-        protected void doLookupUser(String username, ActionListener<User> listener) {
-            listener.onResponse(null);
-        }
     }
 
     static class ThrowingAuthenticationRealm extends CachingUsernamePasswordRealm {

@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.time.Clock;
@@ -520,7 +521,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessingOpenedForecasts() {
-        when(bulkBuilder.persistForecastRequestStats(any(ForecastRequestStats.class))).thenReturn(bulkBuilder);
+        when(bulkResultsPersister.persistForecastRequestStats(any(ForecastRequestStats.class))).thenReturn(bulkResultsPersister);
         AutodetectResult result = mock(AutodetectResult.class);
         ForecastRequestStats forecastRequestStats = new ForecastRequestStats("foo", "forecast");
         forecastRequestStats.setStatus(ForecastRequestStats.ForecastRequestStatus.OK);
@@ -533,8 +534,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.handleOpenForecasts();
 
-        verify(bulkBuilder, times(2)).persistForecastRequestStats(argument.capture());
-        verify(bulkBuilder, times(1)).executeRequest();
+        verify(bulkResultsPersister, times(2)).persistForecastRequestStats(argument.capture());
+        verify(bulkResultsPersister, times(1)).executeRequest();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, never()).deleteInterimResults(JOB_ID);
 
@@ -545,7 +546,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     }
 
     public void testProcessingForecasts() {
-        when(bulkBuilder.persistForecastRequestStats(any(ForecastRequestStats.class))).thenReturn(bulkBuilder);
+        when(bulkResultsPersister.persistForecastRequestStats(any(ForecastRequestStats.class))).thenReturn(bulkResultsPersister);
         AutodetectResult result = mock(AutodetectResult.class);
         ForecastRequestStats forecastRequestStats = new ForecastRequestStats("foo", "forecast");
         forecastRequestStats.setStatus(ForecastRequestStats.ForecastRequestStatus.OK);
@@ -566,8 +567,8 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         // There shouldn't be any opened forecasts. This call should do nothing
         processorUnderTest.handleOpenForecasts();
 
-        verify(bulkBuilder, times(2)).persistForecastRequestStats(argument.capture());
-        verify(bulkBuilder, times(1)).executeRequest();
+        verify(bulkResultsPersister, times(2)).persistForecastRequestStats(argument.capture());
+        verify(bulkResultsPersister, times(1)).executeRequest();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, never()).deleteInterimResults(JOB_ID);
 

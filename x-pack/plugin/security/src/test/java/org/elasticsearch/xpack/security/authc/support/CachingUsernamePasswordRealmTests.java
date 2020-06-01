@@ -252,6 +252,45 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(realm.authInvocationCounter.intValue(), is(3));
     }
 
+    public void testWrongUserPasswordDoesNotInvalidateCache() {
+        TestAuthenticateCachingRealm realm = new TestAuthenticateCachingRealm(globalSettings, threadPool);
+
+        String user = "testUser";
+        SecureString pass1 = new SecureString("pass");
+        SecureString pass2 = new SecureString("password");
+
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass1), future);
+        AuthenticationResult authResult = future.actionGet();
+        assertThat(authResult.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+
+        // authn with pass2 fails
+        realm.setAuthenticateUsers(false);
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass2), future);
+        authResult = future.actionGet();
+        assertThat(authResult.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+
+        // try again pass1
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass1), future);
+        authResult = future.actionGet();
+
+        // authn is successful and served from cache
+        assertThat(authResult.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+
+        // authn with pass2 again
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, pass2), future);
+        authResult = future.actionGet();
+
+        // this fails again and it goes to the authn source
+        assertThat(authResult.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+        assertThat(realm.authInvocationCounter.intValue(), is(3));
+    }
+
     public void testCacheDisabledUser() {
         TestAuthenticateCachingRealm realm = new TestAuthenticateCachingRealm(globalSettings, threadPool);
         realm.setUsersEnabled(false);

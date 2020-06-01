@@ -118,7 +118,7 @@ GET /example_points/_search
                             "type": "envelope",
                             "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
                         },
-                        "relation": "within"
+                        "relation": "intersects"
                     }
                 }
             }

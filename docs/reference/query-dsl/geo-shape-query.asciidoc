@@ -147,7 +147,7 @@ GET /example_points/_search
     "max_score" : 1.0,
     "hits" : [
       {
-        "_index" : "example",
+        "_index" : "example_points",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {

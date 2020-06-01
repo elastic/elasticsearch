@@ -164,8 +164,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return Arrays.asList(
             CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.BOOLEAN
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE
         );
     }
 

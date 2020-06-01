@@ -188,7 +188,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
     @Before
     public void initValuesSourceRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, getSearchPlugins());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, this.getSearchPlugins());
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
     }
 
@@ -327,7 +327,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
-        registerFieldTypes(searchContext, mapperService, fieldNameToType);
+        registerFieldTypes(searchContext, mapperService,
+            fieldNameToType);
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
              * close their sub-aggregations. This is fairly similar to what the production code does. */
@@ -721,17 +722,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                     ValuesSourceType vst = fieldType.getValuesSourceType();
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
+                    AssertionError failure = null;
                     try {
                         searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
                         if (supportedVSTypes.contains(vst) == false || unsupportedMappedFieldTypes.contains(fieldType.typeName())) {
-                            fail("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
+                            failure = new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] should not support field type ["
                                 + fieldType.typeName() + "] but executing against the field did not throw an exception");
                         }
-                    } catch (Exception e) {
+                    } catch (Exception | AssertionError e) {
                         if (supportedVSTypes.contains(vst) && unsupportedMappedFieldTypes.contains(fieldType.typeName()) == false) {
-                            fail("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
-                                + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]");
+                            failure = new AssertionError("Aggregator [" + aggregationBuilder.getType() + "] supports field type ["
+                                + fieldType.typeName() + "] but executing against the field threw an exception: [" + e.getMessage() + "]",
+                                e);
                         }
+                    }
+                    if (failure != null) {
+                        throw failure;
                     }
                 }
             }
@@ -768,8 +774,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 json = "{ \"" + fieldName + "\" : \"" + f + "\" }";
             } else {
                 // smallest numeric is a byte so we select the smallest
-                v = Math.abs(randomByte());
-                json = "{ \"" + fieldName + "\" : \"" + v + "\" }";
+               v = Math.abs(randomByte());
+               json = "{ \"" + fieldName + "\" : \"" + v + "\" }";
             }
             doc.add(new SortedNumericDocValuesField(fieldName, v));
 
@@ -836,8 +842,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 "        \"gte\" : \"" + start + "\",\n" +
                 "        \"lte\" : \"" + end + "\"\n" +
                 "      }}";
-
-        }  else if (fieldType.getValuesSourceType().equals(CoreValuesSourceType.GEOPOINT)) {
+        }  else if (vst.equals(CoreValuesSourceType.GEOPOINT)) {
             double lat = randomDouble();
             double lon = randomDouble();
             doc.add(new LatLonDocValuesField(fieldName, lat, lon));

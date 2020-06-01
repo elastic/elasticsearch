@@ -84,7 +84,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
             }
             SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
-                    .subAggregation(sigAgg);
+                .subAggregation(sigAgg);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());

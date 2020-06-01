@@ -181,7 +181,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         mins = context.bigArrays().newLongArray(1, false);
         mins.set(0, Long.MAX_VALUE);
         maxes = context.bigArrays().newLongArray(1, false);
-        maxes.set(1, Long.MIN_VALUE);
+        maxes.set(0, Long.MIN_VALUE);
         preparedRoundings = new Rounding.Prepared[roundingInfos.length];
         // Prepare the first rounding because we know we'll need it.
         preparedRoundings[0] = roundingPreparer.apply(roundingInfos[0].rounding);
@@ -271,7 +271,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
                 long min = Math.min(mins.get(owningBucketOrd), newKey);
                 mins.set(owningBucketOrd, min);
-                long max = Math.max(maxes.get(owningBucketOrd * 2 + 1), newKey);
+                long max = Math.max(maxes.get(owningBucketOrd), newKey);
                 maxes.set(owningBucketOrd, max);
                 if (oldEstimatedBucketCount <= targetBuckets * roundingInfos[oldRounding].getMaximumInnerInterval()
                         && max - min <= targetBuckets * roundingInfos[oldRounding].getMaximumRoughEstimateDurationMillis()) {

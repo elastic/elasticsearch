@@ -281,6 +281,45 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(realm.authInvocationCounter.intValue(), is(2));
     }
 
+    public void testChangePasswordAndDisableUser() {
+        TestAuthenticateCachingRealm realm = new TestAuthenticateCachingRealm(globalSettings, threadPool);
+
+        String user = "testUser";
+        SecureString password = new SecureString("password");
+
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        assertThat(future.actionGet().getUser().enabled(), equalTo(true));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(1));
+
+        realm.setUsersEnabled(false);
+
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        future.actionGet();
+        assertThat(future.actionGet().getUser().enabled(), equalTo(true));
+
+        // user is disabled at the authentication source but in cache it's still enabled
+        assertThat(realm.authInvocationCounter.intValue(), is(1));
+
+        future = new PlainActionFuture<>();
+        SecureString password2 = new SecureString("password2");
+        realm.authenticate(new UsernamePasswordToken(user, password2), future);
+        future.actionGet();
+        // user is now disabled
+        assertThat(future.actionGet().getUser().enabled(), equalTo(false));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password2), future);
+        future.actionGet();
+        assertThat(future.actionGet().getUser().enabled(), equalTo(false));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(3));
+    }
+
     public void testCacheWithVeryLowTtlExpiresBetweenAuthenticateCalls() throws InterruptedException {
         TimeValue ttl = TimeValue.timeValueNanos(randomIntBetween(10, 100));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_cache_ttl");

@@ -50,8 +50,6 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('elasticsearch.publish')
         project.pluginManager.apply(DependenciesInfoPlugin)
 
-        project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask)
-
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         PrecommitTasks.create(project, true)
     }

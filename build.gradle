@@ -46,6 +46,7 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
+apply from: 'gradle/fips.gradle'
 
 // common maven publishing configuration
 allprojects {

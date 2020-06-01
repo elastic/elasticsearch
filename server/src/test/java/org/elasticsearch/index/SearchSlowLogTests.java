@@ -19,11 +19,16 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,6 +41,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.hamcrest.Matchers;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,12 +56,31 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
-    @Override
-    protected SearchContext createSearchContext(IndexService indexService) {
-       return createSearchContext(indexService, new String[]{});
+    static MockAppender appender;
+    static Logger queryLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+    static Logger fetchLog = LogManager.getLogger(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+
+    @BeforeClass
+    public static void init() throws IllegalAccessException {
+        appender = new MockAppender("trace_appender");
+        appender.start();
+        Loggers.addAppender(queryLog, appender);
+        Loggers.addAppender(fetchLog, appender);
     }
 
-    protected SearchContext createSearchContext(IndexService indexService, String ... groupStats) {
+    @AfterClass
+    public static void cleanup() {
+        appender.stop();
+        Loggers.removeAppender(queryLog, appender);
+        Loggers.removeAppender(fetchLog, appender);
+    }
+
+    @Override
+    protected SearchContext createSearchContext(IndexService indexService) {
+        return createSearchContext(indexService, new String[]{});
+    }
+
+    protected SearchContext createSearchContext(IndexService indexService, String... groupStats) {
         BigArrays bigArrays = indexService.getBigArrays();
         final ShardSearchRequest request =
             new ShardSearchRequest(new ShardId(indexService.index(), 0), 0L, null);
@@ -68,16 +94,141 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             public ShardSearchRequest request() {
                 return request;
             }
+
+            @Override
+            public SearchShardTask getTask() {
+                return super.getTask();
+            }
         };
+    }
+
+    public void testLevelPrecedence() {
+        SearchContext ctx = searchContextWithSourceAndTask(createIndex("index"));
+        String uuid = UUIDs.randomBase64UUID();
+        IndexSettings settings =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index", uuid), Settings.EMPTY);
+        SearchSlowLog log = new SearchSlowLog(settings);
+
+        {
+            //level set to WARN, should only log when WARN limit is breached
+            log.onQueryPhase(ctx, 40L);
+            assertNull(appender.getLastEventAndReset());
+            log.onQueryPhase(ctx, 41L);
+            assertNotNull(appender.getLastEventAndReset());
+
+            log.onFetchPhase(ctx, 40L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx, 41L);
+            assertNotNull(appender.getLastEventAndReset());
+        }
+
+        {
+            // level set INFO, should log when INFO level is breached
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
+            log.onQueryPhase(ctx, 30L);
+            assertNull(appender.getLastEventAndReset());
+            log.onQueryPhase(ctx, 31L);
+            assertNotNull(appender.getLastEventAndReset());
+
+            log.onFetchPhase(ctx, 30L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx, 31L);
+            assertNotNull(appender.getLastEventAndReset());
+        }
+
+        {
+            // level set DEBUG, should log when DEBUG level is breached
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
+            log.onQueryPhase(ctx, 20L);
+            assertNull(appender.getLastEventAndReset());
+            log.onQueryPhase(ctx, 21L);
+            assertNotNull(appender.getLastEventAndReset());
+
+            log.onFetchPhase(ctx, 20L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx, 21L);
+            assertNotNull(appender.getLastEventAndReset());
+        }
+
+        {
+            // level set TRACE, should log when TRACE level is breached
+            settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
+            log.onQueryPhase(ctx, 10L);
+            assertNull(appender.getLastEventAndReset());
+            log.onQueryPhase(ctx, 11L);
+            assertNotNull(appender.getLastEventAndReset());
+
+            log.onFetchPhase(ctx, 10L);
+            assertNull(appender.getLastEventAndReset());
+            log.onFetchPhase(ctx, 11L);
+            assertNotNull(appender.getLastEventAndReset());
+        }
+    }
+
+    public void testTwoLoggersDifferentLevel() {
+        SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
+        SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
+        IndexSettings settings1 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log1 = new SearchSlowLog(settings1);
+
+        IndexSettings settings2 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log2 = new SearchSlowLog(settings2);
+
+        {
+            // level set WARN, should not log
+            log1.onQueryPhase(ctx1, 11L);
+            assertNull(appender.getLastEventAndReset());
+            log1.onFetchPhase(ctx1, 11L);
+            assertNull(appender.getLastEventAndReset());
+
+            // level set TRACE, should log
+            log2.onQueryPhase(ctx2, 11L);
+            assertNotNull(appender.getLastEventAndReset());
+            log2.onFetchPhase(ctx2, 11L);
+            assertNotNull(appender.getLastEventAndReset());
+        }
+    }
+
+    public void testMultipleSlowLoggersUseSingleLog4jLogger() {
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+
+        SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
+        IndexSettings settings1 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log1 = new SearchSlowLog(settings1);
+        int numberOfLoggersBefore = context.getLoggers().size();
+
+        SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
+        IndexSettings settings2 =
+            new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()), Settings.EMPTY);
+        SearchSlowLog log2 = new SearchSlowLog(settings2);
+
+        int numberOfLoggersAfter = context.getLoggers().size();
+        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
+    }
+
+    private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {
+        return newIndexMeta(index, Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level)
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "10nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "20nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "30nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "40nanos")
+
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30nanos")
+            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos")
+            .build());
     }
 
     public void testSlowLogHasJsonFields() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index);
-        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
-        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchContext searchContext = searchContextWithSourceAndTask(index);
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
 
         assertThat(p.get("message"), equalTo("[foo][0]"));
@@ -90,9 +241,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.get("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
     }
 
+
     public void testSlowLogsWithStats() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index,"group1");
+        SearchContext searchContext = createSearchContext(index, "group1");
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
         searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
@@ -112,11 +264,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index);
-        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
-        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchContext searchContext = searchContextWithSourceAndTask(index);
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.get("message"), equalTo("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
@@ -368,5 +516,14 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             .build();
         IndexMetadata metadata = IndexMetadata.builder(name).settings(build).build();
         return metadata;
+    }
+
+    private SearchContext searchContextWithSourceAndTask(IndexService index) {
+        SearchContext ctx = createSearchContext(index);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        ctx.request().source(source);
+        ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        return ctx;
     }
 }

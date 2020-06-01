@@ -171,7 +171,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type",
                     fieldName, CONTENT_TYPE);
             }
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("geo_mapper_field_parameter",
+            DEPRECATION_LOGGER.deprecate("geo_mapper_field_parameter",
                 "Field parameter [{}] is deprecated and will be removed in a future version.", fieldName);
         }
     }

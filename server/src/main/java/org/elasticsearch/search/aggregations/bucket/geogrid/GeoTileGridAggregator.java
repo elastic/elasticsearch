@@ -36,8 +36,8 @@ public class GeoTileGridAggregator extends GeoGridAggregator<InternalGeoTileGrid
 
     public GeoTileGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                                  int requiredSize, int shardSize, SearchContext aggregationContext,
-                                 Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, metadata);
+                                 Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+        super(name, factories, valuesSource, requiredSize, shardSize, aggregationContext, parent, collectsFromSingleBucket, metadata);
     }
 
     @Override

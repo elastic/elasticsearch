@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
@@ -78,7 +78,7 @@ final class CompositeValuesCollectorQueue extends BreakingPriorityQueue<Integer>
      * @param afterKey composite key
      */
     CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size,
-                                  CompositeKey afterKey, Consumer<Long> circuitBreaker) {
+                                  CompositeKey afterKey, LongConsumer circuitBreaker) {
         super(size, circuitBreaker);
         this.bigArrays = bigArrays;
         this.maxSize = size;

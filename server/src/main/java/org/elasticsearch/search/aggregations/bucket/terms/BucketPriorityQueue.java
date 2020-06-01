@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
 import java.util.Comparator;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class BucketPriorityQueue<B extends Terms.Bucket> extends BreakingPriorityQueue<B> {
 
     private final Comparator<? super B> comparator;
 
-    BucketPriorityQueue(int size, Comparator<? super B> comparator, Consumer<Long> circuitBreaker) {
+    BucketPriorityQueue(int size, Comparator<? super B> comparator, LongConsumer circuitBreaker) {
         super(size, circuitBreaker);
         this.comparator = comparator;
     }

@@ -23,7 +23,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lease.Releasable;
 
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * A thin extension of Lucene's PriorityQueue which also tracks memory usage via circuit
@@ -39,9 +39,9 @@ import java.util.function.Consumer;
  */
 public abstract class BreakingPriorityQueue<T> extends PriorityQueue<T> implements Releasable {
     private final int size;
-    private final Consumer<Long> circuitBreaker;
+    private final LongConsumer circuitBreaker;
 
-    public BreakingPriorityQueue(int size, Consumer<Long> circuitBreaker) {
+    public BreakingPriorityQueue(int size, LongConsumer circuitBreaker) {
         super(applyBreaker(size, circuitBreaker));
         this.size = size;
         this.circuitBreaker = circuitBreaker;
@@ -49,7 +49,7 @@ public abstract class BreakingPriorityQueue<T> extends PriorityQueue<T> implemen
 
     protected abstract boolean lessThan(T a, T b);
 
-    private static int applyBreaker(int size, Consumer<Long> breaker) {
+    private static int applyBreaker(int size, LongConsumer breaker) {
         breaker.accept((long)size * RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         return size;
     }

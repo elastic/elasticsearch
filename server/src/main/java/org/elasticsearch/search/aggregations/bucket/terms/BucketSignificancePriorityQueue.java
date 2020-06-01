@@ -21,11 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends BreakingPriorityQueue<B> {
 
-    BucketSignificancePriorityQueue(int size, Consumer<Long> circuitBreaker) {
+    BucketSignificancePriorityQueue(int size, LongConsumer circuitBreaker) {
         super(size, circuitBreaker);
     }
 

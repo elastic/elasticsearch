@@ -50,8 +50,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -61,7 +61,7 @@ public class NumericTermsAggregator extends TermsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
-    private final Consumer<Long> breakerConsumer;
+    private final LongConsumer breakerConsumer;
 
     public NumericTermsAggregator(
         String name,
@@ -138,7 +138,7 @@ public class NumericTermsAggregator extends TermsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(super::doClose, bucketOrds, resultStrategy);
+        Releasables.close(() -> super.doClose(), bucketOrds, resultStrategy);
     }
 
     @Override
@@ -244,7 +244,7 @@ public class NumericTermsAggregator extends TermsAggregator {
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract PriorityQueue<B> buildPriorityQueue(int size, Consumer<Long> breakerConsumer);
+        abstract PriorityQueue<B> buildPriorityQueue(int size, LongConsumer breakerConsumer);
 
         /**
          * Build the sub-aggregations into the buckets. This will usually
@@ -284,7 +284,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        final PriorityQueue<B> buildPriorityQueue(int size, Consumer<Long> breakerConsumer) {
+        final PriorityQueue<B> buildPriorityQueue(int size, LongConsumer breakerConsumer) {
             return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator, breakerConsumer);
         }
 
@@ -541,7 +541,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        PriorityQueue<SignificantLongTerms.Bucket> buildPriorityQueue(int size, Consumer<Long> breakerConsumer) {
+        PriorityQueue<SignificantLongTerms.Bucket> buildPriorityQueue(int size, LongConsumer breakerConsumer) {
             return new BucketSignificancePriorityQueue<>(size, breakerConsumer);
         }
 

@@ -523,7 +523,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(bulkBuilder, times(2)).persistForecastRequestStats(argument.capture());
         verify(bulkBuilder, times(1)).executeRequest();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, never()).deleteInterimResults(JOB_ID);
 
         // Get all values is in reverse call order
@@ -556,7 +556,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(bulkBuilder, times(2)).persistForecastRequestStats(argument.capture());
         verify(bulkBuilder, times(1)).executeRequest();
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister, never()).deleteInterimResults(JOB_ID);
 
         List<ForecastRequestStats> stats = argument.getAllValues();

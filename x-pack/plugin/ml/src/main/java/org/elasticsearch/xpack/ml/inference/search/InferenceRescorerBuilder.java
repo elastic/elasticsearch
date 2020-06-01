@@ -22,11 +22,10 @@ import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -52,73 +51,57 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     private static final QueryRescoreMode DEFAULT_SCORE_MODE = QueryRescoreMode.Total;
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<InferenceRescorerBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        args -> new InferenceRescorerBuilder((String) args[0], (List<InferenceConfig>) args[1], (Map<String, String>) args[2])
-    );
+    private static final ConstructingObjectParser<InferenceRescorerBuilder, SetOnce<ModelLoadingService>> PARSER =
+        new ConstructingObjectParser<>(NAME, false,
+            (args, context) ->
+                new InferenceRescorerBuilder((String) args[0], context, (InferenceConfig) args[1], (Map<String, String>) args[2])
+        );
 
     static {
         PARSER.declareString(constructorArg(), MODEL_ID);
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c), INFERENCE_CONFIG);
+        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c), INFERENCE_CONFIG);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapStrings(), FIELD_MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareFloat(InferenceRescorerBuilder::setQueryWeight, QUERY_WEIGHT);
         PARSER.declareFloat(InferenceRescorerBuilder::setModelWeight, MODEL_WEIGHT);
         PARSER.declareString((builder, mode) -> builder.setScoreMode(QueryRescoreMode.fromString(mode)), SCORE_MODE);
     }
 
-    public static InferenceRescorerBuilder fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static InferenceRescorerBuilder fromXContent(XContentParser parser, SetOnce<ModelLoadingService> modelLoadingService) {
+        return PARSER.apply(parser, modelLoadingService);
     }
 
     private final String modelId;
+    private final SetOnce<ModelLoadingService> modelLoadingService;
     private final InferenceConfig inferenceConfig;
     private final Map<String, String> fieldMap;
 
-    private LocalModel model;
-    private Supplier<LocalModel> modelSupplier;
+    private Model model;
 
     private float queryWeight = DEFAULT_QUERY_WEIGHT;
     private float modelWeight = DEFAULT_MODEL_WEIGHT;
     private QueryRescoreMode scoreMode = DEFAULT_SCORE_MODE;
 
-    private InferenceRescorerBuilder(String modelId, @Nullable List<InferenceConfig> config, @Nullable Map<String, String> fieldMap) {
+    public InferenceRescorerBuilder(String modelId,
+                                    SetOnce<ModelLoadingService> modelLoadingService,
+                                    InferenceConfig config,
+                                    @Nullable Map<String, String> fieldMap) {
         this.modelId = modelId;
-        if (config != null) {
-            assert config.size() == 1;
-            this.inferenceConfig = config.get(0);
-        } else {
-            this.inferenceConfig = null;
-        }
-        this.fieldMap = fieldMap;
-    }
-
-    InferenceRescorerBuilder(String modelId, @Nullable InferenceConfig config, @Nullable Map<String, String> fieldMap) {
-        this.modelId = modelId;
+        this.modelLoadingService = modelLoadingService;
         this.inferenceConfig = config;
         this.fieldMap = fieldMap;
     }
 
-    private InferenceRescorerBuilder(
-        String modelId,
-        @Nullable InferenceConfig config,
-        @Nullable Map<String, String> fieldMap,
-        Supplier<LocalModel> modelSupplier
+    private InferenceRescorerBuilder(String modelId,
+                                     SetOnce<ModelLoadingService> modelLoadingService,
+                                     @Nullable InferenceConfig config,
+                                     @Nullable Map<String, String> fieldMap,
+                                     Supplier<Model> modelSupplier
     ) {
-        this(modelId, config, fieldMap);
-        this.modelSupplier = modelSupplier;
+        this(modelId, modelLoadingService, config, fieldMap);
+        this.model = modelSupplier.get();
     }
 
-    private InferenceRescorerBuilder(
-        String modelId,
-        @Nullable InferenceConfig config,
-        @Nullable Map<String, String> fieldMap,
-        LocalModel model
-    ) {
-        this(modelId, config, fieldMap);
-        this.model = Objects.requireNonNull(model);
-    }
-
-    public InferenceRescorerBuilder(StreamInput in) throws IOException {
+    public InferenceRescorerBuilder(StreamInput in, SetOnce<ModelLoadingService> modelLoadingService) throws IOException {
         super(in);
         modelId = in.readString();
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
@@ -131,6 +114,8 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         queryWeight = in.readFloat();
         modelWeight = in.readFloat();
         scoreMode = QueryRescoreMode.readFromStream(in);
+
+        this.modelLoadingService = modelLoadingService;
     }
 
     void setQueryWeight(float queryWeight) {
@@ -147,10 +132,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (modelSupplier != null) {
-            throw new IllegalStateException("can't serialize model supplier. Missing a rewriteAndFetch?");
-        }
-
         out.writeString(modelId);
         out.writeOptionalNamedWriteable(inferenceConfig);
         boolean fieldMapPresent = fieldMap != null;
@@ -191,30 +172,17 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
         if (model != null) {
             return this;
-        } else if (modelSupplier != null) {
-            if (modelSupplier.get() == null) {
-                return this;
-            } else {
-                return copyScoringSettings(new InferenceRescorerBuilder(modelId, inferenceConfig, fieldMap, modelSupplier.get()));
-
-            }
         } else {
-            SetOnce<LocalModel> modelHolder = new SetOnce<>();
+            SetOnce<Model> modelHolder = new SetOnce<>();
 
-            ctx.registerAsyncAction(((client, actionListener) -> {
-                TrainedModelProvider modelProvider = new TrainedModelProvider(client, ctx.getXContentRegistry());
-                modelProvider.getTrainedModel(modelId, true, ActionListener.wrap(trainedModel -> {
-                    LocalModel model = new LocalModel(
-                        modelId,
-                        trainedModel.ensureParsedDefinition(ctx.getXContentRegistry()).getModelDefinition(),
-                        trainedModel.getInput()
-                    );
-                    modelHolder.set(model);
-                    actionListener.onResponse(null);
-                }, actionListener::onFailure));
-            }));
+            ctx.registerAsyncAction(((client, actionListener) ->
+                modelLoadingService.get().getModel(modelId, ActionListener.wrap(
+                    modelHolder::set,
+                    actionListener::onFailure))
+            ));
 
-            return copyScoringSettings(new InferenceRescorerBuilder(modelId, inferenceConfig, fieldMap, modelHolder::get));
+            return copyScoringSettings(
+                new InferenceRescorerBuilder(modelId, modelLoadingService, inferenceConfig, fieldMap, modelHolder::get));
         }
     }
 
@@ -227,13 +195,12 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     @Override
     protected RescoreContext innerBuildContext(int windowSize, QueryShardContext context) {
-        LocalModel m = (model != null) ? model : modelSupplier.get();
-        assert m != null;
+        assert model != null;
 
-        return new RescoreContext(windowSize, new InferenceRescorer(m, inferenceConfig, fieldMap, scoreModeSettings()));
+        return new RescoreContext(windowSize, new InferenceRescorer(model, inferenceConfig, fieldMap, scoreModeSettings()));
     }
 
-    class ScoreModeSettings {
+    static class ScoreModeSettings {
         float queryWeight;
         float modelWeight;
         QueryRescoreMode scoreMode;

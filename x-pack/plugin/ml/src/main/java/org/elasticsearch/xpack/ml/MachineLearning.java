@@ -367,7 +367,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     @Override
     public List<RescorerSpec<?>> getRescorers() {
         return Collections.singletonList(
-                new RescorerSpec<>(InferenceRescorerBuilder.NAME, InferenceRescorerBuilder::new, InferenceRescorerBuilder::fromXContent));
+                new RescorerSpec<>(InferenceRescorerBuilder.NAME,
+                    in -> new InferenceRescorerBuilder(in, modelLoadingService),
+                    parser -> InferenceRescorerBuilder.fromXContent(parser, modelLoadingService)));
     }
 
     @Override
@@ -458,6 +460,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
     private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
+    private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -686,6 +689,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin, Analys
             trainedModelStatsService,
             settings,
             clusterService.getNodeName());
+        this.modelLoadingService.set(modelLoadingService);
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,

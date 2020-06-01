@@ -37,8 +37,8 @@ import java.util.regex.Pattern;
 
 /**
  * This is a simplistic logger that adds warning messages to HTTP headers.
- * It uses ThreadContext - which is assumed to be one per JVM (except for tests) - to store warning headers.
- * Warning values are formatted according to RFC7234.
+ * Use <code>HeaderWarning.addWarning(message,params)</code>. Message will be formatted according to RFC7234.
+ * The result will be returned as HTTP response headers.
  */
 public class HeaderWarning {
     /**
@@ -325,7 +325,8 @@ public class HeaderWarning {
         addWarning(THREAD_CONTEXT, message, params);
     }
 
-    public static void addWarning(Set<ThreadContext> threadContexts, String message, Object... params) {
+    // package scope for testing
+    static void addWarning(Set<ThreadContext> threadContexts, String message, Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);

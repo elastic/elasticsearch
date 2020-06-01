@@ -24,7 +24,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 /**
- * A logger that logs deprecation notices.
+ * A logger that logs deprecation notices. Logger should be initialized with a parent logger which name will be used
+ * for deprecation logger. For instance <code>new DeprecationLogger("org.elasticsearch.test.SomeClass")</code> will
+ * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use
+ * <code>deprecation</code> logger defined in log4j2.properties.
+ *
+ * Deprecation logs are written to deprecation log file - defined in log4j2.properties, as well as warnings added to a response header.
+ * All deprecation usages are throttled basing on a key. Key is a string provided in an argument and can be prefixed with
+ * <code>X-Opaque-Id</code>. This allows to throttle deprecations per client usage.
+ * <code>deprecationLogger.deprecate("key","message {}", "param");</code>
+ *
+ * @see ThrottlingAndHeaderWarningLogger for throttling and header warnings implementation details
  */
 public class DeprecationLogger {
     private final ThrottlingAndHeaderWarningLogger deprecationLogger;

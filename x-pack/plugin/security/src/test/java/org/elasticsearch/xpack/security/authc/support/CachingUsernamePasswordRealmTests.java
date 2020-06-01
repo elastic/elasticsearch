@@ -29,7 +29,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -578,17 +581,18 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testCacheConcurrency() throws Exception {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
-        final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
+        final AtomicInteger authCounter = new AtomicInteger(0);
         final Hasher localHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
         final String passwordHash = new String(localHasher.hash(password));
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
-        RealmConfig config = new RealmConfig(realmIdentifier,
+        final RealmConfig config = new RealmConfig(realmIdentifier,
                 Settings.builder().put(globalSettings)
                     .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
             protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+                authCounter.incrementAndGet();
                 // do something slow
                 if (localHasher.verify(token.credentials(), passwordHash.toCharArray())) {
                     listener.onResponse(AuthenticationResult.success(new User(username, new String[]{"r1", "r2", "r3"})));
@@ -607,9 +611,10 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
         final int numberOfIterations = scaledRandomIntBetween(20, 100);
         final CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
-        List<Thread> threads = new ArrayList<>(numberOfThreads);
+        final Set<SecureString> usedPasswords = Collections.synchronizedSet(new HashSet<>());
+        final List<Thread> threads = new ArrayList<>(numberOfThreads);
+        final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads * numberOfIterations);
         for (int i = 0; i < numberOfThreads; i++) {
-            final boolean invalidPassword = randomBoolean();
             final int threadNum = i;
             threads.add(new Thread(() -> {
                 threadPool.getThreadContext().putTransient("key", threadNum);
@@ -617,16 +622,31 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                     latch.countDown();
                     latch.await();
                     for (int i1 = 0; i1 < numberOfIterations; i1++) {
-                        UsernamePasswordToken token = new UsernamePasswordToken(username, invalidPassword ? randomPassword : password);
+                        final boolean invalidPassword = randomBoolean();
+                        final UsernamePasswordToken token;
+                        if (invalidPassword) {
+                            SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
+                            while (false == usedPasswords.add(randomPassword)) {
+                                // do not reuse the same wrong password as it could result in an authentication OR a serve from cache,
+                                // depending on thread scheduling (it is unpredictable to test here)
+                                randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
+                            }
+                            token = new UsernamePasswordToken(username, randomPassword);
+                        } else {
+                            usedPasswords.add(password);
+                            token = new UsernamePasswordToken(username, password);
+                        }
 
                         realm.authenticate(token, ActionListener.wrap((result) -> {
                             assertThat(threadPool.getThreadContext().getTransient("key"), is(threadNum));
+                            completedLatch.countDown();
                             if (invalidPassword && result.isAuthenticated()) {
                                 throw new RuntimeException("invalid password led to an authenticated user: " + result);
                             } else if (invalidPassword == false && result.isAuthenticated() == false) {
                                 throw new RuntimeException("proper password led to an unauthenticated result: " + result);
                             }
                         }, (e) -> {
+                            completedLatch.countDown();
                             logger.error("caught exception", e);
                             fail("unexpected exception - " + e);
                         }));
@@ -646,6 +666,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+
+        completedLatch.await();
+        assertThat(authCounter.get(), is(usedPasswords.size()));
     }
 
     public void testUserLookupConcurrency() throws Exception {

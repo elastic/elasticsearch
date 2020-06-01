@@ -1020,6 +1020,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testProjectUnresolvedAliasInFilter() {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
+        assertEquals("1:31: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
     }
 
     public void testGeoShapeInWhereClause() {

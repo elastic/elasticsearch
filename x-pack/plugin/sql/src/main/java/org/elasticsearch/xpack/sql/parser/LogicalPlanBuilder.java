@@ -108,10 +108,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 if (plan instanceof Limit) {
                     throw new ParsingException(source(limitClause), "Cannot use both TOP and LIMIT in the same query");
                 } else {
-                    plan = wrapWithLimit(plan, source(limitClause), limit);
-                    new Limit(source(limitClause),
-                        new Literal(source(limitClause), Integer.parseInt(limit.getText()), DataTypes.INTEGER),
-                        plan);
+                    plan = limit(plan, source(limitClause), limit);
                 }
             }
         }
@@ -166,7 +163,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         SqlBaseParser.TopClauseContext topClauseContext = ctx.topClause();
         if (topClauseContext != null) {
             if (topClauseContext.top != null && topClauseContext.INTEGER_VALUE() != null) {
-                query = wrapWithLimit(query, source(topClauseContext), topClauseContext.top);
+                query = limit(query, source(topClauseContext), topClauseContext.top);
             }
         }
 
@@ -259,7 +256,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new UnresolvedRelation(source(ctx), tableIdentifier, alias, ctx.FROZEN() != null);
     }
 
-    private Limit wrapWithLimit(LogicalPlan plan, Source source, Token limit) {
+    private Limit limit(LogicalPlan plan, Source source, Token limit) {
         return new Limit(source, new Literal(source, Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
     }
 }

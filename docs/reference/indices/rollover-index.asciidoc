@@ -85,7 +85,7 @@ to assign to the target index.
 (Optional*, string)
 Name of the target index to create and assign the index alias.
 
-include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
 *This parameter is not required
 if the alias is assigned to an index name that ends with `-` and a number,
@@ -113,17 +113,17 @@ the request checks whether the index matches provided conditions
 but does not perform a rollover.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-type-name]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[rollover-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
 `conditions`::
 +
@@ -153,9 +153,9 @@ TIP: To see the current index size, use the <<cat-indices, _cat indices>> API.
 The `pri.store.size` value shows the combined size of all primary shards. 
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 
 [[rollover-index-api-example]]

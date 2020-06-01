@@ -198,21 +198,21 @@ See <<url-access-control>>.
 [[docs-bulk-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[bulk-api-request-body]]
 ==== {api-request-body-title}
@@ -225,9 +225,9 @@ Indexes the specified document if it does not already exist.
 The following line must contain the source data to be indexed. 
 +
 --
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 --
 
 `delete`::
@@ -235,7 +235,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 Removes the specified document from the index.
 +
 --
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 `_id`::
 (Required, string) 
@@ -249,9 +249,9 @@ If the document exists, replaces the document and increments the version.
 The following line must contain the source data to be indexed. 
 +
 --
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 --
 
 `update`::
@@ -260,9 +260,9 @@ Performs a partial document update.
 The following line must contain the partial document and update options.
 +
 --
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 --
 
 `doc`::

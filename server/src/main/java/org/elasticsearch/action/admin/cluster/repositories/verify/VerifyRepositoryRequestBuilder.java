@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * Builder for unregister repository request
+ * Builder for verify repository request
  */
 public class VerifyRepositoryRequestBuilder
         extends MasterNodeOperationRequestBuilder<VerifyRepositoryRequest, VerifyRepositoryResponse, VerifyRepositoryRequestBuilder> {

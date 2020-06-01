@@ -330,7 +330,7 @@ GET /_search
             "rescore_query_weight" : 10
         }
     },
-    "_source": false
+    "_source": false,
     "highlight" : {
         "order" : "score",
         "fields" : {

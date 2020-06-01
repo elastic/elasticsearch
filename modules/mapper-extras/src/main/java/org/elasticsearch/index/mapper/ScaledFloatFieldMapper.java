@@ -29,14 +29,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -45,7 +42,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
@@ -53,17 +49,13 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -499,7 +491,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         return doubleValue;
     }
 
-    private static class ScaledFloatIndexFieldData implements IndexNumericFieldData {
+    private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {
 
         private final IndexNumericFieldData scaledFieldData;
         private final double scalingFactor;
@@ -525,16 +517,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-            final XFieldComparatorSource source = new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
-            return new SortField(getFieldName(), source, reverse);
-        }
-
-        @Override
-        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
-            return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested)
-                    .newBucketedSort(bigArrays, sortOrder, format, bucketSize, extra);
+        protected boolean sortRequiresCustomComparator() {
+            /*
+             * We need to use a custom comparator because the non-custom
+             * comparator wouldn't properly decode the long bits into the
+             * double. Sorting on the long representation *would* put the
+             * docs in order. We just don't have a way to convert the long
+             * into a double the right way afterwords.
+             */
+            return true;
         }
 
         @Override
@@ -549,7 +540,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public NumericType getNumericType() {
-            /**
+            /*
              * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
              */
             return NumericType.DOUBLE;

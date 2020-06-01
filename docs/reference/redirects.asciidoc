@@ -723,7 +723,7 @@ See <<ilm-actions>>.
 See <<ilm-index-lifecycle>>.
 
 [role="exclude",id="search-uri-request"]
-=== URI Search
+=== URI search
 
 See <<search-search>>.
 

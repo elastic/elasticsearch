@@ -75,46 +75,46 @@ public class Annotation implements ToXContentObject, Writeable {
      * Parses {@link Annotation} using a strict parser.
      */
     public static Annotation fromXContent(XContentParser parser, Void context) {
-        return PARSER.apply(parser, context).build();
+        return STRICT_PARSER.apply(parser, context).build();
     }
 
     /**
      * Strict parser for cases when {@link Annotation} is returned from C++ as an ML result.
      */
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(ANNOTATION.getPreferredName(), false, Builder::new);
+    private static final ObjectParser<Builder, Void> STRICT_PARSER = new ObjectParser<>(ANNOTATION.getPreferredName(), false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setAnnotation, ANNOTATION);
-        PARSER.declareField(Builder::setCreateTime,
+        STRICT_PARSER.declareString(Builder::setAnnotation, ANNOTATION);
+        STRICT_PARSER.declareField(Builder::setCreateTime,
             p -> TimeUtils.parseTimeField(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(Builder::setCreateUsername, CREATE_USERNAME);
-        PARSER.declareField(Builder::setTimestamp,
+        STRICT_PARSER.declareString(Builder::setCreateUsername, CREATE_USERNAME);
+        STRICT_PARSER.declareField(Builder::setTimestamp,
             p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()), TIMESTAMP, ObjectParser.ValueType.VALUE);
-        PARSER.declareField(Builder::setEndTimestamp,
+        STRICT_PARSER.declareField(Builder::setEndTimestamp,
             p -> TimeUtils.parseTimeField(p, END_TIMESTAMP.getPreferredName()), END_TIMESTAMP, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(Builder::setJobId, Job.ID);
-        PARSER.declareField(Builder::setModifiedTime,
+        STRICT_PARSER.declareString(Builder::setJobId, Job.ID);
+        STRICT_PARSER.declareField(Builder::setModifiedTime,
             p -> TimeUtils.parseTimeField(p, MODIFIED_TIME.getPreferredName()), MODIFIED_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
-        PARSER.declareField(Builder::setType, p -> {
+        STRICT_PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
+        STRICT_PARSER.declareField(Builder::setType, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return Type.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, TYPE, ObjectParser.ValueType.STRING);
-        PARSER.declareField(Builder::setEvent, p -> {
+        STRICT_PARSER.declareField(Builder::setEvent, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return Event.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, EVENT, ObjectParser.ValueType.STRING);
-        PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
-        PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME);
-        PARSER.declareString(Builder::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME);
-        PARSER.declareString(Builder::setOverFieldValue, OVER_FIELD_VALUE);
-        PARSER.declareString(Builder::setByFieldName, BY_FIELD_NAME);
-        PARSER.declareString(Builder::setByFieldValue, BY_FIELD_VALUE);
+        STRICT_PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
+        STRICT_PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME);
+        STRICT_PARSER.declareString(Builder::setPartitionFieldValue, PARTITION_FIELD_VALUE);
+        STRICT_PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME);
+        STRICT_PARSER.declareString(Builder::setOverFieldValue, OVER_FIELD_VALUE);
+        STRICT_PARSER.declareString(Builder::setByFieldName, BY_FIELD_NAME);
+        STRICT_PARSER.declareString(Builder::setByFieldValue, BY_FIELD_VALUE);
     }
 
     private final String annotation;

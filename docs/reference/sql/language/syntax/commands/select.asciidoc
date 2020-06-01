@@ -69,6 +69,30 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[wildcardWithOrder]
 
 which essentially returns all(top-level fields, sub-fields, such as multi-fields are ignored] columns found.
 
+[[sql-syntax-top]]
+==== TOP
+
+The `TOP` clause can be used before the <<sql-syntax-select-list, `SELECT` list>> or the <<sql-syntax-select-wildcard, `wildcard`> to
+restrict (limit) the number of rows returned using the format:
+
+[source, sql]
+----
+SELECT TOP <count> <select list> ...
+----
+
+where
+
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be fewer matches
+than the limit). If `0` is specified, no results are returned.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[topBasic]
+----
+
+[NOTE]
+<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used together in the same query and an error is returned otherwise.
+
 [[sql-syntax-from]]
 ==== FROM Clause
 
@@ -380,7 +404,7 @@ LIMIT ( <count> | ALL )
 
 where
 
-count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be less matches
+count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be fewer matches
 than the limit). If `0` is specified, no results are returned.
 
 ALL:: indicates there is no limit and thus all results are being returned.
@@ -391,31 +415,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[limitBasic]
 ----
 
 [NOTE]
-<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used in combination in the same query and error is returned.
-
-
-[[sql-syntax-top]]
-==== TOP
-
-The `TOP` clause restricts (limits) the number of rows returned using the format:
-
-[source, sql]
-----
-SELECT TOP <count> <list of fields> ...
-----
-
-where
-
-count:: is a positive integer or zero indicating the maximum *possible* number of results being returned (as there might be less matches
-than the limit). If `0` is specified, no results are returned.
-
-[source, sql]
-----
-include-tagged::{sql-specs}/docs/docs.csv-spec[topBasic]
-----
-
-[NOTE]
-<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used in combination in the same query and error is returned.
+<<sql-syntax-top, `TOP`>> and <<sql-syntax-limit, `LIMIT`>> cannot be used together in the same query and an error is returned otherwise.
 
 [[sql-syntax-pivot]]
 ==== PIVOT

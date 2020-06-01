@@ -106,7 +106,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             Token limit = limitClause.limit;
             if (limit != null && limitClause.INTEGER_VALUE() != null) {
                 if (plan instanceof Limit) {
-                    throw new ParsingException(source(limitClause), "Cannot use both TOP and LIMIT in the same query");
+                    throw new ParsingException(source(limitClause),
+                        "TOP and LIMIT are not allowed in the same query - use one or the other");
                 } else {
                     plan = limit(plan, source(limitClause), limit);
                 }
@@ -161,10 +162,8 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         // TOP
         SqlBaseParser.TopClauseContext topClauseContext = ctx.topClause();
-        if (topClauseContext != null) {
-            if (topClauseContext.top != null && topClauseContext.INTEGER_VALUE() != null) {
-                query = limit(query, source(topClauseContext), topClauseContext.top);
-            }
+        if (topClauseContext != null && topClauseContext.top != null && topClauseContext.INTEGER_VALUE() != null) {
+            query = limit(query, source(topClauseContext), topClauseContext.top);
         }
 
         return query;

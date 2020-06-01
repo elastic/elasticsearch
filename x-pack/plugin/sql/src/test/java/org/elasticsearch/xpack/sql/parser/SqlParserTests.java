@@ -140,10 +140,10 @@ public class SqlParserTests extends ESTestCase {
 
     public void testUseBothTopAndLimitInvalid() {
         ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT TOP 10 * FROM test LIMIT 20"));
-        assertEquals("line 1:28: Cannot use both TOP and LIMIT in the same query", e.getMessage());
+        assertEquals("line 1:28: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
         e = expectThrows(ParsingException.class,
             () -> parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 LIMIT 40"));
-        assertEquals("line 1:82: Cannot use both TOP and LIMIT in the same query", e.getMessage());
+        assertEquals("line 1:82: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
     }
 
     public void testsSelectNonReservedKeywords() {

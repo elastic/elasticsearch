@@ -45,6 +45,7 @@ public class InboundHandler {
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
+    private static final int CONTENT_LENGTH = 1024 * 1024;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
@@ -194,7 +195,9 @@ public class InboundHandler {
     private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
                                                               final TransportResponseHandler<T> handler) {
         final T response;
+        int available;
         try {
+            available = stream.available();
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
         } catch (Exception e) {
@@ -202,7 +205,12 @@ public class InboundHandler {
                 "Failed to deserialize response from handler [" + handler.getClass().getName() + "]", e));
             return;
         }
-        threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
+        String executor = handler.executor();
+        //need to fork, the transport_worker/http_server_worker thread will not be released for a long time
+        if (available >= CONTENT_LENGTH && executor.equals(ThreadPool.Names.SAME)) {
+            executor = ThreadPool.Names.MANAGEMENT;
+        }
+        threadPool.executor(executor).execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
                 handleException(handler, new ResponseHandlerFailureTransportException(e));

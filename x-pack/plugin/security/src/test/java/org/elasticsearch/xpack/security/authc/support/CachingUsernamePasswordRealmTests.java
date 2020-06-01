@@ -94,6 +94,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             }
         };
         assertThat(realm.cacheHasher, sameInstance(Hasher.resolve(cachingHashAlgo)));
+        assertThat(realm.cacheEnabled, is(true));
     }
 
     public void testCacheSizeWhenCacheDisabled() {
@@ -118,6 +119,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             }
         };
         assertThat(realm.getCacheSize(), equalTo(-1));
+        assertThat(realm.cacheEnabled, is(false));
     }
 
     public void testAuthCache() {

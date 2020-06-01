@@ -34,11 +34,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private final Cache<String, ListenableFuture<CachedResult>> authenticationStallCache;
     private final Cache<String, ListenableFuture<CachedResult>> lookupCache;
     private final Cache<String, CachedResult> latestValidCredentialsCache;
-    private final boolean cacheEnabled;
     private final ThreadPool threadPool;
     private final boolean authenticationEnabled;
     // package-private for tests
     final Hasher cacheHasher;
+    final boolean cacheEnabled;
 
     protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
         super(config);
@@ -137,12 +137,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     /**
-     * This validates the {@code token} while making sure there is only one inflight
-     * request to the authentication source. Only successful responses are cached
-     * and any subsequent requests, bearing the <b>same</b> password, will succeed
+     * This validates the {@code token} while ensuring that there is a single inflight
+     * request, per username, to the authentication source. Only successful responses are cached
+     * so that subsequent requests, bearing the <b>same</b> password, authenticate successfully
      * without reaching to the authentication source. A different password in a
-     * subsequent request, however, will clear the cache and <b>try</b> to reach to
-     * the authentication source.
+     * subsequent request will <b>try</b> to reach to the authentication source (subject to the
+     * same single-inflight request per username) and will then update the cache (or invalidate
+     * if the user has been disabled).
      *
      * @param token The authentication token
      * @param listener to be called at completion
@@ -232,7 +233,6 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 authenticationStallCache.invalidate(token.principal(), listenableCacheEntry);
                 // notify the stalled listeners to propagate the current error
                 listenableCacheEntry.onFailure(e);
-                // notify the listener of the current authentication request
                 listener.onFailure(e);
             }));
         }
@@ -264,6 +264,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
         if (cacheEnabled) {
             assert lookupCache != null;
             assert latestValidCredentialsCache != null;
+            // technically the actual cache size can be double the {@code CACHE_MAX_USERS_SETTING} value
             return latestValidCredentialsCache.count() + lookupCache.count();
         } else {
             return -1;

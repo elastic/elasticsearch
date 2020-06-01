@@ -354,9 +354,9 @@ include::datehistogram-aggregation.asciidoc[tag=offset-result-intro]
 include::datehistogram-aggregation.asciidoc[tag=offset-note]
 
 [[_geotile_grid]]
-===== GeoTile Grid
+===== GeoTile grid
 
-Works on `geo_point` fields and groups points into buckets that represent
+The `geotile_grid` value source works on `geo_point` fields and groups points into buckets that represent
 cells in a grid. The resulting grid can be sparse and only contains cells
 that have matching data. Each cell corresponds to a
 https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
@@ -383,7 +383,7 @@ GET /_search
 *Precision*
 
 The highest-precision geotile of length 29 produces cells that cover
-less than a 10cm by 10cm of land. This is uniquely suited for composite aggregations as each
+less than 10cm by 10cm of land. This precision is uniquely suited for composite aggregations as each
 tile does not have to be generated and loaded in memory.
 
 See https://wiki.openstreetmap.org/wiki/Zoom_levels[Zoom level documentation]
@@ -392,8 +392,8 @@ aggregation can be between 0 and 29, inclusive.
 
 *Bounding box filtering*
 
-The geotile source can optionally be constrained to a specific geo bounding box. This reduces
-the range of tiles used. This is useful if only a specific part a geographical area need high
+The geotile source can optionally be constrained to a specific geo bounding box, which reduces
+the range of tiles used. These bounds are useful when only a specific part of a geographical area needs high
 precision tiling.
 
 [source,console,id=composite-aggregation-geotilegrid-boundingbox-example]

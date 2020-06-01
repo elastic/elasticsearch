@@ -91,7 +91,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -163,7 +162,9 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.NUMERIC);
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE);
     }
 
     @Override

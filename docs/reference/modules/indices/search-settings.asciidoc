@@ -1,5 +1,5 @@
 [[search-settings]]
-=== Search Settings
+=== Search settings
 
 The following expert settings can be set to manage global search and aggregation
 limits.

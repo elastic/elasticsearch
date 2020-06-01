@@ -50,12 +50,20 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
         return validationException;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public String getQueryString() {
+        return queryString;
     }
 
     public void setQueryString(String queryString) {
         this.queryString = queryString;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
     }
 
     public List<String> getValidRequestIds() {

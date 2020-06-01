@@ -19,14 +19,9 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-
-import static java.util.stream.Collectors.toMap;
 
 public class Annotation implements ToXContentObject, Writeable {
 
@@ -34,10 +29,8 @@ public class Annotation implements ToXContentObject, Writeable {
         ANNOTATION,
         COMMENT;
 
-        private static Map<String, Type> lookupByName = Arrays.stream(values()).collect(toMap(Type::name, Function.identity()));
-
         public static Type fromString(String value) {
-            return lookupByName.getOrDefault(value.toUpperCase(Locale.ROOT), ANNOTATION);
+            return valueOf(value.toUpperCase(Locale.ROOT));
         }
 
         @Override
@@ -51,10 +44,8 @@ public class Annotation implements ToXContentObject, Writeable {
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED;
 
-        private static Map<String, Event> lookupByName = Arrays.stream(values()).collect(toMap(Event::name, Function.identity()));
-
         public static Event fromString(String value) {
-            return lookupByName.get(value.toUpperCase(Locale.ROOT));
+            return valueOf(value.toUpperCase(Locale.ROOT));
         }
 
         @Override
@@ -80,11 +71,17 @@ public class Annotation implements ToXContentObject, Writeable {
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
 
+    /**
+     * Parses {@link Annotation} using a strict parser.
+     */
     public static Annotation fromXContent(XContentParser parser, Void context) {
         return PARSER.apply(parser, context).build();
     }
 
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(ANNOTATION.getPreferredName(), true, Builder::new);
+    /**
+     * Strict parser for cases when {@link Annotation} is returned from C++ as an ML result.
+     */
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(ANNOTATION.getPreferredName(), false, Builder::new);
 
     static {
         PARSER.declareString(Builder::setAnnotation, ANNOTATION);

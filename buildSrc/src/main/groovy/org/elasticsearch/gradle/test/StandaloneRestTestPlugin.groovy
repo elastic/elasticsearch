@@ -65,7 +65,6 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         ElasticsearchJavaPlugin.configureRepositories(project)
         ElasticsearchJavaPlugin.configureTestTasks(project)
         ElasticsearchJavaPlugin.configureInputNormalization(project)
-        BuildPlugin.configureFips140(project)
         ElasticsearchJavaPlugin.configureCompile(project)
 
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion

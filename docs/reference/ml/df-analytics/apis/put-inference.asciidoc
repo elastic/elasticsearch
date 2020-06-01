@@ -41,7 +41,7 @@ is not created by {dfanalytics}.
 
 `<model_id>`::
 (Required, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
 [role="child_attributes"]

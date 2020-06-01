@@ -43,7 +43,7 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 
 `<feed_id>`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 +
 --
 If you do not specify one of these options, the API returns information about
@@ -55,7 +55,7 @@ all {dfeeds}.
 
 `allow_no_datafeeds`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 [[ml-get-datafeed-results]]
 ==== {api-response-body-title}

@@ -1,3 +1,22 @@
+[[release-notes-7.7.1]]
+== {es} version 7.7.1
+
+coming::[7.7.1]
+
+Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
+
+[discrete]
+[[bug-7.7.1]]
+=== Bug fixes
+
+Machine Learning::
+* Fix background persistence of categorizer state. {ml-pull}1137[#1137] (issue: {ml-issue}1136[#1136])
+* Fix classification job failures when number of classes in configuration differs from the number of classes present in the training data. {ml-pull}1144[#1144]
+* Fix underlying cause for "Failed to calculate splitting significance" log errors. {ml-pull}1157[#1157]
+* Fix possible root cause for "Bad variance scale nan" log errors. {ml-pull}1225[#1225]
+* Change data frame analytics instrumentation timestamp resolution to milliseconds. {ml-pull}1237[#1237]
+* Fix "autodetect process stopped unexpectedly: Fatal error: 'terminate called after throwing an instance of 'std::bad_function_call'". {ml-pull}1246[#1246] (issue: {ml-issue}1245[#1245])
+
 [[release-notes-7.7.0]]
 == {es} version 7.7.0
 

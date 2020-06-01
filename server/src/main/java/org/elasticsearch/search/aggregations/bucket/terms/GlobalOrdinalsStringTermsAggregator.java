@@ -119,6 +119,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         if (singleValues != null) {
             segmentsWithSingleValuedOrds++;
             if (acceptedGlobalOrdinals == ALWAYS_TRUE) {
+                /*
+                 * Optimize when there isn't a filter because that is very
+                 * common and marginally faster.
+                 */
                 return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
                     @Override
                     public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -148,6 +152,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
         segmentsWithMultiValuedOrds++;
         if (acceptedGlobalOrdinals == ALWAYS_TRUE) {
+            /*
+             * Optimize when there isn't a filter because that is very
+             * common and marginally faster.
+             */
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {

@@ -55,7 +55,7 @@ public class Annotation implements ToXContentObject, Writeable {
     }
 
     /**
-     * Result type is needed due to the fact that {@link Annotation} can be returned from C++ as a result.
+     * Result type is needed due to the fact that {@link Annotation} can be returned from C++ as an ML result.
      */
     public static final ParseField RESULTS_FIELD = new ParseField("annotation");
 
@@ -87,7 +87,7 @@ public class Annotation implements ToXContentObject, Writeable {
      * Strict parser for cases when {@link Annotation} is returned from C++ as an ML result.
      */
     private static final ObjectParser<Builder, Void> STRICT_PARSER =
-        new ObjectParser<>(RESULTS_FIELD.getPreferredName(), true, Builder::new);
+        new ObjectParser<>(RESULTS_FIELD.getPreferredName(), false, Builder::new);
 
     static {
         STRICT_PARSER.declareString(Builder::setAnnotation, ANNOTATION);

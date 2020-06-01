@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -365,4 +367,7 @@ gradle.projectsEvaluated {
     .findAll { it.path.startsWith(project.path + ":qa") }
     .each { check.dependsOn it.check }
 }
-
+if (BuildParams.inFipsJvm) {
+  // We don't support the IDP in FIPS-140 mode, so no need to run tests
+  test.enabled = false
+}

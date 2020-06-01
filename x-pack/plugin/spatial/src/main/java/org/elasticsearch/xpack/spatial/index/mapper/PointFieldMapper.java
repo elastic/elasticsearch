@@ -34,7 +34,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "point";
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldMapper, PointFieldType> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldType> {
         public Builder(String name) {
             super(name, new PointFieldType(), new PointFieldType());
             builder = this;

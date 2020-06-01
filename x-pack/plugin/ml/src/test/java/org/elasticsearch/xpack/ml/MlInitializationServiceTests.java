@@ -18,7 +18,6 @@ import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -65,31 +64,17 @@ public class MlInitializationServiceTests extends ESTestCase {
         MlInitializationService initializationService =
             new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         initializationService.offMaster();
-        assertThat(initializationService.getDailyMaintenanceService(), is(nullValue()));
-    }
-
-    public void testInitialize_alreadyInitialized() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
-        MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
-        initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
-        initializationService.onMaster();
-
-        assertSame(initialDailyMaintenanceService, initializationService.getDailyMaintenanceService());
+        assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));
     }
 
     public void testNodeGoesFromMasterToNonMasterAndBack() {
-        MlInitializationService initializationService =
-            new MlInitializationService(Settings.EMPTY, threadPool, clusterService, client, mlAssignmentNotifier);
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
-        initializationService.setDailyMaintenanceService(initialDailyMaintenanceService);
 
+        MlInitializationService initializationService = new MlInitializationService(client, initialDailyMaintenanceService, clusterService);
         initializationService.offMaster();
         verify(initialDailyMaintenanceService).stop();
 
         initializationService.onMaster();
-        MlDailyMaintenanceService finalDailyMaintenanceService = initializationService.getDailyMaintenanceService();
-        assertNotSame(initialDailyMaintenanceService, finalDailyMaintenanceService);
-        assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
+        verify(initialDailyMaintenanceService).start();
     }
 }

@@ -120,6 +120,10 @@ public class ValuesSourceRegistry {
         return supportedTypes.get(valuesSourceType);
     }
 
+    public boolean isRegistered(String aggregationName) {
+        return aggregatorRegistry.containsKey(aggregationName);
+    }
+
     public AggregatorSupplier getAggregator(ValuesSourceConfig valuesSourceConfig, String aggregationName) {
         if (aggregationName != null && aggregatorRegistry.containsKey(aggregationName)) {
             AggregatorSupplier supplier = findMatchingSuppier(

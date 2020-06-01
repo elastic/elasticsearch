@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
@@ -45,19 +44,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.ToLongFunction;
 
 public abstract class BucketsAggregator extends AggregatorBase {
 
     private final BigArrays bigArrays;
+    private final IntConsumer multiBucketConsumer;
     private IntArray docCounts;
-    private final CircuitBreaker breaker;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, metadata);
         bigArrays = context.bigArrays();
-        breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        if (context.aggregations() != null) {
+            multiBucketConsumer = context.aggregations().multiBucketConsumer();
+        } else {
+            multiBucketConsumer = (count) -> {};
+        }
         docCounts = bigArrays.newIntArray(1, true);
     }
 
@@ -88,7 +92,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         if (docCounts.increment(bucketOrd, 1) == 1) {
-            breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+            multiBucketConsumer.accept(0);
         }
         subCollector.collect(doc, bucketOrd);
     }

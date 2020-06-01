@@ -1,5 +1,5 @@
 
-include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
+include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
 :lucene_version:        8.6.0
 :lucene_version_path:   8_6_0
@@ -72,7 +72,7 @@ endif::[]
 Shared attribute values are pulled from elastic/docs
 ///////
 
-include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
+include::{docs-root}/shared/attributes.asciidoc[]
 
 ///////
 APM does not build n.x documentation. Links from .x branches should point to master instead

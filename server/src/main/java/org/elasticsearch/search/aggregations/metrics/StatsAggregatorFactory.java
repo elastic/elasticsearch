@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -51,23 +50,14 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(StatsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new MetricAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSourceConfig valuesSourceConfig, ValuesSource valuesSource,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-                    return new StatsAggregator(name, (Numeric) valuesSource, valuesSourceConfig.format(), context, parent, metadata);
-                }
-            });
+            (MetricAggregatorSupplier) StatsAggregator::new);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new StatsAggregator(name, null, config.format(), searchContext, parent, metadata);
+        return new StatsAggregator(name, config, null, searchContext, parent, metadata);
     }
 
     @Override

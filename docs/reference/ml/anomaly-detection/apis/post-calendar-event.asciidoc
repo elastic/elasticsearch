@@ -31,7 +31,7 @@ of which must have a start time, end time, and description.
 
 `<calendar_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=calendar-id]
+include::../../ml-shared.asciidoc[tag=calendar-id]
 
 [role="child_attributes"]
 [[ml-post-calendar-event-request-body]]

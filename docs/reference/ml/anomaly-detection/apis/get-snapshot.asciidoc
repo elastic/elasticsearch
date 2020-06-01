@@ -189,7 +189,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 `snapshot_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
 `snapshot_doc_count`::
 (long) For internal use only.

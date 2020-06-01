@@ -36,7 +36,7 @@ indices.
 [[ilm-remove-policy-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-remove-policy-example]]
 ==== {api-examples-title}

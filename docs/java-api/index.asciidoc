@@ -1,6 +1,6 @@
 = Java API
 
-include::{docs-root}/docs/Versions.asciidoc[]
+include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
 [[java-api]]
 [preface]

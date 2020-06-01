@@ -8,7 +8,7 @@
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
 
-include::../Versions.asciidoc[]
+include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
 include::intro.asciidoc[]
 

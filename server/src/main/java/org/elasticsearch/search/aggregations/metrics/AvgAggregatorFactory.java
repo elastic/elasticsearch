@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -52,12 +51,11 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
             new MetricAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        DocValueFormat formatter,
+                                        ValuesSourceConfig valuesSourceConfig, ValuesSource valuesSource,
                                         SearchContext context,
                                         Aggregator parent,
                                         Map<String, Object> metadata) throws IOException {
-                    return new AvgAggregator(name, (Numeric) valuesSource, formatter, context, parent, metadata);
+                    return new AvgAggregator(name, (Numeric) valuesSource, valuesSourceConfig.format(), context, parent, metadata);
                 }
             });
     }
@@ -82,6 +80,6 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), searchContext, parent, metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
     }
 }

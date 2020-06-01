@@ -42,7 +42,7 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(MaxAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new MinMaxAggregatorSupplier() {
+            new MetricAggregatorSupplier() {
                 @Override
                 public Aggregator build(String name,
                                         ValuesSourceConfig config,
@@ -77,10 +77,10 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
             MaxAggregationBuilder.NAME);
 
-        if (aggregatorSupplier instanceof MinMaxAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected MinMaxAggregatorSupplier, found [" +
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
     }
 }

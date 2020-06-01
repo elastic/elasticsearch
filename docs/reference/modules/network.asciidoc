@@ -159,5 +159,5 @@ See <<modules-transport>>.
 
 HTTP::
 
-Exposes the JSON-over-HTTP interface used by all clients other than the Java
-clients. See <<modules-http,HTTP module>>.
+Exposes the JSON-over-HTTP interface used by all clients.
+See <<modules-http>>.

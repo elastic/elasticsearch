@@ -55,6 +55,8 @@ include::modules/indices/indexing_buffer.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
+include::modules/http.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
 
 include::settings/license-settings.asciidoc[]

@@ -330,11 +330,10 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        // NOCOMMIT fix the comment
         /*
-         * Now that we have the perfect rounding rebucket everything to merge
-         * all of the buckets together that we were too lazy to merge while
-         * collecting.
+         * Rebucket the aggregation so we have don't send send "wasted" buckets
+         * back to the coordinating node because it'll just merge them back
+         * together.
          *
          * TODO it'd be faster if we could apply the merging on the fly as we
          * replay the hits and build the buckets. How much faster is

@@ -504,7 +504,7 @@ See <<search-search>>.
 [role="exclude",id="modules-gateway-dangling-indices"]
 === Dangling indices
 
-See <<modules-gateway-dangling-indices>>.
+See <<dangling-indices>>.
 
 [role="exclude",id="shards-allocation"]
 === Cluster-level shard allocation
@@ -563,6 +563,14 @@ For other information, see:
 === Adding and removing nodes
 
 See <<add-elasticsearch-nodes>>.
+
+[role="exclude",id="esms"]
+=== {esms}
+
+We have stopped adding new customers to our {esms}.
+
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.
 
 ////
 [role="exclude",id="search-request-body"]

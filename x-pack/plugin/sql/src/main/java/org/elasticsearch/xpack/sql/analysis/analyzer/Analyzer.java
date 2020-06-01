@@ -854,7 +854,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 for (Alias alias : aliases) {
                     if (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name())
                         && !(alias.child() instanceof UnresolvedAttribute && Objects.equals(((UnresolvedAttribute) alias.child()).name(), alias.name()))) {
-
                         return alias;
                     }
                 }

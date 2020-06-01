@@ -1,11 +1,9 @@
 [[modules-threadpool]]
-== Thread Pool
+=== Thread pools
 
-A node holds several thread pools in order to improve how threads memory consumption
-are managed within a node. Many of these pools also have queues associated with them,
-which allow pending requests to be held instead
-of discarded.
-
+A node uses several thread pools to manage memory consumption. 
+Queues associated with many of the thread pools enable pending requests 
+to be held instead of discarded. 
 
 There are several thread pools, but the important ones include:
 
@@ -96,15 +94,13 @@ thread_pool:
         size: 30
 --------------------------------------------------
 
-[float]
-[[types]]
-=== Thread pool types
+[[thread-pool-types]]
+==== Thread pool types
 
 The following are the types of thread pools and their respective parameters:
 
-[float]
-[[fixed]]
-==== `fixed`
+[[fixed-thread-pool]]
+===== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the
 requests with a queue (optionally bounded) for pending requests that
@@ -125,9 +121,8 @@ thread_pool:
         queue_size: 1000
 --------------------------------------------------
 
-[float]
 [[fixed-auto-queue-size]]
-==== `fixed_auto_queue_size`
+===== `fixed_auto_queue_size`
 
 experimental[]
 
@@ -174,9 +169,8 @@ thread_pool:
         target_response_time: 1s
 --------------------------------------------------
 
-[float]
-[[scaling]]
-==== `scaling`
+[[scaling-thread-pool]]
+===== `scaling`
 
 The `scaling` thread pool holds a dynamic number of threads. This
 number is proportional to the workload and varies between the value of
@@ -194,9 +188,8 @@ thread_pool:
         keep_alive: 2m
 --------------------------------------------------
 
-[float]
 [[node.processors]]
-=== Allocated processors setting
+==== Allocated processors setting
 
 The number of processors is automatically detected, and the thread pool settings
 are automatically set based on it. In some cases it can be useful to override

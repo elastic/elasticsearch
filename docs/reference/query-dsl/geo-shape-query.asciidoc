@@ -81,7 +81,7 @@ The above query can, similarly, be queried on `geo_point` fields.
 
 [source,console]
 --------------------------------------------------
-PUT /example
+PUT /example_points
 {
     "mappings": {
         "properties": {
@@ -92,19 +92,19 @@ PUT /example
     }
 }
 
-POST /example/_doc?refresh
+POST /example_points/_doc?refresh
 {
     "name": "Wind & Wetter, Berlin, Germany",
     "location": [13.400544, 52.530286]
 }
 --------------------------------------------------
-// TESTSETUP
+// TEST[continued]
 
 Using the same query, the documents with matching `geo_point` fields are returned
 
 [source,console]
 --------------------------------------------------
-GET /example/_search
+GET /example_points/_search
 {
     "query":{
         "bool": {

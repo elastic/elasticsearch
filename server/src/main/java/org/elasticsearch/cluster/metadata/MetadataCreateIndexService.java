@@ -196,7 +196,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("index_name_starts_with_dot",
+                DEPRECATION_LOGGER.deprecate("index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                         "starting with a dot are reserved for hidden indices and system indices", index);
             }
@@ -346,7 +346,7 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("index_template_multiple_match",
+                    DEPRECATION_LOGGER.deprecate("index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
@@ -1156,7 +1156,7 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("translog_retention", "Translog retention settings [index.translog.retention.age] "
+            DEPRECATION_LOGGER.deprecate("translog_retention", "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
         }
     }

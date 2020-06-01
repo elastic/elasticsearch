@@ -26,6 +26,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
 
@@ -124,6 +126,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     public void checkArraySizeForSubclasses() {
         logger.debug(new TestMessage("message {}", "x-opaque-id", 1));
     }
+
     public void checkFailArraySizeForSubclasses(Object... arr) {
         logger.debug(new TestMessage("message {}", "x-opaque-id", arr));
     }
@@ -241,6 +244,11 @@ public class ESLoggerUsageTests extends ESTestCase {
             args = new Object[] { "world", 43, "another argument" };
         }
         logger.info(message, args);
+    }
+
+    public void checkDeprecationLogger() {
+        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+        deprecationLogger.deprecate("key","message {}", 123);
     }
 
 }

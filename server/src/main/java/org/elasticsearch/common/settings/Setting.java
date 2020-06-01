@@ -522,11 +522,9 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            Settings.DeprecationLoggerHolder.deprecationLogger.deprecatedAndMaybeLog(
-                    key,
-                    "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version.",
-                    key);
+            Settings.DeprecationLoggerHolder.deprecationLogger
+                .deprecate(key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                    + "See the breaking changes documentation for the next major version.", key);
         }
     }
 

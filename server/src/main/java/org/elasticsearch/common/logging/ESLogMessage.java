@@ -64,4 +64,12 @@ public abstract class ESLogMessage extends ParameterizedMessage {
             .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
     }
+
+    public Object[] getArguments() {
+        return arguments.toArray();
+    }
+
+    public String getMessagePattern() {
+        return messagePattern;
+    }
 }

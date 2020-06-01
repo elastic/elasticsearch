@@ -160,7 +160,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                             + "you can re-enable it by updating the dynamic cluster setting: "
                             + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
                     }
-                    deprecationLogger.deprecatedAndMaybeLog("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService, mapperService);
                     return new IndexFieldData<LeafFieldData>() {
                         @Override

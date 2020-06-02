@@ -726,8 +726,8 @@ setup:
 ---
 "global ords profiler":
   - skip:
-      version: " - 7.9.99"
-      reason: debug information added in 8.0.0 (backport to 7.9.0 pending)
+      version: " - 7.8.99"
+      reason: debug information added in 7.9.0
   - do:
       bulk:
         index: test_1

@@ -95,19 +95,12 @@ testClusters.integTest {
     setting 'azure.client.searchable_snapshots.endpoint_suffix',
       { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-other')}" }, IGNORE_VALUE
 
-    gradle.taskGraph.whenReady {
-      if (it.hasTask(azureThirdPartyTests)) {
-        throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables " +
-          "'azure_storage_account', 'azure_storage_key', 'azure_storage_container' are set.")
-      }
-    }
-
   } else {
     println "Using an external service to test " + project.name
   }
 }
 
-task azureThirdPartyTests {
+task azureThirdPartyTest {
   dependsOn integTest
 }
 

@@ -125,14 +125,6 @@ testClusters.integTest {
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.searchable_snapshots.endpoint', { "${-> fixtureAddress('gcs-fixture-other')}" }, IGNORE_VALUE
     setting 'gcs.client.searchable_snapshots.token_uri', { "${-> fixtureAddress('gcs-fixture-other')}/o/oauth2/token" }, IGNORE_VALUE
-
-    gradle.taskGraph.whenReady {
-      if (it.hasTask(gcsThirdPartyTests)) {
-        throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables " +
-          "'google_storage_service_account', 'google_storage_bucket', 'google_storage_base_path' are set.")
-      }
-    }
-
   } else {
     println "Using an external service to test " + project.name
   }
@@ -140,6 +132,6 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-task gcsThirdPartyTests {
+task gcsThirdPartyTest {
   dependsOn integTest
 }

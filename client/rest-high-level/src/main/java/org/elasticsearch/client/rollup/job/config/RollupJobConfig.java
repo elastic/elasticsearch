@@ -117,7 +117,8 @@ public class RollupJobConfig implements Validatable, ToXContentObject {
         } else {
             for (String index: Strings.splitStringByCommaToArray(indexPattern)) {
                 if (Regex.isMatchAllPattern(index)) {
-                    validationException.addValidationError("Index pattern must not match all indices (as it would match it's own rollup index");
+                    validationException.addValidationError("Index pattern must not match all indices (as it would " +
+                        "match it's own rollup index");
                     break;
                 }
                 if (index.equals(rollupIndex)) {

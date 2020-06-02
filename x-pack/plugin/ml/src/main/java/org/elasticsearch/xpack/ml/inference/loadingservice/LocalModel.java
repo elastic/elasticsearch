@@ -32,7 +32,6 @@ public class LocalModel implements Model {
 
     private final TrainedModelDefinition trainedModelDefinition;
     private final String modelId;
-    private final String nodeId;
     private final Set<String> fieldNames;
     private final Map<String, String> defaultFieldMap;
     private final InferenceStats.Accumulator statsAccumulator;
@@ -50,7 +49,6 @@ public class LocalModel implements Model {
                       TrainedModelStatsService trainedModelStatsService ) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
-        this.nodeId = nodeId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
         this.statsAccumulator = new InferenceStats.Accumulator(modelId, nodeId);
         this.trainedModelStatsService = trainedModelStatsService;
@@ -103,14 +101,23 @@ public class LocalModel implements Model {
 
     @Override
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
+        try {
+            InferenceResults result = infer(fields, update);
+            listener.onResponse(result);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfigUpdate update) {
         if (update.isSupported(this.inferenceConfig) == false) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
+            throw ExceptionsHelper.badRequestException(
                 "Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",
                 this.modelId,
                 this.inferenceConfig.getName(),
-                update.getName()));
-            return;
+                update.getName());
         }
+
         try {
             statsAccumulator.incInference();
             currentInferenceCount.increment();
@@ -123,26 +130,17 @@ public class LocalModel implements Model {
                 if (shouldPersistStats) {
                     persistStats(false);
                 }
-                listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
-                return;
+                return new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
             }
             InferenceResults inferenceResults = trainedModelDefinition.infer(fields, update.apply(inferenceConfig));
             if (shouldPersistStats) {
                 persistStats(false);
             }
-            listener.onResponse(inferenceResults);
+
+            return inferenceResults;
         } catch (Exception e) {
             statsAccumulator.incFailure();
-            listener.onFailure(e);
+            throw e;
         }
     }
-
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
-        if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
-            return new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
-        } else {
-            return trainedModelDefinition.infer(fields, config);
-        }
-    }
-
 }

@@ -92,6 +92,13 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         return searchResponse;
     }
 
+    static SearchResponse createSearchResponseFromHits(List<SearchHit> hits) {
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[] {}), hits.size(), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        return searchResponse;
+    }
+
     public void testRemoveGivenNoJobs() throws IOException {
         SearchResponse response = createSearchResponse(Collections.emptyList());
 

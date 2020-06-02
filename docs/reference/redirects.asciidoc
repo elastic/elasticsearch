@@ -683,3 +683,11 @@ This section was deleted.
 === Assertions
 
 This page was deleted.
+
+[role="exclude",id="esms"]
+=== {esms}
+
+We have stopped adding new customers to our {esms}.
+
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.

@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfigTests;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +22,7 @@ public class UpdateProcessActionRequestTests extends AbstractWireSerializingTest
     protected UpdateProcessAction.Request createTestInstance() {
         ModelPlotConfig config = null;
         if (randomBoolean()) {
-            config = new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10));
+            config = ModelPlotConfigTests.createRandomized();
         }
         List<JobUpdate.DetectorUpdate> updates = null;
         if (randomBoolean()) {

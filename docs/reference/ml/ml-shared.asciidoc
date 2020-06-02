@@ -1000,6 +1000,11 @@ applied. For example, "CPU,NetworkIn,DiskWrites". Wildcards are not supported.
 Only the specified `terms` can be viewed when using the Single Metric Viewer.
 end::model-plot-config-terms[]
 
+tag::model-plot-config-annotations-enabled[]
+If true, enables calculation and storage of the model change annotations
+for each entity that is being analyzed. By default, this is not enabled.
+end::model-plot-config-annotations-enabled[]
+
 tag::model-snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot. For 
 example, `1575402236000 `.

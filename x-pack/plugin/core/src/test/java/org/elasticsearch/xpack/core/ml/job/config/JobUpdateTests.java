@@ -61,7 +61,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setDetectorUpdates(detectorUpdates);
         }
         if (randomBoolean()) {
-            update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
+            update.setModelPlotConfig(ModelPlotConfigTests.createRandomized());
         }
         if (randomBoolean()) {
             update.setAnalysisLimits(AnalysisLimits.validateAndSetDefaults(AnalysisLimitsTests.createRandomized(), null,
@@ -222,7 +222,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                 new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
         detectorUpdates.add(new JobUpdate.DetectorUpdate(1, "description-2", detectionRules2));
 
-        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10));
+        ModelPlotConfig modelPlotConfig = ModelPlotConfigTests.createRandomized();
         AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
         List<String> categorizationFilters = Arrays.asList(generateRandomStringArray(10, 10, false));
         Map<String, Object> customSettings = Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -300,7 +300,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     public void testIsAutodetectProcessUpdate() {
         JobUpdate update = new JobUpdate.Builder("foo").build();
         assertFalse(update.isAutodetectProcessUpdate());
-        update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
+        update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff", false)).build();
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());

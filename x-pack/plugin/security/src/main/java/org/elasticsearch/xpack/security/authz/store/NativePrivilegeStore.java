@@ -149,7 +149,6 @@ public class NativePrivilegeStore {
                     final Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors = fetchedDescriptors.stream()
                         .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getApplication, Collectors.toUnmodifiableSet()));
                     // Avoid caching potential stale results.
-                    // TODO: It is still possible that cache gets invalidated immediately after the if check
                     if (invalidationCounter == numInvalidation.get()) {
                         final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
                         // Do not cache the names if expansion has no effect

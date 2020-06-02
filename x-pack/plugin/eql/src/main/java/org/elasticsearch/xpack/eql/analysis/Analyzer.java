@@ -16,20 +16,22 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.LinkedHashSet;
 
-import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
+    private final Configuration configuration;
     private final FunctionRegistry functionRegistry;
     private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, Verifier verifier) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, Verifier verifier) {
+        this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.verifier = verifier;
     }
@@ -39,8 +41,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         Batch resolution = new Batch("Resolution",
                 new ResolveRefs(),
                 new ResolveFunctions());
-        
-        return asList(resolution);
+
+        return singletonList(resolution);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -72,7 +74,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return plan.transformExpressionsUp(e -> {
                 if (e instanceof UnresolvedAttribute) {
                     UnresolvedAttribute u = (UnresolvedAttribute) e;
-                    List<Attribute> childrenOutput = new ArrayList<>();
+                    Collection<Attribute> childrenOutput = new LinkedHashSet<>();
                     for (LogicalPlan child : plan.children()) {
                         childrenOutput.addAll(child.output());
                     }
@@ -113,7 +115,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return uf.missing(functionName, functionRegistry.listFunctions());
                     }
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(null, def);
+                    Function f = uf.buildResolved(configuration, def);
                     return f;
                 }
                 return e;

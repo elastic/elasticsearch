@@ -83,8 +83,7 @@ To set up the watch:
     "search": {
       "request": {
         "indices": [
-          "<logstash-{now-1h}>", <1>
-          "<logstash-{now}>"
+          "logstash" <1>
         ],
         "body": {
           "size": 0,
@@ -109,13 +108,13 @@ To set up the watch:
           "aggs": {
             "group_by_city": {
               "terms": {
-                "field": "group.group_city.raw", <3>
+                "field": "group.group_city.keyword", <3>
                 "size": 5
               },
               "aggs": {
                 "group_by_event": {
                   "terms": {
-                    "field": "event.event_url.raw", <4>
+                    "field": "event.event_url.keyword", <4>
                     "size": 5
                   },
                   "aggs": {
@@ -130,7 +129,7 @@ To set up the watch:
                       "aggs": {
                         "group_by_event_name": {
                           "terms": {
-                            "field": "event.event_name.raw" <6>
+                            "field": "event.event_name.keyword" <6>
                           }
                         }
                       }
@@ -146,7 +145,13 @@ To set up the watch:
   },
 -------------------------------------------------
 // NOTCONSOLE
-<1> Elasticsearch Date math is used to select the Logstash indices that contain the meetup data. The second pattern is needed in case the previous hour crosses days.
+<1> `logstash` is the default <<indices-add-alias,index alias>> for the {ls}
+indices containing the meetup data. By default, the {ls}
+<<index-lifecycle-management,{ilm} ({ilm-init})>> policy rolls this alias to a
+new index when the index size reaches 50GB or becomes 30 days old. For more
+information, see
+{logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-ilm[{ilm-init}
+defaults in Logstash].
 <2> Find all of the RSVPs with `Open Source` as a topic.
 <3> Group the RSVPs by city.
 <4> Consolidate multiple RSVPs for the same event.
@@ -159,7 +164,7 @@ To set up the watch:
 --
 [source,js]
 --------------------------------------------------
-"compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
+"compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
 --------------------------------------------------
 // NOTCONSOLE
 --
@@ -207,8 +212,7 @@ PUT _watcher/watch/meetup
     "search": {
       "request": {
         "indices": [
-          "<logstash-{now-1h}>",
-          "<logstash-{now}>"
+          "logstash"
         ],
         "body": {
           "size": 0,
@@ -233,13 +237,13 @@ PUT _watcher/watch/meetup
           "aggs": {
             "group_by_city": {
               "terms": {
-                "field": "group.group_city.raw",
+                "field": "group.group_city.keyword",
                 "size": 5
               },
               "aggs": {
                 "group_by_event": {
                   "terms": {
-                    "field": "event.event_url.raw",
+                    "field": "event.event_url.keyword",
                     "size": 5
                   },
                   "aggs": {
@@ -254,7 +258,7 @@ PUT _watcher/watch/meetup
                       "aggs": {
                         "group_by_event_name": {
                           "terms": {
-                            "field": "event.event_name.raw"
+                            "field": "event.event_name.keyword"
                           }
                         }
                       }
@@ -270,7 +274,7 @@ PUT _watcher/watch/meetup
   },
   "condition": {
     "compare": {
-      "ctx.payload.hits.total.value": {
+      "ctx.payload.hits.total": {
         "gt": 0
       }
     }

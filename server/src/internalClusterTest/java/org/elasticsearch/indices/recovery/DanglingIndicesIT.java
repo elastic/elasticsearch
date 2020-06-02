@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -31,6 +32,7 @@ import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMB
 import static org.elasticsearch.gateway.DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(numDataNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class DanglingIndicesIT extends ESIntegTestCase {
@@ -89,6 +91,8 @@ public class DanglingIndicesIT extends ESIntegTestCase {
                 equalTo("42s"));
         }
         ensureGreen(INDEX_NAME);
+        final IndexMetadata indexMetadata = clusterService().state().metadata().index(INDEX_NAME);
+        assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), notNullValue());
     }
 
     /**

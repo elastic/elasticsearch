@@ -289,4 +289,5 @@ public class TransportBulkActionTests extends ESTestCase {
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
         }
     }
+
 }

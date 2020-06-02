@@ -59,7 +59,7 @@ install_package() {
     local version=$(cat version)
     local rpmCommand='-i'
     local dir='./'
-    while getopts ":fuv:" opt; do
+    while getopts ":ufd:v:" opt; do
         case $opt in
             u)
                 rpmCommand='-U'

@@ -27,6 +27,7 @@ setup:
   - set: {analytics.stats.t_test_usage: t_test_usage}
   - set: {analytics.stats.string_stats_usage: string_stats_usage}
   - set: {analytics.stats.moving_percentiles_usage: moving_percentiles_usage}
+  - set: { analytics.stats.normalize_usage: normalize_usage }
 
   # use boxplot agg
   - do:
@@ -52,6 +53,7 @@ setup:
   - match: {analytics.stats.t_test_usage: $t_test_usage}
   - match: {analytics.stats.string_stats_usage: $string_stats_usage}
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
 
   # use top_metrics agg
   - do:
@@ -80,6 +82,7 @@ setup:
   - match: {analytics.stats.t_test_usage: $t_test_usage}
   - match: {analytics.stats.string_stats_usage: $string_stats_usage}
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
 
   # use cumulative_cardinality agg
   - do:
@@ -112,6 +115,7 @@ setup:
   - match: {analytics.stats.t_test_usage: $t_test_usage}
   - match: {analytics.stats.string_stats_usage: $string_stats_usage}
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
 
   # use t-test agg
   - do:
@@ -138,6 +142,7 @@ setup:
   - set: {analytics.stats.t_test_usage: t_test_usage}
   - match: {analytics.stats.string_stats_usage: $string_stats_usage}
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
 
   - do:
       search:
@@ -160,6 +165,7 @@ setup:
   - gt: { analytics.stats.string_stats_usage: $string_stats_usage }
   - set: {analytics.stats.string_stats_usage: string_stats_usage}
   - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
 
   # use moving_percentile agg
   - do:
@@ -193,3 +199,38 @@ setup:
   - match: {analytics.stats.string_stats_usage: $string_stats_usage}
   - gt: { analytics.stats.moving_percentiles_usage: $moving_percentiles_usage }
   - set: {analytics.stats.moving_percentiles_usage: moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
+
+  # use normalize agg
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                total_users:
+                  sum:
+                    field: "s"
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: "total_users"
+                    method: "percent_of_sum"
+
+  - length: { aggregations.histo.buckets: 1 }
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - match: {analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage}
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - gt: { analytics.stats.normalize_usage: $normalize_usage }
+  - set: {analytics.stats.normalize_usage: normalize_usage}

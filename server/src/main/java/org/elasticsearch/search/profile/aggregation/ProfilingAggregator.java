@@ -91,6 +91,7 @@ public class ProfilingAggregator extends Aggregator {
             return delegate.buildAggregations(owningBucketOrds);
         } finally {
             timer.stop();
+            delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
         }
     }
 

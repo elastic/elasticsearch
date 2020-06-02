@@ -46,5 +46,6 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
                      DocValueFormat formatter,
                      SearchContext aggregationContext,
                      Aggregator parent,
+                     boolean collectsFromSingleBucket,
                      Map<String, Object> metadata) throws IOException;
 }

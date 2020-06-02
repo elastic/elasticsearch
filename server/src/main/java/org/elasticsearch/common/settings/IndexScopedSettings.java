@@ -171,7 +171,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
         MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
-        IndexSettings.ON_HEAP_ID_TERMS_INDEX,
         ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
 
         // validate that built-in similarities don't get redefined
@@ -180,7 +179,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             for (String key : SimilarityService.BUILT_IN.keySet()) {
                 if (groups.containsKey(key)) {
                     throw new IllegalArgumentException("illegal value for [index.similarity." + key +
-                            "] cannot redefine built-in similarity");
+                        "] cannot redefine built-in similarity");
                 }
             }
         }, Property.IndexScope), // this allows similarity settings to be passed
@@ -215,6 +214,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         switch (key) {
             case IndexMetadata.SETTING_CREATION_DATE:
             case IndexMetadata.SETTING_INDEX_UUID:
+            case IndexMetadata.SETTING_HISTORY_UUID:
             case IndexMetadata.SETTING_VERSION_UPGRADED:
             case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:

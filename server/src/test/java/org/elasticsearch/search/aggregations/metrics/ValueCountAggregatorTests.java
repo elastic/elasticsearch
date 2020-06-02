@@ -93,7 +93,10 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.IP,
             CoreValuesSourceType.GEOPOINT,
-            CoreValuesSourceType.RANGE
+            CoreValuesSourceType.RANGE,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP
         );
     }
 

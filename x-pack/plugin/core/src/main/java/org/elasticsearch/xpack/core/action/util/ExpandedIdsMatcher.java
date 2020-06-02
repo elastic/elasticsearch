@@ -43,6 +43,7 @@ public final class ExpandedIdsMatcher {
     }
 
     private final LinkedList<IdMatcher> requiredMatches;
+    private final boolean onlyExact;
 
     /**
      * Generate the list of required matches from the expressions in {@code tokens}
@@ -65,14 +66,19 @@ public final class ExpandedIdsMatcher {
                 // require something, anything to match
                 requiredMatches.add(new WildcardMatcher("*"));
             }
+            onlyExact = false;
             return;
         }
+
+        boolean atLeastOneWildcard = false;
 
         if (allowNoMatchForWildcards) {
             // matches are not required for wildcards but
             // specific job Ids are
             for (String token : tokens) {
-                if (Regex.isSimpleMatchPattern(token) == false) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    atLeastOneWildcard = true;
+                } else {
                     requiredMatches.add(new EqualsIdMatcher(token));
                 }
             }
@@ -81,11 +87,13 @@ public final class ExpandedIdsMatcher {
             for (String token : tokens) {
                 if (Regex.isSimpleMatchPattern(token)) {
                     requiredMatches.add(new WildcardMatcher(token));
+                    atLeastOneWildcard = true;
                 } else {
                     requiredMatches.add(new EqualsIdMatcher(token));
                 }
             }
         }
+        onlyExact = atLeastOneWildcard == false;
     }
 
     /**
@@ -119,6 +127,14 @@ public final class ExpandedIdsMatcher {
         return requiredMatches.stream().map(IdMatcher::getId).collect(Collectors.joining(","));
     }
 
+    /**
+     * Whether ids are based on exact matchers or at least one contains a wildcard.
+     *
+     * @return true if only exact matches, false if at least one id contains a wildcard
+     */
+    public boolean isOnlyExact() {
+        return onlyExact;
+    }
 
     private abstract static class IdMatcher {
         protected final String id;

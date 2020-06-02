@@ -417,21 +417,21 @@ POST _reindex
 [[docs-reindex-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=slices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=max_docs]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 
 [[docs-reindex-api-request-body]]
 ==== {api-request-body-title}

@@ -255,6 +255,7 @@ public class TriangleTreeTests extends ESTestCase {
         assertRelation(GeoRelation.QUERY_CROSSES, reader, getExtentFromBox(xMin, yMin, xMax, yMax));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56755")
     public void testRandomMultiLineIntersections() throws IOException {
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         MultiLine geometry = randomMultiLine(false);

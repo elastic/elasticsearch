@@ -84,6 +84,7 @@ public class RestControllerTests extends ESTestCase {
                 // We want to have reproducible results in this test, hence we disable real memory usage accounting
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         usageService = new UsageService();
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
@@ -559,6 +560,11 @@ public class RestControllerTests extends ESTestCase {
             @Override
             public HttpRequest releaseAndCopy() {
                 return this;
+            }
+
+            @Override
+            public Exception getInboundException() {
+                return null;
             }
         }, null);
 

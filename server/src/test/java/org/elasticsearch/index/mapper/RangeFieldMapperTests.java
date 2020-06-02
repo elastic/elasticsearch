@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -47,7 +48,25 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
-public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<RangeFieldMapper.Builder> {
+
+    @Override
+    protected RangeFieldMapper.Builder newBuilder() {
+        return new RangeFieldMapper.Builder("range", RangeType.DATE)
+            .format("iso8601");
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier("format", true, (a, b) -> {
+            a.format("basic_week_date");
+            b.format("strict_week_date");
+        });
+        addModifier("locale", true, (a, b) -> {
+            a.locale(Locale.CANADA);
+            b.locale(Locale.JAPAN);
+        });
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

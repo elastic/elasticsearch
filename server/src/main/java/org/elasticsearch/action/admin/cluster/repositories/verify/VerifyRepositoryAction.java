@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.cluster.repositories.verify;
 import org.elasticsearch.action.ActionType;
 
 /**
- * Unregister repository action
+ * Verify repository action
  */
 public class VerifyRepositoryAction extends ActionType<VerifyRepositoryResponse> {
 

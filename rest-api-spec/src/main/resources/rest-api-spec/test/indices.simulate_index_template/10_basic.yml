@@ -1,8 +1,8 @@
 ---
 "Simulate index template without new template in the body":
   - skip:
-      version: " - 7.7.99"
-      reason: "simulate index template API unavailable before 7.8"
+      version: " - 7.8.99"
+      reason: "simulate index template API format changed in 7.9 to drop _doc"
       features: ["default_shards"]
 
   - do:
@@ -25,14 +25,14 @@
 
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
-  - match: {template.mappings._doc.properties.field.type: "keyword"}
+  - match: {template.mappings.properties.field.type: "keyword"}
   - match: {overlapping: []}
 
 ---
 "Simulate index template specifying a new template":
   - skip:
-      version: " - 7.7.99"
-      reason: "simulate index template API unavailable before 7.8"
+      version: " - 7.8.99"
+      reason: "simulate index template API format changed in 7.9 to drop _doc"
       features: ["default_shards"]
 
   - do:
@@ -77,7 +77,7 @@
 
   - match: {template.settings.index.blocks.write: "true"}
   - match: {template.settings.index.number_of_replicas: "2"}
-  - match: {template.mappings._doc.properties.ct_field.type: "keyword"}
+  - match: {template.mappings.properties.ct_field.type: "keyword"}
   - match: {overlapping.0.name: existing_test}
   - match: {overlapping.0.index_patterns: ["te*"]}
   - length: {template.aliases: 1}
@@ -86,8 +86,8 @@
 ---
 "Simulate index template with index not matching any template":
   - skip:
-      version: " - 7.7.99"
-      reason: "simulate index template API unavailable before 7.8"
+      version: " - 7.8.99"
+      reason: "simulate index template API format changed in 7.9 to drop _doc"
       features: allowed_warnings
 
   - do:
@@ -114,10 +114,10 @@
   - match: {body: null}
 
 ---
-"Simulate index matches overlapping V1 and V2 templates":
+"Simulate index matches overlapping legacy and composable templates":
   - skip:
-      version: " - 7.7.99"
-      reason: "simulate index template API unavailable before 7.8"
+      version: " - 7.8.99"
+      reason: "simulate index template API format changed in 7.9 to drop _doc"
       features: ["allowed_warnings", "default_shards"]
 
   - do:
@@ -170,7 +170,7 @@
 
   - match: {template.settings.index.number_of_shards: "1"}
   - match: {template.settings.index.number_of_replicas: "0"}
-  - match: {template.mappings._doc.properties.field.type: "keyword"}
+  - match: {template.mappings.properties.field.type: "keyword"}
   - match: {overlapping.0.name: v1_template}
   - match: {overlapping.0.index_patterns: ["t*", "t1*"]}
   - match: {overlapping.1.name: v2_template}

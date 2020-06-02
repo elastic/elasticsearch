@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
@@ -149,7 +149,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 JOB_ID,
                 renormalizer,
                 new JobResultsPersister(originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), "test_node")),
-                new AnnotationPersister(originSettingClient, auditor),
+                new AnnotationPersister(resultsPersisterService, auditor),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
                 new TimingStats(JOB_ID)) {
@@ -684,7 +684,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
 
     private Annotation parseAnnotation(BytesReference source) throws IOException {
         try (XContentParser parser = createParser(jsonXContent, source)) {
-            return Annotation.PARSER.parse(parser, null).build();
+            return Annotation.fromXContent(parser, null);
         }
     }
 

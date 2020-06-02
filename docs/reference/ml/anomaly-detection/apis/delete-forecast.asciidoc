@@ -47,7 +47,8 @@ forecasts from the job.
   
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+  
 
 [[ml-delete-forecast-query-parms]]
 ==== {api-query-parms-title}

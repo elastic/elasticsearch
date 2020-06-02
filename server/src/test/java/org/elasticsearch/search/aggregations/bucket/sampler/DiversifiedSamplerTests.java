@@ -36,7 +36,7 @@ import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -191,7 +191,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         idFieldType.setName("id");
         idFieldType.setHasDocValues(true);
 
-        SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(new Index("index", "index"), "price",
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(new Index("index", "index"), "price",
                 IndexNumericFieldData.NumericType.DOUBLE);
         FunctionScoreQuery query = new FunctionScoreQuery(new MatchAllDocsQuery(),
                 new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData));

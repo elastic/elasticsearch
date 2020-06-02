@@ -42,7 +42,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -50,7 +50,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -98,15 +97,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
-            super.checkCompatibility(otherFT, conflicts);
-            CollationFieldType other = (CollationFieldType) otherFT;
-            if (!Objects.equals(collator, other.collator)) {
-                conflicts.add("mapper [" + name() + "] has different [collator]");
-            }
-        }
-
-        @Override
         public int hashCode() {
             return 31 * super.hashCode() + Objects.hashCode(collator);
         }
@@ -137,7 +127,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder();
         }
 
         @Override
@@ -220,7 +210,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ICUCollationKeywordFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private String rules = null;
         private String language = null;
         private String country = null;
@@ -480,7 +470,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Builder builder = new Builder(name);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -611,12 +601,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-
-        List<String> conflicts = new ArrayList<>();
-        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) mergeWith;
-
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ICUCollationKeywordFieldMapper icuMergeWith = (ICUCollationKeywordFieldMapper) other;
+        if (!Objects.equals(collator, icuMergeWith.collator)) {
+            conflicts.add("mapper [" + name() + "] has different [collator]");
+        }
         if (!Objects.equals(rules, icuMergeWith.rules)) {
             conflicts.add("Cannot update rules setting for [" + CONTENT_TYPE + "]");
         }
@@ -666,10 +655,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         this.ignoreAbove = icuMergeWith.ignoreAbove;
-
-        if (!conflicts.isEmpty()) {
-            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
-        }
     }
 
     @Override

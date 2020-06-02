@@ -106,6 +106,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
@@ -654,8 +655,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
-
-        final int numDocs = 7000;
+        // enough docs to have a tree with several leaf nodes
+        final int numDocs = 3500 * 20;
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
         for (int i = 1; i <= numDocs; ++i) {
@@ -711,6 +712,33 @@ public class QueryPhaseTests extends IndexShardTestCase {
         searchContext.sort(sortAndFormats);
         QueryPhase.executeInternal(searchContext);
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+
+        // 5. Test that sort optimization is run when from > 0 and size = 0
+        {
+            sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+            searchContext.sort(sortAndFormats);
+            searchContext.from(5);
+            searchContext.setSize(0);
+            QueryPhase.executeInternal(searchContext);
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+        }
+
+        // 6. Test that sort optimization is NOT run with from = 0 and size= 0
+        {
+            sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+            searchContext = spy(new TestSearchContext(null, indexShard, newContextSearcher(reader)));
+            when(searchContext.mapperService()).thenReturn(mapperService);
+            searchContext.sort(sortAndFormats);
+            searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            searchContext.setSize(0);
+
+            QueryPhase.executeInternal(searchContext);
+            TotalHits totalHits = searchContext.queryResult().topDocs().topDocs.totalHits;
+            assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
+            assertEquals(numDocs, totalHits.value);
+        }
+
         reader.close();
         dir.close();
     }
@@ -820,7 +848,11 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     // assert score docs are in order and their number is as expected
     private void assertSortResults(TopDocs topDocs, long expectedNumDocs, boolean isDoubleSort) {
-        assertEquals(topDocs.totalHits.value, expectedNumDocs);
+        if (topDocs.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            assertThat(topDocs.totalHits.value, lessThanOrEqualTo(expectedNumDocs));
+        } else {
+            assertEquals(topDocs.totalHits.value, expectedNumDocs);
+        }
         long cur1, cur2;
         long prev1 = Long.MIN_VALUE;
         long prev2 = Long.MIN_VALUE;

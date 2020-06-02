@@ -137,8 +137,8 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
         // Note: this is the same list as Core, plus Analytics
         return org.elasticsearch.common.collect.List.of(
             CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
             AnalyticsValuesSourceType.HISTOGRAM
         );
     }

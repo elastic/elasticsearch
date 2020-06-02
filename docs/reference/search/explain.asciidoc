@@ -49,37 +49,37 @@ Only a single index name can be provided to this parameter.
 [[sample-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
 `stored_fields`::
   (Optional, string) A comma-separated list of stored fields to return in the 
   response.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 
 [[sample-api-request-body]]
 ==== {api-request-body-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=query]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 
 [[sample-api-example]]

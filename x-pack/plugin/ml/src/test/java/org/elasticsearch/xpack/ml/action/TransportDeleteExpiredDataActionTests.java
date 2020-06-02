@@ -41,7 +41,11 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
      */
     private static class DummyDataRemover implements MlDataRemover {
 
-        public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+        public void remove(
+            float requestsPerSec,
+            ActionListener<Boolean> listener,
+            Supplier<Boolean> isTimedOutSupplier
+        ) {
             listener.onResponse(isTimedOutSupplier.get() == false);
         }
     }
@@ -77,7 +81,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
         Supplier<Boolean> isTimedOutSupplier = () -> false;
 
-        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), finalListener, isTimedOutSupplier, true);
+        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
 
         assertTrue(succeeded.get());
     }
@@ -97,7 +101,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
         Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
-        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), finalListener, isTimedOutSupplier, true);
+        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
 
         assertFalse(succeeded.get());
     }

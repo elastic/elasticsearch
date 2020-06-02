@@ -1079,6 +1079,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         entity += "}";
         if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
+        } else if (settings.hasValue(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey()) ||
+            settings.hasValue(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey())) {
+            expectTranslogRetentionWarning(request);
         }
         request.setJsonEntity(entity);
         client().performRequest(request);
@@ -1108,6 +1111,20 @@ public abstract class ESRestTestCase extends ESTestCase {
             requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
             request.setOptions(requestOptions);
         } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
+            request.setOptions(requestOptions);
+        }
+    }
+
+    protected static void expectTranslogRetentionWarning(Request request) {
+        final List<String> expectedWarnings = Collections.singletonList(
+            "Translog retention settings [index.translog.retention.age] "
+                + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
+        final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
+            requestOptions.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
+            request.setOptions(requestOptions);
+        } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_7_0))) {
             requestOptions.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
             request.setOptions(requestOptions);
         }

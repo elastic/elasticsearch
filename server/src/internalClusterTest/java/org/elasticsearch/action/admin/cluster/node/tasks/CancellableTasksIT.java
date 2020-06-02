@@ -52,6 +52,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -277,6 +278,32 @@ public class CancellableTasksIT extends ESIntegTestCase {
         allowEntireRequest(rootRequest);
         waitForRootTask(rootTaskFuture);
         ensureAllBansRemoved();
+    }
+
+    public void testCancelOrphanedTasks() throws Exception {
+        final String nodeWithRootTask = internalCluster().startDataOnlyNode();
+        Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
+        TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
+        client(nodeWithRootTask).execute(TransportTestAction.ACTION, rootRequest);
+        allowPartialRequest(rootRequest);
+        try {
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithRootTask));
+            assertBusy(() -> {
+                for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                    for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {
+                        if (task.getAction().equals(TransportTestAction.ACTION.name())) {
+                            final TaskInfo taskInfo = task.taskInfo(transportService.getLocalNode().getId(), false);
+                            assertTrue(taskInfo.toString(), task.isCancelled());
+                            assertNotNull(taskInfo.toString(), task.getReasonCancelled());
+                            assertThat(taskInfo.toString(), task.getReasonCancelled(), equalTo("channel was closed"));
+                        }
+                    }
+                }
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            allowEntireRequest(rootRequest);
+            ensureAllBansRemoved();
+        }
     }
 
     static TaskId getRootTaskId(TestRequest request) throws Exception {

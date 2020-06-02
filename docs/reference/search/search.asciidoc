@@ -165,6 +165,15 @@ level settings.
   (Optional, <<time-units, time units>>) Specifies how long a consistent view of
   the index should be maintained for scrolled search.
 
+[[search-api-scroll-query-param]]
+`scroll`::
+(Optional, <<time-units,time value>>)
+Period to retain the <<scroll-search-context,search context>> for scrolling. See
+<<request-body-search-scroll>>.
++
+By default, this value cannot must be less than `1d` (one day). You can change
+this limit using the `search.max_keep_alive` cluster-level setting.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `seq_no_primary_term`::
@@ -197,6 +206,9 @@ correct.
 As an alternative to deep paging, we recommend using
 <<request-body-search-scroll,scroll>> or the
 <<request-body-search-search-after,`search_after`>> parameter.
+
+If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
+value cannot be zero (`0`).
 
 [IMPORTANT]
 ====
@@ -365,6 +377,9 @@ As an alternative to deep paging, we recommend using
 <<request-body-search-scroll,scroll>> or the
 <<request-body-search-search-after,`search_after`>> parameter.
 
+If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
+value cannot be zero (`0`).
+
 [IMPORTANT]
 ====
 You can also specify this value using the `size` query parameter. If both
@@ -416,6 +431,17 @@ parameters are specified, only the query parameter is used.
 [role="child_attributes"]
 [[search-api-response-body]]
 ==== {api-response-body-title}
+
+`_scroll_id`::
+(string)
+Identifier for the search and its <<scroll-search-context,search context>>.
++
+You can use this scroll ID with the <<scroll-api,scroll API>> to retrieve the
+next batch of search results for the request. See
+<<request-body-search-scroll>>.
++
+This parameter is only returned if the <<search-api-scroll-query-param,`scroll`
+query parameter>> is specified in the request.
 
 `took`::
 +

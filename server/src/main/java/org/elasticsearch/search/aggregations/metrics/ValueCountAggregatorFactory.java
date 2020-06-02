@@ -61,7 +61,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             ValueCountAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof ValueCountAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected ValueCountAggregatorSupplier, found [" +

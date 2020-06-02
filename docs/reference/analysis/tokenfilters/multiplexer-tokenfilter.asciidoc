@@ -4,120 +4,216 @@
 <titleabbrev>Multiplexer</titleabbrev>
 ++++
 
-A token filter of type `multiplexer` will emit multiple tokens at the same position,
-each version of the token having been run through a different filter.  Identical
-output tokens at the same position will be removed.
+Applies multiple sets of token filters to each token in a stream. The filter
+outputs a different version of the token for each set. By default, the filter
+also outputs the original version of the token.
 
-WARNING: If the incoming token stream has duplicate tokens, then these will also be
-removed by the multiplexer
+The `multiplexer` filter outputs each version of a token in the same position.
+The filter then removes any duplicate tokens in the same position.
 
-[float]
-=== Options
-[horizontal]
-filters:: a list of token filters to apply to incoming tokens.  These can be any
-  token filters defined elsewhere in the index mappings.  Filters can be chained
-  using a comma-delimited string, so for example `"lowercase, porter_stem"` would
-  apply the `lowercase` filter and then the `porter_stem` filter to a single token.
+WARNING: This also removes duplicate tokens from the incoming token stream.
 
-WARNING: Shingle or multi-word synonym token filters will not function normally
-  when they are declared in the filters array because they read ahead internally
-  which is unsupported by the multiplexer
+[[analysis-multiplexer-tokenfilter-analyze-ex]]
+==== Example
 
-preserve_original:: if `true` (the default) then emit the original token in
-  addition to the filtered tokens
+The following <<indices-analyze,analyze API>> request uses the `multiplexer`
+filter to output stemmed and unstemmed tokens for `few foxes jumping quickly`.
 
+The `multiplexer` filter applies the following token filter sets to each
+token, outputting a different token version for each set:
 
-[float]
-=== Settings example
-
-You can set it up like:
+* <<analysis-lowercase-tokenfilter,`lowercase`>>
+* `lowercase` followed by <<analysis-porterstem-tokenfilter,`porter_stem`>>
 
 [source,console]
---------------------------------------------------
-PUT /multiplexer_example
+----
+GET /_analyze
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : [ "my_multiplexer" ]
-                }
-            },
-            "filter" : {
-                "my_multiplexer" : {
-                    "type" : "multiplexer",
-                    "filters" : [ "lowercase", "lowercase, porter_stem" ]
-                }
-            }
-        }
+  "tokenizer": "whitespace",
+  "filter": [
+    {
+      "type": "multiplexer",
+      "filters" : [ "lowercase", "lowercase, porter_stem" ]
     }
+  ],
+  "text": "few foxes jumping Quickly"
 }
---------------------------------------------------
+----
 
-And test it like:
+The filter produces the following tokens. Note:
 
-[source,console]
---------------------------------------------------
-POST /multiplexer_example/_analyze
-{
-  "analyzer" : "my_analyzer",
-  "text" : "Going HOME"
-}
---------------------------------------------------
-// TEST[continued]
+* The output includes a single `few` token. No token filter set
+  changed the original `few` token, producing duplicate `few` tokens with a
+  position of `0`. Because these duplicates were in the same position, the
+  `multiplexer` filter removed them, leaving one in the output.
 
-And it'd respond:
+* The output includes three versions of the `Quickly` token:
+** `Quickly`, the original version of the token
+** `quickly`, the lowercase, unstemmed version of the token
+** `quickli`, the lowercase, stemmed version of the token
 
+[source,text]
+----
+[ few, foxes, fox, jumping, jump, Quickly, quickly, quickli ]
+----
+
+The API response contains the position of each token. Note that stemmed and
+unstemmed versions of each token are in the same position. For example, `foxes`
+and `fox` both have a `position` of `1`. 
+
+.*Response*
+[%collapsible]
+====
 [source,console-result]
---------------------------------------------------
+----
 {
-  "tokens": [
+  "tokens" : [
     {
-      "token": "Going",
-      "start_offset": 0,
-      "end_offset": 5,
-      "type": "<ALPHANUM>",
-      "position": 0
+      "token" : "few",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "word",
+      "position" : 0
     },
     {
-      "token": "going",
-      "start_offset": 0,
-      "end_offset": 5,
-      "type": "<ALPHANUM>",
-      "position": 0
+      "token" : "foxes",
+      "start_offset" : 4,
+      "end_offset" : 9,
+      "type" : "word",
+      "position" : 1
     },
     {
-      "token": "go",
-      "start_offset": 0,
-      "end_offset": 5,
-      "type": "<ALPHANUM>",
-      "position": 0
+      "token" : "fox",
+      "start_offset" : 4,
+      "end_offset" : 9,
+      "type" : "word",
+      "position" : 1
     },
     {
-      "token": "HOME",
-      "start_offset": 6,
-      "end_offset": 10,
-      "type": "<ALPHANUM>",
-      "position": 1
+      "token" : "jumping",
+      "start_offset" : 10,
+      "end_offset" : 17,
+      "type" : "word",
+      "position" : 2
     },
     {
-      "token": "home",          <1>
-      "start_offset": 6,
-      "end_offset": 10,
-      "type": "<ALPHANUM>",
-      "position": 1
+      "token" : "jump",
+      "start_offset" : 10,
+      "end_offset" : 17,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "Quickly",
+      "start_offset" : 18,
+      "end_offset" : 25,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "quickly",
+      "start_offset" : 18,
+      "end_offset" : 25,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "quickli",
+      "start_offset" : 18,
+      "end_offset" : 25,
+      "type" : "word",
+      "position" : 3
     }
   ]
 }
---------------------------------------------------
+----
+====
 
-<1> The stemmer has also emitted a token `home` at position 1, but because it is a
-duplicate of this token it has been removed from the token stream
+[[analysis-multiplexer-tokenfilter-configure-parms]]
+==== Configurable parameters
 
-NOTE: The synonym and synonym_graph filters use their preceding analysis chain to
-parse and analyse their synonym lists, and will throw an exception if that chain
-contains token filters that produce multiple tokens at the same position.
-If you want to apply synonyms to a token stream containing a multiplexer, then you
-should append the synonym filter to each relevant multiplexer filter list, rather than
-placing it after the multiplexer in the main token chain definition.
+`filters`::
+(Required, array of strings)
+An array of token filter sets to apply. You can specify built-in token filters
+or custom filters defined in the analyzer configuration.
++
+Each string in the array represents a set of token filters. Within each string,
+you can specify multiple filters in order using a comma delimiter. For example,
+a string of `"trim, reverse"` applies the <<analysis-trim-tokenfilter,`trim`>>
+filter followed by the <<analysis-reverse-tokenfilter,`reverse`>> filter.
++
+WARNING: Shingle or multi-word synonym token filters specified in the `filters`
+parameter will not function normally. These filters read ahead internally, which
+is not supported by the `multiplexer` filter.
+
+`preserve_original`::
+(Optional, boolean)
+If `true`, the filter includes the original input version of each token in the
+output. Defaults to `true`.
+
+[[analysis-multiplexer-tokenfilter-customize]]
+==== Customize and add to an analyzer
+
+To customize the `multiplexer` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+[NOTE]
+====
+Avoid adding the `multiplexer` filter before
+<<analysis-synonym-tokenfilter,`synonym`>> or
+<<analysis-synonym-graph-tokenfilter,`synonym_graph`>> filters in an analyzer
+configuration. Instead, append the synonym filter to the relevant token filter
+sets using the `filters` parameter.
+
+Synonym filters use the preceding analysis chain to parse and analyze
+synonyms. If a previous token filter produces multiple tokens in the same
+position, these filters return an error.
+====
+
+For example, the following <<indices-create-index,create index API>> request
+configures a new <<analysis-custom-analyzer,custom analyzer>> using a custom
+`multiplexer` filter, `my_multiplexer_filter`. 
+
+The `my_multiplexer_filter` filter applies the following token filter sets to
+each token, outputting a different version of the token for each set:
+
+* <<analysis-uppercase-tokenfilter,`uppercase`>>
+* <<analysis-lowercase-tokenfilter,`lowercase`>>
+* `lowercase` followed by `truncate_5_char`, a custom
+  <<analysis-truncate-tokenfilter,`truncate`>> token filter that shortens tokens
+  to five characters or fewer. `truncate_5_char` is defined in the analyzer
+  configuration.
+
+[source,console]
+----
+PUT /my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "my_multiplexer_filter"
+          ]
+        }
+      },
+      "filter": {
+        "my_multiplexer_filter": {
+          "type": "multiplexer",
+          "filters": [
+            "uppercase",
+            "lowercase",
+            "lowercase, truncate_5_char"
+          ]
+        },
+        "truncate_5_char": {
+          "type": "multiplexer",
+          "length": 5
+        }
+      }
+    }
+  }
+}
+----

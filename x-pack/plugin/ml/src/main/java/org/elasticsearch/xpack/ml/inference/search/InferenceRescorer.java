@@ -24,9 +24,8 @@ import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,23 +40,21 @@ public class InferenceRescorer implements Rescorer {
 
     private static final Logger logger = LogManager.getLogger(InferenceRescorer.class);
 
-    private final Model model;
-    private final InferenceConfig inferenceConfig;
+    private final LocalModel model;
+    private final InferenceConfigUpdate update;
     private final Map<String, String> fieldMap;
     private final InferenceRescorerBuilder.ScoreModeSettings scoreModeSettings;
 
     InferenceRescorer(
-        Model model,
-        InferenceConfig inferenceConfig,
+        LocalModel model,
+        InferenceConfigUpdate update,
         Map<String, String> fieldMap,
         InferenceRescorerBuilder.ScoreModeSettings scoreModeSettings
     ) {
         this.model = model;
-        this.inferenceConfig = inferenceConfig;
+        this.update = update;
         this.fieldMap = fieldMap;
         this.scoreModeSettings = scoreModeSettings;
-
-        assert inferenceConfig instanceof RegressionConfig;
     }
 
     @Override
@@ -111,7 +108,7 @@ public class InferenceRescorer implements Rescorer {
                 }
             }
 
-            InferenceResults infer = model.infer(fields, inferenceConfig);
+            InferenceResults infer = model.infer(fields, update);
             if (infer instanceof WarningInferenceResults) {
                 String message = ((WarningInferenceResults) infer).getWarning();
                 logger.warn("inference error: " + message);

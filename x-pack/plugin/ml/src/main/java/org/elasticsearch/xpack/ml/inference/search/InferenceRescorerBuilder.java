@@ -21,8 +21,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
 import java.io.IOException;
@@ -59,7 +65,8 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     static {
         PARSER.declareString(constructorArg(), MODEL_ID);
-        PARSER.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(InferenceConfig.class, n, c), INFERENCE_CONFIG);
+        PARSER.declareNamedObject(optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(StrictlyParsedInferenceConfig.class, n, c), INFERENCE_CONFIG);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapStrings(), FIELD_MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareFloat(InferenceRescorerBuilder::setQueryWeight, QUERY_WEIGHT);
         PARSER.declareFloat(InferenceRescorerBuilder::setModelWeight, MODEL_WEIGHT);
@@ -75,7 +82,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     private final InferenceConfig inferenceConfig;
     private final Map<String, String> fieldMap;
 
-    private Model model;
+    private LocalModel model;
 
     private float queryWeight = DEFAULT_QUERY_WEIGHT;
     private float modelWeight = DEFAULT_MODEL_WEIGHT;
@@ -95,7 +102,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                                      SetOnce<ModelLoadingService> modelLoadingService,
                                      @Nullable InferenceConfig config,
                                      @Nullable Map<String, String> fieldMap,
-                                     Supplier<Model> modelSupplier
+                                     Supplier<LocalModel> modelSupplier
     ) {
         this(modelId, modelLoadingService, config, fieldMap);
         this.model = modelSupplier.get();
@@ -173,7 +180,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (model != null) {
             return this;
         } else {
-            SetOnce<Model> modelHolder = new SetOnce<>();
+            SetOnce<LocalModel> modelHolder = new SetOnce<>();
 
             ctx.registerAsyncAction(((client, actionListener) ->
                 modelLoadingService.get().getModel(modelId, ActionListener.wrap(
@@ -197,7 +204,18 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     protected RescoreContext innerBuildContext(int windowSize, QueryShardContext context) {
         assert model != null;
 
-        return new RescoreContext(windowSize, new InferenceRescorer(model, inferenceConfig, fieldMap, scoreModeSettings()));
+        InferenceConfigUpdate update;
+        if (inferenceConfig == null) {
+            update = new EmptyConfigUpdate();
+        } else if (inferenceConfig instanceof RegressionConfig) {
+            update = RegressionConfigUpdate.fromConfig((RegressionConfig)inferenceConfig);
+        } else {
+            // TODO better message
+            throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",
+                inferenceConfig.getName(), RegressionConfig.NAME.getPreferredName());
+        }
+
+        return new RescoreContext(windowSize, new InferenceRescorer(model, update, fieldMap, scoreModeSettings()));
     }
 
     static class ScoreModeSettings {

@@ -10,10 +10,6 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin:'base'
 configurations {
-//  certificateJars {
-//    canBeConsumed = true
-//    canBeResolved = false
-//  }
   nodeKeyStores {
     canBeConsumed = true
     canBeResolved = false
@@ -27,9 +23,6 @@ configurations {
 // needed to be consistent with ssl host checking
 String san = "san=dns:localhost,dns:localhost.localdomain,dns:localhost4,dns:localhost4.localdomain4,dns:localhost6," +
   "dns:localhost6.localdomain6,ip:127.0.0.1,ip:0:0:0:0:0:0:0:1"
-
-// needed to be consistent with ssl host checking
-//String host = InetAddress.getLoopbackAddress().getHostAddress();
 String host = "Elasticsearch Build Test Infrastructure"
 
 // location of generated keystores and certificates
@@ -149,12 +142,6 @@ tasks.register("importClientCertificateInNodeKeyStore", LoggedExec) {
     '-file', clientCertificate,
     '-noprompt'
 }
-//
-//def certificateJar = tasks.register("certificateJar", Jar) {
-//  dependsOn("importNodeCertificateInClientKeyStore", "importClientCertificateInNodeKeyStore")
-//  from keystoreDir
-//  archiveFileName = project.name + ".jar"
-//}
 
 artifacts {
 //  certificateJars(certificateJar)

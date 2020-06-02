@@ -1,49 +1,12 @@
-import org.elasticsearch.gradle.info.BuildParams
-import java.nio.file.Files
+apply plugin: 'elasticsearch.test-with-ssl'
 
 // Tell the tests we're running with ssl enabled
 integTest.runner {
   systemProperty 'tests.ssl.enabled', 'true'
 }
 
-configurations {
-  nodeKeystores
-  clientKeyStores
-}
-
-dependencies {
-//  testRuntime(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'certificateJars'))
-  nodeKeystores(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'nodeKeyStores'))
-  clientKeyStores(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'clientKeyStores'))
-}
-
-// location of generated keystores and certificates
-File keystoreDir = new File(project.buildDir, 'keystore')
-
-// Generate the node's keystore
-File nodeKeystore = file("$keystoreDir/test-node.jks")
-
-// Generate the client's keystore
-File clientKeyStore = file("$keystoreDir/test-client.jks")
-
-tasks.register("resolveKeyStores") {
-  inputs.files(configurations.nodeKeystores)
-  inputs.files(configurations.clientKeyStores)
-  outputs.dir(keystoreDir)
-  doLast {
-    nodeKeystore.delete()
-    clientKeyStore.delete()
-    Files.copy(configurations.nodeKeystores.singleFile.toPath(), nodeKeystore.toPath())
-    Files.copy(configurations.clientKeyStores.singleFile.toPath(), clientKeyStore.toPath())
-  }
-}
-
-// Add keystores to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-processTestResources.dependsOn("resolveKeyStores")
-
-tasks.withType(org.elasticsearch.gradle.testclusters.TestClustersAware).configureEach {
-  dependsOn "resolveKeyStores"
+forbiddenPatterns {
+  exclude '**/*.cert'
 }
 
 testClusters.integTest {
@@ -57,9 +20,4 @@ testClusters.integTest {
   setting 'xpack.security.http.ssl.keystore.path', 'test-node.jks'
   keystore 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
   keystore 'xpack.security.http.ssl.keystore.secure_password', 'keypass'
-
-
-  // copy keystores into config/
-  extraConfigFile nodeKeystore.name, nodeKeystore
-  extraConfigFile clientKeyStore.name, clientKeyStore
 }

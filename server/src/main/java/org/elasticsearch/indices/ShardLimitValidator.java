@@ -33,6 +33,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 
+/**
+ * This class contains the logic used to check the cluster-wide shard limit before shards are created and ensuring that the limit is
+ * updated correctly on setting updates, etc.
+ *
+ * NOTE: This is the limit applied at *shard creation time*. If you are looking for the limit applied at *allocation* time, which is
+ * controlled by a different setting,
+ * see {@link org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider}.
+ */
 public class ShardLimitValidator {
     public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE =
         Setting.intSetting("cluster.max_shards_per_node", 1000, 1, Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -43,11 +51,14 @@ public class ShardLimitValidator {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
     }
 
-    // Protected for testing purposes
-    protected void setShardLimitPerNode(int newValue) {
+    private void setShardLimitPerNode(int newValue) {
         this.shardLimitPerNode.set(newValue);
     }
 
+    /**
+     * Gets the currently configured value of the {@link ShardLimitValidator#SETTING_CLUSTER_MAX_SHARDS_PER_NODE} setting.
+     * @return the current value of the setting
+     */
     public int getShardLimitPerNode() {
         return shardLimitPerNode.get();
     }

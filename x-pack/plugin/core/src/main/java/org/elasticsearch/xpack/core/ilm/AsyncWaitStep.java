@@ -6,14 +6,15 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.index.Index;
 
 /**
  * A step which will be called periodically, waiting for some condition to become true.
  * Called asynchronously, as the condition may take time to check.
- *
+ * <p>
  * If checking something based on the current cluster state which does not take time to check, use {@link ClusterStateWaitStep}.
  */
 public abstract class AsyncWaitStep extends Step {
@@ -29,7 +30,7 @@ public abstract class AsyncWaitStep extends Step {
         return client;
     }
 
-    public abstract void evaluateCondition(IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout);
+    public abstract void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout);
 
     public interface Listener {
 

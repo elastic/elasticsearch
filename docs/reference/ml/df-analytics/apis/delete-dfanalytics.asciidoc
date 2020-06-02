@@ -35,7 +35,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-delete-dfanalytics-query-params]]
 ==== {api-query-parms-title}

@@ -889,6 +889,17 @@ We have stopped adding new customers to our {esms}.
 If you are interested in similar capabilities, contact
 https://support.elastic.co[Elastic Support] to discuss available options.
 
+[role="exclude",id="ilm-with-existing-periodic-indices"]
+=== Manage existing periodic indices with {ilm-init}
+
+See <<ilm-existing-indices-timeseries>>.
+
+[role="exclude",id="ilm-reindexing-into-rollover"]
+=== Reindexing via {ilm-init}
+
+See <<ilm-existing-indices-reindex>>.
+
+
 ////
 [role="exclude",id="search-request-body"]
 === Request body search

@@ -13,14 +13,14 @@ Once {ilm-init} is managing your current write index, you can apply an appropria
 
 NOTE: Starting in version 5.7, Curator ignores {ilm-init} managed indices.
 
-
-[[ilm-with-existing-periodic-indices]]
-=== Manage existing periodic indices with {ilm-init}
+[discrete]
+[[ilm-existing-indices-apply]]
+=== Apply policies to existing time series indices 
 
 The simplest way to transition to managing your periodic indices with {ilm-init} is
 to <<apply-policy-template, configure an index template>> to apply a lifecycle policy to new indices. 
 Once the index you are writing to is being managed by {ilm-init}, 
-you can <<apply-policy-manually, manually apply a policy>> to your older indices.
+you can <<apply-policy-multiple, manually apply a policy>> to your older indices.
 
 Define a separate policy for your older indices that omits the rollover action. 
 Rollover is used to manage where new data goes, so isn't applicable. 
@@ -44,31 +44,9 @@ If you are using {beats} through {ls},
 you might need to change your {ls} output configuration and invoke the {beats} setup 
 to use {ilm-init} for new data.
 
-[[apply-policy-multiple]]
-==== Apply a policy to multiple indices
-
-You can apply the same policy to multiple indices by using wildcards in the index name 
-when you call the <<indices-update-settings,update settings>> API.
-
-WARNING: Be careful that you don't inadvertently match indices that you don't want to modify.
-
-[source,console]
------------------------
-PUT mylogs-pre-ilm*/_settings <1>
-{
-  "index": {
-    "lifecycle": {
-      "name": "mylogs_policy_existing"
-    }
-  }
-}
------------------------
-// TEST[continued]
-
-<1> Updates all indices with names that start with `mylogs-pre-ilm`
-
-[[ilm-reindexing-into-rollover]]
-=== Reindexing via {ilm-init}
+[discrete]
+[[ilm-existing-indices-reindex]]
+=== Reindex into a managed index
 
 An alternative to <<ilm-with-existing-periodic-indices,applying policies to existing indices>> is to 
 reindex your data into an {ilm-init}-managed index.

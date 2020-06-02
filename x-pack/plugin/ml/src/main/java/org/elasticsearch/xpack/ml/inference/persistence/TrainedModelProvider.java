@@ -34,7 +34,6 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -43,9 +42,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -64,10 +63,13 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
+import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -227,6 +229,69 @@ public class TrainedModelProvider {
         );
 
         executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);
+    }
+
+    public void getTrainedModelForInference(final String modelId,
+                                            final ActionListener<Tuple<TrainedModelConfig, InferenceDefinition>> listener) {
+        // TODO Change this when we get more than just langIdent stored
+        if (MODELS_STORED_AS_RESOURCE.contains(modelId)) {
+            try {
+                TrainedModelConfig config = loadModelFromResource(modelId, false).ensureParsedDefinition(xContentRegistry);
+                assert config.getModelDefinition().getTrainedModel() instanceof LangIdentNeuralNetwork;
+                listener.onResponse(Tuple.tuple(
+                    config,
+                    InferenceDefinition.builder()
+                        .setPreProcessors(config.getModelDefinition().getPreProcessors())
+                        .setTrainedModel((LangIdentNeuralNetwork)config.getModelDefinition().getTrainedModel())
+                        .build()));
+                return;
+            } catch (ElasticsearchException|IOException ex) {
+                listener.onFailure(ex);
+                return;
+            }
+        }
+
+        getTrainedModel(modelId, false, ActionListener.wrap(
+            config -> {
+                SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+                    .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
+                        .boolQuery()
+                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                        .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
+                            TrainedModelDefinitionDoc.NAME))))
+                    .setSize(MAX_NUM_DEFINITION_DOCS)
+                    // First find the latest index
+                    .addSort("_index", SortOrder.DESC)
+                    // Then, sort by doc_num
+                    .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
+                        .order(SortOrder.ASC)
+                        .unmappedType("long"))
+                    .request();
+                executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
+                    searchResponse -> {
+                        List<TrainedModelDefinitionDoc> docs = handleHits(searchResponse.getHits().getHits(),
+                            modelId,
+                            this::parseModelDefinitionDocLenientlyFromSource);
+                        String compressedString = docs.stream()
+                            .map(TrainedModelDefinitionDoc::getCompressedString)
+                            .collect(Collectors.joining());
+                        if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
+                            listener.onFailure(ExceptionsHelper.serverError(
+                                Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+                            return;
+                        }
+                        InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
+                            compressedString,
+                            InferenceDefinition::fromXContent,
+                            xContentRegistry);
+                        listener.onResponse(Tuple.tuple(config, inferenceDefinition));
+                    },
+                    listener::onFailure
+                ));
+
+            },
+            listener::onFailure
+        ));
     }
 
     public void getTrainedModel(final String modelId, final boolean includeDefinition, final ActionListener<TrainedModelConfig> listener) {
@@ -632,27 +697,18 @@ public class TrainedModelProvider {
             throw new ResourceNotFoundException(
                 Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId));
         }
-        try {
-            BytesReference bytes = Streams.readFully(getClass()
-                .getResourceAsStream(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT));
-            try (XContentParser parser =
-                     XContentHelper.createParser(xContentRegistry,
-                         LoggingDeprecationHandler.INSTANCE,
-                         bytes,
-                         XContentType.JSON)) {
-                TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
-                if (nullOutDefinition) {
-                    builder.clearDefinition();
-                }
-                return builder.build();
-            } catch (IOException ioEx) {
-                logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), ioEx);
-                throw ExceptionsHelper.serverError(INFERENCE_FAILED_TO_DESERIALIZE, ioEx, modelId);
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(
+                xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE,
+                getClass().getResourceAsStream(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT))) {
+            TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
+            if (nullOutDefinition) {
+                builder.clearDefinition();
             }
-        } catch (IOException ex) {
-            String msg = new ParameterizedMessage("[{}] failed to read model as resource", modelId).getFormattedMessage();
-            logger.error(msg, ex);
-            throw ExceptionsHelper.serverError(msg, ex);
+            return builder.build();
+        } catch (IOException ioEx) {
+            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), ioEx);
+            throw ExceptionsHelper.serverError(INFERENCE_FAILED_TO_DESERIALIZE, ioEx, modelId);
         }
     }
 
@@ -723,9 +779,16 @@ public class TrainedModelProvider {
         if (item.getResponse().getHits().getHits().length == 0) {
             throw new ResourceNotFoundException(resourceId);
         }
-        List<T> results = new ArrayList<>(item.getResponse().getHits().getHits().length);
-        String initialIndex = item.getResponse().getHits().getHits()[0].getIndex();
-        for (SearchHit hit : item.getResponse().getHits().getHits()) {
+        return handleHits(item.getResponse().getHits().getHits(), resourceId, parseLeniently);
+
+    }
+
+    private static <T> List<T> handleHits(SearchHit[] hits,
+                                          String resourceId,
+                                          CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently) throws Exception {
+        List<T> results = new ArrayList<>(hits.length);
+        String initialIndex = hits[0].getIndex();
+        for (SearchHit hit : hits) {
             // We don't want to spread across multiple backing indices
             if (hit.getIndex().equals(initialIndex)) {
                 results.add(parseLeniently.apply(hit.getSourceRef(), resourceId));

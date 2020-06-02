@@ -6,8 +6,16 @@ integTest.runner {
   systemProperty 'tests.ssl.enabled', 'true'
 }
 
-// needed to be consistent with ssl host checking
-String host = InetAddress.getLoopbackAddress().getHostAddress();
+configurations {
+  nodeKeystores
+  clientKeyStores
+}
+
+dependencies {
+  testRuntime(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'certificateJars'))
+  nodeKeystores(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'nodeKeyStores'))
+  clientKeyStores(project(path: ":x-pack:plugin:sql:qa:ssl-utils", configuration: 'clientKeyStores'))
+}
 
 // location of generated keystores and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
@@ -23,7 +31,6 @@ tasks.register("resolveKeyStores") {
   inputs.files(configurations.clientKeyStores)
   outputs.dir(keystoreDir)
   doLast {
-    println configurations.nodeKeystores.singleFile.toPath()
     Files.copy(configurations.nodeKeystores.singleFile.toPath(), nodeKeystore.toPath())
     Files.copy(configurations.clientKeyStores.singleFile.toPath(), clientKeyStore.toPath())
   }

@@ -148,6 +148,7 @@ GET /example_points/_search
     "hits" : [
       {
         "_index" : "example_points",
+        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {

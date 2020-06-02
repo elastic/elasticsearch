@@ -343,6 +343,7 @@ public class AutodetectResultProcessor {
             Exception exception = null;
             try {
                 bulkResultsPersister.executeRequest();
+                bulkAnnotationsPersister.executeRequest();
                 persister.commitResultWrites(jobId);
                 LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
             } catch (Exception e) {

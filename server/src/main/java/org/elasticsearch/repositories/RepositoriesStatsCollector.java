@@ -31,30 +31,28 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class RepositoriesStatsCollector extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(RepositoriesStatsCollector.class);
 
-    /**
-     * Minimum value for sampling interval (1 second)
-     */
     public static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
 
     public static final Setting<TimeValue> INTERVAL =
-        Setting.timeSetting("repositories.monitoring.collection.interval", TimeValue.timeValueMinutes(1L), MIN_INTERVAL,
+        Setting.timeSetting("repositories.monitoring.export.interval", TimeValue.timeValueMinutes(1L), MIN_INTERVAL,
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     public static final Setting<Boolean> ENABLED =
-        Setting.boolSetting("repositories.monitoring.collection.enabled", true,
+        Setting.boolSetting("repositories.monitoring.export.enabled", true,
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final StatsCollector statsCollector = new StatsCollector();
 
     private final Supplier<Map<String, RepositoryStats>> statsProvider;
     private final ThreadPool threadPool;
-    private final RepositoryStatsExporter exporter;
+    private final Consumer<Map<String, RepositoryStats>> exporter;
     private final ClusterService clusterService;
     private volatile TimeValue interval;
     private volatile boolean enabled;
@@ -71,7 +69,7 @@ public final class RepositoriesStatsCollector extends AbstractLifecycleComponent
                                       final ClusterService clusterService,
                                       final Supplier<Map<String, RepositoryStats>> statsSupplier,
                                       final ThreadPool threadPool,
-                                      final RepositoryStatsExporter exporter) {
+                                      final Consumer<Map<String, RepositoryStats>> exporter) {
         this.statsProvider = statsSupplier;
         this.threadPool = threadPool;
         this.exporter = exporter;
@@ -81,7 +79,7 @@ public final class RepositoriesStatsCollector extends AbstractLifecycleComponent
     }
 
     private static void exportMetrics(Map<String, RepositoryStats> repositoriesStats) {
-        logger.info("Repo stats {}", repositoriesStats);
+        logger.info("Repositories stats {}", repositoriesStats);
     }
 
     private String threadPoolName() {
@@ -151,7 +149,7 @@ public final class RepositoriesStatsCollector extends AbstractLifecycleComponent
 
         @Override
         protected void doRun() throws Exception {
-            exporter.export(statsProvider.get());
+            exporter.accept(statsProvider.get());
         }
     }
 }

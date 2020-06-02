@@ -32,14 +32,16 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -47,15 +49,16 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
-    private ClusterSettings clusterSettings;
-
+    
+    final Map<String, RepositoryStats> repoStats = Map.of("repo1", RepositoryStats.EMPTY_STATS);
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(RepositoriesStatsCollector.ENABLED, RepositoriesStatsCollector.INTERVAL));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
+            Set.of(RepositoriesStatsCollector.ENABLED, RepositoriesStatsCollector.INTERVAL));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
     }
 
@@ -66,62 +69,53 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
     }
 
     public void testRepositoriesStatsAreCollectedOnConfiguredInterval() {
-        List<Map<String, RepositoryStats>> statsOverTime = List.of(Map.of("repo1", RepositoryStats.EMPTY_STATS),
-                                                                   Map.of("repo2", RepositoryStats.EMPTY_STATS));
-
-        Iterator<Map<String, RepositoryStats>> iterator = new Iterator<>() {
-            private int i = 0;
-
-            @Override
-            public boolean hasNext() {
-                return true;
-            }
-
-            @Override
-            public Map<String, RepositoryStats> next() {
-                return statsOverTime.get(i++ % statsOverTime.size());
-            }
-        };
+        Settings settings = Settings.builder()
+            .put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
 
         TestExporter testExporter = new TestExporter();
-        Settings settings = Settings.builder().put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1)).build();
-        RepositoriesStatsCollector repositoriesStatsCollector =
-            new RepositoriesStatsCollector(settings, clusterService, iterator::next, threadPool, testExporter);
-
-        repositoriesStatsCollector.start();
-
-        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(1010)));
-        assertThat(testExporter.callCount(), is(1));
-        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(1010)));
-        assertThat(testExporter.callCount(), is(2));
-        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(1010)));
-        assertThat(testExporter.callCount(), is(3));
-
-        repositoriesStatsCollector.stop();
-
-        assertThat(testExporter, isNotCalled(TimeValue.timeValueMillis(1010)));
-
-        assertThat(testExporter.getCall(0), equalTo(statsOverTime.get(0)));
-        assertThat(testExporter.getCall(1), equalTo(statsOverTime.get(1)));
-        assertThat(testExporter.getCall(2), equalTo(statsOverTime.get(0)));
-    }
-
-    public void testStatsAreNotCollectedAfterDisablingTheCollector() {
-        TestExporter testExporter = new TestExporter();
-        Settings settings = Settings.builder().put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1)).build();
-        Map<String, RepositoryStats> repoStats = Map.of("repo1", RepositoryStats.EMPTY_STATS);
-
         RepositoriesStatsCollector repositoriesStatsCollector =
             new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
 
         repositoriesStatsCollector.start();
-        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(1010)));
+
+        assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
         assertThat(testExporter.callCount(), is(1));
-        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(1010)));
+
+        assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
         assertThat(testExporter.callCount(), is(2));
+
+        assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
+        assertThat(testExporter.callCount(), is(3));
+
+        repositoriesStatsCollector.stop();
+
+        assertThat(testExporter, isNotCalled(TimeValue.timeValueSeconds(1)));
+
+        assertThat(testExporter.getCall(0), equalTo(repoStats));
+        assertThat(testExporter.getCall(1), equalTo(repoStats));
+        assertThat(testExporter.getCall(2), equalTo(repoStats));
+    }
+
+    public void testStatsAreNotCollectedAfterDisablingTheCollector() {
+        Settings settings = Settings.builder()
+            .put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+
+        TestExporter testExporter = new TestExporter();
+        RepositoriesStatsCollector repositoriesStatsCollector =
+            new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
+
+        repositoriesStatsCollector.start();
+
+        assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
+        assertThat(testExporter.callCount(), is(1));
+        assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
+        assertThat(testExporter.callCount(), is(2));
+
         repositoriesStatsCollector.setEnabled(false);
 
-        assertThat(testExporter, isNotCalled(TimeValue.timeValueMillis(1010)));
+        assertThat(testExporter, isNotCalled(TimeValue.timeValueSeconds(1)));
 
         repositoriesStatsCollector.stop();
         assertThat(testExporter.getCall(0), equalTo(repoStats));
@@ -129,20 +123,21 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
     }
 
     public void testIntervalUpdate() {
-        TestExporter testExporter = new TestExporter();
+        Settings settings = Settings.builder()
+                                    .put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1))
+                                    .build();
 
-        Settings settings = Settings.builder().put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1)).build();
-        Map<String, RepositoryStats> repoStats = Map.of("repo1", RepositoryStats.EMPTY_STATS);
+        TestExporter testExporter = new TestExporter();
         RepositoriesStatsCollector repositoriesStatsCollector =
             new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
 
         repositoriesStatsCollector.start();
 
-        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(1010)));
+        assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
 
         repositoriesStatsCollector.setInterval(TimeValue.timeValueMillis(500));
 
-        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(550)));
+        assertThat(testExporter, isCalled(TimeValue.timeValueMillis(500)));
 
         repositoriesStatsCollector.stop();
 
@@ -153,6 +148,31 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
         assertThat(testExporter.getCall(1), equalTo(repoStats));
     }
 
+    public void testStatsAreNotCollectedWhenDisabled() {
+        Settings settings = Settings.builder()
+            .put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1))
+            .put(RepositoriesStatsCollector.ENABLED.getKey(), false)
+            .build();
+
+        TestExporter testExporter = new TestExporter();
+        RepositoriesStatsCollector repositoriesStatsCollector =
+            new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
+
+        repositoriesStatsCollector.start();
+
+        assertThat(testExporter, isNotCalled(TimeValue.timeValueSeconds(2)));
+
+        repositoriesStatsCollector.stop();
+
+        assertThat(testExporter, isNotCalled(TimeValue.timeValueSeconds(1)));
+
+        assertThat(testExporter.callCount(), is(0));
+    }
+
+    Matcher<TestExporter> isNotCalled(TimeValue timeout) {
+        return not(isCalled(timeout));
+    }
+
     Matcher<TestExporter> isCalled(TimeValue timeout) {
         return new BaseMatcher<>() {
             @Override
@@ -161,7 +181,7 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
                     TestExporter testExporter = (TestExporter) actual;
                     return testExporter.waitUntilCalled(timeout);
                 } catch (Exception e) {
-                    throw new AssertionError("describeTo()");
+                    throw new AssertionError("Unable to wait for test exporter to be called", e);
                 }
             }
 
@@ -172,16 +192,12 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
         };
     }
 
-    Matcher<TestExporter> isNotCalled(TimeValue timeout) {
-        return not(isCalled(timeout));
-    }
-
-    private static class TestExporter implements RepositoryStatsExporter {
+    private static class TestExporter implements Consumer<Map<String, RepositoryStats>> {
         private final Semaphore semaphore = new Semaphore(0);
         private final List<Map<String, RepositoryStats>> exporterCalls = new ArrayList<>();
 
         @Override
-        public void export(Map<String, RepositoryStats> repositoriesStats) {
+        public void accept(Map<String, RepositoryStats> repositoriesStats) {
             exporterCalls.add(repositoriesStats);
             semaphore.release();
         }
@@ -190,12 +206,15 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
             return exporterCalls.size();
         }
 
-        Map<String, RepositoryStats> getCall(int i) {
-            return exporterCalls.get(i);
+        Map<String, RepositoryStats> getCall(int nth) {
+            return exporterCalls.get(nth);
         }
 
-        boolean waitUntilCalled(TimeValue timeValue) throws Exception {
-            return semaphore.tryAcquire(timeValue.millis(), TimeUnit.MILLISECONDS);
+        boolean waitUntilCalled(TimeValue timeout) throws Exception {
+            long timeoutInMillis = timeout.millis();
+            // Add room for scheduling time
+            timeoutInMillis += timeout.millis() / 20;
+            return semaphore.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS);
         }
     }
 }

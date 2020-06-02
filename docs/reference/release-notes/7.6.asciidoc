@@ -168,9 +168,9 @@ that are incompatible with java.time patterns will cause parsing errors, incorre
 https://github.com/elastic/elasticsearch/pull/52555
 This is fixed in {es} 7.7 and later versions.
 
-Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}56171[#56171]
-
-This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak (issue: {issue}56171[#56171])
++
+This issue is fixed in {es} 6.8.10 and 7.7.1.
 [[breaking-7.6.0]]
 [float]
 === Breaking changes

@@ -112,7 +112,8 @@ This is useful for taking snapshots before making a configuration change,
 upgrading, or to test a new policy. 
 Manually executing a policy does not affect its configured schedule. 
 
-For example, the following request manually triggers the `nightly-snapshots` policy:
+Instead of waiting for the policy to run, tell {slm-init} to take a snapshot
+using the configuration right now instead of waiting for 1:30 a.m..
 
 [source,console]
 --------------------------------------------------
@@ -159,19 +160,25 @@ repository is lost while copying files.
         "max_count": 50
       }
     },
-    "last_success": { 
-      "snapshot_name": "nightly-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a", <1>
-      "time_string": "2019-04-24T16:43:49.316Z", <2>
+    "last_success": {                                                    <1>
+      "snapshot_name": "nightly-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a", <2>
+      "time_string": "2019-04-24T16:43:49.316Z",
       "time": 1556124229316
     } ,
-    "next_execution": "2019-04-24T01:30:00.000Z", <3>
-    "next_execution_millis": 1556048160000 
+    "last_failure": {                                                    <3>
+      "snapshot_name": "nightly-snap-2019.04.02-lohisb5ith2n8hxacaq3mw",
+      "time_string": "2019-04-02T01:30:00.000Z",
+      "time": 1556042030000,
+      "details": "{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [important]\",\"resource.type\":\"index_or_alias\",\"resource.id\":\"important\",\"index_uuid\":\"_na_\",\"index\":\"important\",\"stack_trace\":\"[important] IndexNotFoundException[no such index [important]]\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.indexNotFoundException(IndexNameExpressionResolver.java:762)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.innerResolve(IndexNameExpressionResolver.java:714)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver$WildcardExpressionResolver.resolve(IndexNameExpressionResolver.java:670)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndices(IndexNameExpressionResolver.java:163)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:142)\\n\\tat org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.concreteIndexNames(IndexNameExpressionResolver.java:102)\\n\\tat org.elasticsearch.snapshots.SnapshotsService$1.execute(SnapshotsService.java:280)\\n\\tat org.elasticsearch.cluster.ClusterStateUpdateTask.execute(ClusterStateUpdateTask.java:47)\\n\\tat org.elasticsearch.cluster.service.MasterService.executeTasks(MasterService.java:687)\\n\\tat org.elasticsearch.cluster.service.MasterService.calculateTaskOutputs(MasterService.java:310)\\n\\tat org.elasticsearch.cluster.service.MasterService.runTasks(MasterService.java:210)\\n\\tat org.elasticsearch.cluster.service.MasterService$Batcher.run(MasterService.java:142)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher.runIfNotProcessed(TaskBatcher.java:150)\\n\\tat org.elasticsearch.cluster.service.TaskBatcher$BatchedTask.run(TaskBatcher.java:188)\\n\\tat org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingRunnable.run(ThreadContext.java:688)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean(PrioritizedEsThreadPoolExecutor.java:252)\\n\\tat org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run(PrioritizedEsThreadPoolExecutor.java:215)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)\\n\\tat java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)\\n\\tat java.base/java.lang.Thread.run(Thread.java:834)\\n\"}"
+    } ,
+    "next_execution": "2019-04-24T01:30:00.000Z",                        <4>
+    "next_execution_millis": 1556048160000
   }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:the presence of last_failure and last_success is asynchronous and will be present for users, but is untestable]
 
-<1> The name of the last snapshot that was succesfully initiated by the policy
-<2> When the snapshot was initiated
-<3> When the policy will initiate the next snapshot
-
+<1> Information about the last time the policy successfully initated a snapshot
+<2> The name of the snapshot that was successfully initiated
+<3> Unformation about the last time the policy failed to initiate a snapshot
+<4> The next time the policy will execute

@@ -37,52 +37,52 @@ scalability of count.
 [[search-count-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 
 [[search-count-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyzer]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `min_score`::
 (Optional, float)
   Sets the minimum `_score` value that documents must have to be included in the 
   result.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
 
 [[search-count-request-body]]
 ==== {api-request-body-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=query]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 
 
 [[search-count-api-example]]

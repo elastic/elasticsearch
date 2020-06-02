@@ -4,14 +4,14 @@
 <titleabbrev>Index template</titleabbrev>
 ++++
 
-This documentation is about V2 (version 2) index templates. For V1 templates please see the
-<<indices-templates-v1,V1 template documentation>>.
+This documentation is about composable templates. For legacy templates please see the
+<<indices-templates-v1,legacy template documentation>>.
 
 [NOTE]
 ====
-In {es} 7.8 V2 templates were introduced. When a V2 index template matches a given index it always
-takes precedence over a V1 template. If no V2 index template matches, a V1 template may still match
-and be applied.
+In {es} 7.8 composable templates were introduced. When a composable template matches a given index
+it always takes precedence over a legacy template. If no composable template matches, a legacy
+template may still match and be applied.
 ====
 
 An index template is a way to tell {es} how to configure an index when it is created. Templates are
@@ -128,7 +128,7 @@ GET /_index_template/template_1
 [[get-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-template]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-template]
 +
 To return all index templates, omit this parameter or use a value of `*`.
 
@@ -136,11 +136,11 @@ To return all index templates, omit this parameter or use a value of `*`.
 [[get-template-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[get-template-api-example]]
@@ -179,7 +179,7 @@ Name of the index template to create.
 (Optional, boolean)
 If `true`, this request cannot replace or update existing index templates. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[put-index-template-api-request-body]]
@@ -190,11 +190,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 Array of wildcard expressions
 used to match the names of indices during creation.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 `template`::
 (Optional, object)

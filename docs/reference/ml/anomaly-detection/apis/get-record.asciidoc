@@ -43,21 +43,21 @@ of detectors.
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-get-record-request-body]]
 ==== {api-request-body-title}
 
 `desc`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=desc-results]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=desc-results]
 
 `end`::
 (Optional, string) Returns records with timestamps earlier than this time.
 
 `exclude_interim`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `page`.`from`::
 (Optional, integer) Skips the specified number of records.
@@ -86,11 +86,11 @@ The API returns an array of record objects, which have the following properties:
 
 `bucket_span`::
 (number)
-include::{docdir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=bucket-span-results]
 
 `by_field_name`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=by-field-name]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=by-field-name]
 
 `by_field_value`::
 (string) The value of the by field.
@@ -110,7 +110,7 @@ scores are not applicable to causes.
 
 `detector_index`::
 (number)
-include::{docdir}/ml/ml-shared.asciidoc[tag=detector-index]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-index]
 
 `field_name`::
 (string) Certain functions require a field to operate on, for example, `sum()`.
@@ -145,22 +145,22 @@ at the time the bucket was processed.
 
 `is_interim`::
 (boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=is-interim]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `job_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `over_field_name`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=over-field-name]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
 
 `over_field_value`::
 (string) The value of the over field.
 
 `partition_field_name`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=partition-field-name]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 
 `partition_field_value`::
 (string) The value of the partition field.
@@ -187,7 +187,7 @@ be updated by a re-normalization process as new data is analyzed.
 
 `timestamp`::
 (date)
-include::{docdir}/ml/ml-shared.asciidoc[tag=timestamp-results]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timestamp-results]
 
 `typical`::
 (array) The typical value for the bucket, according to analytical modeling.

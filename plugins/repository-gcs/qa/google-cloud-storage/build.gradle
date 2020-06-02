@@ -128,7 +128,7 @@ integTest.mustRunAfter(thirdPartyTest)
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
  */
 task largeBlobIntegTest(type: RestIntegTestTask) {
-  mustRunAfter(thirdPartyTest)
+  mustRunAfter(thirdPartyTest, integTest)
 }
 
 check.dependsOn integTest
@@ -159,6 +159,7 @@ final Closure testClustersConfiguration = {
 
   if (useFixture) {
     tasks.integTest.dependsOn createServiceAccountFile
+    tasks.largeBlobIntegTest.dependsOn createServiceAccountFile
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture')}" }, IGNORE_VALUE
     setting 'gcs.client.integration_test.token_uri', { "${-> fixtureAddress('gcs-fixture')}/o/oauth2/token" }, IGNORE_VALUE

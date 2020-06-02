@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.gradle.internal.jvm.Jvm
 
 import java.nio.charset.StandardCharsets
 
@@ -31,7 +32,7 @@ subprojects {
         dependsOn project.configurations.featureAwarePlugin
         outputs.file(successMarker)
 
-        executable = "${BuildParams.compilerJavaHome}/bin/java"
+        executable = "${Jvm.current().javaHome}/bin/java"
 
         // default to main class files if such a source set exists
         final List files = []
@@ -156,7 +157,4 @@ testClusters.integTest {
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 }
 
-validateRestSpec {
-  ignore 'ml.validate.json'
-  ignore 'ml.validate_detector.json'
-}
+

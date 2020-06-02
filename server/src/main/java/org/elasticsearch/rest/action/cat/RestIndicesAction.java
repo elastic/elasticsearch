@@ -216,21 +216,27 @@ public class RestIndicesAction extends AbstractCatAction {
         return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
             @Override
             public void onResponse(final Collection<ActionResponse> responses) {
-                GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
-                Map<String, Settings> indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
-                    .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
+                try {
+                    GetSettingsResponse settingsResponse = extractResponse(responses, GetSettingsResponse.class);
+                    Map<String, Settings> indicesSettings = StreamSupport.stream(settingsResponse.getIndexToSettings().spliterator(), false)
+                        .collect(Collectors.toMap(cursor -> cursor.key, cursor -> cursor.value));
 
-                ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
-                Map<String, IndexMetadata> indicesStates = StreamSupport.stream(stateResponse.getState().getMetadata().spliterator(), false)
-                    .collect(Collectors.toMap(indexMetadata -> indexMetadata.getIndex().getName(), Function.identity()));
+                    ClusterStateResponse stateResponse = extractResponse(responses, ClusterStateResponse.class);
+                    Map<String, IndexMetadata> indicesStates =
+                        StreamSupport.stream(stateResponse.getState().getMetadata().spliterator(), false)
+                            .collect(Collectors.toMap(indexMetadata -> indexMetadata.getIndex().getName(), Function.identity()));
 
-                ClusterHealthResponse healthResponse = extractResponse(responses, ClusterHealthResponse.class);
-                Map<String, ClusterIndexHealth> indicesHealths = healthResponse.getIndices();
+                    ClusterHealthResponse healthResponse = extractResponse(responses, ClusterHealthResponse.class);
+                    Map<String, ClusterIndexHealth> indicesHealths = healthResponse.getIndices();
 
-                IndicesStatsResponse statsResponse = extractResponse(responses, IndicesStatsResponse.class);
-                Map<String, IndexStats> indicesStats = statsResponse.getIndices();
+                    IndicesStatsResponse statsResponse = extractResponse(responses, IndicesStatsResponse.class);
+                    Map<String, IndexStats> indicesStats = statsResponse.getIndices();
 
-                listener.onResponse(buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates));
+                    Table responseTable = buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates);
+                    listener.onResponse(responseTable);
+                } catch (Exception e) {
+                    onFailure(e);
+                }
             }
 
             @Override

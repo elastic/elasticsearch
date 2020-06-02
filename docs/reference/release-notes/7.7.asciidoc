@@ -1,13 +1,78 @@
 [[release-notes-7.7.1]]
 == {es} version 7.7.1
 
-coming::[7.7.1]
-
 Also see <<breaking-changes-7.7,Breaking changes in 7.7>>.
 
-[discrete]
+[[enhancement-7.7.1]]
+[float]
+=== Enhancements
+
+Authorization::
+* Remove synthetic role names of API keys as they confuse users {pull}56005[#56005]
+
+Features/ILM+SLM::
+* ILM add cluster update timeout on step retry {pull}54878[#54878]
+
+SQL::
+* SQL: change error message for comparison against fields in filtering {pull}57126[#57126] (issue: {issue}57005[#57005])
+
 [[bug-7.7.1]]
+[float]
 === Bug fixes
+
+Authentication::
+* Expose idp.metadata.http.refresh for SAML realm {pull}56354[#56354]
+* Fix concurrent refresh of tokens {pull}55114[#55114] (issue: {issue}54289[#54289])
+
+CCR::
+* Retry follow task when remote connection queue full {pull}55314[#55314]
+
+Cluster Coordination::
+* fix the problem of recovering twice when perform a full cluster restart(#55564) {pull}55780[#55780] (issue: {issue}55564[#55564])
+
+Discovery-Plugins::
+* Hide c.a.a.p.i.BasicProfileConfigFileLoader noise {pull}56346[#56346] (issues: {issue}20313[#20313], {issue}56333[#56333])
+
+Engine::
+* Ensure no circular reference in translog tragic exception {pull}55959[#55959] (issue: {issue}55893[#55893])
+* Update translog policy before the next safe commit {pull}54839[#54839] (issue: {issue}52223[#52223])
+
+Features/CAT APIs::
+* Handle exceptions when building _cat/indices response {pull}56993[#56993] (issue: {issue}56816[#56816])
+
+Features/Features::
+* 7.x only REST specification fixes {pull}56736[#56736] (issue: {issue}55984[#55984])
+
+Features/ILM+SLM::
+* Fix Missing IgnoredUnavailable Flag in 7.x SLM Retention Task {pull}56616[#56616]
+
+Features/Indices APIs::
+* Allow removing replicas setting on closed indices {pull}56680[#56680] (issues: {issue}56656[#56656], {issue}56675[#56675])
+* Allow removing index.number_of_replicas setting {pull}56656[#56656] (issue: {issue}56501[#56501])
+
+Features/Ingest::
+* Fix enrich coordinator to reject documents instead of deadlocking {pull}56247[#56247] (issue: {issue}55634[#55634])
+* EnrichProcessorFactory should not throw NPE if missing metadata {pull}55977[#55977]
+* Prevent stack overflow for numerous grok patterns. {pull}55899[#55899]
+* Fix empty_value handling in CsvProcessor {pull}55649[#55649] (issue: {issue}55643[#55643])
+
+Features/Java High Level REST Client::
+* Honor IndicesOptions in HLRC putMapping request {pull}57118[#57118] (issue: {issue}57045[#57045])
+
+Features/Monitoring::
+* Fix incorrect log warning when exporting monitoring via HTTP without authentication {pull}56958[#56958] (issue: {issue}56810[#56810])
+* Ensure that the monitoring export exceptions are logged. {pull}56237[#56237]
+
+Features/Watcher::
+* Ensure that .watcher-history-11* template is in installed prior to use {pull}56734[#56734] (issue: {issue}56732[#56732])
+* Fix smtp.ssl.trust setting for watcher email {pull}56090[#56090] (issues: {issue}45272[#45272], {issue}52153[#52153])
+
+Infra/Core::
+* Prevent unexpected native controller output hanging the process {pull}56491[#56491] (issue: {issue}56366[#56366])
+* Add method to check if object is generically writeable in stream {pull}54936[#54936] (issue: {issue}54708[#54708])
+
+Infra/Logging::
+* SlowLoggers using single logger {pull}56708[#56708] (issue: {issue}56171[#56171])
 
 Machine Learning::
 * Fix background persistence of categorizer state. {ml-pull}1137[#1137] (issue: {ml-issue}1136[#1136])
@@ -16,6 +81,61 @@ Machine Learning::
 * Fix possible root cause for "Bad variance scale nan" log errors. {ml-pull}1225[#1225]
 * Change data frame analytics instrumentation timestamp resolution to milliseconds. {ml-pull}1237[#1237]
 * Fix "autodetect process stopped unexpectedly: Fatal error: 'terminate called after throwing an instance of 'std::bad_function_call'". {ml-pull}1246[#1246] (issue: {ml-issue}1245[#1245])
+* Fix monitoring if orphaned anomaly detector persistent tasks exist {pull}57235[#57235] (issue: {issue}51888[#51888])
+* Fix delete_expired_data/nightly maintenance when many model snapshots need deleting {pull}57041[#57041] (issue: {issue}47103[#47103])
+* Ensure class is represented when its cardinality is low {pull}56783[#56783]
+* Use non-zero timeout when force stopping DF analytics {pull}56423[#56423]
+* Reduce InferenceProcessor.Factory log spam by not parsing pipelines {pull}56020[#56020] (issue: {issue}55985[#55985])
+* Audit when unassigned datafeeds are stopped {pull}55656[#55656] (issue: {issue}55521[#55521])
+
+Network::
+* Fix use of password protected PKCS#8 keys for SSL {pull}55457[#55457] (issue: {issue}8[#8])
+* Add support for more named curves {pull}55179[#55179] (issue: {issue}55031[#55031])
+
+Recovery::
+* Fix trimUnsafeCommits for indices created before 6.2 {pull}57187[#57187] (issue: {issue}57091[#57091])
+
+SQL::
+* SQL: Fix unecessary evaluation for CASE/IIF {pull}57159[#57159] (issue: {issue}49672[#49672])
+* SQL: JDBC: fix access to the Manifest for non-entry JAR URLs {pull}56797[#56797] (issue: {issue}56759[#56759])
+* SQL: Fix JDBC url pattern in docs and error message {pull}56612[#56612] (issue: {issue}56476[#56476])
+* SQL: Fix serialization of JDBC prep statement date/time params {pull}56492[#56492] (issue: {issue}56084[#56084])
+* SQL: Fix issue with date range queries and timezone {pull}56115[#56115] (issue: {issue}56049[#56049])
+* SQL: SubSelect unresolved bugfix {pull}55956[#55956]
+
+Search::
+* Don't run sort optimization on size=0 {pull}57044[#57044] (issue: {issue}56923[#56923])
+* Fix `bool` query behaviour on null value {pull}56817[#56817] (issue: {issue}56812[#56812])
+* Fix validate query listener invocation bug {pull}56157[#56157]
+* Async Search: correct shards counting {pull}55758[#55758]
+* For constant_keyword, make sure exists query handles missing values. {pull}55757[#55757] (issue: {issue}53545[#53545])
+* Fix (de)serialization of async search failures {pull}55688[#55688]
+* Fix expiration time in async search response {pull}55435[#55435]
+* Return true for can_match on idle search shards {pull}55428[#55428] (issues: {issue}27500[#27500], {issue}50043[#50043])
+
+Snapshot/Restore::
+* Fix NPE in Partial Snapshot Without Global State {pull}55776[#55776] (issue: {issue}50234[#50234])
+* Fix Path Style Access Setting Priority {pull}55439[#55439] (issue: {issue}55407[#55407])
+
+[[regression-7.7.1]]
+[float]
+=== Regressions
+
+Infra/Scripting::
+* Change access pattern for GeoXXXValueSources {pull}54648[#54648]
+
+[[upgrade-7.7.1]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade to Jackson 2.10.4 {pull}56188[#56188] (issue: {issue}56071[#56071])
+
+Infra/Packaging::
+* Upgrade bundled jdk to 14.0.1 {pull}57233[#57233]
+
+SQL::
+* SQL: update the JLine dependency to 3.14.1 {pull}57111[#57111] (issue: {issue}57076[#57076])
 
 [[release-notes-7.7.0]]
 == {es} version 7.7.0

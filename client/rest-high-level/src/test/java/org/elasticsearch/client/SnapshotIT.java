@@ -290,7 +290,6 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String testRepository = "test";
         String testSnapshot = "snapshot_1";
         String testIndex = "test_index";
-        String restoredIndex = testIndex + "_restored";
 
         AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
@@ -316,15 +315,15 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
         request.waitForCompletion(true);
+        request.indices(randomFrom(testIndex, "test_*"));
         request.renamePattern(testIndex);
-        request.renameReplacement(restoredIndex);
 
         RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
             highLevelClient().snapshot()::restoreAsync);
 
         RestoreInfo restoreInfo = response.getRestoreInfo();
         assertThat(restoreInfo.name(), equalTo(testSnapshot));
-        assertThat(restoreInfo.indices(), equalTo(Collections.singletonList(restoredIndex)));
+        assertThat(restoreInfo.indices(), equalTo(Collections.singletonList(testIndex)));
         assertThat(restoreInfo.successfulShards(), greaterThan(0));
         assertThat(restoreInfo.failedShards(), equalTo(0));
     }

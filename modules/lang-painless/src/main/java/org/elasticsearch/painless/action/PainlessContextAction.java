@@ -57,15 +57,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Internal REST API for querying context information about Painless whitelists.
  * Commands include the following:
  * <ul>
- *     <li> GET /_scripts/painless/_context -- retrieves a list of contexts </li>
- *     <li> GET /_scripts/painless/_context?context=%name% --
+ *     <li> GET /_script/painless/_context -- retrieves a list of contexts </li>
+ *     <li> GET /_script/painless/_context?context=%name% --
  *     retrieves all available information about the API for this specific context</li>
  * </ul>
  */
 public class PainlessContextAction extends ActionType<PainlessContextAction.Response> {
 
     public static final PainlessContextAction INSTANCE = new PainlessContextAction();
-    private static final String NAME = "cluster:admin/scripts/painless/context";
+    private static final String NAME = "cluster:admin/script/painless/context";
 
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 

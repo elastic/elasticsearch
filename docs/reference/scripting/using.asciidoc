@@ -159,11 +159,11 @@ POST _script/calculate-score
 
 You may also specify a context as part of the url path to compile a
 stored script against that specific context in the form of
-`/_scripts/{id}/{context}`:
+`/_script/{id}/{context}`:
 
 [source,console]
 -----------------------------------
-POST _scripts/calculate-score/score
+POST _script/calculate-score/score
 {
   "script": {
     "lang": "painless",

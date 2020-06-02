@@ -6,7 +6,7 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-experimental::[]
+dev::[]
 
 [IMPORTANT]
 ====

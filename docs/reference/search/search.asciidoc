@@ -132,6 +132,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 You can use the `q` parameter to run a query parameter search. Query parameter
 searches do not support the full {es} <<query-dsl,Query DSL>> but are handy for
 testing.
++
+IMPORTANT: The `q` parameter overrides the <<request-body-search-query,`query`>>
+parameter in the request body. If both parameters are specified, documents
+matching the `query` request body parameter are not returned.	
 
 
 `request_cache`::
@@ -213,7 +217,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
   returned.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
-+
 Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
@@ -299,7 +302,6 @@ value cannot be zero (`0`).
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
-+
 Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::

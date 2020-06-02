@@ -1128,6 +1128,18 @@ Georgi         |Facello        |10001
 // end::limitBasic
 ;
 
+topBasic
+// tag::topBasic
+SELECT TOP 2 first_name, last_name, emp_no FROM emp;
+
+  first_name   |   last_name   |    emp_no
+---------------+---------------+---------------
+Georgi         |Facello        |10001
+Bezalel        |Simmel         |10002
+
+// end::topBasic
+;
+
 ///////////////////////////////
 //
 // Aggregations

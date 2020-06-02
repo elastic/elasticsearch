@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalNotification;
@@ -96,6 +98,7 @@ public class ModelLoadingService implements ClusterStateListener {
     private final ByteSizeValue maxCacheSize;
     private final NamedXContentRegistry namedXContentRegistry;
     private final String localNode;
+    private final CircuitBreaker trainedModelCircuitBreaker;
 
     public ModelLoadingService(TrainedModelProvider trainedModelProvider,
                                InferenceAuditor auditor,
@@ -104,7 +107,8 @@ public class ModelLoadingService implements ClusterStateListener {
                                NamedXContentRegistry namedXContentRegistry,
                                TrainedModelStatsService modelStatsService,
                                Settings settings,
-                               String localNode) {
+                               String localNode,
+                               CircuitBreaker trainedModelCircuitBreaker) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         this.maxCacheSize = INFERENCE_MODEL_CACHE_SIZE.get(settings);
@@ -121,6 +125,7 @@ public class ModelLoadingService implements ClusterStateListener {
             .build();
         clusterService.addListener(this);
         this.localNode = localNode;
+        this.trainedModelCircuitBreaker = trainedModelCircuitBreaker;
     }
 
     /**
@@ -232,6 +237,7 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
             modelStatsService);
+        ElasticsearchException exception = null;
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
@@ -239,11 +245,21 @@ public class ModelLoadingService implements ClusterStateListener {
             if (listeners == null) {
                 return;
             }
-            localModelCache.put(modelId, loadedModel);
-            shouldNotAudit.remove(modelId);
+            try {
+                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(loadedModel.ramBytesUsed(), modelId);
+                localModelCache.put(modelId, loadedModel);
+                shouldNotAudit.remove(modelId);
+            } catch (CircuitBreakingException cbe) {
+                logger.error(new ParameterizedMessage("[{}] tripped circuit breaker", modelId), cbe);
+                exception = cbe;
+            }
         } // synchronized (loadingListeners)
         for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
-            listener.onResponse(loadedModel);
+            if (exception != null) {
+                listener.onFailure(exception);
+            } else {
+                listener.onResponse(loadedModel);
+            }
         }
     }
 
@@ -263,6 +279,7 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void cacheEvictionListener(RemovalNotification<String, LocalModel> notification) {
+        trainedModelCircuitBreaker.addWithoutBreaking(-notification.getValue().ramBytesUsed());
         if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
             MessageSupplier msg = () -> new ParameterizedMessage(
                 "model cache entry evicted." +

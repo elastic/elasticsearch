@@ -172,6 +172,11 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
+    public InternalAggregation buildEmptyAggregation() {
+        return buildEmptyTermsAggregation();
+    }
+
+    @Override
     public void doClose() {
         Releasables.close(bucketOrds);
     }

@@ -197,8 +197,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
   (Optional, string) Specifies which field to use for suggestions.
 
 `suggest_text`::
-(Optional, string) The source text for which the suggestions should be
-returned.
+  (Optional, string) The source text for which the suggestions should be
+  returned.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

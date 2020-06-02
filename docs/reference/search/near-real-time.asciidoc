@@ -1,0 +1,21 @@
+[[near-real-time]]
+== Near real-time search
+The overview of <<documents-indices,documents and indices>> indicates that when a document is stored in {es}, it is indexed and fully searchable in _near real-time_--within 1 second. What defines near real-time search?
+
+Lucene, the Java libraries on which {es} is based, introduced the concept of per-segment search. A _segment_ is similar to an inverted index, but the word _index_ in Lucene means "a collection of segments plus a commit point". After a commit, a new segment is added to the commit point and the buffer is cleared.
+
+Lucene allows new segments to be written and opened, making the documents they contain visible to search ​without performing a full commit. This is a much lighter process than a commit to disk, and can be done frequently without degrading performance.
+
+In {es}, this lightweight process of writing and opening a new segment is called a _refresh_. By default, every shard is refreshed automatically once per second. This is why we say that {es} has _near_ real-time search: document changes are not visible to search immediately, but will become visible within 1 second.
+
+[[near-real-time-configure-refresh]]
+[discrete]
+=== Configuring the refresh interval
+This behavior can be confusing. For example, if you index a document and immediately search for it, you might not find it. To alter that behavior, you can set <<docs-refresh,?refresh>> to control when changes made by the <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
+<<docs-bulk,Bulk>> APIs are visible to search. However, setting `refresh=true` for these requests creates less efficient indexes constructs (tiny segments) that must later be merged into more efficient index constructs (larger segments).
+
+include::{es-repo-dir}/docs/refresh.asciidoc[tag=refresh-default]
+
+See <<docs-refresh,?refresh>> for more information about the differences between these options.
+
+NOTE: You can also use the <<indices-refresh,Refresh API>> to refresh one or more indices. However, because the `index.refresh.interval` defaults to `1s`, modifying the refresh interval is typically unnecessary.

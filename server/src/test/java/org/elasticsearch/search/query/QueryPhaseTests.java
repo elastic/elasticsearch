@@ -704,7 +704,17 @@ public class QueryPhaseTests extends IndexShardTestCase {
         QueryPhase.executeInternal(searchContext);
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
 
-        // 5. Test that sort optimization is NOT run with size 0
+        // 5. Test that sort optimization is run when from > 0 and size = 0
+        {
+            sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+            searchContext.sort(sortAndFormats);
+            searchContext.from(5);
+            searchContext.setSize(0);
+            QueryPhase.executeInternal(searchContext);
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+        }
+
+        // 6. Test that sort optimization is NOT run with from = 0 and size= 0
         {
             sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
             searchContext = spy(new TestSearchContext(null, indexShard, newContextSearcher(reader)));

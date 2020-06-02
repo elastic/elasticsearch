@@ -88,11 +88,11 @@ public class ShardLimitValidator {
      * currently closed and will be opened, ignores indices which are already open.
      *
      * @param currentState The current cluster state.
-     * @param indices The indices which are to be opened.
+     * @param indicesToOpen The indices which are to be opened.
      * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
      */
-    public void validateShardLimit(ClusterState currentState, Index[] indices) {
-        int shardsToOpen = Arrays.stream(indices)
+    public void validateShardLimit(ClusterState currentState, Index[] indicesToOpen) {
+        int shardsToOpen = Arrays.stream(indicesToOpen)
             .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
             .mapToInt(index -> getTotalShardCount(currentState, index))
             .sum();
@@ -111,8 +111,8 @@ public class ShardLimitValidator {
     }
 
     /**
-     * Checks to see if an operation can be performed without taking the cluster over the cluster-wide shard limit. Adds a deprecation
-     * warning or returns an error message as appropriate
+     * Checks to see if an operation can be performed without taking the cluster over the cluster-wide shard limit.
+     * Returns an error message if appropriate, or an empty {@link Optional} otherwise.
      *
      * @param newShards         The number of shards to be added by this operation
      * @param state             The current cluster state

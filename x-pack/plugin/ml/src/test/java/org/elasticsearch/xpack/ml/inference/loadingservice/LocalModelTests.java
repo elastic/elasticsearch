@@ -58,13 +58,13 @@ public class LocalModelTests extends ESTestCase {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         String modelId = "classification_model";
-        List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassification(false))
             .build();
 
-        Model model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -73,7 +73,7 @@ public class LocalModelTests extends ESTestCase {
             modelStatsService);
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
-            put("field.bar", 0.5);
+            put("field", Collections.singletonMap("bar", 0.5));
             put("categorical", "dog");
         }};
 
@@ -122,6 +122,19 @@ public class LocalModelTests extends ESTestCase {
             new ClassificationConfigUpdate(-1, null, null, null, null));
         assertThat(classificationResult.getTopClasses(), hasSize(2));
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
+
+        // Test with optimized
+        model.optimizeForInference();
+        result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
+        assertThat(result.value(), equalTo(0.0));
+        assertThat(result.valueAsString(), equalTo("not_to_be"));
+
+        classificationResult = (ClassificationInferenceResults)getSingleValue(model,
+            fields,
+            new ClassificationConfigUpdate(1, null, null, null, null));
+        assertThat(classificationResult.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
+        assertThat(classificationResult.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
+        assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(2L));
     }
 
     @SuppressWarnings("unchecked")
@@ -190,7 +203,7 @@ public class LocalModelTests extends ESTestCase {
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegression())
             .build();
-        Model model = new LocalModel("regression_model",
+        LocalModel model = new LocalModel("regression_model",
             "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
@@ -205,6 +218,10 @@ public class LocalModelTests extends ESTestCase {
         }};
 
         SingleValueInferenceResults results = getSingleValue(model, fields, RegressionConfigUpdate.EMPTY_PARAMS);
+        assertThat(results.value(), equalTo(1.3));
+
+        model.optimizeForInference();
+        results = getSingleValue(model, fields, RegressionConfigUpdate.EMPTY_PARAMS);
         assertThat(results.value(), equalTo(1.3));
     }
 

@@ -149,6 +149,23 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
+    public InferenceResults infer(double[] embeddedVector, InferenceConfig config) {
+        throw new UnsupportedOperationException("[lang_ident] does not support nested inference");
+    }
+
+    @Override
+    public void optimizeForInference(boolean isTopLevelModel, Map<String, Integer> newFeatureIndexMapping) {
+        if (isTopLevelModel == false) {
+            throw new UnsupportedOperationException("[lang_ident] does not support nested inference");
+        }
+    }
+
+    @Override
+    public String[] getFeatureNames() {
+        return new String[] {embeddedVectorFeatureName};
+    }
+
+    @Override
     public TargetType targetType() {
         return TargetType.CLASSIFICATION;
     }

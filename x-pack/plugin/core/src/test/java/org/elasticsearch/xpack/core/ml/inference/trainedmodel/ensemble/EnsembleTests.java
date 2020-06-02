@@ -6,16 +6,20 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.OptimizableModelTestsUtils;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -37,6 +41,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
@@ -71,6 +76,10 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
     public static Ensemble createRandom(TargetType targetType) {
         int numberOfFeatures = randomIntBetween(1, 10);
         List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
+        return createRandom(targetType, featureNames);
+    }
+
+    public static Ensemble createRandom(TargetType targetType, List<String> featureNames) {
         int numberOfModels = randomIntBetween(1, 10);
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
             .limit(numberOfModels)
@@ -548,65 +557,23 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 0.00001));
     }
 
-    public void testInferNestedFields() {
-        List<String> featureNames = Arrays.asList("foo.baz", "bar.biz");
-        Tree tree1 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(0.5))
-            .addNode(TreeNode.builder(1).setLeafValue(0.3))
-            .addNode(TreeNode.builder(2)
-                .setThreshold(0.8)
-                .setSplitFeature(1)
-                .setLeftChild(3)
-                .setRightChild(4))
-            .addNode(TreeNode.builder(3).setLeafValue(0.1))
-            .addNode(TreeNode.builder(4).setLeafValue(0.2)).build();
-        Tree tree2 = Tree.builder()
-            .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(0.5))
-            .addNode(TreeNode.builder(1).setLeafValue(1.5))
-            .addNode(TreeNode.builder(2).setLeafValue(0.9))
-            .build();
-        Ensemble ensemble = Ensemble.builder()
-            .setTargetType(TargetType.REGRESSION)
-            .setFeatureNames(featureNames)
-            .setTrainedModels(Arrays.asList(tree1, tree2))
-            .setOutputAggregator(new WeightedSum(new double[]{0.5, 0.5}))
-            .build();
+    public void testPrepareForInferenceWhenTopLevel() {
+        OptimizableModelTestsUtils.testModelOptimization(EnsembleTests::createRandom, NUMBER_OF_TEST_RUNS);
+    }
 
-        Map<String, Object> featureMap = new HashMap<>() {{
-            put("foo", new HashMap<>(){{
-                put("baz", 0.4);
-            }});
-            put("bar", new HashMap<>(){{
-                put("biz", 0.0);
-            }});
-        }};
-        assertThat(0.9,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap()))
-                .value(),
-                0.00001));
+    public void testPrepareForInferenceWhenSubModel() {
+        OptimizableModelTestsUtils.testModelOptimizationsNotTopLevel(EnsembleTests::createRandom, NUMBER_OF_TEST_RUNS);
+    }
 
-        featureMap = new HashMap<>() {{
-            put("foo", new HashMap<>(){{
-                put("baz", 2.0);
-            }});
-            put("bar", new HashMap<>(){{
-                put("biz", 0.7);
-            }});
-        }};
-        assertThat(0.5,
-            closeTo(((SingleValueInferenceResults)ensemble.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap()))
-                .value(),
-                0.00001));
+    public void testSerializationWhenOptimized() {
+        Ensemble ensemble = createRandom();
+        ensemble.optimizeForInference(true, Collections.emptyMap());
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            IOException ex = expectThrows(IOException.class, () -> ensemble.writeTo(output));
+            assertThat(ex.getMessage(), containsString("model has been optimized for inference. Cannot be serialized."));
+        }
+        IOException ex = expectThrows(IOException.class, () -> XContentHelper.toXContent(ensemble, XContentType.JSON, false));
+        assertThat(ex.getMessage(), containsString("model has been optimized for inference. Cannot be serialized."));
     }
 
     public void testOperationsEstimations() {

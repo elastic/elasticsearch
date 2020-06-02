@@ -232,6 +232,7 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
             modelStatsService);
+        loadedModel.optimizeForInference();
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such

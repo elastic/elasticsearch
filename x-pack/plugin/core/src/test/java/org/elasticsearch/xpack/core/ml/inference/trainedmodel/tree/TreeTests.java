@@ -7,12 +7,16 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.OptimizableModelTestsUtils;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
@@ -184,61 +188,6 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                 0.00001));
     }
 
-    public void testInferNestedFields() {
-        // Build a tree with 2 nodes and 3 leaves using 2 features
-        // The leaves have unique values 0.1, 0.2, 0.3
-        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
-        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
-        builder.addLeaf(rootNode.getRightChild(), 0.3);
-        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
-        builder.addLeaf(leftChildNode.getLeftChild(), 0.1);
-        builder.addLeaf(leftChildNode.getRightChild(), 0.2);
-
-        List<String> featureNames = Arrays.asList("foo.baz", "bar.biz");
-        Tree tree = builder.setFeatureNames(featureNames).build();
-
-        // This feature vector should hit the right child of the root node
-        Map<String, Object> featureMap = new HashMap<>() {{
-            put("foo", new HashMap<>(){{
-                put("baz", 0.6);
-            }});
-            put("bar", new HashMap<>(){{
-                put("biz", 0.0);
-            }});
-        }};
-        assertThat(0.3,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
-
-        // This should hit the left child of the left child of the root node
-        // i.e. it takes the path left, left
-        featureMap = new HashMap<>() {{
-            put("foo", new HashMap<>(){{
-                put("baz", 0.3);
-            }});
-            put("bar", new HashMap<>(){{
-                put("biz", 0.7);
-            }});
-        }};
-        assertThat(0.1,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
-
-        // This should hit the right child of the left child of the root node
-        // i.e. it takes the path left, right
-        featureMap = new HashMap<>() {{
-            put("foo", new HashMap<>(){{
-                put("baz", 0.3);
-            }});
-            put("bar", new HashMap<>(){{
-                put("biz", 0.9);
-            }});
-        }};
-        assertThat(0.2,
-            closeTo(((SingleValueInferenceResults)tree.infer(featureMap, RegressionConfig.EMPTY_PARAMS, Collections.emptyMap())).value(),
-                0.00001));
-    }
-
     public void testTreeClassificationProbability() {
         // Build a tree with 2 nodes and 3 leaves using 2 features
         // The leaves have unique values 0.1, 0.2, 0.3
@@ -290,6 +239,29 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             assertThat(probabilities.get(i).getProbability(), closeTo(expectedProbs.get(i), eps));
             assertThat(probabilities.get(i).getClassification(), equalTo(expectedFields.get(i)));
         }
+    }
+
+    public void testPrepareForInferenceWhenTopLevel() {
+        OptimizableModelTestsUtils.testModelOptimization(
+            (targetType, features) -> buildRandomTree(targetType, features, 6),
+            NUMBER_OF_TEST_RUNS);
+    }
+
+    public void testPrepareForInferenceWhenSubModel() {
+        OptimizableModelTestsUtils.testModelOptimizationsNotTopLevel(
+            (targetType, features) -> buildRandomTree(targetType, features, 6),
+            NUMBER_OF_TEST_RUNS);
+    }
+
+    public void testSerializationWhenOptimized() {
+        Tree tree = createRandom();
+        tree.optimizeForInference(true, Collections.emptyMap());
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            IOException ex = expectThrows(IOException.class, () -> tree.writeTo(output));
+            assertThat(ex.getMessage(), containsString("model has been optimized for inference. Cannot be serialized."));
+        }
+        IOException ex = expectThrows(IOException.class, () -> XContentHelper.toXContent(tree, XContentType.JSON, false));
+        assertThat(ex.getMessage(), containsString("model has been optimized for inference. Cannot be serialized."));
     }
 
     public void testTreeWithNullRoot() {

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -373,6 +374,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
     private void withTrainedModel(String modelId, long size) throws IOException {
         TrainedModelDefinition definition = mock(TrainedModelDefinition.class);
         when(definition.ramBytesUsed()).thenReturn(size);
+        TrainedModel model = mock(TrainedModel.class);
+        doAnswer((i) -> null).when(model).optimizeForInference(anyBoolean(), any());
+        when(definition.getTrainedModel()).thenReturn(model);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
         when(trainedModelConfig.getModelDefinition()).thenReturn(definition);
         when(trainedModelConfig.getModelId()).thenReturn(modelId);

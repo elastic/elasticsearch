@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -61,6 +62,10 @@ public class LocalModel implements Model {
 
     long ramBytesUsed() {
         return trainedModelDefinition.ramBytesUsed();
+    }
+
+    void optimizeForInference() {
+        trainedModelDefinition.getTrainedModel().optimizeForInference(true, Collections.emptyMap());
     }
 
     @Override
@@ -111,10 +116,12 @@ public class LocalModel implements Model {
             statsAccumulator.incInference();
             currentInferenceCount.increment();
 
+            // Needs to happen before collapse as defaultFieldMap might resolve fields to their appropriate name
             Model.mapFieldsIfNecessary(fields, defaultFieldMap);
 
+            Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
             boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
-            if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
+            if (flattenedFields.isEmpty()) {
                 statsAccumulator.incMissingFields();
                 if (shouldPersistStats) {
                     persistStats(false);
@@ -122,7 +129,7 @@ public class LocalModel implements Model {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }
-            InferenceResults inferenceResults = trainedModelDefinition.infer(fields, update.apply(inferenceConfig));
+            InferenceResults inferenceResults = trainedModelDefinition.infer(flattenedFields, update.apply(inferenceConfig));
             if (shouldPersistStats) {
                 persistStats(false);
             }

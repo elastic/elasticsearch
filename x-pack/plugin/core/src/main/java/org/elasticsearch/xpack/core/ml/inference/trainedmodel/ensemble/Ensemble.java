@@ -38,10 +38,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalDouble;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
@@ -94,12 +96,13 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return LENIENT_PARSER.apply(parser, null).build();
     }
 
-    private final List<String> featureNames;
+    private String[] featureNames;
     private final List<TrainedModel> models;
     private final OutputAggregator outputAggregator;
     private final TargetType targetType;
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
+    private volatile boolean optimizedForInference;
 
     Ensemble(List<String> featureNames,
              List<TrainedModel> models,
@@ -107,7 +110,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
              TargetType targetType,
              @Nullable List<String> classificationLabels,
              @Nullable double[] classificationWeights) {
-        this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
+        this.featureNames = ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES).toArray(String[]::new);
         this.models = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(models, TRAINED_MODELS));
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
@@ -118,7 +121,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     public Ensemble(StreamInput in) throws IOException {
-        this.featureNames = Collections.unmodifiableList(in.readStringList());
+        this.featureNames = in.readStringArray();
         this.models = Collections.unmodifiableList(in.readNamedWriteableList(TrainedModel.class));
         this.outputAggregator = in.readNamedWriteable(OutputAggregator.class);
         this.targetType = TargetType.fromStream(in);
@@ -142,10 +145,13 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         }
         double[][] inferenceResults = new double[this.models.size()][];
         List<Map<String, double[]>> featureInfluence = new ArrayList<>();
+        double[] features = getFeatures(fields);
         int i = 0;
         NullInferenceConfig subModelInferenceConfig = new NullInferenceConfig(config.requestingImportance());
         for (TrainedModel model : models) {
-            InferenceResults result = model.infer(fields, subModelInferenceConfig, Collections.emptyMap());
+            InferenceResults result = optimizedForInference ?
+                model.infer(features, subModelInferenceConfig) :
+                model.infer(fields, subModelInferenceConfig, Collections.emptyMap());
             assert result instanceof RawInferenceResults;
             RawInferenceResults inferenceResult = (RawInferenceResults) result;
             inferenceResults[i++] = inferenceResult.getValue();
@@ -156,6 +162,44 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         double[] processed = outputAggregator.processValues(inferenceResults);
         return buildResults(processed,
             decodeFeatureImportances(featureDecoderMap, mergeFeatureImportances(featureInfluence)),
+            config);
+    }
+
+    private double[] getFeatures(Map<String, Object> fields) {
+        double[] features = new double[featureNames.length];
+        int i = 0;
+        for (String featureName : featureNames) {
+            Double val = InferenceHelpers.toDouble(fields.get(featureName));
+            features[i++] = val == null ? Double.NaN : val;
+        }
+        return features;
+    }
+
+    @Override
+    public InferenceResults infer(double[] features, InferenceConfig config) {
+        if (optimizedForInference == false) {
+            throw new UnsupportedOperationException("model must be prepared for inference before using optimized path");
+        }
+        if (config.isTargetTypeSupported(targetType) == false) {
+            throw ExceptionsHelper.badRequestException(
+                "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
+        }
+        double[][] inferenceResults = new double[this.models.size()][];
+        List<Map<String, double[]>> featureInfluence = new ArrayList<>();
+        int i = 0;
+        NullInferenceConfig subModelInferenceConfig = new NullInferenceConfig(config.requestingImportance());
+        for (TrainedModel model : models) {
+            InferenceResults result = model.infer(features, subModelInferenceConfig);
+            assert result instanceof RawInferenceResults;
+            RawInferenceResults inferenceResult = (RawInferenceResults) result;
+            inferenceResults[i++] = inferenceResult.getValue();
+            if (config.requestingImportance()) {
+                featureInfluence.add(inferenceResult.getFeatureImportance());
+            }
+        }
+        double[] processed = outputAggregator.processValues(inferenceResults);
+        return buildResults(processed,
+            decodeFeatureImportances(Collections.emptyMap(), mergeFeatureImportances(featureInfluence)),
             config);
     }
 
@@ -205,7 +249,10 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringCollection(featureNames);
+        if (optimizedForInference) {
+            throw new IOException("model has been optimized for inference. Cannot be serialized.");
+        }
+        out.writeStringArray(featureNames);
         out.writeNamedWriteableList(models);
         out.writeNamedWriteable(outputAggregator);
         targetType.writeTo(out);
@@ -226,8 +273,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (optimizedForInference) {
+            throw new IOException("model has been optimized for inference. Cannot be serialized.");
+        }
         builder.startObject();
-        if (featureNames.isEmpty() == false) {
+        if (featureNames.length > 0) {
             builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
         }
         NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
@@ -252,7 +302,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Ensemble that = (Ensemble) o;
-        return Objects.equals(featureNames, that.featureNames)
+        return Arrays.equals(featureNames, that.featureNames)
             && Objects.equals(models, that.models)
             && Objects.equals(targetType, that.targetType)
             && Objects.equals(classificationLabels, that.classificationLabels)
@@ -262,7 +312,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public int hashCode() {
-        return Objects.hash(featureNames,
+        return Objects.hash(Arrays.hashCode(featureNames),
             models,
             outputAggregator,
             targetType,
@@ -330,6 +380,68 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return decodeFeatureImportances(featureDecoder, collapsed);
     }
 
+    @Override
+    public void optimizeForInference(boolean isTopLevelModel, Map<String, Integer> newFeatureIndexMapping) {
+        if (optimizedForInference) {
+            return;
+        }
+        if (isTopLevelModel) {
+            Set<String> referencedFeatures = subModelFeatures();
+            int newFeatureIndex = 0;
+            newFeatureIndexMapping = new HashMap<>();
+            this.featureNames = new String[referencedFeatures.size()];
+            for (String featureName : referencedFeatures) {
+                newFeatureIndexMapping.put(featureName, newFeatureIndex);
+                this.featureNames[newFeatureIndex++] = featureName;
+            }
+        } else {
+            this.featureNames = new String[0];
+        }
+        for (TrainedModel model : models) {
+            model.optimizeForInference(false, newFeatureIndexMapping);
+        }
+        optimizedForInference = true;
+    }
+
+    private Set<String> subModelFeatures() {
+        Set<String> referencedFeatures = new LinkedHashSet<>();
+        for (TrainedModel model : models) {
+            if (model instanceof Ensemble) {
+                referencedFeatures.addAll(((Ensemble) model).subModelFeatures());
+            } else {
+                for (String featureName : model.getFeatureNames()) {
+                    referencedFeatures.add(featureName);
+                }
+            }
+        }
+        return referencedFeatures;
+    }
+
+    @Override
+    public String[] getFeatureNames() {
+        return featureNames;
+    }
+
+    public List<TrainedModel> getModels() {
+        return models;
+    }
+
+    public OutputAggregator getOutputAggregator() {
+        return outputAggregator;
+    }
+
+    public TargetType getTargetType() {
+        return targetType;
+    }
+
+    public List<String> getClassificationLabels() {
+        return classificationLabels;
+    }
+
+    public double[] getClassificationWeights() {
+        return classificationWeights;
+    }
+
     private static Map<String, double[]> mergeFeatureImportances(List<Map<String, double[]>> featureImportances) {
         return featureImportances.stream()
             .collect(HashMap::new,
@@ -344,7 +456,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
-        size += RamUsageEstimator.sizeOfCollection(featureNames);
+        size += RamUsageEstimator.sizeOf(featureNames);
         size += RamUsageEstimator.sizeOfCollection(classificationLabels);
         size += RamUsageEstimator.sizeOfCollection(models);
         if (classificationWeights != null) {

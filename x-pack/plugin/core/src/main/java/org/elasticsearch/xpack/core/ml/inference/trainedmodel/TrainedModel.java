@@ -31,6 +31,25 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable, Accou
     InferenceResults infer(Map<String, Object> fields, InferenceConfig config, @Nullable Map<String, String> featureDecoderMap);
 
     /**
+     * Same as {@link TrainedModel#infer(Map, InferenceConfig, Map)} but the features are already extracted.
+     */
+    InferenceResults infer(double[] features, InferenceConfig config);
+
+    /**
+     * This optimizes the model for inference.
+     *
+     * WARNING: Some models may not be serializable after being optimized
+     * @param isTopLevelModel Indicates if this model is nested under another model
+     * @param newFeatureIndexMapping New feature index mapping so that features can be extracted by a parent model
+     */
+    void optimizeForInference(boolean isTopLevelModel, Map<String, Integer> newFeatureIndexMapping);
+
+    /**
+     * @return The feature names in their desired order
+     */
+    String[] getFeatureNames();
+
+    /**
      * @return {@link TargetType} for the model.
      */
     TargetType targetType();

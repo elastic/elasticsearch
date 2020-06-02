@@ -127,7 +127,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         } else {
             this.modelPlot = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             if (in.readBoolean()) {
                 this.annotation = new Annotation(in);
             } else {
@@ -168,7 +168,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         writeNullable(modelSnapshot, out);
         writeNullable(modelSizeStats, out);
         writeNullable(modelPlot, out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             writeNullable(annotation, out);
         }
         writeNullable(categoryDefinition, out);

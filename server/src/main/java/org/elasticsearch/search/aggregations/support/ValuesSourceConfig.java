@@ -154,10 +154,9 @@ public class ValuesSourceConfig {
         if (valuesSourceType == null) {
             valuesSourceType = defaultValueSourceType;
         }
-        config = new ValuesSourceConfig(valuesSourceType, fieldContext, unmapped, aggregationScript, scriptValueType, context::nowInMillis);
-        config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
-        config.missing(missing);
-        config.timezone(timeZone);
+        DocValueFormat docValueFormat = resolveFormat(format, valuesSourceType, timeZone, fieldType);
+        config = new ValuesSourceConfig(valuesSourceType, fieldContext, unmapped, aggregationScript, scriptValueType, missing,
+            timeZone, docValueFormat, context::nowInMillis);
         return config;
     }
 
@@ -231,6 +230,9 @@ public class ValuesSourceConfig {
             false,
             null,
             null,
+            null,
+            null,
+            null,
             queryShardContext::nowInMillis
         );
     }
@@ -239,18 +241,18 @@ public class ValuesSourceConfig {
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, queryShardContext::nowInMillis);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, queryShardContext::nowInMillis);
     }
 
     private final ValuesSourceType valuesSourceType;
-    private FieldContext fieldContext;
-    private AggregationScript.LeafFactory script;
-    private ValueType scriptValueType;
-    private boolean unmapped;
-    private DocValueFormat format = DocValueFormat.RAW;
-    private Object missing;
-    private ZoneId timeZone;
-    private LongSupplier nowSupplier;
+    private final FieldContext fieldContext;
+    private final AggregationScript.LeafFactory script;
+    private final ValueType scriptValueType;
+    private final boolean unmapped;
+    private final DocValueFormat format;
+    private final Object missing;
+    private final ZoneId timeZone;
+    private final LongSupplier nowSupplier;
 
 
     public ValuesSourceConfig(
@@ -259,6 +261,9 @@ public class ValuesSourceConfig {
         boolean unmapped,
         AggregationScript.LeafFactory script,
         ValueType scriptValueType,
+        Object missing,
+        ZoneId timeZone,
+        DocValueFormat format,
         LongSupplier nowSupplier
     ) {
         if (unmapped && fieldContext != null) {
@@ -269,6 +274,9 @@ public class ValuesSourceConfig {
         this.unmapped = unmapped;
         this.script = script;
         this.scriptValueType = scriptValueType;
+        this.missing = missing;
+        this.timeZone = timeZone;
+        this.format = format == null ? DocValueFormat.RAW : format;
         this.nowSupplier = nowSupplier;
 
     }
@@ -297,23 +305,8 @@ public class ValuesSourceConfig {
         return this.scriptValueType;
     }
 
-    private ValuesSourceConfig format(final DocValueFormat format) {
-        this.format = format;
-        return this;
-    }
-
-    private ValuesSourceConfig missing(final Object missing) {
-        this.missing = missing;
-        return this;
-    }
-
     public Object missing() {
         return this.missing;
-    }
-
-    private ValuesSourceConfig timezone(final ZoneId timeZone) {
-        this.timeZone = timeZone;
-        return this;
     }
 
     public ZoneId timezone() {

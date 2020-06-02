@@ -207,7 +207,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                 }
             }
         }, 60, TimeUnit.SECONDS);
-
+        ensureGreen("test");
         for (final Thread thread : threads) {
             thread.join();
         }

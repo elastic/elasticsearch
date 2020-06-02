@@ -95,12 +95,65 @@ ensure that document IDs don't conflict. One way to do this is to use a
 <<reindex-scripts,script>> in the reindex call to append the original index name
 to the document ID.
 
+//////////////////////////
+[source,console]
+-----------------------
+PUT _template/mylogs_template
+{
+  "index_patterns": [
+    "mylogs-*"
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "message": {
+        "type": "text"
+      },
+      "@timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+-----------------------
+
+[source,console]
+-----------------------
+POST mylogs-pre-ilm-2019.06.24/_doc
+{
+  "@timestamp": "2019-06-24T10:34:00",
+  "message": "this is one log message"
+}
+-----------------------
+// TEST[continued]
+
+[source,console]
+-----------------------
+POST mylogs-pre-ilm-2019.06.25/_doc
+{
+  "@timestamp": "2019-06-25T17:42:00",
+  "message": "this is another log message"
+}
+-----------------------
+// TEST[continued]
+
+[source,console]
+--------------------------------------------------
+DELETE _template/mylogs_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
 [source,console]
 -----------------------
 POST _reindex
 {
   "source": {
-    "index": "mylogs-*", <1>
+    "index": "mylogs-*" <1>
   },
   "dest": {
     "index": "mylogs", <2>

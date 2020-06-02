@@ -72,18 +72,21 @@ setup:
       bulk:
         index: store
         refresh: true
-        body: |
-          { "index": {} }
-          { "goods": "television", "size": 32.0 }
-          { "index": {} }
-          { "goods": "VCR", "size": 0 }
-          { "index": {} }
-          { "goods": "widescreen television", "size": 40.0 }
+        body:
+          - '{ "index": {} }'
+          - '{ "goods": "television", "size": 32.0 }'
+          - '{ "index": {} }'
+          - '{ "goods": "VCR", "size": 0 }'
+          - '{ "index": {} }'
+          - '{ "goods": "widescreen television", "size": 40.0 }'
 
 ---
 "Test rescore":
 
   - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
       search:
         index: store
         body: |

@@ -203,27 +203,61 @@ public class NativePrivilegeStore {
         }
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)
-            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            invalidateAll();
+    private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+        if (applications.contains("*")) {
+            return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
         }
+        final List<String> rawNames = new ArrayList<>(applications.size());
+        final List<String> wildcardNames = new ArrayList<>(applications.size());
+        for (String name : applications) {
+            if (name.endsWith("*")) {
+                wildcardNames.add(name);
+            } else {
+                rawNames.add(name);
+            }
+        }
+
+        assert rawNames.isEmpty() == false || wildcardNames.isEmpty() == false;
+
+        TermsQueryBuilder termsQuery = rawNames.isEmpty() ? null : QueryBuilders.termsQuery(APPLICATION.getPreferredName(), rawNames);
+        if (wildcardNames.isEmpty()) {
+            return termsQuery;
+        }
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+        if (termsQuery != null) {
+            boolQuery.should(termsQuery);
+        }
+        for (String wildcard : wildcardNames) {
+            final String prefix = wildcard.substring(0, wildcard.length() - 1);
+            boolQuery.should(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
+        }
+        boolQuery.minimumShouldMatch(1);
+        return boolQuery;
     }
 
-    public void invalidate(Collection<String> updatedApplicationNames) {
-        logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
-        numInvalidation.incrementAndGet();
-        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
-        // Always completely invalidate application names cache due to wildcard
-        applicationNamesCache.invalidateAll();
-        uniqueNames.forEach(descriptorsCache::invalidate);
-    }
+    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
+        logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
+        if (source == null) {
+            return null;
+        }
+        final Tuple<String, String> name = nameFromDocId(docId);
+        try {
+            // EMPTY is safe here because we never use namedObject
 
-    public void invalidateAll() {
-        logger.debug("Invalidating all application privileges caches");
-        numInvalidation.incrementAndGet();
-        applicationNamesCache.invalidateAll();
-        descriptorsCache.invalidateAll();
+            try (StreamInput input = source.streamInput();
+                XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, input)) {
+                final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, null, null, true);
+                assert privilege.getApplication().equals(name.v1())
+                    : "Incorrect application name for privilege. Expected [" + name.v1() + "] but was " + privilege.getApplication();
+                assert privilege.getName().equals(name.v2())
+                    : "Incorrect name for application privilege. Expected [" + name.v2() + "] but was " + privilege.getName();
+                return privilege;
+            }
+        } catch (IOException | XContentParseException e) {
+            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
+            return null;
+        }
     }
 
     /**
@@ -261,42 +295,6 @@ public class NativePrivilegeStore {
             return descriptors;
         }
         return descriptors.stream().filter(d -> privilegeNames.contains(d.getName())).collect(Collectors.toUnmodifiableSet());
-    }
-
-    private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
-        if (applications.contains("*")) {
-            return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
-        }
-        final List<String> rawNames = new ArrayList<>(applications.size());
-        final List<String> wildcardNames = new ArrayList<>(applications.size());
-        for (String name : applications) {
-            if (name.endsWith("*")) {
-                wildcardNames.add(name);
-            } else {
-                rawNames.add(name);
-            }
-        }
-
-        assert rawNames.isEmpty() == false || wildcardNames.isEmpty() == false;
-
-        TermsQueryBuilder termsQuery = rawNames.isEmpty() ? null : QueryBuilders.termsQuery(APPLICATION.getPreferredName(), rawNames);
-        if (wildcardNames.isEmpty()) {
-            return termsQuery;
-        }
-        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-        if (termsQuery != null) {
-            boolQuery.should(termsQuery);
-        }
-        for (String wildcard : wildcardNames) {
-            final String prefix = wildcard.substring(0, wildcard.length() - 1);
-            boolQuery.should(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
-        }
-        boolQuery.minimumShouldMatch(1);
-        return boolQuery;
-    }
-
-    private static boolean isEmpty(Collection<String> collection) {
-        return collection == null || collection.isEmpty();
     }
 
     public void putPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges, WriteRequest.RefreshPolicy refreshPolicy,
@@ -384,31 +382,6 @@ public class NativePrivilegeStore {
             });
     }
 
-    private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {
-        logger.trace("Building privilege from [{}] [{}]", docId, source == null ? "<<null>>" : source.utf8ToString());
-        if (source == null) {
-            return null;
-        }
-        final Tuple<String, String> name = nameFromDocId(docId);
-        try {
-            // EMPTY is safe here because we never use namedObject
-
-            try (StreamInput input = source.streamInput();
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, input)) {
-                final ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, null, null, true);
-                assert privilege.getApplication().equals(name.v1())
-                    : "Incorrect application name for privilege. Expected [" + name.v1() + "] but was " + privilege.getApplication();
-                assert privilege.getName().equals(name.v2())
-                    : "Incorrect name for application privilege. Expected [" + name.v2() + "] but was " + privilege.getName();
-                return privilege;
-            }
-        } catch (IOException | XContentParseException e) {
-            logger.error(new ParameterizedMessage("cannot parse application privilege [{}]", name), e);
-            return null;
-        }
-    }
-
     private static Tuple<String, String> nameFromDocId(String docId) {
         final String name = docId.substring(DOC_TYPE_VALUE.length() + 1);
         assert name != null && name.length() > 0 : "Invalid name '" + name + "'";
@@ -419,6 +392,33 @@ public class NativePrivilegeStore {
 
     private static String toDocId(String application, String name) {
         return DOC_TYPE_VALUE + "_" + application + ":" + name;
+    }
+
+    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        if (isMoveFromRedToNonRed(previousState, currentState) || isIndexDeleted(previousState, currentState)
+            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+            invalidateAll();
+        }
+    }
+
+    public void invalidate(Collection<String> updatedApplicationNames) {
+        logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
+        numInvalidation.incrementAndGet();
+        final Set<String> uniqueNames = Set.copyOf(updatedApplicationNames);
+        // Always completely invalidate application names cache due to wildcard
+        applicationNamesCache.invalidateAll();
+        uniqueNames.forEach(descriptorsCache::invalidate);
+    }
+
+    public void invalidateAll() {
+        logger.debug("Invalidating all application privileges caches");
+        numInvalidation.incrementAndGet();
+        applicationNamesCache.invalidateAll();
+        descriptorsCache.invalidateAll();
+    }
+
+    private static boolean isEmpty(Collection<String> collection) {
+        return collection == null || collection.isEmpty();
     }
 
     // Package private for tests

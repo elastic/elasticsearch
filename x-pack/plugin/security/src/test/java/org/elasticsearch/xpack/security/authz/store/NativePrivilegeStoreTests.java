@@ -51,7 +51,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -140,6 +142,19 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             "_scrollId1", 1, 1, 0, 1, null, null));
 
         assertResult(sourcePrivileges, future);
+    }
+
+    public void testGetMissingPrivilege() throws InterruptedException, ExecutionException, TimeoutException {
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(List.of("myapp"), List.of("admin"), future);
+        final SearchHit[] hits = new SearchHit[0];
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+            "_scrollId1", 1, 1, 0, 1, null, null));
+
+        final Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors = future.get(1, TimeUnit.SECONDS);
+        assertThat(applicationPrivilegeDescriptors.size(), equalTo(0));
     }
 
     public void testGetPrivilegesByApplicationName() throws Exception {

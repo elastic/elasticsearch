@@ -45,9 +45,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     private LongArray counts;
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
-                                    ValuesSource.GeoPoint valuesSource, Map<String, Object> metadata) throws IOException {
+                                    ValuesSource valuesSource, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.GeoPoint) valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             lonSum = bigArrays.newDoubleArray(1, true);

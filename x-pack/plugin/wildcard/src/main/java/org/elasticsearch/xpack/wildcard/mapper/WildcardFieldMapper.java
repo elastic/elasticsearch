@@ -806,21 +806,16 @@ public class WildcardFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    return new WildcardBytesBinaryIndexFieldData(indexSettings.getIndex(), fieldType.name());
+                    return new WildcardBytesBinaryIndexFieldData(indexSettings.getIndex(), fieldType.name(), CoreValuesSourceType.BYTES);
                 }};
         }
 
-         @Override
-         public ValuesSourceType getValuesSourceType() {
-             return CoreValuesSourceType.BYTES;
-         }
-
-    }
+     }
 
     static class WildcardBytesBinaryIndexFieldData extends BytesBinaryIndexFieldData {
 
-        WildcardBytesBinaryIndexFieldData(Index index, String fieldName) {
-            super(index, fieldName);
+        WildcardBytesBinaryIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
+            super(index, fieldName, valuesSourceType);
         }
 
         @Override

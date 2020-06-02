@@ -53,7 +53,7 @@ specifying `*` as the `<transform_id>`, or by omitting the
 
 `<transform_id>`::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
   
 
 [[get-transform-stats-query-parms]]
@@ -61,15 +61,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
 
 `allow_no_match`::
 (Optional, boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `from`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 
 `size`::
 (Optional, integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
 [role="child_attributes"]
 [[get-transform-stats-response]]
@@ -88,7 +88,7 @@ informational; you cannot update their values.
 ====
 `changes_last_detected_at`:::
 (date)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
 
 //Begin checkpointing.last
 `last`:::
@@ -144,7 +144,7 @@ that the {transform} is failing to keep up.
 
 `id`::
 (string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 //Begin node
 `node`::
@@ -174,11 +174,11 @@ example, `127.0.0.1:9300`.
 
 `reason`::
 (string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
 
 `state`::
 (string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
 
 //Begin stats
 `stats`::
@@ -190,63 +190,63 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=state-transform]
 
 `documents_indexed`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
 
 `documents_processed`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-processed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-processed]
 
 `exponential_avg_checkpoint_duration_ms`:::
 (double)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
 
 `exponential_avg_documents_indexed`:::
 (double)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
 
 `exponential_avg_documents_processed`:::
 (double)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
 
 `index_failures`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-failures]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-failures]
 
 `index_time_in_ms`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
 
 `index_total`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-total]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-total]
 
 `pages_processed`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=pages-processed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pages-processed]
 
 `processing_time_in_ms`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
 
 `processing_total`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=processing-total]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=processing-total]
 
 `search_failures`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-failures]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-failures]
 
 `search_time_in_ms`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
 
 `search_total`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-total]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-total]
 
 `trigger_count`:::
 (long)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=trigger-count]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=trigger-count]
 ====
 //End stats
   

@@ -34,7 +34,7 @@ The search request can be executed with a search DSL, which includes the
 [[search-request-body-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 [[search-request-body-api-request-body]]
 ==== {api-request-body-title}

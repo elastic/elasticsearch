@@ -62,7 +62,7 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
                                                     boolean collectsFromSingleBucket,
                                                     Map<String, Object> metadata) throws IOException {
         final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), MissingAggregationBuilder.NAME);
+            .getAggregator(config, MissingAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected MissingAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");

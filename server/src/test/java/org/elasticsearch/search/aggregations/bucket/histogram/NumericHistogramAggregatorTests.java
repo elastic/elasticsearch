@@ -300,13 +300,11 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = keywordField("field");
-            fieldType.setHasDocValues(true);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 expectThrows(IllegalArgumentException.class, () -> {
-                    search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                    search(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field"));
                 });
             }
         }

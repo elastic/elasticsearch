@@ -133,7 +133,9 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()), 1L))
+                    .put(new DataStream(
+                        dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()), 1L)
+                    )
                     .put(indexMetadata, true)
             )
             .build();

@@ -38,8 +38,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -123,11 +121,6 @@ public class Murmur3FieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(NumericType.LONG);
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.NUMERIC;
         }
 
         @Override

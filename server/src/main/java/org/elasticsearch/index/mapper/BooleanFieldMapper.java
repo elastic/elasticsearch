@@ -39,8 +39,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -188,11 +186,6 @@ public class BooleanFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(NumericType.BOOLEAN);
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BOOLEAN;
         }
 
         @Override

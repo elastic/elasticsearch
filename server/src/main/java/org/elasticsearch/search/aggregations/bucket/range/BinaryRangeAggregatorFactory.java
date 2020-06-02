@@ -66,7 +66,7 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
                                           SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             IpRangeAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof IpRangeAggregatorSupplier == false) {

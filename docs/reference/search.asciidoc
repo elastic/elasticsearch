@@ -156,6 +156,8 @@ include::search/request-body.asciidoc[]
 
 include::search/async-search.asciidoc[]
 
+include::search/scroll-api.asciidoc[]
+
 include::search/search-template.asciidoc[]
 
 include::search/search-shards.asciidoc[]

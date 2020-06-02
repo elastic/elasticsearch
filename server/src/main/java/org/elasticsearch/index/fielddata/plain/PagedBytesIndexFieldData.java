@@ -35,12 +35,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
-import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -61,25 +62,34 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         private final double minFrequency, maxFrequency;
         private final int minSegmentSize;
+        private final ValuesSourceType valuesSourceType;
 
-        public Builder(double minFrequency, double maxFrequency, int minSegmentSize) {
+        public Builder(double minFrequency, double maxFrequency, int minSegmentSize, ValuesSourceType valuesSourceType) {
             this.minFrequency = minFrequency;
             this.maxFrequency = maxFrequency;
             this.minSegmentSize = minSegmentSize;
+            this.valuesSourceType = valuesSourceType;
         }
 
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
                 IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), cache, breakerService,
+            return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), valuesSourceType, cache, breakerService,
                     minFrequency, maxFrequency, minSegmentSize);
         }
     }
 
-    public PagedBytesIndexFieldData(IndexSettings indexSettings, String fieldName,
-                                    IndexFieldDataCache cache, CircuitBreakerService breakerService,
-                                    double minFrequency, double maxFrequency, int minSegmentSize) {
-        super(indexSettings, fieldName, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
+    public PagedBytesIndexFieldData(
+        IndexSettings indexSettings,
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        IndexFieldDataCache cache,
+        CircuitBreakerService breakerService,
+        double minFrequency,
+        double maxFrequency,
+        int minSegmentSize
+    ) {
+        super(indexSettings, fieldName, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
     }
 
     @Override

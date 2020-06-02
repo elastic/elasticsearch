@@ -40,7 +40,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -79,8 +79,6 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 public class MetadataIndexTemplateService {
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
     private final IndicesService indicesService;
@@ -407,7 +405,7 @@ public class MetadataIndexTemplateService {
                     .collect(Collectors.joining(",")),
                 name);
             logger.warn(warning);
-            deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
+            HeaderWarning.addWarning(warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -642,7 +640,7 @@ public class MetadataIndexTemplateService {
                         .collect(Collectors.joining(",")),
                     request.name);
                 logger.warn(warning);
-                deprecationLogger.deprecatedAndMaybeLog("index_template_pattern_overlap", warning);
+                HeaderWarning.addWarning(warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(Locale.ROOT, "legacy template [%s] has index patterns %s matching patterns" +

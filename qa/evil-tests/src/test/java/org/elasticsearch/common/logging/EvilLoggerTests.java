@@ -67,6 +67,7 @@ public class EvilLoggerTests extends ESTestCase {
 
     @Override
     public void setUp() throws Exception {
+        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         super.setUp();
         LogConfigurator.registerErrorListener();
     }
@@ -126,7 +127,7 @@ public class EvilLoggerTests extends ESTestCase {
                 }
                 for (int j = 0; j < iterations; j++) {
                     for (final Integer id : ids) {
-                        deprecationLogger.deprecatedAndMaybeLog(Integer.toString(id), "This is a maybe logged deprecation message" + id);
+                        deprecationLogger.deprecate(Integer.toString(id), "This is a maybe logged deprecation message" + id);
                     }
                 }
 
@@ -137,12 +138,12 @@ public class EvilLoggerTests extends ESTestCase {
                  */
                 final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
                 final Set<String> actualWarningValues =
-                        warnings.stream().map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                        warnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
                             .collect(Collectors.toSet());
                 for (int j = 0; j < 128; j++) {
                     assertThat(
                             actualWarningValues,
-                            hasItem(DeprecationLogger.escapeAndEncode("This is a maybe logged deprecation message" + j)));
+                            hasItem(HeaderWarning.escapeAndEncode("This is a maybe logged deprecation message" + j)));
                 }
 
                 try {
@@ -180,7 +181,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
+                    "org.elasticsearch.common.logging.ThrottlingLogger\\$2\\.run",
                     "This is a maybe logged deprecation message" + i);
         }
 
@@ -198,17 +199,17 @@ public class EvilLoggerTests extends ESTestCase {
         final int iterations = randomIntBetween(1, 16);
 
         for (int i = 0; i < iterations; i++) {
-            deprecationLogger.deprecatedAndMaybeLog("key", "This is a maybe logged deprecation message");
+            deprecationLogger.deprecate("key", "This is a maybe logged deprecation message");
             assertWarnings("This is a maybe logged deprecation message");
         }
         for (int k = 0; k < 128; k++) {
             for (int i = 0; i < iterations; i++) {
-                deprecationLogger.deprecatedAndMaybeLog("key" + k, "This is a maybe logged deprecation message" + k);
+                deprecationLogger.deprecate("key" + k, "This is a maybe logged deprecation message" + k);
                 assertWarnings("This is a maybe logged deprecation message" + k);
             }
         }
         for (int i = 0; i < iterations; i++) {
-            deprecationLogger.deprecatedAndMaybeLog("key", "This is a maybe logged deprecation message");
+            deprecationLogger.deprecate("key", "This is a maybe logged deprecation message");
             assertWarnings("This is a maybe logged deprecation message");
         }
 
@@ -222,13 +223,13 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(
                 deprecationEvents.get(0),
                 Level.WARN,
-                "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
+                "org.elasticsearch.common.logging.ThrottlingLogger\\$2\\.run",
                 "This is a maybe logged deprecation message");
         for (int k = 0; k < 128; k++) {
             assertLogLine(
                     deprecationEvents.get(1 + k),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
+                    "org.elasticsearch.common.logging.ThrottlingLogger\\$2\\.run",
                     "This is a maybe logged deprecation message" + k);
         }
     }
@@ -256,7 +257,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(0),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
+                    "org.elasticsearch.common.logging.ThrottlingLogger\\$2\\.run",
                     "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                             "See the breaking changes documentation for the next major version.");
         }

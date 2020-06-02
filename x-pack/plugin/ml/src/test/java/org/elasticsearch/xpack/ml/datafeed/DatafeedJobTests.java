@@ -296,7 +296,8 @@ public class DatafeedJobTests extends ESTestCase {
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationCreateTime))
                 .setModifiedUsername(XPackUser.NAME)
-                .setType("annotation")
+                .setType(Annotation.Type.ANNOTATION)
+                .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
             BytesReference expectedSource =
                 BytesReference.bytes(expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
@@ -342,7 +343,8 @@ public class DatafeedJobTests extends ESTestCase {
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationUpdateTime))
                 .setModifiedUsername(XPackUser.NAME)
-                .setType("annotation")
+                .setType(Annotation.Type.ANNOTATION)
+                .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
             BytesReference expectedSource =
                 BytesReference.bytes(expectedUpdatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));

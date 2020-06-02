@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -75,8 +74,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
 
-    private boolean defaultExpandWildcards = true;
-
     private boolean partial = false;
 
     private Settings settings = EMPTY_SETTINGS;
@@ -107,9 +104,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         repository = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            defaultExpandWildcards = in.readBoolean();
-        }
         settings = readSettingsFromStream(in);
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
@@ -124,9 +118,6 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeString(repository);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(defaultExpandWildcards);
-        }
         writeSettingsToStream(settings, out);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
@@ -276,22 +267,10 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @return this request
      */
     public CreateSnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.defaultExpandWildcards = false;
-        return innerInicesOptions(indicesOptions);
-    }
-
-    private CreateSnapshotRequest innerInicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
 
-    /**
-     * Indicates whether the request is using the default indices options
-     * @return true if this request is using the default expand_wildcards value, false otherwise.
-     */
-    public boolean hasDefaultExpandWildcards() {
-        return defaultExpandWildcards;
-    }
 
     /**
      * Returns true if indices with unavailable shards should be be partially snapshotted.
@@ -467,10 +446,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 userMetadata((Map<String, Object>) entry.getValue());
             }
         }
-        if (source.containsKey("expand_wildcards")) {
-            defaultExpandWildcards = false;
-        }
-        innerInicesOptions(IndicesOptions.fromMap(source, indicesOptions));
+        indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
         return this;
     }
 

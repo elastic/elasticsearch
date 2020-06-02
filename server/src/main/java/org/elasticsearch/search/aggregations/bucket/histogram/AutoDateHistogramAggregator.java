@@ -339,12 +339,9 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          * On the other hand, rebucketing is fairly slow.
          *
          * TODO it'd be faster if we could apply the merging on the fly as we
-         * replay the hits and build the buckets. How much faster is
-         * *interesting*. Performance tests with a couple of sub-`stats` aggs
-         * show `date_histogram` to have about the same performance as
-         * `auto_date_histogram` so there isn't really much to be gained here.
-         * But if there is a non-delaying but selectivate aggregation "above"
-         * this one then the performance gain could be substantial.
+         * replay the hits and build the buckets. How much faster is not clear,
+         * but it does have the advantage of only touching the buckets that we
+         * want to collect.
          */
         if (fractionWasted > .2) {
             rebucket();

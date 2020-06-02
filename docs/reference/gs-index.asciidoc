@@ -1,6 +1,6 @@
 [[elasticsearch-reference]]
 = Elasticsearchリファレンス
 
-include::../Versions.asciidoc[]
+include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
 include::getting-started.asciidoc[]

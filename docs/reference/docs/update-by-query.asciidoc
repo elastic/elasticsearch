@@ -1,5 +1,5 @@
 [[docs-update-by-query]]
-=== Update By Query API
+=== Update by query API
 
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
@@ -188,7 +188,7 @@ POST twitter/_update_by_query?pipeline=set-foo
 // TEST[setup:twitter]
 
 [float]
-==== URL Parameters
+==== URL parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
 also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,

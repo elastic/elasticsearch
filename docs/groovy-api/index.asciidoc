@@ -1,6 +1,6 @@
 = Groovy API
 
-include::../Versions.asciidoc[]
+include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
 [preface]
 == Preface

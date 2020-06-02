@@ -34,6 +34,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
@@ -46,27 +48,32 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * The type of number.
      */
     public enum NumericType {
-        BOOLEAN(false, SortField.Type.LONG),
-        BYTE(false, SortField.Type.LONG),
-        SHORT(false, SortField.Type.LONG),
-        INT(false, SortField.Type.LONG),
-        LONG(false, SortField.Type.LONG),
-        DATE(false, SortField.Type.LONG),
-        DATE_NANOSECONDS(false, SortField.Type.LONG),
-        HALF_FLOAT(true, SortField.Type.LONG),
-        FLOAT(true, SortField.Type.FLOAT),
-        DOUBLE(true, SortField.Type.DOUBLE);
+        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
+        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
+        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
+        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
 
         private final boolean floatingPoint;
+        private final ValuesSourceType valuesSourceType;
         private final SortField.Type sortFieldType;
 
-        NumericType(boolean floatingPoint, SortField.Type sortFieldType) {
+        NumericType(boolean floatingPoint, SortField.Type sortFieldType, ValuesSourceType valuesSourceType) {
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
+            this.valuesSourceType = valuesSourceType;
         }
 
         public final boolean isFloatingPoint() {
             return floatingPoint;
+        }
+        public final ValuesSourceType getValuesSourceType() {
+            return valuesSourceType;
         }
     }
 

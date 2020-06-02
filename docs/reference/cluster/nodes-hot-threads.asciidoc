@@ -26,7 +26,7 @@ threads.
 [[cluster-nodes-hot-threads-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-hot-threads-api-query-params]]
@@ -50,7 +50,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
 		(Optional, integer) Specifies the number of hot threads to provide 
 		information for. Defaults to `3`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `type`::
 		(Optional, string) The type to sample. Available options are `block`, `cpu`, and 

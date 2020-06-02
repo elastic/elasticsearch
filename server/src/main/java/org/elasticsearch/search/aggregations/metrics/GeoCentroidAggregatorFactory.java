@@ -60,7 +60,7 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             GeoCentroidAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoCentroidAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "

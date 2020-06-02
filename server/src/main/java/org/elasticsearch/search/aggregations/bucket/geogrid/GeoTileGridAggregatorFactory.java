@@ -78,7 +78,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), GeoTileGridAggregationBuilder.NAME);
+            .getAggregator(config, GeoTileGridAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoGridAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");

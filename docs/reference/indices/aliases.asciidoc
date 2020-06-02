@@ -6,7 +6,7 @@
 
 Adds or removes index aliases.
 
-include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
@@ -42,7 +42,7 @@ searching, and routing values. An alias cannot have the same name as an index.
 [[indices-aliases-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[indices-aliases-api-request-body]]
@@ -102,7 +102,7 @@ this parameter is required for the `add` or `remove` action.
 
 `filter`::
 (Optional, query object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 +
 See <<filtered>> for an example.
 
@@ -130,7 +130,7 @@ until an additional index is referenced. At that point, there will be no write i
 writes will be rejected.
 ====
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 +
 See <<aliases-routing>> for an example.
 

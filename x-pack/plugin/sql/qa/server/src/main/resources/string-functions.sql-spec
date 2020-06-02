@@ -16,8 +16,8 @@ stringAsciiInline
 SELECT ASCII('E') e;
 
 //https://github.com/elastic/elasticsearch/issues/31863
-//stringSelectConstantAsciiEqualsConstant
-//SELECT ASCII('A') = 65 a FROM "test_emp" WHERE ASCII('A') = 65 ORDER BY emp_no;
+stringSelectConstantAsciiEqualsConstant-Ignore
+SELECT ASCII('A') = 65 a FROM "test_emp" WHERE ASCII('A') = 65 ORDER BY emp_no;
 
 stringCharFilter
 SELECT emp_no, CHAR(emp_no % 10000) m FROM "test_emp" WHERE CHAR(emp_no % 10000) = 'A';
@@ -121,10 +121,8 @@ SELECT RIGHT(CONCAT('Elastic','search'), LENGTH('Search')) rightchars;
 rightInline3
 SELECT RIGHT('Elasticsearch', 0) rightchars;
 
-// Unsupported yet
-// Functions combined with 'LIKE' should perform the match inside a Painless script, whereas at the moment it's handled as a regular `match` query in ES.
-//ltrimFilterWithLike
-//SELECT LTRIM("first_name") lt FROM "test_emp" WHERE LTRIM("first_name") LIKE '%a%';
+ltrimFilterWithLike
+SELECT LTRIM("first_name") lt FROM "test_emp" WHERE LTRIM("first_name") LIKE '%a%';
 
 rtrimFilter
 SELECT RTRIM(first_name) rt FROM "test_emp" WHERE RTRIM(first_name) = 'Johnny';

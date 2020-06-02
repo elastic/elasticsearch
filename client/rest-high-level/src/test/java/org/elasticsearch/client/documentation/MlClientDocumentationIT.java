@@ -1506,6 +1506,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::forecast-job-request-options
             forecastJobRequest.setExpiresIn(TimeValue.timeValueHours(48)); // <1>
             forecastJobRequest.setDuration(TimeValue.timeValueHours(24)); // <2>
+            forecastJobRequest.setMaxModelMemory(new ByteSizeValue(30, ByteSizeUnit.MB)); // <3>
             // end::forecast-job-request-options
 
             // tag::forecast-job-execute
@@ -3610,7 +3611,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setIncludeDefinition(false) // <3>
                 .setDecompressDefinition(false) // <4>
                 .setAllowNoMatch(true) // <5>
-                .setTags("regression"); // <6>
+                .setTags("regression") // <6>
+                .setForExport(false); // <7>
             // end::get-trained-models-request
             request.setTags((List<String>)null);
 

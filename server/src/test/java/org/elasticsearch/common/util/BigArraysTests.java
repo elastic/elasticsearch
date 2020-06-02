@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -357,6 +358,7 @@ public class BigArraysTests extends ESTestCase {
                             .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                             .build(),
+                    Collections.emptyList(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
             BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
@@ -421,6 +423,7 @@ public class BigArraysTests extends ESTestCase {
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST);
         return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);

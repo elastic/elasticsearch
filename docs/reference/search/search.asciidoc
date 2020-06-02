@@ -33,12 +33,12 @@ query string parameter>> or <<search-request-body,request body>>.
 [[search-search-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 [[search-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
@@ -68,7 +68,7 @@ coordinating node and the remote clusters are minimized when executing
   (Optional, string) A comma-separated list of fields to return as the docvalue
   representation of a field for each hit.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -84,7 +84,7 @@ both parameters are specified, only the query parameter is used.
 ====
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 --
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -112,7 +112,7 @@ both parameters are specified, only the query parameter is used.
   (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
   ignored when frozen. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_shard_requests`::
   (Optional, integer) Defines the number of concurrent shard requests per node
@@ -137,7 +137,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   performed on. Random by default.
 
 [[search-api-query-params-q]]
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 +
 --
 You can use the `q` parameter to run a query parameter search. Query parameter
@@ -174,7 +174,7 @@ Period to retain the <<scroll-search-context,search context>> for scrolling. See
 By default, this value cannot must be less than `1d` (one day). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `seq_no_primary_term`::
 +
@@ -225,9 +225,9 @@ both parameters are specified, only the query parameter is used.
 If `true`, the response includes the `_source` of matching documents under
 `hits`. Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `stats`::
   (Optional, string) Specific `tag` of the request for logging and statistical
@@ -245,7 +245,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source_includes]
   (Optional, string) The source text for which the suggestions should be
   returned.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 --
 Defaults to `0`, which does not terminate query execution early.
@@ -316,7 +316,7 @@ both parameters are specified, only the query parameter is used.
 ====
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 --
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -360,7 +360,7 @@ If both parameters are specified, only the query parameter is used.
 --
 
 `size`:: 
-(Optional, integer) The number of hits to return. Defaults to `10`.
+(Optional, integer) The number of hits to return. Needs to be non-negative and defaults to `10`.
 +
 --
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -387,7 +387,7 @@ parameters are specified, only the query parameter is used.
 ====
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 --
 Defaults to `0`, which does not terminate query execution early.

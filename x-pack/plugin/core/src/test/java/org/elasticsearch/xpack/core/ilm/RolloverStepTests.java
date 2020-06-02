@@ -12,13 +12,18 @@ import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -71,11 +76,11 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         return getIndexMetadata(randomAlphaOfLength(5));
     }
 
-    private static void assertRolloverIndexRequest(RolloverRequest request, String alias) {
+    private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget) {
         assertNotNull(request);
         assertEquals(1, request.indices().length);
-        assertEquals(alias, request.indices()[0]);
-        assertEquals(alias, request.getRolloverTarget());
+        assertEquals(rolloverTarget, request.indices()[0]);
+        assertEquals(rolloverTarget, request.getRolloverTarget());
         assertFalse(request.isDryRun());
         assertEquals(0, request.getConditions().size());
     }
@@ -86,17 +91,16 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
 
         RolloverStep step = createRandomInstance();
 
-        Mockito.doAnswer(invocation -> {
-            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            assertRolloverIndexRequest(request, alias);
-            listener.onResponse(new RolloverResponse(null, null, Collections.emptyMap(), request.isDryRun(), true, true, true));
-            return null;
-        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+        mockClientRolloverCall(alias);
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -116,6 +120,55 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
+    public void testPerformActionOnDataStream() {
+        String dataStreamName = "test-datastream";
+        IndexMetadata indexMetadata = IndexMetadata.builder(dataStreamName + "-000001")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        RolloverStep step = createRandomInstance();
+
+        mockClientRolloverCall(dataStreamName);
+
+        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(new DataStream(dataStreamName, "timestamp", List.of(indexMetadata.getIndex()), 1L))
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                actionCompleted.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(true, actionCompleted.get());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    private void mockClientRolloverCall(String rolloverTarget) {
+        Mockito.doAnswer(invocation -> {
+            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            assertRolloverIndexRequest(request, rolloverTarget);
+            listener.onResponse(new RolloverResponse(null, null, Collections.emptyMap(), request.isDryRun(), true, true, true));
+            return null;
+        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
     public void testPerformActionWithIndexingComplete() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
@@ -128,7 +181,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         RolloverStep step = createRandomInstance();
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -156,8 +215,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         RolloverStep step = createRandomInstance();
-
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -189,7 +253,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -218,7 +288,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         RolloverStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");
@@ -231,8 +307,8 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         });
         assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
-            "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
-            indexMetadata.getIndex().getName())));
+            "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias pointing to the group of " +
+                "indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexMetadata.getIndex().getName())));
     }
 
     public void testPerformActionAliasDoesNotPointToIndex() {
@@ -243,7 +319,13 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         RolloverStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, true)
+            )
+            .build();
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

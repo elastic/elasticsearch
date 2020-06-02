@@ -60,7 +60,6 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -475,7 +474,9 @@ public class StatsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return singletonList(CoreValuesSourceType.NUMERIC);
+        return List.of(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE);
     }
 
     @Override

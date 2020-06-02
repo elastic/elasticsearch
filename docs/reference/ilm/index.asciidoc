@@ -43,7 +43,7 @@ include::ilm-actions.asciidoc[]
 
 include::set-up-lifecycle-policy.asciidoc[]
 
-include::ilm-error-handling.asciidoc[]
+include::error-handling.asciidoc[]
 
 include::ilm-start-stop.asciidoc[]
 

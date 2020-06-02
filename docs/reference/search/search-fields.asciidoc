@@ -5,7 +5,7 @@
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
 provided when indexing the document. If you only need certain fields in the
-search API's response, you can use
+search response, you can use
 <<request-body-search-source-filtering,source filtering>> to restrict what
 parts of the source are returned.
 

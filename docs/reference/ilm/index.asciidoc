@@ -45,7 +45,7 @@ include::set-up-lifecycle-policy.asciidoc[]
 
 include::error-handling.asciidoc[]
 
-include::ilm-start-stop.asciidoc[]
+include::start-stop.asciidoc[]
 
 include::ilm-with-existing-indices.asciidoc[]
 

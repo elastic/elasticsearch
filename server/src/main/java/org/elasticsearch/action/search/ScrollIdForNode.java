@@ -20,16 +20,17 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.search.internal.SearchContextId;
 
 class ScrollIdForNode {
     private final String node;
-    private final long scrollId;
+    private final SearchContextId contextId;
     private final String clusterAlias;
 
-    ScrollIdForNode(@Nullable String clusterAlias, String node, long scrollId) {
+    ScrollIdForNode(@Nullable String clusterAlias, String node, SearchContextId contextId) {
         this.node = node;
         this.clusterAlias = clusterAlias;
-        this.scrollId = scrollId;
+        this.contextId = contextId;
     }
 
     public String getNode() {
@@ -41,15 +42,15 @@ class ScrollIdForNode {
         return clusterAlias;
     }
 
-    public long getScrollId() {
-        return scrollId;
+    public SearchContextId getContextId() {
+        return contextId;
     }
 
     @Override
     public String toString() {
         return "ScrollIdForNode{" +
             "node='" + node + '\'' +
-            ", scrollId=" + scrollId +
+            ", scrollId=" + contextId +
             ", clusterAlias='" + clusterAlias + '\'' +
             '}';
     }

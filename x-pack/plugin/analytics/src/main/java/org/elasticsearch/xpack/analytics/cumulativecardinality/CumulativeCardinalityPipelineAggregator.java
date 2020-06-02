@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -22,7 +20,6 @@ import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatio
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,24 +32,6 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
     CumulativeCardinalityPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public CumulativeCardinalityPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return CumulativeCardinalityPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -82,7 +61,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toList());
-                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, new ArrayList<>(), metaData()));
+                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, metadata()));
                 Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 newBuckets.add(newBucket);
             }

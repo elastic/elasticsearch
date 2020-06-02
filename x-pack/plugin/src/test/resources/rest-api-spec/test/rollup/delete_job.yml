@@ -75,6 +75,8 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
 
@@ -127,6 +129,8 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
 
@@ -179,6 +183,8 @@ setup:
             index_total: 0
             search_time_in_ms: 0
             search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
           status:
             job_state: "stopped"
 

@@ -13,13 +13,22 @@
 * <<watcher-api-stop>>
 * <<watcher-api-start>>
 
-include::watcher/put-watch.asciidoc[]
-include::watcher/get-watch.asciidoc[]
-include::watcher/delete-watch.asciidoc[]
-include::watcher/execute-watch.asciidoc[]
+//ACK
 include::watcher/ack-watch.asciidoc[]
+//ACTIVATE
 include::watcher/activate-watch.asciidoc[]
+//DEACTIVATE
 include::watcher/deactivate-watch.asciidoc[]
+//DELETE
+include::watcher/delete-watch.asciidoc[]
+//EXECUTE
+include::watcher/execute-watch.asciidoc[]
+//GET
+include::watcher/get-watch.asciidoc[]
 include::watcher/stats.asciidoc[]
-include::watcher/stop.asciidoc[]
+//PUT
+include::watcher/put-watch.asciidoc[]
+//START
 include::watcher/start.asciidoc[]
+//STOP
+include::watcher/stop.asciidoc[]

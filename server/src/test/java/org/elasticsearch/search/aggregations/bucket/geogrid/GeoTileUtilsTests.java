@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
@@ -28,8 +29,10 @@ import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.keyToGeoPoint;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.stringEncode;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GeoTileUtilsTests extends ESTestCase {
 
@@ -74,6 +77,31 @@ public class GeoTileUtilsTests extends ESTestCase {
 
         expectThrows(IllegalArgumentException.class, () -> longEncode(0, 0, -1));
         expectThrows(IllegalArgumentException.class, () -> longEncode(-1, 0, MAX_ZOOM + 1));
+    }
+
+    public void testLongEncodeFromString() {
+        assertEquals(0x0000000000000000L, longEncode(stringEncode(longEncode(0, 0, 0))));
+        assertEquals(0x3C00095540001CA5L, longEncode(stringEncode(longEncode(30, 70, 15))));
+        assertEquals(0x77FFFF4580000000L, longEncode(stringEncode(longEncode(179.999, 89.999, 29))));
+        assertEquals(0x740000BA7FFFFFFFL, longEncode(stringEncode(longEncode(-179.999, -89.999, 29))));
+        assertEquals(0x0800000040000001L, longEncode(stringEncode(longEncode(1, 1, 2))));
+        assertEquals(0x0C00000060000000L, longEncode(stringEncode(longEncode(-20, 100, 3))));
+        assertEquals(0x71127D27C8ACA67AL, longEncode(stringEncode(longEncode(13, -15, 28))));
+        assertEquals(0x4C0077776003A9ACL, longEncode(stringEncode(longEncode(-12, 15, 19))));
+        assertEquals(0x140000024000000EL, longEncode(stringEncode(longEncode(-328.231870,16.064082, 5))));
+        assertEquals(0x6436F96B60000000L, longEncode(stringEncode(longEncode(-590.769588,89.549167, 25))));
+        assertEquals(0x6411BD6BA0A98359L, longEncode(stringEncode(longEncode(999.787079,51.830093, 25))));
+        assertEquals(0x751BD6BBCA983596L, longEncode(stringEncode(longEncode(999.787079,51.830093, 29))));
+        assertEquals(0x77CF880A20000000L, longEncode(stringEncode(longEncode(-557.039740,-632.103969, 29))));
+        assertEquals(0x7624FA4FA0000000L, longEncode(stringEncode(longEncode(13,88, 29))));
+        assertEquals(0x7624FA4FBFFFFFFFL, longEncode(stringEncode(longEncode(13,-88, 29))));
+        assertEquals(0x0400000020000000L, longEncode(stringEncode(longEncode(13,89, 1))));
+        assertEquals(0x0400000020000001L, longEncode(stringEncode(longEncode(13,-89, 1))));
+        assertEquals(0x0400000020000000L, longEncode(stringEncode(longEncode(13,95, 1))));
+        assertEquals(0x0400000020000001L, longEncode(stringEncode(longEncode(13,-95, 1))));
+
+        expectThrows(IllegalArgumentException.class, () -> longEncode("12/asdf/1"));
+        expectThrows(IllegalArgumentException.class, () -> longEncode("foo"));
     }
 
     private void assertGeoPointEquals(GeoPoint gp, final double longitude, final double latitude) {
@@ -194,8 +222,8 @@ public class GeoTileUtilsTests extends ESTestCase {
      * so ensure they are clipped correctly.
      */
     public void testSingularityAtPoles() {
-        double minLat = -85.05112878;
-        double maxLat = 85.05112878;
+        double minLat = -GeoTileUtils.LATITUDE_MASK;
+        double maxLat = GeoTileUtils.LATITUDE_MASK;
         double lon = randomIntBetween(-180, 180);
         double lat = randomBoolean()
             ? randomDoubleBetween(-90, minLat, true)
@@ -205,5 +233,24 @@ public class GeoTileUtilsTests extends ESTestCase {
         String tileIndex = stringEncode(longEncode(lon, lat, zoom));
         String clippedTileIndex = stringEncode(longEncode(lon, clippedLat, zoom));
         assertEquals(tileIndex, clippedTileIndex);
+    }
+
+    public void testPointToTile() {
+        int zoom = randomIntBetween(0, MAX_ZOOM);
+        int tiles = 1 << zoom;
+        int xTile = randomIntBetween(0, zoom);
+        int yTile = randomIntBetween(0, zoom);
+        Rectangle rectangle = GeoTileUtils.toBoundingBox(xTile, yTile, zoom);
+        // check corners
+        assertThat(GeoTileUtils.getXTile(rectangle.getMinX(), tiles), equalTo(xTile));
+        assertThat(GeoTileUtils.getXTile(rectangle.getMaxX(), tiles), equalTo(Math.min(tiles - 1, xTile + 1)));
+        assertThat(GeoTileUtils.getYTile(rectangle.getMaxY(), tiles), anyOf(equalTo(yTile - 1), equalTo(yTile)));
+        assertThat(GeoTileUtils.getYTile(rectangle.getMinY(), tiles), anyOf(equalTo(yTile + 1), equalTo(yTile)));
+        // check point inside
+        double x = randomDoubleBetween(rectangle.getMinX(), rectangle.getMaxX(), false);
+        double y = randomDoubleBetween(rectangle.getMinY(), rectangle.getMaxY(), false);
+        assertThat(GeoTileUtils.getXTile(x, tiles), equalTo(xTile));
+        assertThat(GeoTileUtils.getYTile(y, tiles), equalTo(yTile));
+
     }
 }

@@ -146,7 +146,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     @Override
     public Set<String> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
         if (fieldName != null) {
-            MappedFieldType fieldType = parseContext.mapperService().fullName(fieldName);
+            MappedFieldType fieldType = parseContext.mapperService().fieldType(fieldName);
             if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }
@@ -296,7 +296,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("geo_context_mapping",
+                    deprecationLogger.deprecate("geo_context_mapping",
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 } else {
                     throw new ElasticsearchParseException(
@@ -304,7 +304,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("geo_context_mapping",
+                    deprecationLogger.deprecate("geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName, name, mappedFieldType.typeName());
                 } else {

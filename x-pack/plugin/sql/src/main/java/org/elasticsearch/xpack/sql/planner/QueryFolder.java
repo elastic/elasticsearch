@@ -6,32 +6,50 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.ql.execution.search.AggRef;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
+import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Foldables;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.Functions;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggPathInput;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
+import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.rule.Rule;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.search.AggRef;
-import org.elasticsearch.xpack.sql.expression.Alias;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.AttributeMap;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.Order;
-import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.expression.function.Functions;
-import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
-import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
@@ -39,39 +57,50 @@ import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
 import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.sql.planner.QueryTranslator.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
-import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.sql.querydsl.container.AggregateSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
+import org.elasticsearch.xpack.sql.querydsl.container.GroupingFunctionSort;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
+import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
-import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.rule.Rule;
-import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.util.Check;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.Duration;
+import java.time.Period;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
+import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.YEAR_INTERVAL;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
 
 /**
  * Folds the PhysicalPlan into a {@link Query}.
@@ -85,6 +114,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     @Override
     protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
         Batch rollup = new Batch("Fold queries",
+                new FoldPivot(),
                 new FoldAggregate(),
                 new FoldProject(),
                 new FoldFilter(),
@@ -112,33 +142,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 EsQueryExec exec = (EsQueryExec) project.child();
                 QueryContainer queryC = exec.queryContainer();
 
-                Map<Attribute, Attribute> aliases = new LinkedHashMap<>(queryC.aliases());
+                Map<Attribute, Expression> aliases = new LinkedHashMap<>(queryC.aliases());
                 Map<Attribute, Pipe> processors = new LinkedHashMap<>(queryC.scalarFunctions());
 
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
-                        Attribute aliasAttr = pj.toAttribute();
+                        Attribute attr = pj.toAttribute();
                         Expression e = ((Alias) pj).child();
 
-                        if (e instanceof NamedExpression) {
-                            Attribute attr = ((NamedExpression) e).toAttribute();
-                            aliases.put(aliasAttr, attr);
-                            // add placeholder for each scalar function
-                            if (e instanceof ScalarFunction) {
-                                processors.put(attr, Expressions.pipe(e));
-                            }
-                        } else {
-                            processors.put(aliasAttr, Expressions.pipe(e));
-                        }
-                    }
-                    else {
-                        // for named expressions nothing is recorded as these are resolved last
-                        // otherwise 'intermediate' projects might pollute the
-                        // output
+                        // track all aliases (to determine their reference later on)
+                        aliases.put(attr, e);
 
-                        if (pj instanceof ScalarFunction) {
-                            ScalarFunction f = (ScalarFunction) pj;
-                            processors.put(f.toAttribute(), Expressions.pipe(f));
+                        // track scalar pipelines
+                        if (e instanceof ScalarFunction) {
+                            processors.put(attr, ((ScalarFunction) e).asPipe());
                         }
                     }
                 }
@@ -150,7 +167,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         queryC.sort(),
                         queryC.limit(),
                         queryC.shouldTrackHits(),
-                        queryC.shouldIncludeFrozen());
+                        queryC.shouldIncludeFrozen(),
+                        queryC.minPageSize());
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
@@ -169,7 +187,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 Query query = null;
                 if (qContainer.query() != null || qt.query != null) {
-                    query = and(plan.source(), qContainer.query(), qt.query);
+                    query = ExpressionTranslators.and(plan.source(), qContainer.query(), qt.query);
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
@@ -180,7 +198,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         qContainer.sort(),
                         qContainer.limit(),
                         qContainer.shouldTrackHits(),
-                        qContainer.shouldIncludeFrozen());
+                        qContainer.shouldIncludeFrozen(),
+                        qContainer.minPageSize());
 
                 return exec.with(qContainer);
             }
@@ -202,189 +221,409 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private static class FoldAggregate extends FoldingRule<AggregateExec> {
-        @Override
-        protected PhysicalPlan rule(AggregateExec a) {
+    // TODO: remove exceptions from the Folder
+    static class FoldAggregate extends FoldingRule<AggregateExec> {
 
-            if (a.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) a.child();
+        static class GroupingContext {
+            final Map<Integer, GroupByKey> groupMap;
+            final GroupByKey tail;
 
-                // build the group aggregation
-                // and also collect info about it (since the group columns might be used inside the select)
+            GroupingContext(Map<Integer, GroupByKey> groupMap) {
+                this.groupMap = groupMap;
 
-                GroupingContext groupingContext = QueryTranslator.groupBy(a.groupings());
-
-                QueryContainer queryC = exec.queryContainer();
-                if (groupingContext != null) {
-                    queryC = queryC.addGroups(groupingContext.groupMap.values());
+                GroupByKey lastAgg = null;
+                for (Entry<Integer, GroupByKey> entry : groupMap.entrySet()) {
+                    lastAgg = entry.getValue();
                 }
 
-                Map<Attribute, Attribute> aliases = new LinkedHashMap<>();
-                // tracker for compound aggs seen in a group
-                Map<CompoundNumericAggregate, String> compoundAggMap = new LinkedHashMap<>();
+                tail = lastAgg;
+            }
 
-                // followed by actual aggregates
-                for (NamedExpression ne : a.aggregates()) {
-
-                    // unwrap alias - it can be
-                    // - an attribute (since we support aliases inside group-by)
-                    //   SELECT emp_no ... GROUP BY emp_no
-                    //   SELECT YEAR(hire_date) ... GROUP BY YEAR(hire_date)
-
-                    // - an agg function (typically)
-                    //   SELECT COUNT(*), AVG(salary) ... GROUP BY salary;
-
-                    // - a scalar function, which can be applied on an attribute or aggregate and can require one or multiple inputs
-
-                    //   SELECT SIN(emp_no) ... GROUP BY emp_no
-                    //   SELECT CAST(YEAR(hire_date)) ... GROUP BY YEAR(hire_date)
-                    //   SELECT CAST(AVG(salary)) ... GROUP BY salary
-                    //   SELECT AVG(salary) + SIN(MIN(salary)) ... GROUP BY salary
-
-                    if (ne instanceof Alias || ne instanceof Function) {
-                        Alias as = ne instanceof Alias ? (Alias) ne : null;
-                        Expression child = as != null ? as.child() : ne;
-
-                        // record aliases in case they are later referred in the tree
-                        if (as != null && as.child() instanceof NamedExpression) {
-                            aliases.put(as.toAttribute(), ((NamedExpression) as.child()).toAttribute());
-                        }
-
-                        //
-                        // look first for scalar functions which might wrap the actual grouped target
-                        // (e.g.
-                        // CAST(field) GROUP BY field or
-                        // ABS(YEAR(field)) GROUP BY YEAR(field) or
-                        // ABS(AVG(salary)) ... GROUP BY salary
-                        // )
-                        if (child instanceof ScalarFunction) {
-                            ScalarFunction f = (ScalarFunction) child;
-                            Pipe proc = f.asPipe();
-
-                            final AtomicReference<QueryContainer> qC = new AtomicReference<>(queryC);
-
-                            proc = proc.transformUp(p -> {
-                                // bail out if the def is resolved
-                                if (p.resolved()) {
-                                    return p;
-                                }
-
-                                // get the backing expression and check if it belongs to a agg group or whether it's
-                                // an expression in the first place
-                                Expression exp = p.expression();
-                                GroupByKey matchingGroup = null;
-                                if (groupingContext != null) {
-                                    // is there a group (aggregation) for this expression ?
-                                    matchingGroup = groupingContext.groupFor(exp);
-                                }
-                                else {
-                                    // a scalar function can be used only if has already been mentioned for grouping
-                                    // (otherwise it is the opposite of grouping)
-                                    if (exp instanceof ScalarFunction) {
-                                        throw new FoldingException(exp, "Scalar function " +exp.toString()
-                                                + " can be used only if included already in grouping");
-                                    }
-                                }
-
-                                // found match for expression; if it's an attribute or scalar, end the processing chain with
-                                // the reference to the backing agg
-                                if (matchingGroup != null) {
-                                    if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
-                                        Processor action = null;
-                                        boolean isDateBased = exp.dataType().isDateBased();
-                                        /*
-                                         * special handling of dates since aggs return the typed Date object which needs
-                                         * extraction instead of handling this in the scroller, the folder handles this
-                                         * as it already got access to the extraction action
-                                         */
-                                        if (exp instanceof DateTimeHistogramFunction) {
-                                            action = ((UnaryPipe) p).action();
-                                            isDateBased = true;
-                                        }
-                                        return new AggPathInput(exp.source(), exp,
-                                            new GroupByRef(matchingGroup.id(), null, isDateBased), action);
-                                    }
-                                }
-                                // or found an aggregate expression (which has to work on an attribute used for grouping)
-                                // (can happen when dealing with a root group)
-                                if (Functions.isAggregate(exp)) {
-                                    Tuple<QueryContainer, AggPathInput> withFunction = addAggFunction(matchingGroup,
-                                            (AggregateFunction) exp, compoundAggMap, qC.get());
-                                    qC.set(withFunction.v1());
-                                    return withFunction.v2();
-                                }
-                                // not an aggregate and no matching - go to a higher node (likely a function YEAR(birth_date))
-                                return p;
-                            });
-
-                            if (!proc.resolved()) {
-                                throw new FoldingException(child, "Cannot find grouping for '{}'", Expressions.name(child));
-                            }
-
-                            // add the computed column
-                            queryC = qC.get().addColumn(new ComputedRef(proc), f.toAttribute());
-
-                            // TODO: is this needed?
-                            // redirect the alias to the scalar group id (changing the id altogether doesn't work it is
-                            // already used in the aggpath)
-                            //aliases.put(as.toAttribute(), sf.toAttribute());
-                        }
-                        // apply the same logic above (for function inputs) to non-scalar functions with small variations:
-                        //  instead of adding things as input, add them as full blown column
-                        else {
-                            GroupByKey matchingGroup = null;
-                            if (groupingContext != null) {
-                                // is there a group (aggregation) for this expression ?
-                                matchingGroup = groupingContext.groupFor(child);
-                            }
-                            // attributes can only refer to declared groups
-                            if (child instanceof Attribute) {
-                                Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(child));
-                                queryC = queryC.addColumn(
-                                    new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()), ((Attribute) child));
-                            }
-                            // handle histogram
-                            else if (child instanceof GroupingFunction) {
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()),
-                                        ((GroupingFunction) child).toAttribute());
-                            }
-                            // fallback to regular agg functions
-                            else {
-                                // the only thing left is agg function
-                                Check.isTrue(Functions.isAggregate(child),
-                                        "Expected aggregate function inside alias; got [{}]", child.nodeString());
-                                AggregateFunction af = (AggregateFunction) child;
-                                Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, af, compoundAggMap, queryC);
-                                // make sure to add the inner id (to handle compound aggs)
-                                queryC = withAgg.v1().addColumn(withAgg.v2().context(), af.toAttribute());
-                            }
-                        }
-                    // not an Alias or Function means it's an Attribute so apply the same logic as above
-                    } else {
+            GroupByKey groupFor(Expression exp) {
+                Integer hash = null;
+                if (Functions.isAggregate(exp)) {
+                    AggregateFunction f = (AggregateFunction) exp;
+                    // if there's at least one agg in the tree
+                    if (groupMap.isEmpty() == false) {
                         GroupByKey matchingGroup = null;
-                        if (groupingContext != null) {
-                            matchingGroup = groupingContext.groupFor(ne);
-                            Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
-
-                            queryC = queryC.addColumn(
-                                new GroupByRef(matchingGroup.id(), null, ne.dataType().isDateBased()), ne.toAttribute());
-                        }
+                        // group found - finding the dedicated agg
+                        // TODO: when dealing with expressions inside Aggregation, make sure to extract the field
+                        hash = Integer.valueOf(f.field().hashCode());
+                        matchingGroup = groupMap.get(hash);
+                        // return matching group or the tail (last group)
+                        return matchingGroup != null ? matchingGroup : tail;
+                    } else {
+                        return null;
                     }
                 }
 
-                if (!aliases.isEmpty()) {
-                    Map<Attribute, Attribute> newAliases = new LinkedHashMap<>(queryC.aliases());
-                    newAliases.putAll(aliases);
-                    queryC = queryC.withAliases(new AttributeMap<>(newAliases));
+                hash = Integer.valueOf(exp.hashCode());
+                return groupMap.get(hash);
+            }
+
+            @Override
+            public String toString() {
+                return groupMap.toString();
+            }
+        }
+
+        /**
+         * Creates the list of GroupBy keys
+         */
+        static GroupingContext groupBy(List<? extends Expression> groupings) {
+            if (groupings.isEmpty()) {
+                return null;
+            }
+
+            Map<Integer, GroupByKey> aggMap = new LinkedHashMap<>();
+
+            for (Expression exp : groupings) {
+                GroupByKey key = null;
+
+                Integer hash = Integer.valueOf(exp.hashCode());
+                String aggId = Expressions.id(exp);
+
+                // change analyzed to non non-analyzed attributes
+                if (exp instanceof FieldAttribute) {
+                    FieldAttribute field = (FieldAttribute) exp;
+                    field = field.exactAttribute();
+                    key = new GroupByValue(aggId, field.name());
                 }
-                return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
+                // handle functions
+                else if (exp instanceof Function) {
+                    // dates are handled differently because of date histograms
+                    if (exp instanceof DateTimeHistogramFunction) {
+                        DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
+
+                        Expression field = dthf.field();
+                        if (field instanceof FieldAttribute) {
+                            if (dthf.calendarInterval() != null) {
+                                key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(exp), dthf.calendarInterval(), dthf.zoneId());
+                            } else {
+                                key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(exp), dthf.fixedInterval(), dthf.zoneId());
+                            }
+                        }
+                        // use scripting for functions
+                        else if (field instanceof Function) {
+                            ScriptTemplate script = ((Function) field).asScript();
+                            if (dthf.calendarInterval() != null) {
+                                key = new GroupByDateHistogram(aggId, script, dthf.calendarInterval(), dthf.zoneId());
+                            } else {
+                                key = new GroupByDateHistogram(aggId, script, dthf.fixedInterval(), dthf.zoneId());
+                            }
+                        }
+                    }
+                    // all other scalar functions become a script
+                    else if (exp instanceof ScalarFunction) {
+                        ScalarFunction sf = (ScalarFunction) exp;
+                        key = new GroupByValue(aggId, sf.asScript());
+                    }
+                    // histogram
+                    else if (exp instanceof GroupingFunction) {
+                        if (exp instanceof Histogram) {
+                            Histogram h = (Histogram) exp;
+                            Expression field = h.field();
+
+                            // date histogram
+                            if (isDateBased(h.dataType())) {
+                                Object value = h.interval().value();
+
+                                // interval of exactly 1 year or 1 month
+                                if (value instanceof IntervalYearMonth &&
+                                        (((IntervalYearMonth) value).interval().equals(Period.ofYears(1))
+                                        || ((IntervalYearMonth) value).interval().equals(Period.ofMonths(1)))) {
+                                    Period yearMonth = ((IntervalYearMonth) value).interval();
+                                    String calendarInterval = yearMonth.equals(Period.ofYears(1)) ? YEAR_INTERVAL : MONTH_INTERVAL;
+
+                                    // When the histogram is `INTERVAL '1' YEAR` or `INTERVAL '1' MONTH`, the interval used in
+                                    // the ES date_histogram will be a calendar_interval with value "1y" or "1M" respectively.
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), calendarInterval, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), calendarInterval, h.zoneId());
+                                    }
+                                }
+                                // interval of exactly 1 day
+                                else if (value instanceof IntervalDayTime
+                                        && ((IntervalDayTime) value).interval().equals(Duration.ofDays(1))) {
+                                    // When the histogram is `INTERVAL '1' DAY` the interval used in
+                                    // the ES date_histogram will be a calendar_interval with value "1d"
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), DAY_INTERVAL, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), DAY_INTERVAL, h.zoneId());
+                                    }
+                                }
+                                // All other intervals will be fixed_intervals expressed in ms.
+                                else {
+                                    long intervalAsMillis = Intervals.inMillis(h.interval());
+
+                                    // When the histogram in SQL is applied on DATE type instead of DATETIME, the interval
+                                    // specified is truncated to the multiple of a day. If the interval specified is less
+                                    // than 1 day, then the interval used will be `INTERVAL '1' DAY`.
+                                    if (h.dataType() == DATE) {
+                                        intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
+                                    }
+
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByDateHistogram(aggId, QueryTranslator.nameOf(field), intervalAsMillis, h.zoneId());
+                                    } else if (field instanceof Function) {
+                                        key = new GroupByDateHistogram(aggId, ((Function) field).asScript(), intervalAsMillis, h.zoneId());
+                                    }
+                                }
+                            }
+                            // numeric histogram
+                            else {
+                                if (field instanceof FieldAttribute || field instanceof Function) {
+                                    Double interval = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(h.interval()),
+                                            DataTypes.DOUBLE);
+                                    if (field instanceof FieldAttribute) {
+                                        key = new GroupByNumericHistogram(aggId, QueryTranslator.nameOf(field), interval);
+                                    } else {
+                                        key = new GroupByNumericHistogram(aggId, ((Function) field).asScript(), interval);
+                                    }
+                                }
+                            }
+                            if (key == null) {
+                                throw new SqlIllegalArgumentException("Unsupported histogram field {}", field);
+                            }
+                        } else {
+                            throw new SqlIllegalArgumentException("Unsupproted grouping function {}", exp);
+                        }
+                    }
+                    // bumped into into an invalid function (which should be caught by the verifier)
+                    else {
+                        throw new SqlIllegalArgumentException("Cannot GROUP BY function {}", exp);
+                    }
+                }
+                // catch corner-case
+                else {
+                    throw new SqlIllegalArgumentException("Cannot GROUP BY {}", exp);
+                }
+
+                aggMap.put(hash, key);
+            }
+            return new GroupingContext(aggMap);
+        }
+
+        @Override
+        protected PhysicalPlan rule(AggregateExec a) {
+            if (a.child() instanceof EsQueryExec) {
+                EsQueryExec exec = (EsQueryExec) a.child();
+                return fold(a, exec);
             }
             return a;
         }
 
-        private Tuple<QueryContainer, AggPathInput> addAggFunction(GroupByKey groupingAgg, AggregateFunction f,
+        static EsQueryExec fold(AggregateExec a, EsQueryExec exec) {
+
+            QueryContainer queryC = exec.queryContainer();
+
+            // track aliases defined in the SELECT and used inside GROUP BY
+            // SELECT x AS a ... GROUP BY a
+            Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+            String id = null;
+            for (NamedExpression ne : a.aggregates()) {
+                if (ne instanceof Alias) {
+                    aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+                }
+            }
+
+            if (aliasMap.isEmpty() == false) {
+                Map<Attribute, Expression> newAliases = new LinkedHashMap<>(queryC.aliases());
+                newAliases.putAll(aliasMap);
+                queryC = queryC.withAliases(new AttributeMap<>(newAliases));
+            }
+
+            // build the group aggregation
+            // NB: any reference in grouping is already "optimized" by its source so there's no need to look for aliases
+            GroupingContext groupingContext = groupBy(a.groupings());
+
+            if (groupingContext != null) {
+                queryC = queryC.addGroups(groupingContext.groupMap.values());
+            }
+
+            // tracker for compound aggs seen in a group
+            Map<CompoundNumericAggregate, String> compoundAggMap = new LinkedHashMap<>();
+
+            // followed by actual aggregates
+            for (NamedExpression ne : a.aggregates()) {
+
+                // unwrap alias (since we support aliases declared inside SELECTs to be used by the GROUP BY)
+                // An alias can point to :
+                // - field
+                //   SELECT emp_no AS e ... GROUP BY e
+                // - a function
+                //   SELECT YEAR(hire_date) ... GROUP BY YEAR(hire_date)
+
+                // - an agg function over the grouped field
+                //   SELECT COUNT(*), AVG(salary) ... GROUP BY salary;
+
+                // - a scalar function, which can be applied on a column or aggregate and can require one or multiple inputs
+
+                //   SELECT SIN(emp_no) ... GROUP BY emp_no
+                //   SELECT CAST(YEAR(hire_date)) ... GROUP BY YEAR(hire_date)
+                //   SELECT CAST(AVG(salary)) ... GROUP BY salary
+                //   SELECT AVG(salary) + SIN(MIN(salary)) ... GROUP BY salary
+
+                Expression target = ne;
+
+                // unwrap aliases since it's the children we are interested in
+                if (ne instanceof Alias) {
+                    target = ((Alias) ne).child();
+                }
+
+                id = Expressions.id(target);
+
+                // literal
+                if (target.foldable()) {
+                    queryC = queryC.addColumn(ne.toAttribute());
+                }
+
+                // look at functions
+                else if (target instanceof Function) {
+
+                    //
+                    // look first for scalar functions which might wrap the actual grouped target
+                    // (e.g.
+                    // CAST(field) GROUP BY field or
+                    // ABS(YEAR(field)) GROUP BY YEAR(field) or
+                    // ABS(AVG(salary)) ... GROUP BY salary
+                    // )
+
+                    if (target instanceof ScalarFunction) {
+                        ScalarFunction f = (ScalarFunction) target;
+                        Pipe proc = f.asPipe();
+
+                        final AtomicReference<QueryContainer> qC = new AtomicReference<>(queryC);
+
+                        // traverse the pipe to find the mandatory grouping expression
+                        proc = proc.transformUp(p -> {
+                            // bail out if the def is resolved
+                            if (p.resolved()) {
+                                return p;
+                            }
+
+                            // get the backing expression and check if it belongs to a agg group or whether it's
+                            // an expression in the first place
+                            Expression exp = p.expression();
+                            GroupByKey matchingGroup = null;
+                            if (groupingContext != null) {
+                                // is there a group (aggregation) for this expression ?
+                                matchingGroup = groupingContext.groupFor(exp);
+                            } else {
+                                // a scalar function can be used only if has already been mentioned for grouping
+                                // (otherwise it is the opposite of grouping)
+                                // normally this case should be caught by the Verifier
+                                if (exp instanceof ScalarFunction) {
+                                    throw new FoldingException(exp,
+                                            "Scalar function " + exp.toString() + " can be used only if included already in grouping");
+                                }
+                            }
+
+                            // found match for expression; if it's an attribute or scalar, end the processing chain with
+                            // the reference to the backing agg
+                            if (matchingGroup != null) {
+                                if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
+                                    Processor action = null;
+                                    boolean isDateBased = isDateBased(exp.dataType());
+                                    /*
+                                     * special handling of dates since aggs return the typed Date object which needs
+                                     * extraction instead of handling this in the scroller, the folder handles this
+                                     * as it already got access to the extraction action
+                                     */
+                                    if (exp instanceof DateTimeHistogramFunction) {
+                                        action = ((UnaryPipe) p).action();
+                                        isDateBased = true;
+                                    }
+                                    return new AggPathInput(exp.source(), exp, new GroupByRef(matchingGroup.id(), null, isDateBased),
+                                            action);
+                                }
+                            }
+                            // or found an aggregate expression (which has to work on an attribute used for grouping)
+                            // (can happen when dealing with a root group)
+                            if (Functions.isAggregate(exp)) {
+                                Tuple<QueryContainer, AggPathInput> withFunction = addAggFunction(matchingGroup, (AggregateFunction) exp,
+                                        compoundAggMap, qC.get());
+                                qC.set(withFunction.v1());
+                                return withFunction.v2();
+                            }
+                            // not an aggregate and no matching - go to a higher node (likely a function YEAR(birth_date))
+                            return p;
+                        });
+
+                        if (proc.resolved() == false) {
+                            throw new FoldingException(target, "Cannot find grouping for '{}'", Expressions.name(target));
+                        }
+
+                        // add the computed column
+                        queryC = qC.get().addColumn(new ComputedRef(proc), id);
+                    }
+
+                    // apply the same logic above (for function inputs) to non-scalar functions with small variations:
+                    //  instead of adding things as input, add them as full blown column
+                    else {
+                        GroupByKey matchingGroup = null;
+                        if (groupingContext != null) {
+                            // is there a group (aggregation) for this expression ?
+                            matchingGroup = groupingContext.groupFor(target);
+                        }
+                        // attributes can only refer to declared groups
+                        if (target instanceof Attribute) {
+                            Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(target));
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())), id);
+                        }
+                        // handle histogram
+                        else if (target instanceof GroupingFunction) {
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())), id);
+                        }
+                        // handle literal
+                        else if (target.foldable()) {
+                            queryC = queryC.addColumn(ne.toAttribute());
+                        }
+                        // fallback to regular agg functions
+                        else {
+                            // the only thing left is agg function
+                            Check.isTrue(Functions.isAggregate(target), "Expected aggregate function inside alias; got [{}]",
+                                    target.nodeString());
+                            AggregateFunction af = (AggregateFunction) target;
+                            Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, af, compoundAggMap, queryC);
+                            // make sure to add the inner id (to handle compound aggs)
+                            queryC = withAgg.v1().addColumn(withAgg.v2().context(), id);
+                        }
+                    }
+
+                }
+                // not a Function or literal, means its has to be a field or field expression
+                else {
+                    GroupByKey matchingGroup = null;
+                    if (groupingContext != null) {
+                        matchingGroup = groupingContext.groupFor(target);
+                        Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
+
+                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
+                    }
+                    // fallback
+                    else {
+                        throw new SqlIllegalArgumentException("Cannot fold aggregate {}", ne);
+                    }
+                }
+            }
+            // If we're only selecting literals, we have to still execute the aggregation to create
+            // the correct grouping buckets, in order to return the appropriate number of rows
+            if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
+                for (Expression grouping : a.groupings()) {
+                    GroupByKey matchingGroup = groupingContext.groupFor(grouping);
+                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
+                }
+            }
+            return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
+        }
+
+        private static Tuple<QueryContainer, AggPathInput> addAggFunction(GroupByKey groupingAgg, AggregateFunction f,
                 Map<CompoundNumericAggregate, String> compoundAggMap, QueryContainer queryC) {
-            String functionId = f.functionId();
+
+            String functionId = Expressions.id(f);
             // handle count as a special case agg
             if (f instanceof Count) {
                 Count c = (Count) f;
@@ -404,7 +643,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     pseudoFunctions.put(functionId, groupingAgg);
                     return new Tuple<>(queryC.withPseudoFunctions(pseudoFunctions), new AggPathInput(f, ref));
                 // COUNT(<field_name>)
-                } else if (!c.distinct()) {
+                } else if (c.distinct() == false) {
                     LeafAgg leafAgg = toAgg(functionId, f);
                     AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count", false));
                     queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
@@ -417,12 +656,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             if (f instanceof InnerAggregate) {
                 InnerAggregate ia = (InnerAggregate) f;
-                CompoundNumericAggregate outer = ia.outer();
+                CompoundNumericAggregate outer = (CompoundNumericAggregate) ia.outer();
                 String cAggPath = compoundAggMap.get(outer);
 
                 // the compound agg hasn't been seen before so initialize it
                 if (cAggPath == null) {
-                    LeafAgg leafAgg = toAgg(outer.functionId(), outer);
+                    LeafAgg leafAgg = toAgg(Expressions.id(outer), outer);
                     cAggPath = leafAgg.id();
                     compoundAggMap.put(outer, cAggPath);
                     // add the agg (without any reference)
@@ -434,14 +673,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 aggInput = new AggPathInput(f,
                         new MetricAggRef(cAggPath, ia.innerName(),
                             ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null,
-                            ia.dataType().isDateBased()));
+                            isDateBased(ia.dataType())));
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
                 if (f instanceof TopHits) {
                     aggInput = new AggPathInput(f, new TopHitsAggRef(leafAgg.id(), f.dataType()));
                 } else {
-                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), f.dataType().isDateBased()));
+                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), isDateBased(f.dataType())));
                 }
                 queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }
@@ -462,46 +701,47 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     Missing missing = Missing.from(order.nullsPosition());
 
                     // check whether sorting is on an group (and thus nested agg) or field
-                    Attribute attr = ((NamedExpression) order.child()).toAttribute();
-                    // check whether there's an alias (occurs with scalar functions which are not named)
-                    attr = qContainer.aliases().getOrDefault(attr, attr);
-                    String lookup = attr.id().toString();
+                    Expression orderExpression = order.child();
+
+                    // if it's a reference, get the target expression
+                    if (orderExpression instanceof ReferenceAttribute) {
+                        orderExpression = qContainer.aliases().get(orderExpression);
+                    }
+                    String lookup = Expressions.id(orderExpression);
                     GroupByKey group = qContainer.findGroupForAgg(lookup);
 
                     // TODO: might need to validate whether the target field or group actually exist
                     if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
-                        // check whether the lookup matches a group
-                        if (group.id().equals(lookup)) {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
-                        // else it's a leafAgg
-                        else {
-                            qContainer = qContainer.updateGroup(group.with(direction));
-                        }
+                        qContainer = qContainer.updateGroup(group.with(direction));
                     }
+
+                    // field
+                    if (orderExpression instanceof FieldAttribute) {
+                        qContainer = qContainer.addSort(lookup,
+                                new AttributeSort((FieldAttribute) orderExpression, direction, missing));
+                    }
+                    // scalar functions typically require script ordering
+                    else if (orderExpression instanceof ScalarFunction) {
+                        ScalarFunction sf = (ScalarFunction) orderExpression;
+                        // nope, use scripted sorting
+                        qContainer = qContainer.addSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
+                    }
+                    // histogram
+                    else if (orderExpression instanceof Histogram) {
+                        qContainer = qContainer.addSort(lookup, new GroupingFunctionSort(direction, missing));
+                    }
+                    // score
+                    else if (orderExpression instanceof Score) {
+                        qContainer = qContainer.addSort(lookup, new ScoreSort(direction, missing));
+                    }
+                    // agg function
+                    else if (orderExpression instanceof AggregateFunction) {
+                        qContainer = qContainer.addSort(lookup,
+                                new AggregateSort((AggregateFunction) orderExpression, direction, missing));
+                    }
+                    // unknown
                     else {
-                        // scalar functions typically require script ordering
-                        if (attr instanceof ScalarFunctionAttribute) {
-                            ScalarFunctionAttribute sfa = (ScalarFunctionAttribute) attr;
-                            // is there an expression to order by?
-                            if (sfa.orderBy() != null) {
-                                if (sfa.orderBy() instanceof NamedExpression) {
-                                    Attribute at = ((NamedExpression) sfa.orderBy()).toAttribute();
-                                    at = qContainer.aliases().getOrDefault(at, at);
-                                    qContainer = qContainer.addSort(new AttributeSort(at, direction, missing));
-                                } else if (!sfa.orderBy().foldable()) {
-                                    // ignore constant
-                                    throw new PlanningException("does not know how to order by expression {}", sfa.orderBy());
-                                }
-                            } else {
-                                // nope, use scripted sorting
-                                qContainer = qContainer.addSort(new ScriptSort(sfa.script(), direction, missing));
-                            }
-                        } else if (attr instanceof ScoreAttribute) {
-                            qContainer = qContainer.addSort(new ScoreSort(direction, missing));
-                        } else {
-                            qContainer = qContainer.addSort(new AttributeSort(attr, direction, missing));
-                        }
+                        throw new SqlIllegalArgumentException("unsupported sorting expression {}", orderExpression);
                     }
                 }
 
@@ -518,7 +758,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(LimitExec plan) {
             if (plan.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) plan.child();
-                int limit = Foldables.intValueOf(plan.limit());
+                int limit = (Integer) SqlDataTypeConverter.convert(Foldables.valueOf(plan.limit()), DataTypes.INTEGER);
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));
@@ -543,6 +783,53 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             // after all attributes have been resolved
             return exec.with(qContainer);
+        }
+    }
+
+
+    private static class FoldPivot extends FoldingRule<PivotExec> {
+
+        @Override
+        protected PhysicalPlan rule(PivotExec plan) {
+            if (plan.child() instanceof EsQueryExec) {
+                EsQueryExec exec = (EsQueryExec) plan.child();
+                Pivot p = plan.pivot();
+                EsQueryExec fold = FoldAggregate
+                        .fold(new AggregateExec(plan.source(), exec,
+                                new ArrayList<>(p.groupingSet()), combine(p.groupingSet(), p.aggregates())), exec);
+
+                // replace the aggregate extractors with pivot specific extractors
+                // these require a reference to the pivoting column in order to compare the value
+                // due to the Pivot structure - the column is the last entry in the grouping set
+                QueryContainer query = fold.queryContainer();
+
+                List<Tuple<FieldExtraction, String>> fields = new ArrayList<>(query.fields());
+                int startingIndex = fields.size() - p.aggregates().size() - 1;
+                // pivot grouping
+                Tuple<FieldExtraction, String> groupTuple = fields.remove(startingIndex);
+                AttributeMap<Literal> values = p.valuesToLiterals();
+
+                for (int i = startingIndex; i < fields.size(); i++) {
+                    Tuple<FieldExtraction, String> tuple = fields.remove(i);
+                    for (Map.Entry<Attribute, Literal> entry : values.entrySet()) {
+                        fields.add(new Tuple<>(
+                                new PivotColumnRef(groupTuple.v1(), tuple.v1(), entry.getValue().value()), Expressions.id(entry.getKey())));
+                    }
+                    i += values.size();
+                }
+
+                return fold.with(new QueryContainer(query.query(), query.aggs(),
+                        fields,
+                        query.aliases(),
+                        query.pseudoFunctions(),
+                        query.scalarFunctions(),
+                        query.sort(),
+                        query.limit(),
+                        query.shouldTrackHits(),
+                        query.shouldIncludeFrozen(),
+                        values.size()));
+            }
+            return plan;
         }
     }
 

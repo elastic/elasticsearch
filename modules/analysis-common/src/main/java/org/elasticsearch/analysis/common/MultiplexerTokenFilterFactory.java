@@ -19,18 +19,17 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ConditionalTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -41,9 +40,6 @@ import java.util.List;
 import java.util.function.Function;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(MultiplexerTokenFilterFactory.class));
 
     private List<String> filterNames;
     private final boolean preserveOriginal;
@@ -72,12 +68,15 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         if (preserveOriginal) {
             filters.add(IDENTITY_FILTER);
         }
+        // also merge and transfer token filter analysis modes with analyzer
+        AnalysisMode mode = AnalysisMode.ALL;
         for (String filter : filterNames) {
             String[] parts = Strings.tokenizeToStringArray(filter, ",");
             if (parts.length == 1) {
                 TokenFilterFactory factory = resolveFilterFactory(allFilters, parts[0]);
                 factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, previousTokenFilters, allFilters);
                 filters.add(factory);
+                mode = mode.merge(factory.getAnalysisMode());
             } else {
                 List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
                 List<TokenFilterFactory> chain = new ArrayList<>();
@@ -86,10 +85,12 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                     factory = factory.getChainAwareTokenFilterFactory(tokenizer, charFilters, existingChain, allFilters);
                     chain.add(factory);
                     existingChain.add(factory);
+                    mode = mode.merge(factory.getAnalysisMode());
                 }
                 filters.add(chainFilters(filter, chain));
             }
         }
+        final AnalysisMode analysisMode = mode;
 
         return new TokenFilterFactory() {
             @Override
@@ -109,6 +110,11 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             @Override
             public TokenFilterFactory getSynonymFilter() {
                 throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+            }
+
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return analysisMode;
             }
         };
     }

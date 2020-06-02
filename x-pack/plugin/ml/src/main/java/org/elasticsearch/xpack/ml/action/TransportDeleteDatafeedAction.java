@@ -20,7 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -106,21 +106,21 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     }
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
             persistentTasksService.sendRemoveRequest(datafeedTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                         @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                             listener.onResponse(Boolean.TRUE);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            if (e instanceof ResourceNotFoundException) {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 // the task has been removed in between
                                 listener.onResponse(true);
                             } else {
@@ -133,7 +133,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
 
     private void deleteDatafeedConfig(DeleteDatafeedAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         // Check datafeed is stopped
-        PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (MlTasks.getDatafeedTask(request.getDatafeedId(), tasks) != null) {
             listener.onFailure(ExceptionsHelper.conflictStatusException(
                     Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, request.getDatafeedId(), DatafeedState.STARTED)));

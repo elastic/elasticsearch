@@ -39,7 +39,7 @@ respectively. Both default to `1`.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -68,7 +68,6 @@ POST /_search
    }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The way the scores are combined can be controlled with the `score_mode`:
@@ -87,7 +86,7 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 
 It is also possible to execute multiple rescores in sequence:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -130,7 +129,6 @@ POST /_search
    } ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The first one gets the results of the query then the second one gets the

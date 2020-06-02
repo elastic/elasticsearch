@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +27,6 @@ public class IndexAction implements Action {
 
     public static final String TYPE = "index";
 
-    @Nullable @Deprecated final String docType;
     @Nullable final String index;
     @Nullable final String docId;
     @Nullable final String executionTimeField;
@@ -37,23 +34,10 @@ public class IndexAction implements Action {
     @Nullable final ZoneId dynamicNameTimeZone;
     @Nullable final RefreshPolicy refreshPolicy;
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in a watcher index action is deprecated.";
-
     public IndexAction(@Nullable String index, @Nullable String docId,
                        @Nullable String executionTimeField,
                        @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
-        this(index, null, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
-    }
-    /**
-     * Document types are deprecated, use constructor without docType
-     */
-    @Deprecated
-    public IndexAction(@Nullable String index, @Nullable String docType, @Nullable String docId,
-                       @Nullable String executionTimeField,
-                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
         this.index = index;
-        this.docType = docType;
         this.docId = docId;
         this.executionTimeField = executionTimeField;
         this.timeout = timeout;
@@ -68,10 +52,6 @@ public class IndexAction implements Action {
 
     public String getIndex() {
         return index;
-    }
-
-    public String getDocType() {
-        return docType;
     }
 
     public String getDocId() {
@@ -97,7 +77,7 @@ public class IndexAction implements Action {
 
         IndexAction that = (IndexAction) o;
 
-        return Objects.equals(index, that.index) && Objects.equals(docType, that.docType) && Objects.equals(docId, that.docId)
+        return Objects.equals(index, that.index) && Objects.equals(docId, that.docId)
                 && Objects.equals(executionTimeField, that.executionTimeField)
                 && Objects.equals(timeout, that.timeout)
                 && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone)
@@ -106,7 +86,7 @@ public class IndexAction implements Action {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+        return Objects.hash(index, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
     @Override
@@ -114,9 +94,6 @@ public class IndexAction implements Action {
         builder.startObject();
         if (index != null) {
             builder.field(Field.INDEX.getPreferredName(), index);
-        }
-        if (docType != null) {
-            builder.field(Field.DOC_TYPE.getPreferredName(), docType);
         }
         if (docId != null) {
             builder.field(Field.DOC_ID.getPreferredName(), docId);
@@ -138,7 +115,6 @@ public class IndexAction implements Action {
 
     public static IndexAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String index = null;
-        String docType = null;
         String docId = null;
         String executionTimeField = null;
         TimeValue timeout = null;
@@ -165,10 +141,7 @@ public class IndexAction implements Action {
                             watchId, actionId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.DOC_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecatedAndMaybeLog("watcher_index_action", TYPES_DEPRECATION_MESSAGE);
-                    docType = parser.text();
-                } else if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();
                 } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     executionTimeField = parser.text();
@@ -194,15 +167,7 @@ public class IndexAction implements Action {
             }
         }
 
-        return new IndexAction(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
-    }
-
-    /**
-     * Document types are deprecated, use {@link #builder(java.lang.String)}
-     */
-    @Deprecated
-    public static Builder builder(String index, String docType) {
-        return new Builder(index, docType);
+        return new IndexAction(index, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
     public static Builder builder(String index) {
@@ -233,16 +198,14 @@ public class IndexAction implements Action {
     static class Simulated extends Action.Result {
 
         private final String index;
-        private final String docType;
         @Nullable private final String docId;
         @Nullable private final RefreshPolicy refreshPolicy;
         private final XContentSource source;
 
-        protected Simulated(String index, String docType, @Nullable String docId, @Nullable RefreshPolicy refreshPolicy,
+        protected Simulated(String index, @Nullable String docId, @Nullable RefreshPolicy refreshPolicy,
                             XContentSource source) {
             super(TYPE, Status.SIMULATED);
             this.index = index;
-            this.docType = docType;
             this.docId = docId;
             this.source = source;
             this.refreshPolicy = refreshPolicy;
@@ -250,10 +213,6 @@ public class IndexAction implements Action {
 
         public String index() {
             return index;
-        }
-
-        public String docType() {
-            return docType;
         }
 
         public String docId() {
@@ -268,8 +227,7 @@ public class IndexAction implements Action {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(type)
                        .startObject(Field.REQUEST.getPreferredName())
-                            .field(Field.INDEX.getPreferredName(), index)
-                            .field(Field.DOC_TYPE.getPreferredName(), docType);
+                            .field(Field.INDEX.getPreferredName(), index);
 
             if (docId != null) {
                 builder.field(Field.DOC_ID.getPreferredName(), docId);
@@ -288,25 +246,14 @@ public class IndexAction implements Action {
     public static class Builder implements Action.Builder<IndexAction> {
 
         final String index;
-        final String docType;
         String docId;
         String executionTimeField;
         TimeValue timeout;
         ZoneId dynamicNameTimeZone;
         RefreshPolicy refreshPolicy;
 
-        /**
-         * Document types are deprecated and should not be used. Use: {@link Builder#Builder(java.lang.String)}
-         */
-        @Deprecated
-        private Builder(String index, String docType) {
-            this.index = index;
-            this.docType = docType;
-        }
-
         private Builder(String index) {
             this.index = index;
-            this.docType = null;
         }
 
         public Builder setDocId(String docId) {
@@ -336,13 +283,12 @@ public class IndexAction implements Action {
 
         @Override
         public IndexAction build() {
-            return new IndexAction(index, docType, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+            return new IndexAction(index, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
         }
     }
 
     interface Field {
         ParseField INDEX = new ParseField("index");
-        ParseField DOC_TYPE = new ParseField("doc_type");
         ParseField DOC_ID = new ParseField("doc_id");
         ParseField EXECUTION_TIME_FIELD = new ParseField("execution_time_field");
         ParseField SOURCE = new ParseField("source");

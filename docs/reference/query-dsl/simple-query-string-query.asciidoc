@@ -20,7 +20,7 @@ parts of the query string.
 [[simple-query-string-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -33,7 +33,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[simple-query-string-top-level-params]]
@@ -75,10 +74,6 @@ OR of OR Hungary`.
 For example, a query string of `capital of Hungary` is interpreted as `capital
 AND of AND Hungary`.
 --
-
-`all_fields`::
-deprecated:[6.0.0, set `fields` to `*` instead](Optional, boolean) If `true`,
-search all searchable fields in the index's field mapping.
 
 `analyze_wildcard`::
 (Optional, boolean) If `true`, the query attempts to analyze wildcard terms in
@@ -153,7 +148,7 @@ To use one of these characters literally, escape it with a preceding backslash
 The behavior of these operators may differ depending on the `default_operator`
 value. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -165,7 +160,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 This search is intended to only return documents containing `foo` or `bar` that
 also do **not** contain `baz`. However because of a `default_operator` of `OR`,
@@ -182,7 +176,7 @@ To explicitly enable only specific operators, use a `|` separator. For example,
 a `flags` value of `OR|AND|PREFIX` disables all operators except `OR`, `AND`,
 and `PREFIX`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -194,7 +188,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[supported-flags-values]]
 ====== Valid values
@@ -247,7 +240,7 @@ Enables whitespace as split characters.
 
 Fields can be specified with wildcards, eg:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -259,12 +252,12 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Query the `title`, `first_name` and `last_name` fields.
 
 Individual fields can be boosted with the caret (`^`) notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -276,7 +269,6 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The `subject` field is three times as important as the `message` field.
 
@@ -291,7 +283,7 @@ For example, the following synonym: `"ny, new york" would produce:`
 
 It is also possible to match multi terms synonyms with conjunctions instead:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -303,7 +295,6 @@ GET /_search
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 The example above creates a boolean query:
 

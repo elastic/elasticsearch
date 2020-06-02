@@ -85,7 +85,7 @@ public class ProblemTrackerTests extends ESTestCase {
         for (int i = 0; i < 9; i++) {
             problemTracker.reportEmptyDataCount();
         }
-        problemTracker.reportNoneEmptyCount();
+        problemTracker.reportNonEmptyDataCount();
 
         Mockito.verifyNoMoreInteractions(auditor);
     }
@@ -94,7 +94,7 @@ public class ProblemTrackerTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             problemTracker.reportEmptyDataCount();
         }
-        problemTracker.reportNoneEmptyCount();
+        problemTracker.reportNonEmptyDataCount();
 
         verify(auditor).warning("foo", "Datafeed has been retrieving no data for a while");
         verify(auditor).info("foo", "Datafeed has started retrieving data again");

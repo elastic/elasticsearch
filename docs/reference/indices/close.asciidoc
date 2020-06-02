@@ -6,11 +6,10 @@
 
 Closes an index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_close
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -25,13 +24,13 @@ POST /twitter/_close
 
 You use the close index API to close open indices.
 
-include::{docdir}/indices/open-close.asciidoc[tag=closed-index]
+include::{es-repo-dir}/indices/open-close.asciidoc[tag=closed-index]
 
 
 [[close-index-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To close all indices, use `_all` or `*`.
 To disallow the closing of indices with `_all` or wildcard expressions,
@@ -43,17 +42,19 @@ or using the <<cluster-update-settings,cluster update settings>> API.
 [[close-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[close-index-api-example]]
@@ -61,16 +62,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 The following example shows how to close an index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_index/_close
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_index\n/]
 
 The API returns following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged" : true,
@@ -82,4 +82,3 @@ The API returns following response:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE

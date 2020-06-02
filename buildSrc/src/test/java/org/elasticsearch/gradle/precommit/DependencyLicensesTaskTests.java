@@ -28,6 +28,9 @@ import static org.hamcrest.CoreMatchers.containsString;
 
 public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
+    private static final String PERMISSIVE_LICENSE_TEXT = "Eclipse Public License - v 2.0";
+    private static final String STRICT_LICENSE_TEXT = "GNU LESSER GENERAL PUBLIC LICENSE Version 3";
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -76,7 +79,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expectMessage(containsString("Missing SHA for "));
 
         File licensesDir = getLicensesDir(project);
-        createFileIn(licensesDir, "groovy-all-LICENSE.txt", "");
+        createFileIn(licensesDir, "groovy-all-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         createFileIn(licensesDir, "groovy-all-NOTICE.txt", "");
 
         project.getDependencies().add("compile", project.getDependencies().localGroovy());
@@ -102,7 +105,33 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
         project.getDependencies().add("compile", dependency);
 
-        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", "");
+        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
+
+        updateShas.updateShas();
+        task.get().checkDependencies();
+    }
+
+    @Test
+    public void givenProjectWithStrictDependencyButNoSourcesFileThenShouldReturnException() throws Exception {
+        expectedException.expect(GradleException.class);
+        expectedException.expectMessage(containsString("Missing SOURCES for "));
+
+        project.getDependencies().add("compile", dependency);
+
+        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", STRICT_LICENSE_TEXT);
+        createFileIn(getLicensesDir(project), "groovy-all-NOTICE.txt", "");
+
+        updateShas.updateShas();
+        task.get().checkDependencies();
+    }
+
+    @Test
+    public void givenProjectWithStrictDependencyAndEverythingInOrderThenShouldReturnSilently() throws Exception {
+        project.getDependencies().add("compile", dependency);
+
+        createFileIn(getLicensesDir(project), "groovy-all-LICENSE.txt", STRICT_LICENSE_TEXT);
+        createFileIn(getLicensesDir(project), "groovy-all-NOTICE.txt", "");
+        createFileIn(getLicensesDir(project), "groovy-all-SOURCES.txt", "");
 
         updateShas.updateShas();
         task.get().checkDependencies();
@@ -170,10 +199,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy-all");
 
-        Path groovySha = Files
-            .list(licensesDir.toPath())
-            .filter(file -> file.toFile().getName().contains("sha"))
-            .findFirst().get();
+        Path groovySha = Files.list(licensesDir.toPath()).filter(file -> file.toFile().getName().contains("sha")).findFirst().get();
 
         Files.write(groovySha, new byte[] { 1 }, StandardOpenOption.CREATE);
 
@@ -200,7 +226,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         project.getDependencies().add("compile", dependency);
 
         File licensesDir = getLicensesDir(project);
-        createFileIn(licensesDir, "groovy-all-LICENSE.txt", "");
+        createFileIn(licensesDir, "groovy-all-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         createFileIn(licensesDir, "groovy-all-NOTICE.txt", "");
 
         task.get().ignoreSha("groovy-all");
@@ -223,7 +249,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     private void createAllDefaultDependencyFiles(File licensesDir, String dependencyName) throws IOException, NoSuchAlgorithmException {
-        createFileIn(licensesDir, dependencyName + "-LICENSE.txt", "");
+        createFileIn(licensesDir, dependencyName + "-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         createFileIn(licensesDir, dependencyName + "-NOTICE.txt", "");
 
         updateShas.updateShas();
@@ -247,16 +273,14 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     private UpdateShasTask createUpdateShasTask(Project project, TaskProvider<DependencyLicensesTask> dependencyLicensesTask) {
-        UpdateShasTask task =  project.getTasks()
-            .register("updateShas", UpdateShasTask.class)
-            .get();
+        UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
 
         task.setParentTask(dependencyLicensesTask);
         return task;
     }
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
-        TaskProvider<DependencyLicensesTask> task =  project.getTasks()
+        TaskProvider<DependencyLicensesTask> task = project.getTasks()
             .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
                 @Override
                 public void execute(DependencyLicensesTask dependencyLicensesTask) {

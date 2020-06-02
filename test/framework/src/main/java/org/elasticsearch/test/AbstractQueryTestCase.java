@@ -22,6 +22,7 @@ package org.elasticsearch.test;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
@@ -54,7 +55,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -190,7 +190,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 if (expectedException == false) {
                     throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
                 }
-                assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
+                assertThat(e.getMessage(), containsString("unknown field [newField]"));
             }
         }
     }
@@ -422,14 +422,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            SearchContext searchContext = getSearchContext(context);
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
             Query firstLuceneQuery = rewritten.toQuery(context);
             assertNotNull("toQuery should not return null", firstLuceneQuery);
-            assertLuceneQuery(firstQuery, firstLuceneQuery, searchContext);
+            assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
             assertTrue(
                     "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
@@ -445,17 +444,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAlphaOfLengthBetween(1, 10));
             }
-            searchContext = getSearchContext(context);
+            context = new QueryShardContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
-            assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
+            assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
             if (builderGeneratesCacheableQueries()) {
                 assertEquals("two equivalent query builders lead to different lucene queries",
                         rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
             }
 
-            if (supportsBoost()) {
+            if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
@@ -494,23 +493,26 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Verifies that named queries and boost are properly handled and delegates to
-     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchContext)} for query specific checks.
+     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryShardContext)} for query specific checks.
      */
-    private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.getQueryShardContext().copyNamedQueries().get(queryBuilder.queryName());
+    private void assertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException {
+        if (queryBuilder.queryName() != null && query instanceof MatchNoDocsQuery == false) {
+            Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
             if (queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(SpanBoostQuery.class)));
+                assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(SpanBoostQuery.class))
+                        .or(instanceOf(MatchNoDocsQuery.class)));
                 if (query instanceof SpanBoostQuery) {
                     SpanBoostQuery spanBoostQuery = (SpanBoostQuery) query;
                     assertThat(spanBoostQuery.getBoost(), equalTo(queryBuilder.boost()));
                     query = spanBoostQuery.getQuery();
-                } else {
+                } else if (query instanceof BoostQuery) {
                     BoostQuery boostQuery = (BoostQuery) query;
-                    assertThat(boostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    if (boostQuery.getQuery() instanceof MatchNoDocsQuery == false) {
+                        assertThat(boostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    }
                     query = boostQuery.getQuery();
                 }
             }
@@ -522,7 +524,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Contains the query specific checks to be implemented by subclasses.
      */
-    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
+    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
 
     protected void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
@@ -622,14 +624,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     /**
      * create a random value for either {@link AbstractQueryTestCase#BOOLEAN_FIELD_NAME}, {@link AbstractQueryTestCase#INT_FIELD_NAME},
-     * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#STRING_FIELD_NAME} or
+     * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#TEXT_FIELD_NAME} or
      * {@link AbstractQueryTestCase#DATE_FIELD_NAME} or {@link AbstractQueryTestCase#DATE_NANOS_FIELD_NAME} or a String value by default
      */
     protected static Object getRandomValueForFieldName(String fieldName) {
         Object value;
         switch (fieldName) {
-            case STRING_FIELD_NAME:
-            case STRING_ALIAS_FIELD_NAME:
+            case TEXT_FIELD_NAME:
+            case TEXT_ALIAS_FIELD_NAME:
                 if (rarely()) {
                     // unicode in 10% cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
@@ -793,7 +795,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     public boolean isTextField(String fieldName) {
-        return fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME);
+        return fieldName.equals(TEXT_FIELD_NAME) || fieldName.equals(TEXT_ALIAS_FIELD_NAME);
     }
 
     /**

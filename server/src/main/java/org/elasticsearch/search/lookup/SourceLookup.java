@@ -36,7 +36,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
-public class SourceLookup implements Map {
+public class SourceLookup implements Map<String, Object> {
 
     private LeafReader reader;
 
@@ -54,7 +54,11 @@ public class SourceLookup implements Map {
         return sourceContentType;
     }
 
-    private Map<String, Object> loadSourceIfNeeded() {
+    // Scripting requires this method to be public. Using source()
+    // is not possible because certain checks use source == null as
+    // as a determination if source is enabled/disabled, but it should
+    // never be a null Map for scripting even when disabled.
+    public Map<String, Object> loadSourceIfNeeded() {
         if (source != null) {
             return source;
         }
@@ -132,10 +136,6 @@ public class SourceLookup implements Map {
         return context.getFilter().apply(loadSourceIfNeeded());
     }
 
-    public Object extractValue(String path) {
-        return XContentMapValues.extractValue(path, loadSourceIfNeeded());
-    }
-
     @Override
     public Object get(Object key) {
         return loadSourceIfNeeded().get(key);
@@ -162,22 +162,22 @@ public class SourceLookup implements Map {
     }
 
     @Override
-    public Set keySet() {
+    public Set<String> keySet() {
         return loadSourceIfNeeded().keySet();
     }
 
     @Override
-    public Collection values() {
+    public Collection<Object> values() {
         return loadSourceIfNeeded().values();
     }
 
     @Override
-    public Set entrySet() {
+    public Set<Map.Entry<String, Object>> entrySet() {
         return loadSourceIfNeeded().entrySet();
     }
 
     @Override
-    public Object put(Object key, Object value) {
+    public Object put(String key, Object value) {
         throw new UnsupportedOperationException();
     }
 
@@ -187,6 +187,7 @@ public class SourceLookup implements Map {
     }
 
     @Override
+    @SuppressWarnings("rawtypes")
     public void putAll(Map m) {
         throw new UnsupportedOperationException();
     }

@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
 import org.elasticsearch.script.ScriptService;
@@ -93,18 +94,17 @@ public final class Pipeline {
      * If <code>null</code> is returned then this document will be dropped and not indexed, otherwise
      * this document will be kept and indexed.
      */
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        long startTimeInNanos = relativeTimeProvider.getAsLong();
-        try {
-            metrics.preIngest();
-            return compoundProcessor.execute(ingestDocument);
-        } catch (Exception e) {
-            metrics.ingestFailed();
-            throw e;
-        } finally {
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        metrics.preIngest();
+        compoundProcessor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
             metrics.postIngest(ingestTimeInMillis);
-        }
+            if (e != null) {
+                metrics.ingestFailed();
+            }
+            handler.accept(result, e);
+        });
     }
 
     /**

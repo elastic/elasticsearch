@@ -109,11 +109,20 @@ public class ActionModuleTests extends ESTestCase {
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                 settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
-                null, usageService);
+                null, usageService, null);
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
-            actionModule.getRestController().registerHandler(Method.GET, "/", null));
+            actionModule.getRestController().registerHandler(new RestHandler() {
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                }
+
+                @Override
+                public List<Route> routes() {
+                    return List.of(new Route(Method.GET, "/"));
+                }
+            }));
         assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
     }
 
@@ -123,7 +132,14 @@ public class ActionModuleTests extends ESTestCase {
             public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-                return singletonList(new RestMainAction(restController));
+                return singletonList(new RestMainAction() {
+
+                    @Override
+                    public String getName() {
+                        return "duplicated_" + super.getName();
+                    }
+
+                });
             }
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
@@ -132,7 +148,7 @@ public class ActionModuleTests extends ESTestCase {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(dupsMainAction), null, null, usageService);
+                    singletonList(dupsMainAction), null, null, usageService, null);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
@@ -142,9 +158,11 @@ public class ActionModuleTests extends ESTestCase {
 
     public void testPluginCanRegisterRestHandler() {
         class FakeHandler implements RestHandler {
-            FakeHandler(RestController restController) {
-                restController.registerHandler(Method.GET, "/_dummy", this);
+            @Override
+            public List<Route> routes() {
+                return List.of(new Route(Method.GET, "/_dummy"));
             }
+
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
             }
@@ -154,7 +172,7 @@ public class ActionModuleTests extends ESTestCase {
             public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-                return singletonList(new FakeHandler(restController));
+                return singletonList(new FakeHandler());
             }
         };
 
@@ -164,11 +182,20 @@ public class ActionModuleTests extends ESTestCase {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(registersFakeHandler), null, null, usageService);
+                    singletonList(registersFakeHandler), null, null, usageService, null);
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->
-                actionModule.getRestController().registerHandler(Method.GET, "/_dummy", null));
+                actionModule.getRestController().registerHandler(new RestHandler() {
+                    @Override
+                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                    }
+
+                    @Override
+                    public List<Route> routes() {
+                        return List.of(new Route(Method.GET, "/_dummy"));
+                    }
+                }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
         } finally {
             threadPool.shutdown();

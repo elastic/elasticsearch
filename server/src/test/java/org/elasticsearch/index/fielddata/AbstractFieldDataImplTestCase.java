@@ -76,7 +76,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             SortedBinaryDocValues values = fieldData.getBytesValues();
             for (int i = 0; i < readerContext.reader().maxDoc(); ++i) {
                 assertTrue(values.advanceExact(i));
@@ -90,7 +90,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
@@ -160,7 +160,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
@@ -181,7 +181,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
@@ -215,7 +215,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
@@ -231,7 +231,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData fieldData = indexFieldData.load(readerContext);
+            LeafFieldData fieldData = indexFieldData.load(readerContext);
             // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(0L));
 

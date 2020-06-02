@@ -21,7 +21,8 @@ package org.elasticsearch.test;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -43,13 +45,14 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -63,6 +66,8 @@ import java.util.List;
 import java.util.Map;
 
 public class TestSearchContext extends SearchContext {
+    public static final SearchShardTarget SHARD_TARGET =
+        new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
 
     final BigArrays bigArrays;
     final IndexService indexService;
@@ -75,12 +80,13 @@ public class TestSearchContext extends SearchContext {
     ParsedQuery postFilter;
     Query query;
     Float minScore;
-    SearchTask task;
+    SearchShardTask task;
     SortAndFormats sort;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     ContextIndexSearcher searcher;
+    int from;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
@@ -102,11 +108,20 @@ public class TestSearchContext extends SearchContext {
     }
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
+        this(queryShardContext, indexShard, null);
+    }
+
+    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {
         this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
+        this.searcher = searcher;
+    }
+
+    public void setSearcher(ContextIndexSearcher searcher) {
+        this.searcher = searcher;
     }
 
     @Override
@@ -119,8 +134,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public long id() {
-        return 0;
+    public SearchContextId id() {
+        return new SearchContextId("", 0);
     }
 
     @Override
@@ -248,12 +263,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public DocValueFieldsContext docValueFieldsContext() {
+    public FetchDocValuesContext docValuesContext() {
         return null;
     }
 
     @Override
-    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
+    public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
         return null;
     }
 
@@ -418,12 +433,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public int from() {
-        return 0;
+        return from;
     }
 
     @Override
     public SearchContext from(int from) {
-        return null;
+        this.from = from;
+        return this;
     }
 
     @Override
@@ -564,7 +580,7 @@ public class TestSearchContext extends SearchContext {
     @Override
     public MappedFieldType smartNameFieldType(String name) {
         if (mapperService() != null) {
-            return mapperService().fullName(name);
+            return mapperService().fieldType(name);
         }
         return null;
     }
@@ -600,12 +616,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchTask task) {
+    public void setTask(SearchShardTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchTask getTask() {
+    public SearchShardTask getTask() {
         return task;
     }
 

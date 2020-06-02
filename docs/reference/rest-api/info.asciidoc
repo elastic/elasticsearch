@@ -36,19 +36,19 @@ The information provided by this API includes:
   The default value is `true`.
 
 [discrete]
-[[info-api--example]]
+[[info-api-example]]
 === {api-examples-title}
 
 The following example queries the info API:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
    "build" : {
@@ -67,17 +67,13 @@ Example response:
         "available" : true,
         "enabled" : true
       },
-      "data_frame" : {
-          "available" : true,
-          "enabled" : true
-      },
       "analytics" : {
           "available" : true,
           "enabled" : true
       },
-      "flattened" : {
-         "available" : true,
-         "enabled" : true
+      "enrich" : {
+          "available" : true,
+          "enabled" : true
       },
       "frozen_indices" : {
          "available" : true,
@@ -111,11 +107,23 @@ Example response:
          "available" : true,
          "enabled" : false
       },
+      "slm" : {
+         "available" : true,
+         "enabled" : true
+      },
       "spatial" : {
          "available" : true,
          "enabled" : true
       },
+      "eql" : {
+         "available" : true,
+         "enabled" : true
+      },
       "sql" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "transform" : {
          "available" : true,
          "enabled" : true
       },
@@ -141,20 +149,20 @@ Example response:
 // TESTRESPONSE[s/"expiry_date_in_millis" : 1542665112332/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
 // TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
 // TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
+// TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql": $body.$_path,/]
+// eql is disabled by default on release builds and enabled everywhere else during the initial implementation phase until its release
 // So much s/// but at least we test that the layout is close to matching....
 
 The following example only returns the build and features information:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?categories=build,features
 ------------------------------------------------------------
-// CONSOLE
 
 The following example removes the descriptions from the response:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?human=false
 ------------------------------------------------------------
-// CONSOLE

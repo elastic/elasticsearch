@@ -240,6 +240,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      * <li>Uses that token to verify the user details</li>
      * </ol>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44410")
     public void testLoginUserWithSamlRoleMapping() throws Exception {
         // this ACS comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("http://localhost:54321" + SP_ACS_PATH_1);
@@ -248,6 +249,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenForRoleMapping(accessToken);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44410")
     public void testLoginUserWithAuthorizingRealm() throws Exception {
         // this ACS comes from the config in build.gradle
         final Tuple<String, String> authTokens = loginViaSaml("http://localhost:54321" + SP_ACS_PATH_2);
@@ -256,6 +258,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         verifyElasticsearchAccessTokenForAuthorizingRealms(accessToken);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44410")
     public void testLoginWithWrongRealmFails() throws Exception {
         this.acs = new URI("http://localhost:54321" + SP_ACS_PATH_WRONG_REALM);
         final BasicHttpContext context = new BasicHttpContext();
@@ -294,7 +297,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies that the provided "Access Token" (see {@link org.elasticsearch.xpack.security.authc.TokenService})
+     * Verifies that the provided "Access Token" (see org.elasticsearch.xpack.security.authc.TokenService)
      * is for the expected user with the expected name and roles if the user was created from Role-Mapping
      */
     private void verifyElasticsearchAccessTokenForRoleMapping(String accessToken) throws IOException {
@@ -312,7 +315,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies that the provided "Access Token" (see {@link org.elasticsearch.xpack.security.authc.TokenService})
+     * Verifies that the provided "Access Token" (see org.elasticsearch.xpack.security.authc.TokenService)
      * is for the expected user with the expected name and roles if the user was retrieved from the native realm
      */
     private void verifyElasticsearchAccessTokenForAuthorizingRealms(String accessToken) throws IOException {
@@ -599,7 +602,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
         assertThat(id, notNullValue());
         assertThat(realmName, notNullValue());
 
-        final MapBuilder<String, Object> bodyBuilder = new MapBuilder()
+        final MapBuilder<String, Object> bodyBuilder = new MapBuilder<String, Object>()
             .put("content", saml)
             .put("ids", Collections.singletonList(id));
         if (randomBoolean()) {
@@ -640,7 +643,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             final List<Cookie> parsed = new DefaultCookieSpec().parse(header, origin);
             return parsed.stream().filter(c -> SAML_REQUEST_COOKIE.equals(c.getName())).map(c -> {
                 String[] values = c.getValue().split("&");
-                return new Tuple(values[0], values[1]);
+                return Tuple.tuple(values[0], values[1]);
             }).findFirst().orElse(null);
         } catch (MalformedCookieException e) {
             throw new IOException("Cannot read cookies", e);

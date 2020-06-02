@@ -36,6 +36,7 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -88,9 +89,6 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             reindexRequest.setSourceBatchSize(randomInt(100));
         }
         if (randomBoolean()) {
-            reindexRequest.setDestDocType("type");
-        }
-        if (randomBoolean()) {
             reindexRequest.setDestOpType("create");
         }
         if (randomBoolean()) {
@@ -135,7 +133,6 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(expectedInstance.getDestination().getPipeline(), newInstance.getDestination().getPipeline());
         assertEquals(expectedInstance.getDestination().routing(), newInstance.getDestination().routing());
         assertEquals(expectedInstance.getDestination().opType(), newInstance.getDestination().opType());
-        assertEquals(expectedInstance.getDestination().type(), newInstance.getDestination().type());
     }
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
@@ -323,5 +320,44 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         source.put("remote", remote);
 
         return ReindexRequest.buildRemoteInfo(source);
+    }
+
+    public void testCommaSeparatedSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("a,b");
+        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+    }
+
+    public void testArraySourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices(new String[]{"a", "b"});
+        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+    }
+
+    public void testEmptyStringSourceIndices() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("");
+        assertArrayEquals(new String[0], r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject(); {
+                b.startObject("source"); {
+                    b.field("index", sourceIndices);
+                }
+                b.endObject();
+                b.startObject("dest"); {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            return ReindexRequest.fromXContent(p);
+        }
     }
 }

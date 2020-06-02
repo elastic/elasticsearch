@@ -8,10 +8,13 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
@@ -52,38 +55,38 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
 
     @Override
     public NativeMemoryUsageEstimationProcess createAnalyticsProcess(
-            String jobId,
+            DataFrameAnalyticsConfig config,
             AnalyticsProcessConfig analyticsProcessConfig,
+            @Nullable BytesReference state,
             ExecutorService executorService,
             Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(
-            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId, true, false, false, true, false, false);
+            env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, config.getId(), false, false, true, false, false);
 
-        createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
+        createNativeProcess(config.getId(), analyticsProcessConfig, filesToDelete, processPipes);
 
         NativeMemoryUsageEstimationProcess process = new NativeMemoryUsageEstimationProcess(
-            jobId,
+            config.getId(),
             nativeController,
-            processPipes.getLogStream().get(),
-            // Memory estimation process does not use the input pipe, hence null.
-            null,
-            processPipes.getProcessOutStream().get(),
-            null,
+            processPipes,
             0,
             filesToDelete,
-            onProcessCrash);
+            onProcessCrash,
+            processConnectTimeout);
 
         try {
             process.start(executorService);
             return process;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to data frame analytics memory usage estimation process for job " + config.getId();
+            LOGGER.error(msg);
             try {
                 IOUtils.close(process);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close data frame analytics memory usage estimation process", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
@@ -94,7 +97,6 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
                 .performMemoryUsageEstimationOnly();
         try {
             analyticsBuilder.build();
-            processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
             String msg = "Failed to launch data frame analytics memory usage estimation process for job " + jobId;
             LOGGER.error(msg);

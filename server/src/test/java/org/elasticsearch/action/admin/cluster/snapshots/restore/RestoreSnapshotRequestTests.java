@@ -62,16 +62,6 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         instance.includeAliases(randomBoolean());
 
         if (randomBoolean()) {
-            Map<String, Object> settings = new HashMap<>();
-            int count = randomInt(3) + 1;
-
-            for (int i = 0; i < count; ++i) {
-                settings.put(randomAlphaOfLengthBetween(2, 5), randomAlphaOfLengthBetween(2, 5));
-            }
-
-            instance.settings(settings);
-        }
-        if (randomBoolean()) {
             Map<String, Object> indexSettings = new HashMap<>();
             int count = randomInt(3) + 1;
 

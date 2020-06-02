@@ -34,7 +34,6 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHit;
@@ -117,7 +116,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             client.awaitOperation();
             ++expectedSearchRetries;
         }
-
+        client.validateRequest(SearchAction.INSTANCE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
         SearchResponse searchResponse = createSearchResponse();
         client.respond(SearchAction.INSTANCE, searchResponse);
 
@@ -160,7 +159,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap()).sourceRef(new BytesArray("{}"));
+        SearchHit hit = new SearchHit(0, "id", emptyMap(), emptyMap()).sourceRef(new BytesArray("{}"));
         SearchHits hits = new SearchHits(IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),0);
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);

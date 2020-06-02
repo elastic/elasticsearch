@@ -1,0 +1,24 @@
+{
+  "order" : 0,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-state*"
+  ],
+  "settings" : {
+    "index" : {
+      "auto_expand_replicas" : "0-1",
+      "hidden": true
+    },
+    "index.lifecycle.name": "${xpack.ml.index.lifecycle.name}",
+    "index.lifecycle.rollover_alias": "${xpack.ml.index.lifecycle.rollover_alias}"
+  },
+  "mappings" : {
+    "_doc": {
+      "_meta": {
+        "version": "${xpack.ml.version}"
+      },
+      "enabled": false
+    }
+  },
+  "aliases" : {}
+}

@@ -3,6 +3,7 @@
 :request: GetRecordsRequest
 :response: GetRecordsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get records API
 

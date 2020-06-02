@@ -67,7 +67,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings());
+        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
         when(searchContext.query()).thenReturn(rewrittenQuery);
         BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
             @Override
@@ -80,7 +80,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         collector.preCollection();
         indexSearcher.search(termQuery, collector);
         collector.postCollection();
-        collector.replay(0);
+        collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -94,7 +94,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         collector.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), collector);
         collector.postCollection();
-        collector.replay(0);
+        collector.prepareSelectedBuckets(0);
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {

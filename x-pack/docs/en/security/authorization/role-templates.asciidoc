@@ -12,7 +12,7 @@ authenticated user through the `_user` parameter.
 For example, the following role query uses a template to insert the username
 of the current authenticated user:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/example1
 {
@@ -31,7 +31,6 @@ POST /_security/role/example1
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 You can access the following information through the `_user` variable:
 
@@ -49,7 +48,7 @@ You can also access custom user metadata. For example, if you maintain a
 `group_id` in your user metadata, you can apply document level security
 based on the `group.id` field in your documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/example2
 {
@@ -68,4 +67,3 @@ POST /_security/role/example2
   ]
 }
 --------------------------------------------------
-// CONSOLE

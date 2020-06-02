@@ -33,9 +33,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
 
@@ -62,17 +64,21 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         long startTime = randomLong();
         long repositoryStateId = randomLong();
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
-        int shardsCount = randomIntBetween(0, 10);
-        for (int j = 0; j < shardsCount; j++) {
-            ShardId shardId = new ShardId(new Index(randomAlphaOfLength(10), randomAlphaOfLength(10)), randomIntBetween(0, 10));
-            String nodeId = randomAlphaOfLength(10);
-            ShardState shardState = randomFrom(ShardState.values());
-            builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState,
-                shardState.failed() ? randomAlphaOfLength(10) : null));
+        final List<Index> esIndices =
+            indices.stream().map(i -> new Index(i.getName(), randomAlphaOfLength(10))).collect(Collectors.toList());
+        for (Index idx : esIndices) {
+            int shardsCount = randomIntBetween(1, 10);
+            for (int j = 0; j < shardsCount; j++) {
+                ShardId shardId = new ShardId(idx, j);
+                String nodeId = randomAlphaOfLength(10);
+                ShardState shardState = randomFrom(ShardState.values());
+                builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState,
+                    shardState.failed() ? randomAlphaOfLength(10) : null, "1"));
+            }
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
         return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards,
-            SnapshotInfoTests.randomUserMetadata());
+            SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
     }
 
     @Override

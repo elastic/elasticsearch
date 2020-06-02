@@ -20,7 +20,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -44,9 +44,9 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.f.type", "predicate_token_filter")
-            .put("index.analysis.filter.f.script.source", "token.getTerm().length() > 5")
+            .put("index.analysis.filter.f.script.source", "my_script")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
             .put("index.analysis.analyzer.myAnalyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.myAnalyzer.filter", "f")
@@ -56,7 +56,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
         AnalysisPredicateScript.Factory factory = () -> new AnalysisPredicateScript() {
             @Override
             public boolean execute(Token token) {
-                return token.getTerm().length() > 5;
+                return token.getPosition() < 2 || token.getPosition() > 4;
             }
         };
 
@@ -65,13 +65,13 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);
-                assertEquals(new Script("token.getTerm().length() > 5"), script);
+                assertEquals(new Script("my_script"), script);
                 return (FactoryType) factory;
             }
         };
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null);
+        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null);
         AnalysisModule module
             = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
 
@@ -79,8 +79,8 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
         try (NamedAnalyzer analyzer = analyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
-            assertAnalyzesTo(analyzer, "Vorsprung Durch Technik", new String[]{
-                "Vorsprung", "Technik"
+            assertAnalyzesTo(analyzer, "Oh what a wonderful thing to be", new String[]{
+                "Oh", "what", "to", "be"
             });
         }
 

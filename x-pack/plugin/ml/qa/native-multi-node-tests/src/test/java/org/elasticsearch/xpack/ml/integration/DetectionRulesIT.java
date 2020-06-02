@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.junit.After;
 
 import java.io.IOException;
@@ -37,7 +38,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * An integration test for detection rules
@@ -186,7 +188,8 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the filter was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+            SearchResponse searchResponse =
+                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
                     .setSize(1)
                     .addSort("timestamp", SortOrder.DESC)
                     .setQuery(QueryBuilders.boolQuery()
@@ -223,7 +226,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(records.size(), equalTo(2));
         for (AnomalyRecord record : records) {
             assertThat(record.getTimestamp().getTime(), equalTo(secondAnomalyTime));
-            assertThat(record.getOverFieldValue(), isOneOf("111.111.111.111", "222.222.222.222"));
+            assertThat(record.getOverFieldValue(), is(oneOf("111.111.111.111", "222.222.222.222")));
         }
 
         closeJob(job.getId());

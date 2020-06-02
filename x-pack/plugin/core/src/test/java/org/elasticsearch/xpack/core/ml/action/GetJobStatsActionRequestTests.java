@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -18,7 +18,7 @@ public class GetJobStatsActionRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomBoolean() ? MetaData.ALL : randomAlphaOfLengthBetween(1, 20));
+        Request request = new Request(randomBoolean() ? Metadata.ALL : randomAlphaOfLengthBetween(1, 20));
         request.setAllowNoJobs(randomBoolean());
         return request;
     }

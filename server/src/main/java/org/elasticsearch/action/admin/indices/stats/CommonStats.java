@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Version;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -102,6 +104,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public RecoveryStats recoveryStats;
 
+    @Nullable
+    public BulkStats bulk;
+
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -159,6 +164,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Recovery:
                     recoveryStats = new RecoveryStats();
                     break;
+                case Bulk:
+                    bulk = new BulkStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -177,7 +185,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         store = indexShard.storeStats();
                         break;
                     case Indexing:
-                        indexing = indexShard.indexingStats(flags.types());
+                        indexing = indexShard.indexingStats();
                         break;
                     case Get:
                         get = indexShard.getStats();
@@ -218,6 +226,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Recovery:
                         recoveryStats = indexShard.recoveryStats();
                         break;
+                    case Bulk:
+                        bulk = indexShard.bulkStats();
+                        break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
                 }
@@ -244,6 +255,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            bulk = in.readOptionalWriteable(BulkStats::new);
+        }
     }
 
     @Override
@@ -264,6 +278,9 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(bulk);
+        }
     }
 
     public void add(CommonStats stats) {
@@ -396,6 +413,14 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             recoveryStats.add(stats.getRecoveryStats());
         }
+        if (bulk == null) {
+            if (stats.getBulk() != null) {
+                bulk = new BulkStats();
+                bulk.add(stats.getBulk());
+            }
+        } else {
+            bulk.add(stats.getBulk());
+        }
     }
 
     @Nullable
@@ -478,6 +503,11 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return recoveryStats;
     }
 
+    @Nullable
+    public BulkStats getBulk() {
+        return bulk;
+    }
+
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (memory, index writer, version map)
@@ -504,7 +534,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
             docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
-            fieldData, completion, segments, translog, requestCache, recoveryStats})
+            fieldData, completion, segments, translog, requestCache, recoveryStats, bulk})
             .filter(Objects::nonNull);
         for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
             toXContent.toXContent(builder, params);

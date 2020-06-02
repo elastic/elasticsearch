@@ -36,6 +36,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -51,8 +52,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -74,7 +75,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -93,7 +94,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool,
                                                                        Client client,
-                                                                       SettingsModule settingsModule) {
+                                                                       SettingsModule settingsModule,
+                                                                       IndexNameExpressionResolver expressionResolver) {
         return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
     }
 
@@ -330,10 +332,15 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 AtomicInteger phase = new AtomicInteger();
                 while (true) {
                     // wait for something to happen
-                    assertTrue(awaitBusy(() -> testTask.isCancelled() ||
-                                    testTask.getOperation() != null ||
-                                    clusterService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
-                            45, TimeUnit.SECONDS)); // This can take a while during large cluster restart
+                    try {
+                        assertBusy(() -> assertTrue(testTask.isCancelled() ||
+                                testTask.getOperation() != null ||
+                                clusterService.lifecycleState() != Lifecycle.State.STARTED),   // speedup finishing on closed nodes
+                            45, TimeUnit.SECONDS); // This can take a while during large cluster restart
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+
                     if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }

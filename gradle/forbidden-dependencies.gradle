@@ -1,0 +1,27 @@
+
+// we do not want any of these dependencies on the compilation classpath
+// because they could then be used within Elasticsearch
+List<String> FORBIDDEN_DEPENDENCIES = [
+  'guava'
+]
+
+Closure checkDeps = { Configuration configuration -> 
+  configuration.resolutionStrategy.eachDependency {
+    String artifactName = it.target.name
+    if (FORBIDDEN_DEPENDENCIES.contains(artifactName)) {
+      throw new GradleException("Dependency '${artifactName}' on configuration '${configuration.name}' is not allowed. " +
+        "If it is needed as a transitive depenency, try adding it to the runtime classpath")
+    }
+  }
+}
+
+subprojects {
+  if (project.path.startsWith(':test:fixtures:') || project.path.equals(':build-tools')) {
+    // fixtures are allowed to use whatever dependencies they want...
+    return
+  }
+  pluginManager.withPlugin('java') {
+    checkDeps(configurations.compileClasspath)
+    checkDeps(configurations.testCompileClasspath)
+  }
+}

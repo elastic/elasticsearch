@@ -9,7 +9,7 @@ maximum number of intervening unmatched positions, as well as whether
 matches are required to be in-order. The span near query maps to Lucene
 `SpanNearQuery`. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -26,7 +26,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `clauses` element is a list of one or more other span type queries
 and the `slop` controls the maximum number of intervening unmatched

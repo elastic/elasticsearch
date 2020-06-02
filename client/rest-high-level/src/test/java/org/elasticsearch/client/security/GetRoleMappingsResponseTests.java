@@ -36,42 +36,34 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetRoleMappingsResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        final String json = "{\n" + 
-                " \"kerberosmapping\" : {\n" + 
-                "   \"enabled\" : true,\n" + 
-                "   \"roles\" : [\n" + 
-                "     \"superuser\"\n" + 
-                "   ],\n" + 
-                "   \"rules\" : {\n" + 
-                "     \"field\" : {\n" + 
-                "       \"realm.name\" : \"kerb1\"\n" + 
-                "     }\n" + 
-                "   },\n" + 
-                "   \"metadata\" : { }\n" + 
-                " },\n" + 
-                " \"ldapmapping\" : {\n" + 
-                "   \"enabled\" : false,\n" + 
-                "   \"roles\" : [\n" + 
-                "     \"monitoring\"\n" + 
-                "   ],\n" + 
-                "   \"rules\" : {\n" + 
-                "     \"field\" : {\n" + 
-                "       \"groups\" : \"cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local\"\n" + 
-                "     }\n" + 
-                "   },\n" + 
-                "   \"metadata\" : { }\n" + 
-                " }\n" + 
+        final String json = "{\n" +
+                " \"kerberosmapping\" : {\n" +
+                "   \"enabled\" : true,\n" +
+                "   \"roles\" : [\n" +
+                "     \"superuser\"\n" +
+                "   ],\n" +
+                "   \"rules\" : {\n" +
+                "     \"field\" : {\n" +
+                "       \"realm.name\" : \"kerb1\"\n" +
+                "     }\n" +
+                "   },\n" +
+                "   \"metadata\" : { }\n" +
+                " },\n" +
+                " \"ldapmapping\" : {\n" +
+                "   \"enabled\" : false,\n" +
+                "   \"roles\" : [\n" +
+                "     \"monitoring\"\n" +
+                "   ],\n" +
+                "   \"rules\" : {\n" +
+                "     \"field\" : {\n" +
+                "       \"groups\" : \"cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local\"\n" +
+                "     }\n" +
+                "   },\n" +
+                "   \"metadata\" : { }\n" +
+                " }\n" +
                 "}";
         final GetRoleMappingsResponse response = GetRoleMappingsResponse.fromXContent(XContentType.JSON.xContent().createParser(
-                new NamedXContentRegistry(Collections.emptyList()), new DeprecationHandler() {
-                    @Override
-                    public void usedDeprecatedName(String usedName, String modernName) {
-                    }
-
-                    @Override
-                    public void usedDeprecatedField(String usedName, String replacedWith) {
-                    }
-                }, json));
+                new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json));
         final List<ExpressionRoleMapping> expectedRoleMappingsList = new ArrayList<>();
         expectedRoleMappingsList.add(new ExpressionRoleMapping("kerberosmapping", FieldRoleMapperExpression.ofKeyValues("realm.name",
                 "kerb1"), Collections.singletonList("superuser"), Collections.emptyList(), null, true));

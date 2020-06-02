@@ -67,31 +67,31 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testResolveWildcardsRegexs() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text")
                         .addAlias(new Alias("my_alias"))
                         .addAlias(new Alias("an_alias"))
         );
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2",  "field3", "value3")
+        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2",  "field3", "value3")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
         GetResponse getResponse = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("test", "type1", "1")
+                .prepareGet("test", "1")
                 .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field1"), equalTo("value1"));
 
         getResponse = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("my_alias", "type1", "1")
+                .prepareGet("my_alias", "1")
                 .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field2"), equalTo("value2"));
 
         getResponse = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-                .prepareGet("an_alias", "type1", "1")
+                .prepareGet("an_alias", "1")
                 .get();
         assertThat(getResponse.getSource().size(), equalTo(1));
         assertThat((String) getResponse.getSource().get("field3"), equalTo("value3"));

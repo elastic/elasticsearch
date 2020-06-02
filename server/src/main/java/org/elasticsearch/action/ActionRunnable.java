@@ -20,6 +20,8 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 /**
@@ -29,6 +31,32 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 public abstract class ActionRunnable<Response> extends AbstractRunnable {
 
     protected final ActionListener<Response> listener;
+
+    /**
+     * Creates a {@link Runnable} that invokes the given listener with {@code null} after the given runnable has executed.
+     * @param listener Listener to invoke
+     * @param runnable Runnable to execute
+     * @return Wrapped {@code Runnable}
+     */
+    public static <T> ActionRunnable<T> run(ActionListener<T> listener, CheckedRunnable<Exception> runnable) {
+        return new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() throws Exception {
+                runnable.run();
+                listener.onResponse(null);
+            }
+        };
+    }
+
+    /**
+     * Creates a {@link Runnable} that invokes the given listener with the return of the given supplier.
+     * @param listener Listener to invoke
+     * @param supplier Supplier that provides value to pass to listener
+     * @return Wrapped {@code Runnable}
+     */
+    public static <T> ActionRunnable<T> supply(ActionListener<T> listener, CheckedSupplier<T, Exception> supplier) {
+        return ActionRunnable.wrap(listener, l -> l.onResponse(supplier.get()));
+    }
 
     /**
      * Creates a {@link Runnable} that wraps the given listener and a consumer of it that is executed when the {@link Runnable} is run.

@@ -19,9 +19,13 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.BasicSessionCredentials;
+import com.amazonaws.services.ec2.AbstractAmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -35,7 +39,6 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
@@ -92,7 +95,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     public void testDefaultEndpoint() throws IOException {
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
             final String endpoint = ((AmazonEC2Mock) plugin.ec2Service.client().client()).endpoint;
-            assertThat(endpoint, nullValue());
+            assertThat(endpoint, is(""));
         }
     }
 
@@ -187,6 +190,36 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 assertThat(((AmazonEC2Mock) clientReference.client()).configuration.getProxyPort(), is(882));
                 assertThat(((AmazonEC2Mock) clientReference.client()).endpoint, is("ec2_endpoint_2"));
             }
+        }
+    }
+
+    private static class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
+
+        Ec2DiscoveryPluginMock(Settings settings) {
+            super(settings, new AwsEc2ServiceImpl() {
+                @Override
+                AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration,
+                                      String endpoint) {
+                    return new AmazonEC2Mock(credentials, configuration, endpoint);
+                }
+            });
+        }
+    }
+
+    private static class AmazonEC2Mock extends AbstractAmazonEC2 {
+
+        String endpoint;
+        final AWSCredentialsProvider credentials;
+        final ClientConfiguration configuration;
+
+        AmazonEC2Mock(AWSCredentialsProvider credentials, ClientConfiguration configuration, String endpoint) {
+            this.credentials = credentials;
+            this.configuration = configuration;
+            this.endpoint = endpoint;
+        }
+
+        @Override
+        public void shutdown() {
         }
     }
 }

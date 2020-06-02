@@ -27,11 +27,10 @@ see <<modules-discovery-adding-removing-nodes>>.
 The current voting configuration is stored in the cluster state so you can
 inspect its current contents as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/state?filter_path=metadata.cluster_coordination.last_committed_config
 --------------------------------------------------
-// CONSOLE
 
 NOTE: The current voting configuration is not necessarily the same as the set of
 all available master-eligible nodes in the cluster. Altering the voting

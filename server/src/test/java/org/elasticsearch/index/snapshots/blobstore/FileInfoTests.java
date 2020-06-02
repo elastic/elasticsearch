@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ public class FileInfoTests extends ESTestCase {
             for (int i = 0; i < hash.length; i++) {
                 hash.bytes[i] = randomByte();
             }
-            StoreFileMetaData meta = new StoreFileMetaData("foobar", Math.abs(randomLong()), randomAlphaOfLengthBetween(1, 10),
+            StoreFileMetadata meta = new StoreFileMetadata("foobar", Math.abs(randomLong()), randomAlphaOfLengthBetween(1, 10),
                 Version.LATEST, hash);
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
@@ -143,7 +143,7 @@ public class FileInfoTests extends ESTestCase {
     }
 
     public void testGetPartSize() {
-        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 36, "666",
+        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetadata("foo", 36, "666",
             MIN_SUPPORTED_LUCENE_VERSION), new ByteSizeValue(6));
         int numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
@@ -151,7 +151,7 @@ public class FileInfoTests extends ESTestCase {
         }
         assertEquals(numBytes, 36);
 
-        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 35, "666",
+        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetadata("foo", 35, "666",
             MIN_SUPPORTED_LUCENE_VERSION), new ByteSizeValue(6));
         numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
@@ -160,14 +160,14 @@ public class FileInfoTests extends ESTestCase {
         assertEquals(numBytes, 35);
         final int numIters = randomIntBetween(10, 100);
         for (int j = 0; j < numIters; j++) {
-            StoreFileMetaData metaData = new StoreFileMetaData("foo", randomIntBetween(0, 1000), "666",
+            StoreFileMetadata metadata = new StoreFileMetadata("foo", randomIntBetween(0, 1000), "666",
                 MIN_SUPPORTED_LUCENE_VERSION);
-            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metaData, new ByteSizeValue(randomIntBetween(1, 1000)));
+            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {
                 numBytes += info.partBytes(i);
             }
-            assertEquals(numBytes, metaData.length());
+            assertEquals(numBytes, metadata.length());
         }
 
     }

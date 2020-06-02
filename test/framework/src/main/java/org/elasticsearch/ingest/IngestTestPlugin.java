@@ -37,6 +37,10 @@ public class IngestTestPlugin extends Plugin implements IngestPlugin {
                 if (doc.hasField("fail") && doc.getFieldValue("fail", Boolean.class)) {
                     throw new IllegalArgumentException("test processor failed");
                 }
+                if (doc.hasField("drop") && doc.getFieldValue("drop", Boolean.class)) {
+                    return null;
+                }
+                return doc;
             }));
     }
 }

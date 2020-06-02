@@ -3,7 +3,7 @@
 :api: authenticate
 :response: AuthenticateResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Authenticate API
 

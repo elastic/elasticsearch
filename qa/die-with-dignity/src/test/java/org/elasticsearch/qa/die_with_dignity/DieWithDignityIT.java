@@ -39,18 +39,14 @@ import static org.hamcrest.Matchers.not;
 public class DieWithDignityIT extends ESRestTestCase {
 
     public void testDieWithDignity() throws Exception {
-        expectThrows(
-            IOException.class,
-            () -> client().performRequest(new Request("GET", "/_die_with_dignity"))
-        );
+        expectThrows(IOException.class, () -> client().performRequest(new Request("GET", "/_die_with_dignity")));
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
             final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
             final Process process = new ProcessBuilder().command(jpsPath, "-v").start();
 
-            try (InputStream is = process.getInputStream();
-                 BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
+            try (InputStream is = process.getInputStream(); BufferedReader in = new BufferedReader(new InputStreamReader(is, "UTF-8"))) {
                 String line;
                 while ((line = in.readLine()) != null) {
                     assertThat(line, line, not(containsString("-Ddie.with.dignity.test")));
@@ -60,7 +56,6 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         // parse the logs and ensure that Elasticsearch died with the expected cause
         final List<String> lines = Files.readAllLines(PathUtils.get(System.getProperty("log")));
-
         final Iterator<String> it = lines.iterator();
 
         boolean fatalError = false;
@@ -68,13 +63,17 @@ public class DieWithDignityIT extends ESRestTestCase {
         try {
             while (it.hasNext() && (fatalError == false || fatalErrorInThreadExiting == false)) {
                 final String line = it.next();
-                if (line.matches(".*ERROR.*o\\.e\\.ExceptionsHelper.*integTest-0.*fatal error.*")) {
+                if (containsAll(line, ".*ERROR.*", ".*ExceptionsHelper.*", ".*integTest-0.*", ".*fatal error.*")) {
                     fatalError = true;
-                } else if (line.matches(".*ERROR.*o\\.e\\.b\\.ElasticsearchUncaughtExceptionHandler.*integTest-0.*"
-                    + "fatal error in thread \\[Thread-\\d+\\], exiting.*")) {
+                } else if (containsAll(
+                    line,
+                    ".*ERROR.*",
+                    ".*ElasticsearchUncaughtExceptionHandler.*",
+                    ".*integTest-0.*",
+                    ".*fatal error in thread \\[Thread-\\d+\\], exiting.*",
+                    ".*java.lang.OutOfMemoryError: die with dignity.*"
+                )) {
                     fatalErrorInThreadExiting = true;
-                    assertTrue(it.hasNext());
-                    assertThat(it.next(), containsString("java.lang.OutOfMemoryError: die with dignity"));
                 }
             }
 
@@ -86,6 +85,15 @@ public class DieWithDignityIT extends ESRestTestCase {
             debugLogs(path);
             throw ae;
         }
+    }
+
+    private boolean containsAll(String line, String... subStrings) {
+        for (String subString : subStrings) {
+            if (line.matches(subString) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void debugLogs(Path path) throws IOException {
@@ -102,7 +110,8 @@ public class DieWithDignityIT extends ESRestTestCase {
 
     @Override
     protected final Settings restClientSettings() {
-        return Settings.builder().put(super.restClientSettings())
+        return Settings.builder()
+            .put(super.restClientSettings())
             // increase the timeout here to 90 seconds to handle long waits for a green
             // cluster health. the waits for green need to be longer than a minute to
             // account for delayed shards

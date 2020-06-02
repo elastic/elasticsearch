@@ -39,24 +39,22 @@ over a longer period of time. See <<cat-health-api-example-large-cluster>>.
 [[cat-health-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
 
 `ts` (timestamps)::
 (Optional, boolean) If `true`, returns `HH:MM:SS` and
 https://en.wikipedia.org/wiki/Unix_time[Unix `epoch`] timestamps. Defaults to
 `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-health-api-example]]
@@ -67,11 +65,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 By default, the cat health API returns `HH:MM:SS` and
 https://en.wikipedia.org/wiki/Unix_time[Unix `epoch`] timestamps. For example:
 
-[source,js]
+[source,console,id=cat-health-example]
 --------------------------------------------------
 GET /_cat/health?v
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:
@@ -88,11 +85,10 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 ===== Example without a timestamp
 You can use the `ts` (timestamps) parameter to disable timestamps. For example:
 
-[source,js]
+[source,console,id=cat-health-no-timestamp-example]
 --------------------------------------------------
 GET /_cat/health?v&ts=false
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
 
 The API returns the following response:

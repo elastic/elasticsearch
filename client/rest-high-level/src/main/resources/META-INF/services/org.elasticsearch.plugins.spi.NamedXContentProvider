@@ -1,4 +1,6 @@
-org.elasticsearch.client.dataframe.DataFrameNamedXContentProvider
 org.elasticsearch.client.ilm.IndexLifecycleNamedXContentProvider
 org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider
 org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider
+org.elasticsearch.client.ml.dataframe.stats.AnalysisStatsNamedXContentProvider
+org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider
+org.elasticsearch.client.transform.TransformNamedXContentProvider

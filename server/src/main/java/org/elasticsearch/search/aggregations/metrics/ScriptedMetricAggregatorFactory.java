@@ -19,14 +19,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -53,9 +53,9 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
                                     ScriptedMetricAggContexts.InitScript.Factory initScript, Map<String, Object> initScriptParams,
                                     ScriptedMetricAggContexts.CombineScript.Factory combineScript,
                                     Map<String, Object> combineScriptParams, Script reduceScript, Map<String, Object> aggParams,
-                                    SearchLookup lookup, SearchContext context, AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, subFactories, metaData);
+                                    SearchLookup lookup, QueryShardContext queryShardContext, AggregatorFactory parent,
+                                    AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         this.mapScript = mapScript;
         this.mapScriptParams = mapScriptParams;
         this.initScript = initScript;
@@ -68,14 +68,16 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+    public Aggregator createInternal(SearchContext searchContext,
+                                        Aggregator parent,
+                                        boolean collectsFromSingleBucket,
+                                        Map<String, Object> metadata) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
         Map<String, Object> aggParams = this.aggParams;
         if (aggParams != null) {
-            aggParams = deepCopyParams(aggParams, context);
+            aggParams = deepCopyParams(aggParams, searchContext);
         } else {
             aggParams = new HashMap<>();
         }
@@ -89,14 +91,13 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
         final ScriptedMetricAggContexts.CombineScript combineScript = this.combineScript.newInstance(
             mergeParams(aggParams, combineScriptParams), aggState);
 
-        final Script reduceScript = deepCopyScript(this.reduceScript, context, aggParams);
+        final Script reduceScript = deepCopyScript(this.reduceScript, searchContext, aggParams);
         if (initScript != null) {
             initScript.execute();
             CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs init script");
         }
         return new ScriptedMetricAggregator(name, mapScript,
-                combineScript, reduceScript, aggState, context, parent,
-                pipelineAggregators, metaData);
+                combineScript, reduceScript, aggState, searchContext, parent, metadata);
     }
 
     private static Script deepCopyScript(Script script, SearchContext context, Map<String, Object> aggParams) {
@@ -130,7 +131,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             || original instanceof Boolean) {
             clone = original;
         } else {
-            throw new SearchParseException(context,
+            throw new SearchParseException(context.shardTarget(),
                 "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName(), null);
         }
         return clone;

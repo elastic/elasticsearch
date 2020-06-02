@@ -27,7 +27,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -38,8 +37,8 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     @Override
     protected SpanTermQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME,
-            STRING_ALIAS_FIELD_NAME,
+        String fieldName = randomFrom(TEXT_FIELD_NAME,
+            TEXT_ALIAS_FIELD_NAME,
             randomAlphaOfLengthBetween(1, 10));
 
         Object value;
@@ -59,14 +58,14 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanTermQuery.class));
         SpanTermQuery spanTermQuery = (SpanTermQuery) query;
 
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
         assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
 
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (mapper != null) {
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));
@@ -126,7 +125,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
-    public void testWithMetaDataField() throws IOException {
+    public void testWithMetadataField() throws IOException {
         QueryShardContext context = createShardContext();
         for (String field : new String[]{"field1", "field2"}) {
             SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");

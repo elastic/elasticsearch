@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -72,6 +72,8 @@ public final class ExceptionsHelper {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
+            } else if (t instanceof JsonParseException) {
+                return RestStatus.BAD_REQUEST;
             } else if (t instanceof EsRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
             }
@@ -97,35 +99,6 @@ public final class ExceptionsHelper {
             result = result.getCause();
         }
         return result;
-    }
-
-    /**
-     * @deprecated Don't swallow exceptions, allow them to propagate.
-     */
-    @Deprecated
-    public static String detailedMessage(Throwable t) {
-        if (t == null) {
-            return "Unknown";
-        }
-        if (t.getCause() != null) {
-            StringBuilder sb = new StringBuilder();
-            while (t != null) {
-                sb.append(t.getClass().getSimpleName());
-                if (t.getMessage() != null) {
-                    sb.append("[");
-                    sb.append(t.getMessage());
-                    sb.append("]");
-                }
-                sb.append("; ");
-                t = t.getCause();
-                if (t != null) {
-                    sb.append("nested: ");
-                }
-            }
-            return sb.toString();
-        } else {
-            return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
-        }
     }
 
     public static String stackTrace(Throwable e) {
@@ -222,14 +195,6 @@ public final class ExceptionsHelper {
         return null;
     }
 
-    public static boolean isTransportStoppedForAction(final Throwable t, final String action) {
-        final TransportException maybeTransport =
-                (TransportException) ExceptionsHelper.unwrap(t, TransportException.class);
-        return maybeTransport != null
-                && (maybeTransport.getMessage().equals("TransportService is closed stopped can't send request")
-                || maybeTransport.getMessage().equals("transport stopped, action: " + action));
-    }
-
     /**
      * Throws the specified exception. If null if specified then <code>true</code> is returned.
      */
@@ -245,7 +210,7 @@ public final class ExceptionsHelper {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
+    public static <T extends Throwable> Optional<T> unwrapCausesAndSuppressed(Throwable cause, Predicate<Throwable> predicate) {
         if (predicate.test(cause)) {
             return Optional.of((T) cause);
         }

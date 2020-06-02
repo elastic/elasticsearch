@@ -1,0 +1,48 @@
+[[indices-delete-data-stream]]
+=== Delete data stream API
+++++
+<titleabbrev>Delete data stream</titleabbrev>
+++++
+
+Deletes an existing data stream along with its backing indices.
+
+////
+[source,console]
+-----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+
+PUT /_data_stream/my-data-stream
+-----------------------------------
+// TESTSETUP
+////
+
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/my-data-stream
+--------------------------------------------------
+
+////
+[source,console]
+-----------------------------------
+DELETE /_index_template/template
+-----------------------------------
+// TEST[continued]
+////
+
+[[delete-data-stream-api-request]]
+==== {api-request-title}
+
+`DELETE _data_stream/<data-stream>`
+
+
+[[delete-data-stream-api-path-params]]
+==== {api-path-parms-title}
+
+`<data-stream>`::
+(Required, string) Name or wildcard expression of data stream(s) to delete.

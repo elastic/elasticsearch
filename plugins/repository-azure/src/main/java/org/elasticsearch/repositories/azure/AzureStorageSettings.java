@@ -59,32 +59,37 @@ final class AzureStorageSettings {
         key -> SecureSetting.secureString(key, null));
 
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
-    public static final Setting<Integer> MAX_RETRIES_SETTING =
+    public static final AffixSetting<Integer> MAX_RETRIES_SETTING =
         Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "max_retries",
             (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope),
-            ACCOUNT_SETTING, KEY_SETTING);
+            () -> ACCOUNT_SETTING, () -> KEY_SETTING);
     /**
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
      */
-    public static final Setting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "endpoint_suffix",
-        key -> Setting.simpleString(key, Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
+    public static final AffixSetting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "endpoint_suffix",
+        key -> Setting.simpleString(key, Property.NodeScope), () -> ACCOUNT_SETTING, () -> KEY_SETTING);
 
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope), () -> ACCOUNT_SETTING, () -> KEY_SETTING);
 
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.type",
         (key) -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
-        , ACCOUNT_SETTING, KEY_SETTING);
+        , () -> ACCOUNT_SETTING, () -> KEY_SETTING);
 
     /** The host name of a proxy to connect to azure through. */
     public static final AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.host",
-        (key) -> Setting.simpleString(key, Property.NodeScope), KEY_SETTING, ACCOUNT_SETTING, PROXY_TYPE_SETTING);
+        (key) -> Setting.simpleString(key, Property.NodeScope), () -> KEY_SETTING, () -> ACCOUNT_SETTING, () -> PROXY_TYPE_SETTING);
 
     /** The port of a proxy to connect to azure through. */
-    public static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.port",
-        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING, PROXY_TYPE_SETTING,
-        PROXY_HOST_SETTING);
+    public static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "proxy.port",
+        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope),
+        () -> ACCOUNT_SETTING,
+        () -> KEY_SETTING,
+        () -> PROXY_TYPE_SETTING,
+        () -> PROXY_HOST_SETTING);
 
     private final String account;
     private final String connectString;

@@ -18,23 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,20 +37,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ArrayValuesSourceAggregationBuilder<VS, AB>>
+public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValuesSourceAggregationBuilder<AB>>
     extends AbstractAggregationBuilder<AB> {
 
     public static final ParseField MULTIVALUE_MODE_FIELD = new ParseField("mode");
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ArrayValuesSourceAggregationBuilder<VS, AB>>
-        extends ArrayValuesSourceAggregationBuilder<VS, AB> {
+    public abstract static class LeafOnly<AB extends ArrayValuesSourceAggregationBuilder<AB>>
+        extends ArrayValuesSourceAggregationBuilder<AB> {
 
-        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, valuesSourceType, targetValueType);
+        protected LeafOnly(String name) {
+            super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-            super(clone, factoriesBuilder, metaData);
+        protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
                 throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                     + getType() + "] cannot accept sub-aggregations");
@@ -65,18 +58,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         }
 
         /**
-         * Read from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+         * Read from a stream
          */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
-            super(in, valuesSourceType, targetValueType);
-        }
-
-        /**
-         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-         * {@link #serializeTargetValueType()} to return true.
-         */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, valuesSourceType);
+        protected LeafOnly(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
@@ -84,51 +69,39 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +
                 getType() + "] cannot accept sub-aggregations");
         }
+
+        @Override
+        public final BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
     }
 
-    private final ValuesSourceType valuesSourceType;
-    private final ValueType targetValueType;
     private List<String> fields = Collections.emptyList();
-    private ValueType valueType = null;
+    /* The parser doesn't support setting userValueTypeHint (aka valueType), but we do serialize and deserialize it, so keeping it around
+    for now so as to not break BWC.  Future refactors should feel free to remove this field. --Tozzi 2020-01-16
+     */
+    private ValueType userValueTypeHint = null;
     private String format = null;
     private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
 
-    protected ArrayValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ArrayValuesSourceAggregationBuilder(String name) {
         super(name);
-        if (valuesSourceType == null) {
-            throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
-        }
-        this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
     }
 
-    protected ArrayValuesSourceAggregationBuilder(ArrayValuesSourceAggregationBuilder<VS, AB> clone,
-                                                  Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
-        this.valuesSourceType = clone.valuesSourceType;
-        this.targetValueType = clone.targetValueType;
+    protected ArrayValuesSourceAggregationBuilder(ArrayValuesSourceAggregationBuilder<AB> clone,
+                                                  Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.fields = new ArrayList<>(clone.fields);
-        this.valueType = clone.valueType;
+        this.userValueTypeHint = clone.userValueTypeHint;
         this.format = clone.format;
         this.missingMap = new HashMap<>(clone.missingMap);
         this.missing = clone.missing;
     }
 
-    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ArrayValuesSourceAggregationBuilder(StreamInput in)
         throws IOException {
         super(in);
-        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
-        this.valuesSourceType = valuesSourceType;
-        this.targetValueType = targetValueType;
-        read(in);
-    }
-
-    protected ArrayValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
-        super(in);
-        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
-        this.valuesSourceType = valuesSourceType;
-        this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         read(in);
     }
 
@@ -138,18 +111,15 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = (ArrayList<String>)in.readGenericValue();
-        valueType = in.readOptionalWriteable(ValueType::readFromStream);
+        userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
         missingMap = in.readMap();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
-            out.writeOptionalWriteable(targetValueType);
-        }
         out.writeGenericValue(fields);
-        out.writeOptionalWriteable(valueType);
+        out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         out.writeMap(missingMap);
         innerWriteTo(out);
@@ -177,25 +147,6 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
      */
     public List<String> fields() {
         return fields;
-    }
-
-    /**
-     * Sets the {@link ValueType} for the value produced by this aggregation
-     */
-    @SuppressWarnings("unchecked")
-    public AB valueType(ValueType valueType) {
-        if (valueType == null) {
-            throw new IllegalArgumentException("[valueType] must not be null: [" + name + "]");
-        }
-        this.valueType = valueType;
-        return (AB) this;
-    }
-
-    /**
-     * Gets the {@link ValueType} for the value produced by this aggregation
-     */
-    public ValueType valueType() {
-        return valueType;
     }
 
     /**
@@ -239,96 +190,27 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
-                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
-        ArrayValuesSourceAggregatorFactory<VS> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
+    protected final ArrayValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                               Builder subFactoriesBuilder) throws IOException {
+        Map<String, ValuesSourceConfig> configs = resolveConfig(queryShardContext);
+        ArrayValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(SearchContext context) {
-        HashMap<String, ValuesSourceConfig<VS>> configs = new HashMap<>();
+    protected Map<String, ValuesSourceConfig> resolveConfig(QueryShardContext queryShardContext) {
+        HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig<VS> config = config(context, field, null);
+            ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(queryShardContext, userValueTypeHint, field, null,
+                missingMap.get(field), null, format, CoreValuesSourceType.BYTES);
             configs.put(field, config);
         }
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context,
-                                                                Map<String, ValuesSourceConfig<VS>> configs,
-                                                                AggregatorFactory parent,
-                                                                AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
-
-    public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
-
-        ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-
-        if (field == null) {
-            if (script == null) {
-                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
-                return config.format(resolveFormat(null, valueType));
-            }
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            if (valuesSourceType == null || valuesSourceType == ValuesSourceType.ANY) {
-                // the specific value source type is undefined, but for scripts,
-                // we need to have a specific value source
-                // type to know how to handle the script values, so we fallback
-                // on Bytes
-                valuesSourceType = ValuesSourceType.BYTES;
-            }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing(missingMap.get(field));
-            return config.format(resolveFormat(format, valueType));
-        }
-
-        MappedFieldType fieldType = context.smartNameFieldType(field);
-        if (fieldType == null) {
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
-            config.missing(missingMap.get(field));
-            config.format(resolveFormat(format, valueType));
-            return config.unmapped(true);
-        }
-
-        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
-
-        ValuesSourceConfig<VS> config;
-        if (valuesSourceType == ValuesSourceType.ANY) {
-            if (indexFieldData instanceof IndexNumericFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
-                config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
-            } else {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-            }
-        } else {
-            config = new ValuesSourceConfig<>(valuesSourceType);
-        }
-
-        config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
-        config.missing(missingMap.get(field));
-        return config.format(fieldType.docValueFormat(format, null));
-    }
-
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
-        if (valueType == null) {
-            return DocValueFormat.RAW; // we can't figure it out
-        }
-        DocValueFormat valueFormat = valueType.defaultFormat();
-        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
-            valueFormat = new DocValueFormat.Decimal(format);
-        }
-        return valueFormat;
-    }
-
-    /**
-     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true
-     * should use the three argument read constructor rather than the four argument version.
-     */
-    protected boolean serializeTargetValueType() {
-        return false;
-    }
+    protected abstract ArrayValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                                     Map<String, ValuesSourceConfig> configs,
+                                                                     AggregatorFactory parent,
+                                                                     AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -343,8 +225,8 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         if (format != null) {
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
         }
-        if (valueType != null) {
-            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), valueType.getPreferredName());
+        if (userValueTypeHint != null) {
+            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getPreferredName());
         }
         doXContentBody(builder, params);
         builder.endObject();
@@ -355,7 +237,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, format, missing, targetValueType, valueType, valuesSourceType);
+        return Objects.hash(super.hashCode(), fields, format, missing, userValueTypeHint);
     }
 
     @Override
@@ -363,12 +245,10 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        ArrayValuesSourceAggregationBuilder<?, ?> other = (ArrayValuesSourceAggregationBuilder<?, ?>) obj;
+        ArrayValuesSourceAggregationBuilder<?> other = (ArrayValuesSourceAggregationBuilder<?>) obj;
         return Objects.equals(fields, other.fields)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)
-            && Objects.equals(targetValueType, other.targetValueType)
-            && Objects.equals(valueType, other.valueType)
-            && Objects.equals(valuesSourceType, other.valuesSourceType);
+            && Objects.equals(userValueTypeHint, other.userValueTypeHint);
     }
 }

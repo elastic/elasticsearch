@@ -17,7 +17,10 @@ import java.util.Map;
 import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
+import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureUtils.MAPPING_TYPE_SETTING;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class FileStructureUtilsTests extends FileStructureTestCase {
 
@@ -194,7 +197,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time", match.v1());
-        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"));
+        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().getGrokPatternName());
     }
 
@@ -227,7 +230,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
         assertNotNull(match);
         assertEquals("time2", match.v1());
-        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"));
+        assertThat(match.v2().getJavaTimestampFormats(), contains("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"));
         assertEquals("CISCOTIMESTAMP", match.v2().getGrokPatternName());
     }
 
@@ -236,26 +239,26 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
     }
 
     public void testGuessMappingGivenKeyword() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "keyword");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("ERROR", "INFO", "DEBUG")));
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("2018-06-11T13:26:47Z", "not a date")));
     }
 
     public void testGuessMappingGivenText() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "text");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "text");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("a", "the quick brown fox jumped over the lazy dog")));
     }
 
     public void testGuessMappingGivenIp() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "ip");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("10.0.0.1", "172.16.0.1", "192.168.0.1")));
     }
 
     public void testGuessMappingGivenDouble() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "double");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "double");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("3.14159265359", "0", "-8")));
         // 12345678901234567890 is too long for long
@@ -265,7 +268,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
     }
 
     public void testGuessMappingGivenLong() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "long");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("500", "3", "-3")));
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(500, 6, 0)));
@@ -273,31 +276,31 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
 
     public void testGuessMappingGivenDate() {
         Map<String, String> expected = new HashMap<>();
-        expected.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expected.put(MAPPING_TYPE_SETTING, "date");
         expected.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("2018-06-11T13:26:47Z", "2018-06-11T13:27:12Z")));
     }
 
     public void testGuessMappingGivenBoolean() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "boolean");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList("false", "true")));
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(true, false)));
     }
 
     public void testGuessMappingGivenArray() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "long");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(42, Arrays.asList(1, -99))));
 
-        expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+        expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "keyword");
 
         assertEquals(expected, guessMapping(explanation, "foo", Arrays.asList(new String[]{ "x", "y" }, "z")));
     }
 
     public void testGuessMappingGivenObject() {
-        Map<String, String> expected = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "object");
+        Map<String, String> expected = Collections.singletonMap(MAPPING_TYPE_SETTING, "object");
 
         assertEquals(expected, guessMapping(explanation, "foo",
             Arrays.asList(Collections.singletonMap("name", "value1"), Collections.singletonMap("name", "value2"))));
@@ -328,12 +331,12 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
 
         Map<String, Object> mappings = mappingsAndFieldStats.v1();
         assertNotNull(mappings);
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
+        assertEquals(Collections.singletonMap(MAPPING_TYPE_SETTING, "keyword"), mappings.get("foo"));
         Map<String, String> expectedTimeMapping = new HashMap<>();
-        expectedTimeMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedTimeMapping.put(MAPPING_TYPE_SETTING, "date");
         expectedTimeMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "yyyy-MM-dd HH:mm:ss,SSS");
         assertEquals(expectedTimeMapping, mappings.get("time"));
-        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
+        assertEquals(Collections.singletonMap(MAPPING_TYPE_SETTING, "long"), mappings.get("bar"));
         assertNull(mappings.get("nothing"));
 
         Map<String, FieldStats> fieldStats = mappingsAndFieldStats.v2();
@@ -346,21 +349,22 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
         assertNull(fieldStats.get("nothing"));
     }
 
-    public void testMakeIngestPipelineDefinitionGivenStructuredWithoutTimestamp() {
+    public void testMakeIngestPipelineDefinitionGivenNdJsonWithoutTimestamp() {
 
-        assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null, null, false));
+        assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null, Collections.emptyMap(), null, null,
+            false));
     }
 
     @SuppressWarnings("unchecked")
-    public void testMakeIngestPipelineDefinitionGivenStructuredWithTimestamp() {
+    public void testMakeIngestPipelineDefinitionGivenNdJsonWithTimestamp() {
 
         String timestampField = randomAlphaOfLength(10);
         List<String> timestampFormats = randomFrom(Collections.singletonList("ISO8601"),
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), timestampField,
-            timestampFormats, needClientTimezone);
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null,
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -380,6 +384,144 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithoutTimestamp() {
+
+        Map<String, Object> csvProcessorSettings = DelimitedFileStructureFinderTests.randomCsvProcessorSettings();
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            Collections.emptyMap(), null, null, false);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(2, processors.size());
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), instanceOf(String.class));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+
+        Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(1).get("remove");
+        assertNotNull(removeProcessor);
+        assertThat(csvProcessor.get("field"), equalTo(csvProcessorSettings.get("field")));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithFieldInTargetFields() {
+
+        Map<String, Object> csvProcessorSettings = new HashMap<>(DelimitedFileStructureFinderTests.randomCsvProcessorSettings());
+        // Hack it so the field to be parsed is also one of the column names
+        String firstTargetField = ((List<String>) csvProcessorSettings.get("target_fields")).get(0);
+        csvProcessorSettings.put("field", firstTargetField);
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            Collections.emptyMap(), null, null, false);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(1, processors.size()); // 1 because there's no "remove" processor this time
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), equalTo(firstTargetField));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+        assertThat(csvProcessor.get("ignore_missing"), equalTo(false));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithConversion() {
+
+        Map<String, Object> csvProcessorSettings = DelimitedFileStructureFinderTests.randomCsvProcessorSettings();
+        boolean expectConversion = randomBoolean();
+        String mappingType = expectConversion ? randomFrom("long", "double", "boolean") : randomFrom("keyword", "text", "date");
+        String firstTargetField = ((List<String>) csvProcessorSettings.get("target_fields")).get(0);
+        Map<String, Object> mappingsForConversions =
+            Collections.singletonMap(firstTargetField, Collections.singletonMap(MAPPING_TYPE_SETTING, mappingType));
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            mappingsForConversions, null, null, false);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(expectConversion ? 3 : 2, processors.size());
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), instanceOf(String.class));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+        assertThat(csvProcessor.get("ignore_missing"), equalTo(false));
+
+        if (expectConversion) {
+            Map<String, Object> convertProcessor = (Map<String, Object>) processors.get(1).get("convert");
+            assertNotNull(convertProcessor);
+            assertThat(convertProcessor.get("field"), equalTo(firstTargetField));
+            assertThat(convertProcessor.get("type"), equalTo(mappingType));
+            assertThat(convertProcessor.get("ignore_missing"), equalTo(true));
+        }
+
+        Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(processors.size() - 1).get("remove");
+        assertNotNull(removeProcessor);
+        assertThat(removeProcessor.get("field"), equalTo(csvProcessorSettings.get("field")));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMakeIngestPipelineDefinitionGivenDelimitedWithTimestamp() {
+
+        Map<String, Object> csvProcessorSettings = DelimitedFileStructureFinderTests.randomCsvProcessorSettings();
+
+        String timestampField = randomAlphaOfLength(10);
+        List<String> timestampFormats = randomFrom(Collections.singletonList("ISO8601"),
+            Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
+        boolean needClientTimezone = randomBoolean();
+
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), csvProcessorSettings,
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
+        assertNotNull(pipeline);
+
+        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+
+        List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
+        assertNotNull(processors);
+        assertEquals(3, processors.size());
+
+        Map<String, Object> csvProcessor = (Map<String, Object>) processors.get(0).get("csv");
+        assertNotNull(csvProcessor);
+        assertThat(csvProcessor.get("field"), instanceOf(String.class));
+        assertThat(csvProcessor.get("target_fields"), instanceOf(List.class));
+        assertThat(csvProcessor.get("ignore_missing"), equalTo(false));
+
+        Map<String, Object> dateProcessor = (Map<String, Object>) processors.get(1).get("date");
+        assertNotNull(dateProcessor);
+        assertEquals(timestampField, dateProcessor.get("field"));
+        assertEquals(needClientTimezone, dateProcessor.containsKey("timezone"));
+        assertEquals(timestampFormats, dateProcessor.get("formats"));
+
+        Map<String, Object> removeProcessor = (Map<String, Object>) processors.get(2).get("remove");
+        assertNotNull(removeProcessor);
+        assertThat(removeProcessor.get("field"), equalTo(csvProcessorSettings.get("field")));
+
+        // After removing the two expected fields there should be nothing left in the pipeline
+        assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    @SuppressWarnings("unchecked")
     public void testMakeIngestPipelineDefinitionGivenSemiStructured() {
 
         String grokPattern = randomAlphaOfLength(100);
@@ -388,8 +530,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
 
-        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(grokPattern, Collections.emptyMap(), timestampField,
-            timestampFormats, needClientTimezone);
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(grokPattern, Collections.emptyMap(), null,
+            Collections.emptyMap(), timestampField, timestampFormats, needClientTimezone);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -415,6 +557,55 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
 
         // After removing the two expected fields there should be nothing left in the pipeline
         assertEquals(Collections.emptyMap(), pipeline);
+    }
+
+    public void testGuessGeoPoint() {
+        Map<String, String> mapping = FileStructureUtils.guessScalarMapping(
+            explanation,
+            "foo",
+            Arrays.asList("POINT (-77.03653 38.897676)", "POINT (-50.03653 28.8973)"),
+            NOOP_TIMEOUT_CHECKER
+        );
+        assertThat(mapping.get(MAPPING_TYPE_SETTING), equalTo("geo_point"));
+
+        mapping = FileStructureUtils.guessScalarMapping(
+            explanation,
+            "foo",
+            Arrays.asList("POINT (-77.03653 38.897676)", "bar"),
+            NOOP_TIMEOUT_CHECKER
+        );
+        assertThat(mapping.get(MAPPING_TYPE_SETTING), equalTo("keyword"));
+    }
+
+    public void testGuessGeoShape() {
+        Map<String, String> mapping = FileStructureUtils.guessScalarMapping(
+            explanation,
+            "foo",
+            Arrays.asList(
+                "POINT (-77.03653 38.897676)",
+                "LINESTRING (-77.03653 38.897676, -77.009051 38.889939)",
+                "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))",
+                "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0), " +
+                    "(100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2))",
+                "MULTIPOINT (102.0 2.0, 103.0 2.0)",
+                "MULTILINESTRING ((102.0 2.0, 103.0 2.0, 103.0 3.0, 102.0 3.0), (100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0)," +
+                    " (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8))",
+                "MULTIPOLYGON (((102.0 2.0, 103.0 2.0, 103.0 3.0, 102.0 3.0, 102.0 2.0)), ((100.0 0.0, 101.0 0.0, 101.0 1.0, " +
+                    "100.0 1.0, 100.0 0.0), (100.2 0.2, 100.8 0.2, 100.8 0.8, 100.2 0.8, 100.2 0.2)))",
+                "GEOMETRYCOLLECTION (POINT (100.0 0.0), LINESTRING (101.0 0.0, 102.0 1.0))",
+                "BBOX (100.0, 102.0, 2.0, 0.0)"
+            ),
+            NOOP_TIMEOUT_CHECKER
+        );
+        assertThat(mapping.get(MAPPING_TYPE_SETTING), equalTo("geo_shape"));
+
+        mapping = FileStructureUtils.guessScalarMapping(
+            explanation,
+            "foo",
+            Arrays.asList("POINT (-77.03653 38.897676)", "LINESTRING (-77.03653 38.897676, -77.009051 38.889939)", "bar"),
+            NOOP_TIMEOUT_CHECKER
+        );
+        assertThat(mapping.get(MAPPING_TYPE_SETTING), equalTo("keyword"));
     }
 
     private Map<String, String> guessMapping(List<String> explanation, String fieldName, List<Object> fieldValues) {

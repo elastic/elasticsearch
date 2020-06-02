@@ -11,10 +11,10 @@ This process starts with a list of _seed_ addresses from one or more
 of any master-eligible nodes that were in the last-known cluster. The process
 operates in two phases: First, each node probes the seed addresses by
 connecting to each address and attempting to identify the node to which it is
-connected. Secondly it shares with the remote node a list of all of its known
-master-eligible peers and the remote node responds with _its_ peers in turn.
-The node then probes all the new nodes that it just discovered, requests their
-peers, and so on.
+connected and to verify that it is master-eligible. Secondly, if successful, it
+shares with the remote node a list of all of its known master-eligible peers
+and the remote node responds with _its_ peers in turn. The node then probes all
+the new nodes that it just discovered, requests their peers, and so on.
 
 If the node is not master-eligible then it continues this discovery process
 until it has discovered an elected master node. If no elected master is
@@ -43,7 +43,7 @@ Each seed hosts provider yields the IP addresses or hostnames of the seed
 nodes. If it returns any hostnames then these are resolved to IP addresses
 using a DNS lookup. If a hostname resolves to multiple IP addresses then {es}
 tries to find a seed node at all of these addresses. If the hosts provider does
-not explicitly give the TCP port of the node then by it will implicitly use the
+not explicitly give the TCP port of the node by then, it will implicitly use the
 first port in the port range given by `transport.profiles.default.port`, or by
 `transport.port` if `transport.profiles.default.port` is not set. The number of
 concurrent lookups is controlled by

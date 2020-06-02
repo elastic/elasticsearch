@@ -18,10 +18,12 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-
-import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.jdk-download'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
@@ -30,16 +32,8 @@ esplugin {
 
 testClusters.integTest {
   // Modules who's integration is explicitly tested in integration tests
-  module file(project(':modules:parent-join').tasks.bundlePlugin.archiveFile)
-  module file(project(':modules:lang-painless').tasks.bundlePlugin.archiveFile)
-  // Whitelist reindexing from the local node so we can test reindex-from-remote.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
-}
-
-run {
-  // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:parent-join')
-  module project(':modules:lang-painless')
+  module project(':modules:parent-join').tasks.bundlePlugin.archiveFile
+  module project(':modules:lang-painless').tasks.bundlePlugin.archiveFile
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
@@ -62,7 +56,14 @@ dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
-thirdPartyAudit.ignoreMissingClasses (
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
+                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script'
+  }
+}
+
+thirdPartyAudit.ignoreMissingClasses(
   // Commons logging
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
@@ -72,8 +73,8 @@ thirdPartyAudit.ignoreMissingClasses (
 )
 
 forbiddenPatterns {
-    // PKCS#12 file are not UTF-8
-    exclude '**/*.p12'
+  // PKCS#12 file are not UTF-8
+  exclude '**/*.p12'
 }
 
 // Support for testing reindex-from-remote against old Elasticsearch versions
@@ -94,6 +95,15 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
+jdks {
+  legacy {
+    vendor = 'adoptopenjdk'
+    version = '8u242+b08'
+    platform = OS.current().name().toLowerCase()
+    architecture = Architecture.current().name().toLowerCase()
+  }
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   integTest.runner {
@@ -107,7 +117,13 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 } else {
   /* Set up tasks to unzip and run the old versions of ES before running the
    * integration tests. */
-  for (String version : ['2', '1', '090']) {
+  def versions = ['2', '1', '090']
+  if (Os.isFamily(Os.FAMILY_MAC)) {
+    // 0.90 fails sometimes on mac, given that it is so old, let us disable it
+    // see: https://github.com/elastic/elasticsearch/issues/51202
+    versions = ['2', '1']
+  }
+  for (String version : versions) {
     Task unzip = task("unzipEs${version}", type: Sync) {
       Configuration oldEsDependency = configurations['es' + version]
       dependsOn oldEsDependency
@@ -120,15 +136,15 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
 
     Task fixture = task("oldEs${version}Fixture", type: org.elasticsearch.gradle.test.AntFixture) {
-      dependsOn project.configurations.oldesFixture
+      dependsOn project.configurations.oldesFixture, jdks.legacy
       dependsOn unzip
-      executable = new File(project.runtimeJavaHome, 'bin/java')
-      env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
-      env 'JAVA_HOME', "${ -> getJavaHome(it, 8)}"
+      executable = "${BuildParams.runtimeJavaHome}/bin/java"
+      env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
+      env 'JAVA_HOME', jdks.legacy.javaHomePath
       args 'oldes.OldElasticsearch',
-           baseDir,
-           unzip.temporaryDir,
-           version == '090'
+        baseDir,
+        unzip.temporaryDir,
+        version == '090'
       waitCondition = { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist
@@ -142,8 +158,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         systemProperty "tests.fromOld", "true"
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
-         * ready. */ 
-        nonInputProperties.systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+         * ready. */
+        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.addressAndPort}"
       }
     }
   }

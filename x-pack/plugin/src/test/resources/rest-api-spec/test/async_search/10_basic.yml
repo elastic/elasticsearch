@@ -1,0 +1,140 @@
+---
+"Async search":
+  - do:
+      indices.create:
+        index: test-1
+        body:
+          settings:
+            number_of_shards: "2"
+
+  - do:
+      indices.create:
+        index: test-2
+        body:
+          settings:
+            number_of_shards: "1"
+
+  - do:
+      indices.create:
+        index: test-3
+        body:
+          settings:
+            number_of_shards: "3"
+
+  - do:
+      index:
+        index:  test-2
+        body:   { max: 2 }
+
+  - do:
+      index:
+        index:  test-1
+        body:   { max: 1 }
+
+  - do:
+      index:
+        index:  test-3
+        body:   { max: 3 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      async_search.submit:
+        index: test-*
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 10s
+        body:
+          query:
+            match_all: {}
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+
+  - is_false: id
+  - match:  { is_partial:                   false }
+  - length: { response.hits.hits:               3 }
+  - match:  { response.hits.hits.0._source.max: 1 }
+  - match:  { response.aggregations.max.value:  3.0 }
+
+  - do:
+      async_search.submit:
+        index: test-*
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+        body:
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+
+  - match:  { is_partial:                   false }
+  - length: { response.hits.hits:               3 }
+  - match:  { response.hits.hits.0._source.max: 1 }
+  - match:  { response.aggregations.max.value:  3.0 }
+
+  # test with typed_keys:
+  - do:
+      async_search.submit:
+        index: test-*
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+        typed_keys: true
+        body:
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+
+  - set:    { id:                                  id }
+  - match:  { is_partial:                       false }
+  - is_false: response._clusters
+  - length: { response.hits.hits:                   3 }
+  - match:  { response.hits.hits.0._source.max:     1 }
+  - match:  { response.aggregations.max#max.value:  3.0 }
+
+  - do:
+      async_search.get:
+        id: "$id"
+
+  - match:  { is_partial:                     false }
+  - is_false: response._clusters
+  - length: { response.hits.hits:                 3 }
+  - match:  { response.hits.hits.0._source.max:   1 }
+  - match:  { response.aggregations.max.value:    3.0 }
+
+  # test with typed_keys:
+  - do:
+      async_search.get:
+        id: "$id"
+        typed_keys: true
+
+  - match:  { is_partial:                       false }
+  - is_false: response._clusters
+  - length: { response.hits.hits:                   3 }
+  - match:  { response.hits.hits.0._source.max:     1 }
+  - match:  { response.aggregations.max#max.value:  3.0 }
+
+  - do:
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }
+
+  - do:
+      catch: missing
+      async_search.get:
+        id: "$id"
+
+  - do:
+      catch: missing
+      async_search.delete:
+        id: "$id"
+
+

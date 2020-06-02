@@ -383,7 +383,7 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         @SuppressWarnings("unchecked")
-        static ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
+        static final ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
             "bulk_by_scroll_task_status_retries",
             true,
             a -> new Tuple(a[0], a[1])

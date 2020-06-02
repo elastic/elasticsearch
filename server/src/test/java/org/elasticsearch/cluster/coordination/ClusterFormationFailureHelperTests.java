@@ -22,13 +22,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -166,7 +167,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(7L)
-            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder().term(4L).build()))
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(4L).build()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 1L, electionStrategy).getDescription(),
@@ -210,7 +211,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     private static ClusterState state(DiscoveryNode localNode, String[] acceptedConfig, String[] committedConfig) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
-            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder()
                 .lastAcceptedConfiguration(config(acceptedConfig))
                 .lastCommittedConfiguration(config(committedConfig)).build())).build();
     }
@@ -377,7 +378,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         String[] configNodeIds = new String[]{"n1", "n2"};
         final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(otherMasterNode).add(otherNonMasterNode))
-            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder()
                 .lastAcceptedConfiguration(config(configNodeIds))
                 .lastCommittedConfiguration(config(configNodeIds)).build())).build();
 
@@ -395,5 +396,14 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     "have discovered [] which is not a quorum; " +
                     "discovery will continue using [] from hosts providers and [" + otherMasterNode + ", " + localNode +
                     "] from last-known cluster state; node term 0, last-accepted version 0 in term 0")));
+
+        assertThat(new ClusterFormationState(Settings.EMPTY, state(localNode, GatewayMetaState.STALE_STATE_CONFIG_NODE_ID), emptyList(),
+                emptyList(), 0L, electionStrategy).getDescription(),
+            is("master not discovered or elected yet, an election requires one or more nodes that have already participated as " +
+                "master-eligible nodes in the cluster but this node was not master-eligible the last time it joined the cluster, " +
+                "have discovered [] which is not a quorum; " +
+                "discovery will continue using [] from hosts providers and [" + localNode +
+                "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
     }
 }

@@ -21,6 +21,8 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -30,42 +32,36 @@ import static org.hamcrest.Matchers.containsString;
 public class TermsLookupTests extends ESTestCase {
     public void testTermsLookup() {
         String index = randomAlphaOfLengthBetween(1, 10);
-        String type = randomAlphaOfLengthBetween(1, 10);
         String id = randomAlphaOfLengthBetween(1, 10);
         String path = randomAlphaOfLengthBetween(1, 10);
         String routing = randomAlphaOfLengthBetween(1, 10);
-        TermsLookup termsLookup = new TermsLookup(index, type, id, path);
+        TermsLookup termsLookup = new TermsLookup(index, id, path);
         termsLookup.routing(routing);
         assertEquals(index, termsLookup.index());
-        assertEquals(type, termsLookup.type());
         assertEquals(id, termsLookup.id());
         assertEquals(path, termsLookup.path());
         assertEquals(routing, termsLookup.routing());
     }
 
     public void testIllegalArguments() {
-        String type = randomAlphaOfLength(5);
         String id = randomAlphaOfLength(5);
         String path = randomAlphaOfLength(5);
         String index = randomAlphaOfLength(5);
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 2)) {
             case 0:
-                type = null;
-                break;
-            case 1:
                 id = null;
                 break;
-            case 2:
+            case 1:
                 path = null;
                 break;
-            case 3:
+            case 2:
                 index = null;
                 break;
             default:
                 fail("unknown case");
         }
         try {
-            new TermsLookup(index, type, id, path);
+            new TermsLookup(index, id, path);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("[terms] query lookup element requires specifying"));
         }
@@ -84,17 +80,15 @@ public class TermsLookupTests extends ESTestCase {
         }
     }
 
-    public void testSerializationWithTypes() throws IOException {
-        TermsLookup termsLookup = randomTermsLookupWithTypes();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            termsLookup.writeTo(output);
-            try (StreamInput in = output.bytes().streamInput()) {
-                TermsLookup deserializedLookup = new TermsLookup(in);
-                assertEquals(deserializedLookup, termsLookup);
-                assertEquals(deserializedLookup.hashCode(), termsLookup.hashCode());
-                assertNotSame(deserializedLookup, termsLookup);
-            }
-        }
+    public void testXContentParsing() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+
+        TermsLookup tl = TermsLookup.parseTermsLookup(parser);
+        assertEquals("index", tl.index());
+        assertEquals("id", tl.id());
+        assertEquals("path", tl.path());
+        assertEquals("routing", tl.routing());
     }
 
     public static TermsLookup randomTermsLookup() {
@@ -105,12 +99,4 @@ public class TermsLookupTests extends ESTestCase {
         ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
     }
 
-    public static TermsLookup randomTermsLookupWithTypes() {
-        return new TermsLookup(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10).replace('.', '_')
-        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
-    }
 }

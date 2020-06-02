@@ -34,14 +34,14 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
         IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setType("person").setSource(mapping, XContentType.JSON).get();
+        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
 
         MapperService mapperService = index.mapperService();
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(
-            new SourceToParse("test", "person", "1", new BytesArray(json), XContentType.JSON));
-        client().admin().indices().preparePutMapping("test").setType("person")
+            new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
+        client().admin().indices().preparePutMapping("test")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
         Document doc = parsedDoc.rootDoc();
 
@@ -50,26 +50,26 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("top_level"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        MappedFieldType fieldType = mapperService.fullName("name");
+        MappedFieldType fieldType = mapperService.fieldType("name");
         assertThat(fieldType.stored(), equalTo(false));
 
         f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        fieldType = mapperService.fullName("obj1.name");
+        fieldType = mapperService.fieldType("obj1.name");
         assertThat(fieldType.stored(), equalTo(true));
 
         f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        fieldType = mapperService.fullName("obj1.obj2.name");
+        fieldType = mapperService.fieldType("obj1.obj2.name");
         assertThat(fieldType.stored(), equalTo(false));
 
         // verify more complex path_match expressions
 
-        fieldType = mapperService.fullName("obj3.obj4.prop1");
+        fieldType = mapperService.fieldType("obj3.obj4.prop1");
         assertNotNull(fieldType);
     }
 }

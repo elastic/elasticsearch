@@ -71,6 +71,9 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
             update.setModelSnapshotRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            update.setDailyModelSnapshotRetentionAfterDays(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             update.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
@@ -78,6 +81,9 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
         }
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        }
+        if (randomBoolean()) {
+            update.setAllowLazyOpen(randomBoolean());
         }
 
         return update.build();

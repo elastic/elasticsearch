@@ -21,25 +21,44 @@ package org.elasticsearch.client;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.cluster.RemoteConnectionInfo;
+import org.elasticsearch.client.cluster.RemoteInfoRequest;
+import org.elasticsearch.client.cluster.RemoteInfoResponse;
+import org.elasticsearch.client.cluster.SniffModeInfo;
+import org.elasticsearch.client.indices.ComponentTemplatesExistRequest;
+import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
+import org.elasticsearch.client.indices.PutComponentTemplateRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.SniffConnectionStrategy;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -297,4 +316,85 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertNoIndices(response);
     }
 
+    public void testRemoteInfo() throws Exception {
+        String clusterAlias = "local_cluster";
+        setupRemoteClusterConfig(clusterAlias);
+
+        ClusterGetSettingsRequest settingsRequest = new ClusterGetSettingsRequest();
+        settingsRequest.includeDefaults(true);
+        ClusterGetSettingsResponse settingsResponse = highLevelClient().cluster().getSettings(settingsRequest, RequestOptions.DEFAULT);
+
+        List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(settingsResponse.getTransientSettings());
+        int connectionsPerCluster = SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER
+                .get(settingsResponse.getTransientSettings());
+        TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING
+                .get(settingsResponse.getTransientSettings());
+        boolean skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
+                .getConcreteSettingForNamespace(clusterAlias)
+                .get(settingsResponse.getTransientSettings());
+
+        RemoteInfoRequest request = new RemoteInfoRequest();
+        RemoteInfoResponse response = execute(request, highLevelClient().cluster()::remoteInfo,
+                highLevelClient().cluster()::remoteInfoAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.getInfos().size(), equalTo(1));
+        RemoteConnectionInfo info = response.getInfos().get(0);
+        assertThat(info.getClusterAlias(), equalTo(clusterAlias));
+        assertThat(info.getInitialConnectionTimeoutString(), equalTo(initialConnectionTimeout.toString()));
+        assertThat(info.isSkipUnavailable(), equalTo(skipUnavailable));
+        assertThat(info.getModeInfo().modeName(), equalTo(SniffModeInfo.NAME));
+        assertThat(info.getModeInfo().isConnected(), equalTo(true));
+        SniffModeInfo sniffModeInfo = (SniffModeInfo) info.getModeInfo();
+        assertThat(sniffModeInfo.getMaxConnectionsPerCluster(), equalTo(connectionsPerCluster));
+        assertThat(sniffModeInfo.getNumNodesConnected(), equalTo(1));
+        assertThat(sniffModeInfo.getSeedNodes(), equalTo(seeds));
+    }
+
+    public void testComponentTemplates() throws Exception {
+        String templateName = "my-template";
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
+        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
+        Template template = new Template(settings, mappings, Map.of("alias", alias));
+        ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
+        PutComponentTemplateRequest putComponentTemplateRequest =
+            new PutComponentTemplateRequest().name(templateName).create(true).componentTemplate(componentTemplate);
+
+        AcknowledgedResponse response = execute(putComponentTemplateRequest,
+            highLevelClient().cluster()::putComponentTemplate, highLevelClient().cluster()::putComponentTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        ComponentTemplatesExistRequest componentTemplatesExistRequest = new ComponentTemplatesExistRequest(templateName);
+        boolean exist = execute(componentTemplatesExistRequest,
+            highLevelClient().cluster()::existsComponentTemplate, highLevelClient().cluster()::existsComponentTemplateAsync);
+
+        assertTrue(exist);
+
+        GetComponentTemplatesRequest getComponentTemplatesRequest = new GetComponentTemplatesRequest(templateName);
+        GetComponentTemplatesResponse getResponse = execute(getComponentTemplatesRequest,
+            highLevelClient().cluster()::getComponentTemplate, highLevelClient().cluster()::getComponentTemplateAsync);
+
+        assertThat(getResponse.getComponentTemplates().size(), equalTo(1));
+        assertThat(getResponse.getComponentTemplates().containsKey(templateName), equalTo(true));
+        assertThat(getResponse.getComponentTemplates().get(templateName), equalTo(componentTemplate));
+
+        DeleteComponentTemplateRequest deleteComponentTemplateRequest = new DeleteComponentTemplateRequest(templateName);
+        response = execute(deleteComponentTemplateRequest, highLevelClient().cluster()::deleteComponentTemplate,
+            highLevelClient().cluster()::deleteComponentTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(getComponentTemplatesRequest,
+                highLevelClient().cluster()::getComponentTemplate, highLevelClient().cluster()::getComponentTemplateAsync));
+
+        assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
+
+        exist = execute(componentTemplatesExistRequest,
+            highLevelClient().cluster()::existsComponentTemplate, highLevelClient().cluster()::existsComponentTemplateAsync);
+
+        assertFalse(exist);
+    }
 }

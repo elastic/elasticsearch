@@ -5,12 +5,12 @@
 Official low-level client for Elasticsearch. Its goal is to provide common
 ground for all Elasticsearch-related code in Python; because of this it tries
 to be opinion-free and very extendable. The full documentation is available at
-http://elasticsearch-py.rtfd.org/
+http://elasticsearch-py.readthedocs.org/
 
 .Elasticsearch DSL
 ************************************************************************************
 For a more high level client library with more limited scope, have a look at
-http://elasticsearch-dsl.rtfd.org/[elasticsearch-dsl] - a more pythonic library
+http://elasticsearch-dsl.readthedocs.org/[elasticsearch-dsl] - a more pythonic library
 sitting on top of `elasticsearch-py`.
 
 It provides a more convenient and idiomatic way to write and manipulate

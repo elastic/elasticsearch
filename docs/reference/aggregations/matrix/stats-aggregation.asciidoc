@@ -35,7 +35,7 @@ POST /_refresh
 
 The following example demonstrates the use of matrix stats to describe the relationship between income and poverty.
 
-[source,js]
+[source,console,id=stats-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -48,13 +48,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 The aggregation type is `matrix_stats` and the `fields` setting defines the set of fields (as an array) for computing
 the statistics. The above request returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -119,7 +118,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they had a value.
 This is done by adding a set of fieldname : value mappings to specify default values per field.
 
-[source,js]
+[source,console,id=stats-aggregation-missing-example]
 --------------------------------------------------
 GET /_search
 {
@@ -133,7 +132,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Documents without a value in the `income` field will have the default value `50000`.
 

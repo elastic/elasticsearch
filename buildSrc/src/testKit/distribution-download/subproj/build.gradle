@@ -1,6 +1,7 @@
+import org.elasticsearch.gradle.Architecture
 
 plugins {
-    id 'elasticsearch.distribution-download'
+  id 'elasticsearch.distribution-download'
 }
 
 String distroVersion = System.getProperty('tests.distro.version')
@@ -8,6 +9,7 @@ String distroType = System.getProperty('tests.distro.type')
 String distroPlatform = System.getProperty('tests.distro.platform')
 String distroFlavor = System.getProperty('tests.distro.flavor')
 String distroBundledJdk = System.getProperty('tests.distro.bundledJdk')
+String distroArch = System.getProperty('tests.distro.arch');
 
 elasticsearch_distributions {
   test_distro {
@@ -26,10 +28,15 @@ elasticsearch_distributions {
     if (distroBundledJdk != null) {
       bundledJdk = Boolean.parseBoolean(distroBundledJdk)
     }
+    if (distroArch != null) {
+      architecture = Architecture.valueOf(distroArch);
+    } else {
+      architecture = Architecture.current();
+    }
   }
 }
 
-task assertDistroFile {
+tasks.register("assertDistroFile") {
   dependsOn elasticsearch_distributions.test_distro
   doLast {
     File distroFile = new File(elasticsearch_distributions.test_distro.toString())
@@ -43,7 +50,7 @@ task assertDistroFile {
 }
 
 if (['rpm', 'deb'].contains(distroType) == false) {
-  task assertDistroExtracted {
+  tasks.register("assertDistroExtracted") {
     dependsOn elasticsearch_distributions.test_distro.extracted, assertDistroFile
     doLast {
       File distroExtracted = new File(elasticsearch_distributions.test_distro.extracted.toString())

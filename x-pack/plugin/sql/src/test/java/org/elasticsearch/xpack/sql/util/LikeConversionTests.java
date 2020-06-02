@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.xpack.sql.util.StringUtils.likeToJavaPattern;
-import static org.elasticsearch.xpack.sql.util.StringUtils.likeToLuceneWildcard;
-import static org.elasticsearch.xpack.sql.util.StringUtils.likeToUnescaped;
+import static org.elasticsearch.xpack.ql.util.StringUtils.likeToJavaPattern;
+import static org.elasticsearch.xpack.ql.util.StringUtils.likeToLuceneWildcard;
+import static org.elasticsearch.xpack.ql.util.StringUtils.likeToUnescaped;
 
 public class LikeConversionTests extends ESTestCase {
 

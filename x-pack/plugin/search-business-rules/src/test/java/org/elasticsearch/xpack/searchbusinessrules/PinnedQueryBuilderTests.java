@@ -18,10 +18,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +57,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                     break;
                 case 1:
                     if (randomBoolean()) {
-                        fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+                        fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
                     }
                     if (frequently()) {
                         value = randomAlphaOfLengthBetween(1, 10);
@@ -89,7 +90,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
 
     @Override
-    protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, SearchContext searchContext) throws IOException {
+    protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, QueryShardContext searchContext) throws IOException {
         if (queryBuilder.ids().size() == 0 && queryBuilder.organicQuery() == null) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
@@ -104,6 +105,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>();
         classpathPlugins.add(SearchBusinessRules.class);
+        classpathPlugins.add(TestGeoShapeFieldMapperPlugin.class);
         return classpathPlugins;
     }
 
@@ -170,4 +172,13 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
     }
 
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"));
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
 }

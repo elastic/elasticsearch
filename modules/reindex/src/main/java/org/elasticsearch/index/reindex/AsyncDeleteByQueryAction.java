@@ -48,7 +48,6 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
     protected RequestWrapper<DeleteRequest> buildRequest(ScrollableHitSource.Hit doc) {
         DeleteRequest delete = new DeleteRequest();
         delete.index(doc.getIndex());
-        delete.type(doc.getType());
         delete.id(doc.getId());
         delete.setIfSeqNo(doc.getSeqNo());
         delete.setIfPrimaryTerm(doc.getPrimaryTerm());

@@ -15,8 +15,9 @@ public final class WatcherIndexTemplateRegistryField {
     // version 8: fix slack attachment property not to be dynamic, causing field type issues
     // version 9: add a user field defining which user executed the watch
     // version 10: add support for foreach path in actions
+    // version 11: watch history indices are hidden
     // Note: if you change this, also inform the kibana team around the watcher-ui
-    public static final String INDEX_TEMPLATE_VERSION = "10";
+    public static final int INDEX_TEMPLATE_VERSION = 11;
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;
     public static final String HISTORY_TEMPLATE_NAME_NO_ILM = ".watch-history-no-ilm-" + INDEX_TEMPLATE_VERSION;
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";

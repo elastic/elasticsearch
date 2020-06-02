@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -33,12 +33,13 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // Ideally I like this test to live in the server module, but otherwise a large part of the ScriptProcessor
 // ends up being copied into this test.
@@ -58,10 +59,49 @@ public class IngestRestartIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("my_script", ctx -> {
+            return Map.of("my_script", ctx -> {
                 ctx.put("z", 0);
                 return null;
+            }, "throwing_script", ctx -> {
+                throw new RuntimeException("this script always fails");
             });
+        }
+    }
+
+    public void testFailureInConditionalProcessor() {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        internalCluster().startMasterOnlyNode();
+        final String pipelineId = "foo";
+        client().admin().cluster().preparePutPipeline(pipelineId,
+            new BytesArray("{\n" +
+                "  \"processors\" : [\n" +
+                "  {\"set\" : {\"field\": \"any_field\", \"value\": \"any_value\"}},\n" +
+                "  {\"set\" : {" + "" +
+                "    \"if\" : " + "{\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"throwing_script\"}," +
+                "    \"field\": \"any_field2\"," +
+                "    \"value\": \"any_value2\"}" +
+                "  }\n" +
+                "  ]\n" +
+                "}"), XContentType.JSON).get();
+
+        Exception e = expectThrows(
+            Exception.class,
+            () ->
+                client().prepareIndex("index").setId("1")
+                    .setSource("x", 0)
+                    .setPipeline(pipelineId)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .get()
+        );
+        assertTrue(e.getMessage().contains("this script always fails"));
+
+        NodesStatsResponse r = client().admin().cluster().prepareNodesStats(internalCluster().getNodeNames()).setIngest(true).get();
+        int nodeCount = r.getNodes().size();
+        for (int k = 0; k < nodeCount; k++) {
+            List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().getProcessorStats().get(pipelineId);
+            for (IngestStats.ProcessorStat st : stats) {
+                assertThat(st.getStats().getIngestCurrent(), greaterThanOrEqualTo(0L));
+            }
         }
     }
 
@@ -99,34 +139,29 @@ public class IngestRestartIT extends ESIntegTestCase {
             }
 
         });
-        
+
         checkPipelineExists.accept(pipelineIdWithoutScript);
         checkPipelineExists.accept(pipelineIdWithScript);
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index").setId("1")
             .setSource("x", 0)
             .setPipeline(pipelineIdWithoutScript)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> client().prepareIndex("index", "doc", "2")
+        IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> client().prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline(pipelineIdWithScript)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get());
-        assertThat(exception.getHeaderKeys(), equalTo(Sets.newHashSet("processor_type")));
-        assertThat(exception.getHeader("processor_type"), equalTo(Arrays.asList("unknown")));
-        assertThat(exception.getRootCause().getMessage(),
+        assertThat(exception.getMessage(),
             equalTo("pipeline with id [" + pipelineIdWithScript + "] could not be loaded, caused by " +
-                "[ElasticsearchParseException[Error updating pipeline with id [" + pipelineIdWithScript + "]]; " +
-                "nested: ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
-                "nested: IllegalArgumentException[cannot execute [inline] scripts];; " +
-                "ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
-                "nested: IllegalArgumentException[cannot execute [inline] scripts];; java.lang.IllegalArgumentException: " +
-                "cannot execute [inline] scripts]"));
+                "[org.elasticsearch.ElasticsearchParseException: Error updating pipeline with id [" + pipelineIdWithScript + "]; " +
+                "org.elasticsearch.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; " +
+                "java.lang.IllegalArgumentException: cannot execute [inline] scripts]"));
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }
@@ -147,13 +182,13 @@ public class IngestRestartIT extends ESIntegTestCase {
                 "}");
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -165,13 +200,13 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow("index");
 
-        client().prepareIndex("index", "doc", "2")
+        client().prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        source = client().prepareGet("index", "doc", "2").get().getSource();
+        source = client().prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -191,26 +226,26 @@ public class IngestRestartIT extends ESIntegTestCase {
                 "}");
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index", "doc", "1")
+        client().prepareIndex("index").setId("1")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
 
         logger.info("Stopping");
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback());
 
-        client(ingestNode).prepareIndex("index", "doc", "2")
+        client(ingestNode).prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline("_id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        source = client(ingestNode).prepareGet("index", "doc", "2").get().getSource();
+        source = client(ingestNode).prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }

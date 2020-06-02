@@ -46,7 +46,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -55,16 +55,16 @@ public class UpdateResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         {
-            UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "type", "id", -2, 0, 0, NOT_FOUND);
+            UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
             String output = Strings.toString(updateResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\"," +
+            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\"," +
                     "\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0}}", output);
         }
         {
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(10, 6),
-                    new ShardId("index", "index_uuid", 1), "type", "id", 3, 17, 1, DELETED);
+                    new ShardId("index", "index_uuid", 1), "id", 3, 17, 1, DELETED);
             String output = Strings.toString(updateResponse);
-            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\"," +
+            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\"," +
                     "\"_shards\":{\"total\":10,\"successful\":6,\"failed\":0},\"_seq_no\":3,\"_primary_term\":17}", output);
         }
         {
@@ -74,11 +74,11 @@ public class UpdateResponseTests extends ESTestCase {
             fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
-                    new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
-            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields, null));
+                    new ShardId("books", "books_uuid", 2), "1", 7, 17, 2, UPDATED);
+            updateResponse.setGetResult(new GetResult("books", "1",0, 1, 2, true, source, fields, null));
 
             String output = Strings.toString(updateResponse);
-            assertEquals("{\"_index\":\"books\",\"_type\":\"book\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +
+            assertEquals("{\"_index\":\"books\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +
                     "\"_shards\":{\"total\":3,\"successful\":2,\"failed\":0},\"_seq_no\":7,\"_primary_term\":17,\"get\":{" +
                     "\"_seq_no\":0,\"_primary_term\":1,\"found\":true," +
                     "\"_source\":{\"title\":\"Book title\",\"isbn\":\"ABC-123\"},\"fields\":{\"isbn\":[\"ABC-123\"],\"title\":[\"Book " +
@@ -154,7 +154,6 @@ public class UpdateResponseTests extends ESTestCase {
         GetResult expectedGetResult = getResults.v2();
 
         String index = actualGetResult.getIndex();
-        String type = actualGetResult.getType();
         String id = actualGetResult.getId();
         long version = actualGetResult.getVersion();
         DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
@@ -173,11 +172,11 @@ public class UpdateResponseTests extends ESTestCase {
         if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
-            actual = new UpdateResponse(shardInfos.v1(), actualShardId, type, id, seqNo, primaryTerm, version, result);
-            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, type, id, seqNo, primaryTerm, version, result);
+            actual = new UpdateResponse(shardInfos.v1(), actualShardId, id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, id, seqNo, primaryTerm, version, result);
         } else {
-            actual = new UpdateResponse(actualShardId, type, id, seqNo, primaryTerm, version, result);
-            expected = new UpdateResponse(expectedShardId, type, id, seqNo, primaryTerm, version, result);
+            actual = new UpdateResponse(actualShardId, id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(expectedShardId, id, seqNo, primaryTerm, version, result);
         }
 
         if (actualGetResult.isExists()) {

@@ -3,6 +3,7 @@
 :request: PutJobRequest
 :response: PutJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put {anomaly-job} API
 

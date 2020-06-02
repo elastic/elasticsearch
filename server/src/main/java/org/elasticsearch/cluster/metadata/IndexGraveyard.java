@@ -55,7 +55,7 @@ import java.util.Objects;
  * tombstones remain in the cluster state for a fixed period of time, after which
  * they are purged.
  */
-public final class IndexGraveyard implements MetaData.Custom {
+public final class IndexGraveyard implements Metadata.Custom {
 
     /**
      * Setting for the maximum tombstones allowed in the cluster state;
@@ -103,8 +103,8 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     @Override
-    public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.API_AND_GATEWAY;
+    public EnumSet<Metadata.XContentContext> context() {
+        return Metadata.API_AND_GATEWAY;
     }
 
     @Override
@@ -163,11 +163,11 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     @Override
-    public Diff<MetaData.Custom> diff(final MetaData.Custom previous) {
+    public Diff<Metadata.Custom> diff(final Metadata.Custom previous) {
         return new IndexGraveyardDiff((IndexGraveyard) previous, this);
     }
 
-    public static NamedDiff<MetaData.Custom> readDiffFrom(final StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.Custom> readDiffFrom(final StreamInput in) throws IOException {
         return new IndexGraveyardDiff(in);
     }
 
@@ -267,7 +267,7 @@ public final class IndexGraveyard implements MetaData.Custom {
     /**
      * A class representing a diff of two IndexGraveyard objects.
      */
-    public static final class IndexGraveyardDiff implements NamedDiff<MetaData.Custom> {
+    public static final class IndexGraveyardDiff implements NamedDiff<Metadata.Custom> {
 
         private final List<Tombstone> added;
         private final int removedCount;
@@ -321,7 +321,7 @@ public final class IndexGraveyard implements MetaData.Custom {
         }
 
         @Override
-        public IndexGraveyard apply(final MetaData.Custom previous) {
+        public IndexGraveyard apply(final Metadata.Custom previous) {
             final IndexGraveyard old = (IndexGraveyard) previous;
             if (removedCount > old.tombstones.size()) {
                 throw new IllegalStateException("IndexGraveyardDiff cannot remove [" + removedCount + "] entries from [" +

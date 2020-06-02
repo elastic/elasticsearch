@@ -3,7 +3,7 @@
 :request: PutSnapshotLifecyclePolicyRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Snapshot Lifecycle Policy API
 

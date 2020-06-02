@@ -38,13 +38,13 @@ public final class GetApiKeyRequest implements Validatable, ToXContentObject {
     private final String name;
     private final boolean ownedByAuthenticatedUser;
 
+    private GetApiKeyRequest() {
+        this(null, null, null, null, false);
+    }
+
     // pkg scope for testing
     GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
                      @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
-        if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && Strings.hasText(apiKeyId) == false
-                && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
-            throwValidationError("One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false");
-        }
         if (Strings.hasText(apiKeyId) || Strings.hasText(apiKeyName)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 throwValidationError(
@@ -145,6 +145,13 @@ public final class GetApiKeyRequest implements Validatable, ToXContentObject {
      */
     public static GetApiKeyRequest forOwnedApiKeys() {
         return new GetApiKeyRequest(null, null, null, null, true);
+    }
+
+    /**
+     * Creates get api key request to retrieve api key information for all api keys if the authenticated user is authorized to do so.
+     */
+    public static GetApiKeyRequest forAllApiKeys() {
+        return new GetApiKeyRequest();
     }
 
     @Override

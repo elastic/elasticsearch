@@ -7,23 +7,25 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectStateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -39,20 +41,26 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     private static final Logger LOGGER = LogManager.getLogger(NativeAutodetectProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
 
-    private final Client client;
     private final Environment env;
     private final Settings settings;
     private final NativeController nativeController;
     private final ClusterService clusterService;
+    private final ResultsPersisterService resultsPersisterService;
+    private final AnomalyDetectionAuditor auditor;
     private volatile Duration processConnectTimeout;
 
-    public NativeAutodetectProcessFactory(Environment env, Settings settings, NativeController nativeController, Client client,
-                                          ClusterService clusterService) {
+    public NativeAutodetectProcessFactory(Environment env,
+                                          Settings settings,
+                                          NativeController nativeController,
+                                          ClusterService clusterService,
+                                          ResultsPersisterService resultsPersisterService,
+                                          AnomalyDetectionAuditor auditor) {
         this.env = Objects.requireNonNull(env);
         this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
-        this.client = client;
         this.clusterService = clusterService;
+        this.resultsPersisterService = resultsPersisterService;
+        this.auditor = auditor;
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -69,7 +77,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                                      Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AutodetectBuilder.AUTODETECT, job.getId(),
-                true, false, true, true, params.modelSnapshot() != null,
+                false, true, true, params.modelSnapshot() != null,
                 !AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
@@ -77,22 +85,24 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
-        AutodetectStateProcessor stateProcessor = new AutodetectStateProcessor(client, job.getId());
-        ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER);
+        IndexingStateProcessor stateProcessor = new IndexingStateProcessor(job.getId(), resultsPersisterService, auditor);
+        ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
+            NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
-                job.getId(), nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash);
+                job.getId(), nativeController, processPipes, numberOfFields,
+                filesToDelete, resultsParser, onProcessCrash, processConnectTimeout);
         try {
-            autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
+            autodetect.start(executorService, stateProcessor);
             return autodetect;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to autodetect for job " + job.getId();
+            LOGGER.error(msg);
             try {
                 IOUtils.close(autodetect);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close autodetect", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
@@ -117,7 +127,6 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
             autodetectBuilder.build();
-            processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
             String msg = "Failed to launch autodetect for job " + job.getId();
             LOGGER.error(msg);

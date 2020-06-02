@@ -34,8 +34,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.search.SearchContextException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -200,32 +199,22 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return result;
     }
 
-    public CollapseContext build(SearchContext context) {
-        if (context.scrollContext() != null) {
-            throw new SearchContextException(context, "cannot use `collapse` in a scroll context");
-        }
-        if (context.searchAfter() != null) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
-        }
-        if (context.rescore() != null && context.rescore().isEmpty() == false) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
-        }
-
-        MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(field);
+    public CollapseContext build(QueryShardContext queryShardContext) {
+        MappedFieldType fieldType = queryShardContext.fieldMapper(field);
         if (fieldType == null) {
-            throw new SearchContextException(context, "no mapping found for `" + field + "` in order to collapse on");
+            throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false &&
             fieldType instanceof NumberFieldMapper.NumberFieldType == false) {
-            throw new SearchContextException(context, "unknown type for collapse field `" + field +
+            throw new IllegalArgumentException("unknown type for collapse field `" + field +
                 "`, only keywords and numbers are accepted");
         }
 
         if (fieldType.hasDocValues() == false) {
-            throw new SearchContextException(context, "cannot collapse on field `" + field + "` without `doc_values`");
+            throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
         if (fieldType.indexOptions() == IndexOptions.NONE && (innerHits != null && !innerHits.isEmpty())) {
-            throw new SearchContextException(context, "cannot expand `inner_hits` for collapse field `"
+            throw new IllegalArgumentException("cannot expand `inner_hits` for collapse field `"
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }
 

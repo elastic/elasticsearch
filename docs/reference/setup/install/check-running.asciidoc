@@ -3,11 +3,10 @@
 You can test that your Elasticsearch node is running by sending an HTTP
 request to port `9200` on `localhost`:
 
-[source,js]
+[source,console]
 --------------------------------------------
 GET /
 --------------------------------------------
-// CONSOLE
 
 which should give you a response something like this:
 

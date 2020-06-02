@@ -20,31 +20,21 @@
 package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
 /**
  * A sub-command for the keystore CLI that enables upgrading the keystore format.
  */
-public class UpgradeKeyStoreCommand extends EnvironmentAwareCommand {
+public class UpgradeKeyStoreCommand extends BaseKeyStoreCommand {
 
     UpgradeKeyStoreCommand() {
-        super("Upgrade the keystore format");
+        super("Upgrade the keystore format", true);
     }
 
     @Override
-    protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
-        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(env.configFile());
-        if (wrapper == null) {
-            throw new UserException(
-                    ExitCodes.CONFIG,
-                    "keystore does not exist at [" + KeyStoreWrapper.keystorePath(env.configFile()) + "]");
-        }
-        wrapper.decrypt(new char[0]);
-        KeyStoreWrapper.upgrade(wrapper, env.configFile(), new char[0]);
+    protected void executeCommand(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
+        KeyStoreWrapper.upgrade(getKeyStore(), env.configFile(), getKeyStorePassword().getChars());
     }
 
 }

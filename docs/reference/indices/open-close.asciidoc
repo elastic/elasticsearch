@@ -6,11 +6,10 @@
 
 Opens a closed index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/POST \/twitter\/_close\n/]
 
@@ -68,7 +67,7 @@ index creation applies to the `_open` and `_close` index actions as well.
 [[open-index-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To open all indices, use `_all` or `*`.
 To disallow the opening of indices with `_all` or wildcard expressions,
@@ -80,17 +79,19 @@ or using the <<cluster-update-settings,cluster update settings>> API.
 [[open-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `closed`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[open-index-api-example]]
@@ -98,20 +99,18 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 A closed index can be re-opened like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_index/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged" : true,
     "shards_acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

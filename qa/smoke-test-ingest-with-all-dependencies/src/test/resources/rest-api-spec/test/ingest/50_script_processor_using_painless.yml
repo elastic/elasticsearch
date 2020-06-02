@@ -22,7 +22,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { bytes_in: 1234, bytes_out: 4321 }
@@ -30,7 +29,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }
@@ -72,7 +70,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { bytes_in: 1234, bytes_out: 4321 }
@@ -80,7 +77,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }

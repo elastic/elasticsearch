@@ -29,7 +29,7 @@ The following variables are available in all watcher contexts.
 
 `ctx['payload']` (`Map`, read-only)::
         The accessible watch data based upon the
-        {xpack-ref}/input.html[watch input].
+        {ref}/input.html[watch input].
 
 *API*
 

@@ -20,7 +20,6 @@
               params: { bar: 'xxx' }
 
   - match: { _index:   test_1 }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 2      }
 
@@ -42,7 +41,6 @@
               source: "ctx._source.foo = 'yyy'"
 
   - match: { _index:   test_1 }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 3      }
 
@@ -64,7 +62,6 @@
               source: "ctx._source.missing_length = ctx._source.missing?.length()"
 
   - match: { _index:   test_1 }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 4      }
 
@@ -88,7 +85,6 @@
               source: "ctx._source.foo_length = ctx._source.foo?.length()"
 
   - match: { _index:   test_1 }
-  - match: { _type:    _doc   }
   - match: { _id:      "1"    }
   - match: { _version: 5      }
 
@@ -124,6 +120,6 @@
               source: "ctx._source.ctx = ctx"
               params: { bar: 'xxx' }
 
-  - match: { error.root_cause.0.type: "remote_transport_exception" }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Iterable object is self-referencing itself" }

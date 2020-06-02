@@ -3,7 +3,7 @@
 :request: HasPrivilegesRequest
 :response: HasPrivilegesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Has Privileges API
 

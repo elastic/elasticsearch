@@ -18,15 +18,12 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -34,15 +31,13 @@ import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.HEAD;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetStoredScriptAction extends BaseRestHandler {
 
@@ -51,14 +46,13 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
         .unmodifiableSet(Stream.concat(Collections.singleton(NEW_FORMAT).stream(), Settings.FORMAT_PARAMS.stream())
             .collect(Collectors.toSet()));
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetStoredScriptAction.class));
-
-    public RestGetStoredScriptAction(RestController controller) {
-        controller.registerHandler(GET, "/_script", this);
-        controller.registerWithDeprecatedHandler(GET, "/_script/{id}", this,
-            GET, "/_scripts/{id}", deprecationLogger);
-        controller.registerHandler(HEAD, "/_script/{id}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_script"),
+            new ReplacedRoute(
+                GET, "/_script/{id}",
+                GET, "/_scripts/{id}"));
     }
 
     @Override
@@ -81,7 +75,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
             {
                 Map<String, StoredScriptSource> storedScripts = response.getStoredScripts();
                 final boolean templateExists = storedScripts != null && !storedScripts.isEmpty();
-                return (templateExists || implicitAll) ? OK : NOT_FOUND;
+                return (templateExists || implicitAll) ? RestStatus.OK : RestStatus.NOT_FOUND;
             }
         });
     }

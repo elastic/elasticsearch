@@ -21,7 +21,7 @@ Deletes users from the native realm.
 ==== {api-description-title}
 
 For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
 [[security-api-delete-user-path-params]]
 ==== {api-path-parms-title}
@@ -35,20 +35,18 @@ For more information about the native realm, see
 
 The following example deletes the user `jacknich`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/user/jacknich
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:jacknich_user]
 
 If the user is successfully deleted, the request returns `{"found": true}`.
 Otherwise, `found` is set to false.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

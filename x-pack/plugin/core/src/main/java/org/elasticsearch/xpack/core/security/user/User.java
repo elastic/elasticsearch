@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An authenticated user
@@ -49,7 +50,7 @@ public class User implements ToXContentObject {
 
     private User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled,
                 User authenticatedUser) {
-        this.username = username;
+        this.username = Objects.requireNonNull(username);
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata == null ? Map.of() : metadata;
         this.fullName = fullName;
@@ -115,6 +116,10 @@ public class User implements ToXContentObject {
     /** Return true if this user was not the originally authenticated user, false otherwise. */
     public boolean isRunAs() {
         return authenticatedUser != null;
+    }
+
+    public User withRoles(String[] newRoles) {
+        return new User(username, newRoles, fullName, email, metadata, enabled);
     }
 
     @Override
@@ -206,6 +211,10 @@ public class User implements ToXContentObject {
             writeUser(user.authenticatedUser, output);
         }
         output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
+    }
+
+    public static boolean isInternal(User user) {
+        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
     }
 
     /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */

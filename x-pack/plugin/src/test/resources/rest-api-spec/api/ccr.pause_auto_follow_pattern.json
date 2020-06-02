@@ -1,0 +1,25 @@
+{
+  "ccr.pause_auto_follow_pattern":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-pause-auto-follow-pattern.html",
+      "description": "Pauses an auto-follow pattern"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ccr/auto_follow/{name}/pause",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the auto follow pattern that should pause discovering new indices to follow."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -20,11 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -34,6 +34,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
     @Override
@@ -49,12 +51,14 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(ScriptQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
     }
 
     public void testIllegalConstructorArg() {
-        expectThrows(IllegalArgumentException.class, () -> new ScriptQueryBuilder((Script) null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new ScriptQueryBuilder((Script) null));
+        assertEquals("script cannot be null", e.getMessage());
     }
 
     public void testFromJsonVerbose() throws IOException {
@@ -126,5 +130,16 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public void testDisallowExpensiveQueries() {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+
+        ScriptQueryBuilder queryBuilder = doCreateTestQueryBuilder();
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> queryBuilder.toQuery(queryShardContext));
+        assertEquals("[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                e.getMessage());
     }
 }

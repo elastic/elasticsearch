@@ -24,6 +24,11 @@ public class AnomalyDetectionAuditMessage extends AbstractAuditMessage {
     }
 
     @Override
+    public final String getJobType() {
+        return Job.ANOMALY_DETECTOR_JOB_TYPE;
+    }
+
+    @Override
     protected String getResourceField() {
         return JOB_ID.getPreferredName();
     }

@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -51,15 +51,15 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
+            .addAsNew(metadata.index("test")).addAsNew(metadata.index("test1")).build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding three node and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -111,15 +111,15 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-            .addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
+            .addAsNew(metadata.index("test")).addAsNew(metadata.index("test1")).build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -188,13 +188,13 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("Adding three node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))
@@ -258,16 +258,16 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         logger.info("Add new index 3 shards 1 replica");
 
-        metaData = MetaData.builder(clusterState.metaData())
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        metadata = Metadata.builder(clusterState.metadata())
+                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 ))
                 .build();
         RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable())
-            .addAsNew(metaData.index("test1"))
+            .addAsNew(metadata.index("test1"))
             .build();
-        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(updatedRoutingTable).build();
+        clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(updatedRoutingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(assertShardStats(routingNodes), equalTo(true));

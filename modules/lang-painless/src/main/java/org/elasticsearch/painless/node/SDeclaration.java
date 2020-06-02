@@ -19,100 +19,67 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a single variable declaration.
  */
-public final class SDeclaration extends AStatement {
+public class SDeclaration extends AStatement {
 
-    private final String type;
-    private final String name;
-    private AExpression expression;
+    protected final DType type;
+    protected final String name;
+    protected final boolean requiresDefault;
+    protected final AExpression expression;
 
-    private Variable variable = null;
-
-    public SDeclaration(Location location, String type, String name, AExpression expression) {
+    public SDeclaration(Location location, DType type, String name, boolean requiresDefault, AExpression expression) {
         super(location);
 
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
+        this.requiresDefault = requiresDefault;
         this.expression = expression;
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        if (expression != null) {
-            expression.storeSettings(settings);
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        if (scriptRoot.getPainlessLookup().isValidCanonicalClassName(name)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + name + "] cannot be a name"));
         }
-    }
 
-    @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
+        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
 
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
-        }
+        AExpression.Output expressionOutput = null;
+        PainlessCast expressionCast = null;
 
         if (expression != null) {
-            expression.expected = clazz;
-            expression.analyze(locals);
-            expression = expression.cast(locals);
+            AExpression.Input expressionInput = new AExpression.Input();
+            expressionInput.expected = resolvedType.getType();
+            expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
+            expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
         }
 
-        variable = locals.addVariable(location, clazz, name, false);
-    }
+        scope.defineVariable(location, resolvedType.getType(), name, false);
 
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+        DeclarationNode declarationNode = new DeclarationNode();
+        declarationNode.setExpressionNode(expression == null ? null :
+                AExpression.cast(expressionOutput.expressionNode, expressionCast));
+        declarationNode.setLocation(location);
+        declarationNode.setDeclarationType(resolvedType.getType());
+        declarationNode.setName(name);
+        declarationNode.setRequiresDefault(requiresDefault);
 
-        if (expression == null) {
-            Class<?> sort = variable.clazz;
+        Output output = new Output();
+        output.statementNode = declarationNode;
 
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                sort == short.class || sort == char.class || sort == int.class) {
-                writer.push(0);
-            } else if (sort == long.class) {
-                writer.push(0L);
-            } else if (sort == float.class) {
-                writer.push(0F);
-            } else if (sort == double.class) {
-                writer.push(0D);
-            } else {
-                writer.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expression.write(writer, globals);
-        }
-
-        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
-    }
-
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
-        }
-        return singleLineToString(type, name, expression);
+        return output;
     }
 }

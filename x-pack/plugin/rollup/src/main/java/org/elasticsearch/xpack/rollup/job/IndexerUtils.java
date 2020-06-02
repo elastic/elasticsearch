@@ -68,7 +68,7 @@ class IndexerUtils {
             doc.put(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD, Rollup.CURRENT_ROLLUP_VERSION );
             doc.put(RollupField.ROLLUP_META + "." + RollupField.ID.getPreferredName(), jobId);
 
-            IndexRequest request = new IndexRequest(rollupIndex, RollupField.TYPE_NAME, idGenerator.getID());
+            IndexRequest request = new IndexRequest(rollupIndex).id(idGenerator.getID());
             request.source(doc);
             return request;
         }).collect(Collectors.toList());

@@ -25,12 +25,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -56,14 +56,14 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
         this.path = path;
     }
 
-    protected NestedAggregationBuilder(NestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected NestedAggregationBuilder(NestedAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.path = clone.path;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new NestedAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new NestedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -87,23 +87,30 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
-        ObjectMapper childObjectMapper = context.getObjectMapper(path);
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
+    protected AggregatorFactory doBuild(QueryShardContext queryShardContext,
+                                            AggregatorFactory parent,
+                                            Builder subFactoriesBuilder) throws IOException {
+        ObjectMapper childObjectMapper = queryShardContext.getObjectMapper(path);
         if (childObjectMapper == null) {
             // in case the path has been unmapped:
-            return new NestedAggregatorFactory(name, null, null, context, parent, subFactoriesBuilder, metaData);
+            return new NestedAggregatorFactory(name, null, null, queryShardContext,
+                parent, subFactoriesBuilder, metadata);
         }
 
         if (childObjectMapper.nested().isNested() == false) {
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
         try {
-            ObjectMapper parentObjectMapper = context.getQueryShardContext().nestedScope().nextLevel(childObjectMapper);
-            return new NestedAggregatorFactory(name, parentObjectMapper, childObjectMapper, context, parent, subFactoriesBuilder,
-                    metaData);
+            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(childObjectMapper);
+            return new NestedAggregatorFactory(name, parentObjectMapper, childObjectMapper, queryShardContext,
+                parent, subFactoriesBuilder, metadata);
         } finally {
-            context.getQueryShardContext().nestedScope().previousLevel();
+            queryShardContext.nestedScope().previousLevel();
         }
     }
 

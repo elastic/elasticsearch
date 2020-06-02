@@ -3,6 +3,7 @@
 :request: DeleteModelSnapshotRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Model Snapshot API
 

@@ -35,7 +35,7 @@ public class SecurityStatusChangeListener implements LicenseStateListener {
      */
     @Override
     public synchronized void licenseStateChanged() {
-        final boolean newState = licenseState.isSecurityAvailable() && licenseState.isSecurityDisabledByLicenseDefaults() == false;
+        final boolean newState = licenseState.isAllowed(XPackLicenseState.Feature.SECURITY) && licenseState.isSecurityEnabled();
         // old state might be null (undefined) so do Object comparison
         if (Objects.equals(newState, securityEnabled) == false) {
             logger.info("Active license is now [{}]; Security is {}", licenseState.getOperationMode(), newState ? "enabled" : "disabled");

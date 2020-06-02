@@ -25,8 +25,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.ReportingService;
 
-public class JvmService {
+public class JvmService implements ReportingService<JvmInfo> {
 
     private static final Logger logger = LogManager.getLogger(JvmService.class);
 
@@ -49,6 +50,7 @@ public class JvmService {
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
+    @Override
     public JvmInfo info() {
         return this.jvmInfo;
     }

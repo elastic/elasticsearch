@@ -1,7 +1,7 @@
 [[secure-monitoring]]
 === Monitoring and security
 
-The <<xpack-monitoring,{stack} {monitor-features}>> consist of two components:
+The {stack} {monitor-features} consist of two components:
 an agent that you install on on each {es} and Logstash node, and a Monitoring UI
 in {kib}. The monitoring agent collects and indexes metrics from the nodes
 and you visualize the data through the Monitoring dashboards in {kib}. The agent
@@ -17,7 +17,7 @@ with the monitoring cluster.
 
 For more information, see:
 
-* {ref}/configuring-monitoring.html[Configuring monitoring in {es}]
+* <<monitoring-production>>
 * {kibana-ref}/monitoring-xpack-kibana.html[Configuring monitoring in {kib}]
 * {logstash-ref}/configuring-logstash.html[Configuring monitoring for Logstash nodes]
 

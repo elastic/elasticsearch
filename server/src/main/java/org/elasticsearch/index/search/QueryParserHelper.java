@@ -20,6 +20,7 @@
 package org.elasticsearch.index.search;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -52,7 +53,7 @@ public final class QueryParserHelper {
             float boost = 1.0f;
             if (boostIndex != -1) {
                 fieldName = field.substring(0, boostIndex);
-                boost = Float.parseFloat(field.substring(boostIndex+1, field.length()));
+                boost = Float.parseFloat(field.substring(boostIndex+1));
             } else {
                 fieldName = field;
             }
@@ -79,7 +80,7 @@ public final class QueryParserHelper {
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    public static Map<String, Float> resolveMappingFields(QueryShardContext context,
+    static Map<String, Float> resolveMappingFields(QueryShardContext context,
                                                           Map<String, Float> fieldsAndWeights,
                                                           String fieldSuffix) {
         Map<String, Float> resolvedFields = new HashMap<>();
@@ -87,8 +88,8 @@ public final class QueryParserHelper {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
             boolean multiField = Regex.isSimpleMatchPattern(fieldEntry.getKey());
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
-            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,
-                !multiField, !allField, fieldSuffix);
+            Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight, !multiField, !allField, fieldSuffix);
+
             for (Map.Entry<String, Float> field : fieldMap.entrySet()) {
                 float boost = field.getValue();
                 if (resolvedFields.containsKey(field.getKey())) {
@@ -97,23 +98,8 @@ public final class QueryParserHelper {
                 resolvedFields.put(field.getKey(), boost);
             }
         }
-        checkForTooManyFields(resolvedFields, context);
+        checkForTooManyFields(resolvedFields.size(), context, null);
         return resolvedFields;
-    }
-
-    /**
-     * Resolves the provided pattern or field name from the {@link QueryShardContext} and return a map of
-     * the expanded fields with their original boost.
-     * @param context The context of the query
-     * @param fieldOrPattern The field name or the pattern to resolve
-     * @param weight The weight for the field
-     * @param acceptAllTypes Whether all field type should be added when a pattern is expanded.
-     *                       If false, only searchable field types are added.
-     * @param acceptMetadataField Whether metadata fields should be added when a pattern is expanded.
-     */
-    public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
-                                                         boolean acceptAllTypes, boolean acceptMetadataField) {
-        return resolveMappingField(context, fieldOrPattern, weight, acceptAllTypes, acceptMetadataField, null);
     }
 
     /**
@@ -129,7 +115,7 @@ public final class QueryParserHelper {
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
+    static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
                                                          boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
         Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
@@ -139,10 +125,8 @@ public final class QueryParserHelper {
                 fieldName = fieldName + fieldSuffix;
             }
 
-            MappedFieldType fieldType = context.getMapperService().fullName(fieldName);
+            MappedFieldType fieldType = context.getMapperService().fieldType(fieldName);
             if (fieldType == null) {
-                // Note that we don't ignore unmapped fields.
-                fields.put(fieldName, weight);
                 continue;
             }
 
@@ -171,15 +155,18 @@ public final class QueryParserHelper {
             float w = fields.getOrDefault(fieldName, 1.0F);
             fields.put(fieldName, w * weight);
         }
-
-        checkForTooManyFields(fields, context);
         return fields;
     }
 
-    private static void checkForTooManyFields(Map<String, Float> fields, QueryShardContext context) {
+    static void checkForTooManyFields(int numberOfFields, QueryShardContext context, @Nullable String inputPattern) {
         Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
-        if (fields.size() > limit) {
-            throw new IllegalArgumentException("field expansion matches too many fields, limit: " + limit + ", got: " + fields.size());
+        if (numberOfFields > limit) {
+            StringBuilder errorMsg = new StringBuilder("field expansion ");
+            if (inputPattern != null) {
+                errorMsg.append("for [" + inputPattern + "] ");
+            }
+            errorMsg.append("matches too many fields, limit: " + limit + ", got: " + numberOfFields);
+            throw new IllegalArgumentException(errorMsg.toString());
         }
     }
 

@@ -134,8 +134,13 @@ public class JarHell {
             }
             // now just parse as ordinary file
             try {
-                URL url = PathUtils.get(element).toUri().toURL();
-                if (urlElements.add(url) == false) {
+                if (element .equals("/")) {
+                    // Eclipse adds this to the classpath when running unit tests...
+                    continue;
+                }
+                URL url = PathUtils.get(element).toUri().toURL();               
+                // junit4.childvm.count
+                if (urlElements.add(url) == false && element.endsWith(".jar")) {
                     throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "duplicate jar [" + element + "] on classpath: " + classPath);
                 }

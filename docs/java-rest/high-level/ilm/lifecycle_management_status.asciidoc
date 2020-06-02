@@ -3,7 +3,7 @@
 :request: LifecycleManagementStatusRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Index Lifecycle Management Status API
 

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -16,9 +17,10 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.SecretKeyFactory;
-
+import javax.net.ssl.SSLContext;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -40,16 +42,8 @@ public class XPackSettings {
      */
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
-    /** Setting for enabling or disabling data frame. Defaults to true. */
-    public static final Setting<Boolean> DATA_FRAME_ENABLED = Setting.boolSetting("xpack.data_frame.enabled", true,
-            Setting.Property.NodeScope);
-
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling monitoring. */
-    public static final Setting<Boolean> MONITORING_ENABLED = Setting.boolSetting("xpack.monitoring.enabled", true,
-            Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling watcher. Defaults to true. */
     public static final Setting<Boolean> WATCHER_ENABLED = Setting.boolSetting("xpack.watcher.enabled", true, Setting.Property.NodeScope);
@@ -61,10 +55,6 @@ public class XPackSettings {
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
             Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling rollup. Defaults to true. */
-    public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,
-            Setting.Property.NodeScope);
-
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting("xpack.security.audit.enabled", false,
             Setting.Property.NodeScope);
@@ -72,20 +62,6 @@ public class XPackSettings {
     /** Setting for enabling or disabling document/field level security. Defaults to true. */
     public static final Setting<Boolean> DLS_FLS_ENABLED = Setting.boolSetting("xpack.security.dls_fls.enabled", true,
             Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling Logstash extensions. Defaults to true. */
-    public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
-            Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling Beats extensions. Defaults to true. */
-    public static final Setting<Boolean> BEATS_ENABLED = Setting.boolSetting("xpack.beats.enabled", true,
-        Setting.Property.NodeScope);
-
-    /**
-     * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
-     */
-    public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
-        Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
@@ -100,26 +76,16 @@ public class XPackSettings {
             true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling the token service. Defaults to the value of https being enabled */
-    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled",
-        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
+    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING =
+        Setting.boolSetting("xpack.security.authc.token.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling the api key service. Defaults to the value of https being enabled */
-    public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.api_key.enabled",
-        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
+    public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING =
+        Setting.boolSetting("xpack.security.authc.api_key.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
-
-    /** Setting for enabling or disabling sql. Defaults to true. */
-    public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling flattened fields. Defaults to true. */
-    public static final Setting<Boolean> FLATTENED_ENABLED = Setting.boolSetting("xpack.flattened.enabled",
-        true, Setting.Property.NodeScope);
-
-    /** Setting for enabling or disabling vectors. Defaults to true. */
-    public static final Setting<Boolean> VECTORS_ENABLED = Setting.boolSetting("xpack.vectors.enabled", true, Setting.Property.NodeScope);
 
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
@@ -158,22 +124,44 @@ public class XPackSettings {
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), v -> {
-        if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
-            throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
-                Hasher.getAvailableAlgoStoredHash().toString());
-        } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
-            try {
-                SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalArgumentException(
-                    "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
-                        "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.", e);
+        new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
+        (s) -> {
+            if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
+                return "PBKDF2";
+            } else {
+                return "BCRYPT";
             }
-        }
-    }, Setting.Property.NodeScope);
+        },
+        Function.identity(),
+        v -> {
+            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+                throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
+                    Hasher.getAvailableAlgoStoredHash().toString());
+            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+                try {
+                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
+                            "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.", e);
+                }
+            }
+        }, Property.NodeScope);
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2", "TLSv1.1");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
+
+    static {
+        boolean supportsTLSv13 = false;
+        try {
+            SSLContext.getInstance("TLSv1.3");
+            supportsTLSv13 = true;
+        } catch (NoSuchAlgorithmException e) {
+            // BCJSSE in FIPS mode doesn't support TLSv1.3 yet.
+            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
+        }
+        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ?
+            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
+    }
 
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
@@ -193,26 +181,18 @@ public class XPackSettings {
         settings.addAll(HTTP_SSL.getAllSettings());
         settings.addAll(TRANSPORT_SSL.getAllSettings());
         settings.add(SECURITY_ENABLED);
-        settings.add(MONITORING_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);
         settings.add(AUDIT_ENABLED);
         settings.add(WATCHER_ENABLED);
         settings.add(DLS_FLS_ENABLED);
-        settings.add(LOGSTASH_ENABLED);
         settings.add(TRANSPORT_SSL_ENABLED);
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(API_KEY_SERVICE_ENABLED_SETTING);
-        settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
-        settings.add(ROLLUP_ENABLED);
         settings.add(PASSWORD_HASHING_ALGORITHM);
-        settings.add(INDEX_LIFECYCLE_ENABLED);
-        settings.add(DATA_FRAME_ENABLED);
-        settings.add(FLATTENED_ENABLED);
-        settings.add(VECTORS_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

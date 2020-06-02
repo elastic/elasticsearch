@@ -37,16 +37,20 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class DeleteResponse extends DocWriteResponse {
 
+    public DeleteResponse(ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+    }
+
     public DeleteResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean found) {
-        this(shardId, type, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND);
+    public DeleteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean found) {
+        this(shardId, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND);
     }
 
-    private DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, type, id, seqNo, primaryTerm, version, assertDeletedOrNotFound(result));
+    private DeleteResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, id, seqNo, primaryTerm, version, assertDeletedOrNotFound(result));
     }
 
     private static Result assertDeletedOrNotFound(Result result) {
@@ -64,7 +68,6 @@ public class DeleteResponse extends DocWriteResponse {
         StringBuilder builder = new StringBuilder();
         builder.append("DeleteResponse[");
         builder.append("index=").append(getIndex());
-        builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
@@ -98,7 +101,7 @@ public class DeleteResponse extends DocWriteResponse {
 
         @Override
         public DeleteResponse build() {
-            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, primaryTerm, version, result);
+            DeleteResponse deleteResponse = new DeleteResponse(shardId, id, seqNo, primaryTerm, version, result);
             deleteResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 deleteResponse.setShardInfo(shardInfo);

@@ -19,16 +19,14 @@
 package org.elasticsearch.env;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,7 +51,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
@@ -150,7 +147,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             Index index = new Index("foo" + i, "fooUUID" + i);
             for (Path path : env.indexPaths(index)) {
-                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+                Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
                 actualPaths.add(path.getFileName().toString());
             }
         }
@@ -168,7 +165,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             Index index = new Index("foo" + i, "fooUUID" + i);
             for (Path path : env.indexPaths(index)) {
-                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+                Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
                 actualPaths.add(path.getFileName().toString());
             }
             if (randomBoolean()) {
@@ -355,23 +352,15 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testCustomDataPaths() throws Exception {
-        assumeFalse("Fails on Windows, see https://github.com/elastic/elasticsearch/issues/45333", Constants.WINDOWS);
         String[] dataPaths = tmpPaths();
         NodeEnvironment env = newNodeEnvironment(dataPaths, "/tmp", Settings.EMPTY);
 
-        final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_INDEX_UUID, "myindexUUID").build();
-        IndexSettings s1 = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
-        IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder()
-                .put(indexSettings)
-                .put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
         Index index = new Index("myindex", "myindexUUID");
         ShardId sid = new ShardId(index, 0);
 
-        assertFalse("no settings should mean no custom data path", s1.hasCustomDataPath());
-        assertTrue("settings with path_data should have a custom data path", s2.hasCustomDataPath());
-
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0")));
+        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
@@ -380,10 +369,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         assertThat("index paths uses the regular template",
                 env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
-        IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(), Settings.builder().build());
-
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation(s3, sid), equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0")));
+        assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
+            equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
@@ -392,27 +380,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         assertThat("index paths uses the regular template",
                 env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
-        env.close();
-    }
-
-    public void testPersistentNodeId() throws IOException {
-        NodeEnvironment env = newNodeEnvironment(new String[0], Settings.builder()
-            .put("node.local_storage", false)
-            .put("node.master", false)
-            .put("node.data", false)
-            .build());
-        String nodeID = env.nodeId();
-        env.close();
-        final String[] paths = tmpPaths();
-        env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat("previous node didn't have local storage enabled, id should change", env.nodeId(), not(equalTo(nodeID)));
-        nodeID = env.nodeId();
-        env.close();
-        env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat(env.nodeId(), equalTo(nodeID));
-        env.close();
-        env = newNodeEnvironment(Settings.EMPTY);
-        assertThat(env.nodeId(), not(equalTo(nodeID)));
         env.close();
     }
 
@@ -445,7 +412,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    public void testEnsureNoShardDataOrIndexMetaData() throws IOException {
+    public void testEnsureNoShardDataOrIndexMetadata() throws IOException {
         Settings settings = buildEnvSettings(Settings.EMPTY);
         Index index = new Index("test", "testUUID");
 
@@ -462,12 +429,12 @@ public class NodeEnvironmentTests extends ESTestCase {
         Path indexPath;
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             for (Path path : env.indexPaths(index)) {
-                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+                Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
             }
             indexPath = env.indexPaths(index)[0];
         }
 
-        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
+        verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
 
         // build settings using same path.data as original but with node.data=false
         Settings noDataSettings = Settings.builder()
@@ -486,7 +453,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
 
         // assert that we get the stricter message on meta-data when both conditions fail
-        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
+        verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
 
         // build settings using same path.data as original but with node.master=false
         Settings noMasterSettings = Settings.builder()
@@ -500,7 +467,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             for (Path path : env.indexPaths(index)) {
-                Files.delete(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+                Files.delete(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
             }
         }
 
@@ -522,13 +489,13 @@ public class NodeEnvironmentTests extends ESTestCase {
                 + "=false, but has shard data"));
     }
 
-    private void verifyFailsOnMetaData(Settings settings, Path indexPath) {
+    private void verifyFailsOnMetadata(Settings settings, Path indexPath) {
         IllegalStateException ex = expectThrows(IllegalStateException.class,
             "Must fail creating NodeEnvironment on a data path that has index meta-data if node.data=false and node.master=false",
             () -> newNodeEnvironment(settings).close());
 
         assertThat(ex.getMessage(),
-            containsString(indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
+            containsString(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
         assertThat(ex.getMessage(),
             startsWith("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()

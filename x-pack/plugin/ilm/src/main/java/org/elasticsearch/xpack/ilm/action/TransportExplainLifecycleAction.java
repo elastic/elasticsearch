@@ -11,9 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -41,6 +39,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
+
 public class TransportExplainLifecycleAction
         extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
@@ -58,20 +58,8 @@ public class TransportExplainLifecycleAction
     }
 
     @Override
-    protected String executor() {
-        // very lightweight operation, no need to fork
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
     protected ExplainLifecycleResponse read(StreamInput in) throws IOException {
         return new ExplainLifecycleResponse(in);
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(ExplainLifecycleRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -79,7 +67,7 @@ public class TransportExplainLifecycleAction
             ActionListener<ExplainLifecycleResponse> listener) {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (String index : concreteIndices) {
-            IndexMetaData idxMetadata = state.metaData().index(index);
+            IndexMetadata idxMetadata = state.metadata().index(index);
             Settings idxSettings = idxMetadata.getSettings();
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMetadata);
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
@@ -107,15 +95,20 @@ public class TransportExplainLifecycleAction
                 // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
                 if (request.onlyErrors() == false
                     || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
+                    Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                     indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
-                        lifecycleState.getLifecycleDate(),
+                        originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
                         lifecycleState.getPhase(),
                         lifecycleState.getAction(),
                         lifecycleState.getStep(),
                         lifecycleState.getFailedStep(),
+                        lifecycleState.isAutoRetryableError(),
+                        lifecycleState.getFailedStepRetryCount(),
                         lifecycleState.getPhaseTime(),
                         lifecycleState.getActionTime(),
                         lifecycleState.getStepTime(),
+                        lifecycleState.getSnapshotRepository(),
+                        lifecycleState.getSnapshotName(),
                         stepInfoBytes,
                         phaseExecutionInfo);
                 } else {

@@ -43,13 +43,13 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         switch (realmConfig) {
             case AD:
-                builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_search.pool.enabled", false);
+                builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".user_search.pool.enabled", false);
                 if (useLegacyBindPassword) {
-                    builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
+                    builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
                 } else {
                     SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".secure_bind_password",
+                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".secure_bind_password",
                                 ActiveDirectorySessionFactoryTests.PASSWORD);
                     });
                 }
@@ -60,7 +60,6 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         return builder.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testRunAs() throws Exception {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
         final AuthenticateRequest request = new AuthenticateRequest(avenger);

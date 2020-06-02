@@ -25,14 +25,16 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.hamcrest.core.IsCollectionContaining.hasItems;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/53340")
 public class ReadActionsTests extends SecurityIntegTestCase {
 
     @Override
@@ -277,7 +279,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(),
-                    equalTo("[test4] IndexNotFoundException[no such index [test4]]"));
+                    equalTo("[test4] org.elasticsearch.index.IndexNotFoundException: no such index [test4]"));
         }
         {
             //we set ignore_unavailable and allow_no_indices to true, no errors returned, second item doesn't have hits.
@@ -320,23 +322,23 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testGet() {
         createIndicesWithRandomAliases("test1", "index1");
 
-        client().prepareGet("test1", "type", "id").get();
+        client().prepareGet("test1", "id").get();
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "type", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "id")::get, GetAction.NAME);
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "type", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "id")::get, GetAction.NAME);
 
-        expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "type", "id").get());
+        expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "id").get());
     }
 
     public void testMultiGet() {
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         MultiGetResponse multiGetResponse = client().prepareMultiGet()
-                .add("test1", "type", "id")
-                .add("index1", "type", "id")
-                .add("test3", "type", "id")
-                .add("missing", "type", "id")
-                .add("test5", "type", "id").get();
+                .add("test1", "id")
+                .add("index1", "id")
+                .add("test3", "id")
+                .add("missing", "id")
+                .add("test5", "id").get();
         assertEquals(5, multiGetResponse.getResponses().length);
         assertFalse(multiGetResponse.getResponses()[0].isFailed());
         assertEquals("test1", multiGetResponse.getResponses()[0].getResponse().getIndex());

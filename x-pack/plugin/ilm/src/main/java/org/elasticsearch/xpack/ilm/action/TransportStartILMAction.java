@@ -53,7 +53,7 @@ public class TransportStartILMAction extends TransportMasterNodeAction<StartILMR
                 new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                        return (new OperationModeUpdateTask(OperationMode.RUNNING)).execute(currentState);
+                        return (OperationModeUpdateTask.ilmMode(OperationMode.RUNNING)).execute(currentState);
                 }
 
                 @Override

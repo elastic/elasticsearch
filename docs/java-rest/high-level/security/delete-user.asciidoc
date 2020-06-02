@@ -3,7 +3,7 @@
 :request: DeleteUserRequest
 :response: DeleteUserResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete User API
 

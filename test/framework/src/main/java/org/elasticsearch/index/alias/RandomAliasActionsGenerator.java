@@ -85,6 +85,9 @@ public final class RandomAliasActionsGenerator {
             if (randomBoolean()) {
                 action.writeIndex(randomBoolean());
             }
+            if (randomBoolean()) {
+                action.isHidden(randomBoolean());
+            }
         }
         return action;
     }

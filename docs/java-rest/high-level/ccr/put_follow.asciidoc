@@ -3,7 +3,7 @@
 :request: PutFollowRequest
 :response: PutFollowResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Follow API
 

@@ -25,9 +25,13 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -43,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -256,6 +261,37 @@ public class MultiSearchRequestTests extends ESTestCase {
         }
     }
 
+    public void testWritingExpandWildcards() throws IOException {
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "all");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open,closed");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open,hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "open");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "closed,hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "closed");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, true, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "hidden");
+        assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, false, randomBoolean(),
+            randomBoolean(), randomBoolean(), randomBoolean()), "none");
+    }
+
+    private void assertExpandWildcardsValue(IndicesOptions options, String expectedValue) throws IOException {
+        SearchRequest request = new SearchRequest();
+        request.indicesOptions(options);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            MultiSearchRequest.writeSearchRequestParams(request, builder);
+            Map<String, Object> map =
+                XContentHelper.convertToMap(XContentType.JSON.xContent(), BytesReference.bytes(builder).streamInput(), false);
+            final String value = (String) map.get("expand_wildcards");
+            assertEquals(expectedValue, value);
+        }
+    }
+
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
     }
@@ -300,9 +336,10 @@ public class MultiSearchRequestTests extends ESTestCase {
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
             IndicesOptions msearchDefault = SearchRequest.DEFAULT_INDICES_OPTIONS;
             searchRequest.indicesOptions(IndicesOptions.fromOptions(
-                    randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
-                    randomlyGenerated.expandWildcardsClosed(), msearchDefault.allowAliasesToMultipleIndices(),
-                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled()
+                randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
+                randomlyGenerated.expandWildcardsClosed(), msearchDefault.expandWildcardsHidden(),
+                msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(),
+                msearchDefault.ignoreThrottled()
             ));
 
             request.add(searchRequest);

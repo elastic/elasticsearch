@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,7 +39,10 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     static final ParseField OPERATION = new ParseField("operation");
     static final ParseField SUCCESS = new ParseField("success");
-    private static final String CREATE_OPERATION = "CREATE";
+
+    public static final String CREATE_OPERATION = "CREATE";
+    public static final String DELETE_OPERATION = "DELETE";
+
     protected final long timestamp;
     protected final String policyId;
     protected final String repository;
@@ -98,23 +100,27 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         this.errorDetails = errorDetails;
     }
 
-    public static SnapshotHistoryItem successRecord(long timestamp, SnapshotLifecyclePolicy policy, String snapshotName) {
+    public static SnapshotHistoryItem creationSuccessRecord(long timestamp, SnapshotLifecyclePolicy policy, String snapshotName) {
         return new SnapshotHistoryItem(timestamp, policy.getId(), policy.getRepository(), snapshotName, CREATE_OPERATION, true,
             policy.getConfig(), null);
     }
 
-    public static SnapshotHistoryItem failureRecord(long timeStamp, SnapshotLifecyclePolicy policy, String snapshotName,
-                                                    Exception exception) throws IOException {
-        ToXContent.Params stacktraceParams = new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
-        String exceptionString;
-        try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
-            causeXContentBuilder.startObject();
-            ElasticsearchException.generateThrowableXContent(causeXContentBuilder, stacktraceParams, exception);
-            causeXContentBuilder.endObject();
-            exceptionString = BytesReference.bytes(causeXContentBuilder).utf8ToString();
-        }
+    public static SnapshotHistoryItem creationFailureRecord(long timeStamp, SnapshotLifecyclePolicy policy, String snapshotName,
+                                                            Exception exception) throws IOException {
+        String exceptionString = exceptionToString(exception);
         return new SnapshotHistoryItem(timeStamp, policy.getId(), policy.getRepository(), snapshotName, CREATE_OPERATION, false,
             policy.getConfig(), exceptionString);
+    }
+
+    public static SnapshotHistoryItem deletionSuccessRecord(long timestamp, String snapshotName, String policyId, String repository) {
+        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, true, null, null);
+    }
+
+    public static SnapshotHistoryItem deletionFailureRecord(long timestamp, String snapshotName, String policyId, String repository,
+                                                            Exception exception) throws IOException {
+        String exceptionString = exceptionToString(exception);
+        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, false,
+            null, exceptionString);
     }
 
     public SnapshotHistoryItem(StreamInput in) throws IOException {
@@ -219,5 +225,17 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    private static String exceptionToString(Exception exception) throws IOException {
+        Params stacktraceParams = new MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+        String exceptionString;
+        try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
+            causeXContentBuilder.startObject();
+            ElasticsearchException.generateThrowableXContent(causeXContentBuilder, stacktraceParams, exception);
+            causeXContentBuilder.endObject();
+            exceptionString = BytesReference.bytes(causeXContentBuilder).utf8ToString();
+        }
+        return exceptionString;
     }
 }

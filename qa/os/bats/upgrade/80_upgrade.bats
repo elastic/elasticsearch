@@ -46,6 +46,8 @@ setup() {
     sameVersion="false"
     if [ "$(cat $BATS_UPGRADE/upgrade_from_version)" == "$(cat version)" ]; then
         sameVersion="true"
+    else
+        echo "BWC test version: $(cat $BATS_UPGRADE/upgrade_from_version)"
     fi
     # TODO: this needs to conditionally change based on version > 6.3.0
     if [ -f $BATS_UPGRADE/upgrade_is_oss ]; then
@@ -78,21 +80,21 @@ setup() {
 }
 
 @test "[UPGRADE] index some documents into a few indexes" {
-    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library/book/1?pretty -d '{
+    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library/_doc/1?pretty -d '{
       "title": "Elasticsearch - The Definitive Guide"
     }'
-    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library/book/2?pretty -d '{
+    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library/_doc/2?pretty -d '{
       "title": "Brave New World"
     }'
-    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library2/book/1?pretty -d '{
+    curl -s -H "Content-Type: application/json" -XPOST localhost:9200/library2/_doc/1?pretty -d '{
       "title": "The Left Hand of Darkness"
     }'
 }
 
 @test "[UPGRADE] verify that the documents are there" {
-    curl -s localhost:9200/library/book/1?pretty | grep Elasticsearch
-    curl -s localhost:9200/library/book/2?pretty | grep World
-    curl -s localhost:9200/library2/book/1?pretty | grep Darkness
+    curl -s localhost:9200/library/_doc/1?pretty | grep Elasticsearch
+    curl -s localhost:9200/library/_doc/2?pretty | grep World
+    curl -s localhost:9200/library2/_doc/1?pretty | grep Darkness
 }
 
 @test "[UPGRADE] stop old version" {
@@ -117,9 +119,9 @@ setup() {
 }
 
 @test "[UPGRADE] verify that the documents are there after restart" {
-    curl -s localhost:9200/library/book/1?pretty | grep Elasticsearch
-    curl -s localhost:9200/library/book/2?pretty | grep World
-    curl -s localhost:9200/library2/book/1?pretty | grep Darkness
+    curl -s localhost:9200/library/_doc/1?pretty | grep Elasticsearch
+    curl -s localhost:9200/library/_doc/2?pretty | grep World
+    curl -s localhost:9200/library2/_doc/1?pretty | grep Darkness
 }
 
 @test "[UPGRADE] cleanup version under test" {

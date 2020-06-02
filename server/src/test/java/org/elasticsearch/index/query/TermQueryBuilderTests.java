@@ -21,13 +21,12 @@ package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -50,7 +49,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 break;
             case 1:
                 if (randomBoolean()) {
-                    fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+                    fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
                 }
                 if (frequently()) {
                     value = randomAlphaOfLengthBetween(1, 10);
@@ -91,23 +90,21 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
 
-            if (mapper != null) {
-                Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
-                assertThat(termQuery.getTerm(), equalTo(term));
-            } else {
-                assertThat(termQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
-            }
-        } else {
+            Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
+            assertThat(termQuery.getTerm(), equalTo(term));
+        } else if (mapper != null) {
             assertEquals(query, mapper.termQuery(queryBuilder.value(), null));
+        } else {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
     }
 
@@ -141,8 +138,8 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         TermQueryBuilder query = new TermQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        assertEquals("Geometry fields do not support exact searching, "
+                + "use dedicated geometry queries instead: [mapped_geo_point]", e.getMessage());
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
@@ -173,5 +170,29 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         TermQueryBuilder builder = QueryBuilders.termQuery("_type", "value1");
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testRewriteIndexQueryToMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", "does_not_exist");
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testRewriteIndexQueryToNotMatchNone() throws IOException {
+        TermQueryBuilder query = QueryBuilders.termQuery("_index", getIndex().getName());
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder queryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

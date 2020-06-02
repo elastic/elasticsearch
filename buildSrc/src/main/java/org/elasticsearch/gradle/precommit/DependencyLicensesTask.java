@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.codec.binary.Hex;
+import org.elasticsearch.gradle.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
@@ -28,7 +29,9 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -43,6 +46,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -51,13 +55,13 @@ import java.util.stream.Collectors;
 
 /**
  * A task to check licenses for dependencies.
- *
+ * <p>
  * There are two parts to the check:
  * <ul>
- *   <li>LICENSE and NOTICE files</li>
+ *   <li>LICENSE, NOTICE and SOURCES files</li>
  *   <li>SHA checksums for each dependency jar</li>
  * </ul>
- *
+ * <p>
  * The directory to find the license and sha files in defaults to the dir @{code licenses}
  * in the project directory for this task. You can override this directory:
  * <pre>
@@ -65,7 +69,7 @@ import java.util.stream.Collectors;
  *     licensesDir = getProject().file("mybetterlicensedir")
  *   }
  * </pre>
- *
+ * <p>
  * The jar files to check default to the dependencies from the default configuration. You
  * can override this, for example, to only check compile dependencies:
  * <pre>
@@ -73,12 +77,12 @@ import java.util.stream.Collectors;
  *     dependencies = getProject().configurations.compile
  *   }
  * </pre>
- *
+ * <p>
  * Every jar must have a {@code .sha1} file in the licenses dir. These can be managed
  * automatically using the {@code updateShas} helper task that is created along
  * with this task. It will add {@code .sha1} files for new jars that are in dependencies
  * and remove old {@code .sha1} files that are no longer needed.
- *
+ * <p>
  * Every jar must also have a LICENSE and NOTICE file. However, multiple jars can share
  * LICENSE and NOTICE files by mapping a pattern to the same name.
  * <pre>
@@ -86,6 +90,10 @@ import java.util.stream.Collectors;
  *     mapping from: &#47;lucene-.*&#47;, to: "lucene"
  *   }
  * </pre>
+ * Dependencies using licenses with stricter distribution requirements (such as LGPL)
+ * require a SOURCES file as well. The file should include a URL to a source distribution
+ * for the dependency. This artifact will be redistributed by us with the release to
+ * comply with the license terms.
  */
 public class DependencyLicensesTask extends DefaultTask {
 
@@ -97,16 +105,24 @@ public class DependencyLicensesTask extends DefaultTask {
 
     // TODO: we should be able to default this to eg compile deps, but we need to move the licenses
     // check from distribution to core (ie this should only be run on java projects)
-    /** A collection of jar files that should be checked. */
+    /**
+     * A collection of jar files that should be checked.
+     */
     private FileCollection dependencies;
 
-    /** The directory to find the license and sha files in. */
+    /**
+     * The directory to find the license and sha files in.
+     */
     private File licensesDir = new File(getProject().getProjectDir(), "licenses");
 
-    /** A map of patterns to prefix, used to find the LICENSE and NOTICE file. */
+    /**
+     * A map of patterns to prefix, used to find the LICENSE and NOTICE file.
+     */
     private Map<String, String> mappings = new LinkedHashMap<>();
 
-    /** Names of dependencies whose shas should not exist. */
+    /**
+     * Names of dependencies whose shas should not exist.
+     */
     private Set<String> ignoreShas = new HashSet<>();
 
     /**
@@ -171,11 +187,16 @@ public class DependencyLicensesTask extends DefaultTask {
             }
             return; // no dependencies to check
         } else if (licensesDir.exists() == false) {
-            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies");
+            String deps = "";
+            for (File file : dependencies) {
+                deps += file.getName() + "\n";
+            }
+            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies: " + deps);
         }
 
         Map<String, Boolean> licenses = new HashMap<>();
         Map<String, Boolean> notices = new HashMap<>();
+        Map<String, Boolean> sources = new HashMap<>();
         Set<File> shaFiles = new HashSet<>();
 
         for (File file : licensesDir.listFiles()) {
@@ -187,18 +208,31 @@ public class DependencyLicensesTask extends DefaultTask {
                 licenses.put(name, false);
             } else if (name.contains("-NOTICE") || name.contains("-NOTICE.txt")) {
                 notices.put(name, false);
+            } else if (name.contains("-SOURCES") || name.contains("-SOURCES.txt")) {
+                sources.put(name, false);
             }
         }
 
-        checkDependencies(licenses, notices, shaFiles);
+        checkDependencies(licenses, notices, sources, shaFiles);
 
         licenses.forEach((item, exists) -> failIfAnyMissing(item, exists, "license"));
 
         notices.forEach((item, exists) -> failIfAnyMissing(item, exists, "notice"));
 
+        sources.forEach((item, exists) -> failIfAnyMissing(item, exists, "sources"));
+
         if (shaFiles.isEmpty() == false) {
             throw new GradleException("Unused sha files found: \n" + joinFilenames(shaFiles));
         }
+
+    }
+
+    // This is just a marker output folder to allow this task being up-to-date.
+    // The check logic is exception driven so a failed tasks will not be defined
+    // by this output but when successful we can safely mark the task as up-to-date.
+    @OutputDirectory
+    public File getOutputMarker() {
+        return new File(getProject().getBuildDir(), "dependencyLicense");
     }
 
     private void failIfAnyMissing(String item, Boolean exists, String type) {
@@ -207,8 +241,12 @@ public class DependencyLicensesTask extends DefaultTask {
         }
     }
 
-    private void checkDependencies(Map<String, Boolean> licenses, Map<String, Boolean> notices, Set<File> shaFiles)
-        throws NoSuchAlgorithmException, IOException {
+    private void checkDependencies(
+        Map<String, Boolean> licenses,
+        Map<String, Boolean> notices,
+        Map<String, Boolean> sources,
+        Set<File> shaFiles
+    ) throws NoSuchAlgorithmException, IOException {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
             String depName = regex.matcher(jarName).replaceFirst("");
@@ -219,11 +257,17 @@ public class DependencyLicensesTask extends DefaultTask {
             logger.info("mapped dependency name {} to {} for license/notice check", depName, dependencyName);
             checkFile(dependencyName, jarName, licenses, "LICENSE");
             checkFile(dependencyName, jarName, notices, "NOTICE");
+
+            File licenseFile = new File(licensesDir, getFileName(dependencyName, licenses, "LICENSE"));
+            LicenseInfo licenseInfo = LicenseAnalyzer.licenseType(licenseFile);
+            if (licenseInfo.isSourceRedistributionRequired()) {
+                checkFile(dependencyName, jarName, sources, "SOURCES");
+            }
         }
     }
 
-    private void validateSha(Set<File> shaFiles, File dependency, String jarName, String depName)
-        throws NoSuchAlgorithmException, IOException {
+    private void validateSha(Set<File> shaFiles, File dependency, String jarName, String depName) throws NoSuchAlgorithmException,
+        IOException {
         if (ignoreShas.contains(depName)) {
             // local deps should not have sha files!
             if (getShaFile(jarName).exists()) {
@@ -268,10 +312,18 @@ public class DependencyLicensesTask extends DefaultTask {
         String sha = getSha1(jar);
 
         if (expectedSha.equals(sha) == false) {
-            throw new GradleException(
-                "SHA has changed! Expected " + expectedSha + " for " + jarName + " but got " + sha + ". " +
-                    "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream." +
-                    "\nEither wipe your cache, fix the upstream artifact, or delete " + shaFile + " and run updateShas");
+            final String exceptionMessage = String.format(
+                Locale.ROOT,
+                "SHA has changed! Expected %s for %s but got %s."
+                    + "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream."
+                    + "\nEither wipe your cache, fix the upstream artifact, or delete %s and run updateShas",
+                expectedSha,
+                jarName,
+                sha,
+                shaFile
+            );
+
+            throw new GradleException(exceptionMessage);
         }
         shaFiles.remove(shaFile);
     }
@@ -306,19 +358,18 @@ public class DependencyLicensesTask extends DefaultTask {
         return new File(licensesDir, jarName + SHA_EXTENSION);
     }
 
+    @Internal
     Set<File> getShaFiles() {
         File[] array = licensesDir.listFiles();
         if (array == null) {
             throw new GradleException("\"" + licensesDir.getPath() + "\" isn't a valid directory");
         }
 
-        return Arrays.stream(array)
-            .filter(file -> file.getName().endsWith(SHA_EXTENSION))
-            .collect(Collectors.toSet());
+        return Arrays.stream(array).filter(file -> file.getName().endsWith(SHA_EXTENSION)).collect(Collectors.toSet());
     }
 
     String getSha1(File file) throws IOException, NoSuchAlgorithmException {
-        byte[] bytes =  Files.readAllBytes(file.toPath());
+        byte[] bytes = Files.readAllBytes(file.toPath());
 
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         char[] encoded = Hex.encodeHex(digest.digest(bytes));

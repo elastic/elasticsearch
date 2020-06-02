@@ -11,7 +11,7 @@ import java.sql.SQLType;
 import java.sql.Types;
 
 public enum EsType implements SQLType {
-    
+
     NULL(                     Types.NULL),
     UNSUPPORTED(              Types.OTHER),
     BOOLEAN(                  Types.BOOLEAN),
@@ -25,6 +25,7 @@ public enum EsType implements SQLType {
     SCALED_FLOAT(             Types.FLOAT),
     KEYWORD(                  Types.VARCHAR),
     TEXT(                     Types.VARCHAR),
+    CONSTANT_KEYWORD(         Types.VARCHAR),
     OBJECT(                   Types.STRUCT),
     NESTED(                   Types.STRUCT),
     BINARY(                   Types.VARBINARY),
@@ -46,7 +47,8 @@ public enum EsType implements SQLType {
     INTERVAL_HOUR_TO_SECOND(  ExtraTypes.INTERVAL_HOUR_SECOND),
     INTERVAL_MINUTE_TO_SECOND(ExtraTypes.INTERVAL_MINUTE_SECOND),
     GEO_POINT(                ExtraTypes.GEOMETRY),
-    GEO_SHAPE(                ExtraTypes.GEOMETRY);
+    GEO_SHAPE(                ExtraTypes.GEOMETRY),
+    SHAPE(                    ExtraTypes.GEOMETRY);
 
     private final Integer type;
 

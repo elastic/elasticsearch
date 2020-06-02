@@ -1,7 +1,8 @@
 {
   "ml.delete_filter":{
     "documentation":{
-      "url":null
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-filter.html",
+      "description":"Deletes a filter."
     },
     "stability":"stable",
     "url":{

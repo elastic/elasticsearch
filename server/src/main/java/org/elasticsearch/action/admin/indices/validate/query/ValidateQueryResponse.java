@@ -48,7 +48,7 @@ public class ValidateQueryResponse extends BroadcastResponse {
     public static final String EXPLANATIONS_FIELD = "explanations";
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<ValidateQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<ValidateQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
         "validate_query",
         true,
         arg -> {

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -48,7 +49,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -198,4 +201,26 @@ public class ClusterModuleTests extends ModuleTestCase {
             assertSame(decider.getClass(), expectedDeciders.get(idx++));
         }
     }
+
+    public void testRejectsReservedExistingShardsAllocatorName() {
+        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
+            List.of(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME)), clusterInfoService);
+        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
+    }
+
+    public void testRejectsDuplicateExistingShardsAllocatorName() {
+        final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
+            List.of(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate")), clusterInfoService);
+        expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
+    }
+
+    private static ClusterPlugin existingShardsAllocatorPlugin(final String allocatorName) {
+        return new ClusterPlugin() {
+            @Override
+            public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
+                return Collections.singletonMap(allocatorName, new TestGatewayAllocator());
+            }
+        };
+    }
+
 }

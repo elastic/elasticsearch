@@ -67,6 +67,70 @@ public class QuerierTests extends ESTestCase {
     }
 
     @SuppressWarnings("rawtypes")
+    public void testAggSorting_TwoFields_One_Presorted() {
+        List<Tuple<Integer, Comparator>> tuples = new ArrayList<>(2);
+        tuples.add(new Tuple<>(0, null));
+        tuples.add(new Tuple<>(1, Comparator.reverseOrder()));
+        Querier.AggSortingQueue queue = new AggSortingQueue(20, tuples);
+
+        for (int i = 1; i <= 100; i++) {
+            queue.insertWithOverflow(new Tuple<>(Arrays.asList(i <= 5 ? null : 100 - i + 1, i), i));
+        }
+        List<List<?>> results = queue.asList();
+
+        assertEquals(20, results.size());
+        for (int i = 0; i < 20; i++) {
+            assertEquals(i < 5 ? null : 100 - i, results.get(i).get(0));
+            assertEquals(i < 5 ? 5 - i : i + 1, results.get(i).get(1));
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public void testAggSorting_FourFields() {
+        List<Comparator> comparators = Arrays.<Comparator> asList(
+                Comparator.naturalOrder(),
+                Comparator.naturalOrder(),
+                Comparator.reverseOrder(),
+                Comparator.naturalOrder()
+        );
+        List<Tuple<Integer, Comparator>> tuples = new ArrayList<>(4);
+        tuples.add(new Tuple<>(0, null));
+        tuples.add(new Tuple<>(1, comparators.get(1)));
+        tuples.add(new Tuple<>(2, null));
+        tuples.add(new Tuple<>(3, comparators.get(3)));
+        Querier.AggSortingQueue queue = new AggSortingQueue(35, tuples);
+
+        List<List<Integer>> expected = new ArrayList<>(128);
+        for (int i = 0; i < 128; i++) {
+            int col1 = i / 16;
+            int col2 = 15 - (i / 8);
+            int col3 = 32 - (i / 4);
+            int col4 = 127 - i;
+
+            expected.add(Arrays.asList(col1, col2, col3, col4));
+            queue.insertWithOverflow(new Tuple<>(Arrays.asList(col1, col2, col3, col4), i));
+        }
+
+        expected.sort((o1, o2) -> {
+            for (int i = 0; i < 4; i++) {
+                int result = comparators.get(i).compare(o1.get(i), o2.get(i));
+                if (result != 0) {
+                    return result;
+                }
+            }
+            return 0;
+        });
+        List<List<?>> results = queue.asList();
+
+        assertEquals(35, results.size());
+        for (int i = 0; i < 35; i++) {
+            for (int j = 0; j < 4; j++) {
+                assertEquals(expected.get(i).get(j), results.get(i).get(j));
+            }
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
     public void testAggSorting_Randomized() {
         // Initialize comparators for fields (columns)
         int noColumns = randomIntBetween(3, 10);

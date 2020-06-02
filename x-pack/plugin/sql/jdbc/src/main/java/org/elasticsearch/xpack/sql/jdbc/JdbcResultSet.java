@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -37,8 +39,8 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
-import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asTimestamp;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.dateTimeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsMillisSinceEpoch;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTimestamp;
@@ -57,6 +59,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private boolean closed = false;
     private boolean wasNull = false;
+    private boolean wasLast = false;
 
     private int rowNumber;
 
@@ -78,10 +81,13 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
             throw new SQLException("Invalid column index [" + columnIndex + "]");
         }
+        if (wasLast || rowNumber < 1) {
+            throw new SQLException("No row available");
+        }
         Object object = null;
         try {
             object = cursor.column(columnIndex - 1);
-        } catch (IllegalArgumentException iae) {
+        } catch (Exception iae) {
             throw new SQLException(iae.getMessage());
         }
         wasNull = (object == null);
@@ -114,6 +120,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             rowNumber++;
             return true;
         }
+        wasLast = true;
         return false;
     }
 
@@ -254,6 +261,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
         EsType type = columnType(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -262,9 +274,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 // the cursor can return an Integer if the date-since-epoch is small enough, XContentParser (Jackson) will
                 // return the "smallest" data type for numbers when parsing
                 // TODO: this should probably be handled server side
-                if (val == null) {
-                    return null;
-                }
                 return asDateTimeField(val, JdbcDateUtils::dateTimeAsMillisSinceEpoch, Function.identity());
             }
             if (DATE == type) {
@@ -273,7 +282,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             if (TIME == type) {
                 return timeAsMillisSinceEpoch(val.toString());
             }
-            return val == null ? null : (Long) val;
+            return (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(
                     format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
@@ -293,7 +302,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         try {
-
             return JdbcDateUtils.asDate(val.toString());
         } catch (Exception e) {
             throw new SQLException(
@@ -461,7 +469,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public boolean isAfterLast() throws SQLException {
-        throw new SQLFeatureNotSupportedException("isAfterLast not supported");
+        return rowNumber > 0 && wasLast;
     }
 
     @Override
@@ -518,7 +526,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        BigDecimal bd = getBigDecimal(columnIndex);
+        // The API doesn't allow for specifying a rounding behavior, although BigDecimals did have a way of controlling rounding, even
+        // before the API got deprecated => default to fail if scaling can't return an exactly equal value, since this behavior was
+        // expected by (old) callers as well.
+        return bd == null ? null : bd.setScale(scale);
     }
 
     @Override
@@ -539,8 +551,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     @Deprecated
+    @SuppressForbidden(reason="implementing deprecated method")
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel), scale);
     }
 
     @Override
@@ -587,12 +600,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return convert(columnIndex, BigDecimal.class);
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel));
     }
 
     @Override

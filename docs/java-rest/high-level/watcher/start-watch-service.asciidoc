@@ -3,8 +3,9 @@
 :request: StartWatchServiceRequest
 :response: StartWatchServiceResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Start Watch Service API
+=== Start watch service API
 
 [id="{upid}-{api}-request"]
 ==== Execution
@@ -21,7 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned `AcknowledgeResponse` contains a value on whether or not the request
+The returned `AcknowledgedResponse` contains a value on whether or not the request
 was received:
 
 ["source","java",subs="attributes,callouts,macros"]

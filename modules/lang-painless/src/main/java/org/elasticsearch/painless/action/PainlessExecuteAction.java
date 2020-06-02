@@ -29,7 +29,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -68,7 +69,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.FilterScript;
@@ -81,6 +81,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -527,7 +528,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         scoreScript.setScorer(scorer);
                     }
 
-                    double result = scoreScript.execute();
+                    double result = scoreScript.execute(null);
                     return new Response(result);
                 }, indexService);
             } else {
@@ -541,19 +542,20 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
 
-            try (RAMDirectory ramDirectory = new RAMDirectory()) {
-                try (IndexWriter indexWriter = new IndexWriter(ramDirectory, new IndexWriterConfig(defaultAnalyzer))) {
+            try (Directory directory = new ByteBuffersDirectory()) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     String index = indexService.index().getName();
-                    String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, type, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
+                        final IndexSearcher searcher = new IndexSearcher(indexReader);
+                        searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                            indexService.newQueryShardContext(0, indexReader, () -> absoluteStartMillis, null);
+                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }
@@ -563,9 +565,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(RestController controller) {
-            controller.registerHandler(GET, "/_script/painless/_execute", this);
-            controller.registerHandler(POST, "/_script/painless/_execute", this);
+        @Override
+        public List<Route> routes() {
+            return List.of(
+                new Route(GET, "/_script/painless/_execute"),
+                new Route(POST, "/_script/painless/_execute"));
         }
 
         @Override

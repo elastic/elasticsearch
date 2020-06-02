@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Locale;
 
 /**
@@ -40,6 +41,16 @@ public enum SortOrder implements Writeable {
         public String toString() {
             return "asc";
         }
+
+        @Override
+        public int reverseMul() {
+            return 1;
+        }
+
+        @Override
+        public <T> Comparator<T> wrap(Comparator<T> delegate) {
+            return delegate;
+        }
     },
     /**
      * Descending order.
@@ -48,6 +59,16 @@ public enum SortOrder implements Writeable {
         @Override
         public String toString() {
             return "desc";
+        }
+
+        @Override
+        public int reverseMul() {
+            return -1;
+        }
+
+        @Override
+        public <T> Comparator<T> wrap(Comparator<T> delegate) {
+            return delegate.reversed();
         }
     };
 
@@ -63,4 +84,14 @@ public enum SortOrder implements Writeable {
     public static SortOrder fromString(String op) {
         return valueOf(op.toUpperCase(Locale.ROOT));
     }
+
+    /**
+     * -1 if the sort is reversed from the standard comparators, 1 otherwise.
+     */
+    public abstract int reverseMul();
+
+    /**
+     * Wrap a comparator in one for this direction.
+     */
+    public abstract <T> Comparator<T> wrap(Comparator<T> delegate);
 }

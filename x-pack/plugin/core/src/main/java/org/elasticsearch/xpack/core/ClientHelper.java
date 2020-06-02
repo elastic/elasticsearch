@@ -50,7 +50,10 @@ public final class ClientHelper {
     public static final String DEPRECATION_ORIGIN = "deprecation";
     public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
     public static final String ROLLUP_ORIGIN = "rollup";
-    public static final String DATA_FRAME_ORIGIN = "data_frame";
+    public static final String ENRICH_ORIGIN = "enrich";
+    public static final String TRANSFORM_ORIGIN = "transform";
+    public static final String ASYNC_SEARCH_ORIGIN = "async_search";
+    public static final String IDP_ORIGIN = "idp";
 
     private ClientHelper() {}
 

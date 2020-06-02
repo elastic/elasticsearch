@@ -53,7 +53,7 @@ public interface CircuitBreaker {
      * The in-flight request breaker tracks bytes allocated for reading and
      * writing requests on the network layer.
      */
-    String IN_FLIGHT_REQUESTS = "in_flight_requests";
+    String IN_FLIGHT_REQUESTS = "inflight_requests";
     /**
      * The accounting breaker tracks things held in memory that is independent
      * of the request lifecycle. This includes memory used by Lucene for
@@ -139,4 +139,12 @@ public interface CircuitBreaker {
      * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
      */
     Durability getDurability();
+
+    /**
+     * sets the new limit and overhead values for the circuit breaker.
+     * The resulting write should be readable by other threads.
+     * @param limit the desired limit
+     * @param overhead the desired overhead constant
+     */
+    void setLimitAndOverhead(long limit, double overhead);
 }

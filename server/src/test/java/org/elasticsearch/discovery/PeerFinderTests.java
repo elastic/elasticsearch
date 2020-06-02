@@ -30,13 +30,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -212,12 +212,14 @@ public class PeerFinderTests extends ESTestCase {
         localNode = newDiscoveryNode("local-node");
 
         ConnectionManager innerConnectionManager
-            = new ConnectionManager(settings, capturingTransport);
+            = new ClusterConnectionManager(settings, capturingTransport);
         StubbableConnectionManager connectionManager
-            = new StubbableConnectionManager(innerConnectionManager, settings, capturingTransport);
-        connectionManager.setDefaultNodeConnectedBehavior(cm -> {
-            assertTrue(Sets.haveEmptyIntersection(connectedNodes, disconnectedNodes));
-            return connectedNodes;
+            = new StubbableConnectionManager(innerConnectionManager);
+        connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> {
+            final boolean isConnected = connectedNodes.contains(discoveryNode);
+            final boolean isDisconnected = disconnectedNodes.contains(discoveryNode);
+            assert isConnected != isDisconnected : discoveryNode + ": isConnected=" + isConnected + ", isDisconnected=" + isDisconnected;
+            return isConnected;
         });
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> capturingTransport.createConnection(discoveryNode));
         transportService = new TransportService(settings, capturingTransport, deterministicTaskQueue.getThreadPool(),

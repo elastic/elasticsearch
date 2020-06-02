@@ -24,10 +24,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
@@ -103,8 +103,8 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         final ClusterState.Builder builder = builder(new ClusterName("cluster"))
             .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2)
                 .localNodeId(localNode.getId()).masterNodeId(localNode.getId()));
-        builder.metaData(MetaData.builder()
-                .coordinationMetaData(CoordinationMetaData.builder()
+        builder.metadata(Metadata.builder()
+                .coordinationMetadata(CoordinationMetadata.builder()
                         .addVotingConfigExclusion(otherNode1Exclusion)
                         .addVotingConfigExclusion(otherNode2Exclusion)
                 .build()));

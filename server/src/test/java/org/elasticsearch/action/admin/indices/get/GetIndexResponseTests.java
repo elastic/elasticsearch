@@ -22,31 +22,22 @@ package org.elasticsearch.action.admin.indices.get;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Predicate;
+import java.util.Locale;
 
-public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexResponse> {
-
-    @Override
-    protected GetIndexResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetIndexResponse.fromXContent(parser);
-    }
+public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIndexResponse> {
 
     @Override
     protected Writeable.Reader<GetIndexResponse> instanceReader() {
@@ -56,24 +47,23 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
     @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
-            // rarely have no types
-            int typeCount = rarely() ? 0 : 1;
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, true));
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex());
 
-            List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
+            List<AliasMetadata> aliasMetadataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
             for (int i=0; i<aliasesNum; i++) {
-                aliasMetaDataList.add(GetAliasesResponseTests.createAliasMetaData());
+                aliasMetadataList.add(GetAliasesResponseTests.createAliasMetadata());
             }
-            CollectionUtil.timSort(aliasMetaDataList, Comparator.comparing(AliasMetaData::alias));
-            aliases.put(index, Collections.unmodifiableList(aliasMetaDataList));
+            CollectionUtil.timSort(aliasMetadataList, Comparator.comparing(AliasMetadata::alias));
+            aliases.put(index, Collections.unmodifiableList(aliasMetadataList));
 
             Settings.Builder builder = Settings.builder();
             builder.put(RandomCreateIndexGenerator.randomIndexSettings());
@@ -82,26 +72,13 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
             if (includeDefaults) {
                 defaultSettings.put(index, indexScopedSettings.diff(settings.get(index), Settings.EMPTY));
             }
+
+            if (randomBoolean()) {
+                dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
+            }
         }
         return new GetIndexResponse(
-            indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build()
+            indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build()
         );
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        //we do not want to add new fields at the root (index-level), or inside the blocks
-        return
-            f -> f.equals("") || f.contains(".settings") || f.contains(".defaults") || f.contains(".mappings") ||
-            f.contains(".aliases");
-    }
-
-    /**
-     * For xContent roundtrip testing we force the xContent output to still contain types because the parser still expects them.
-     * The new typeless parsing is implemented in the client side GetIndexResponse.
-     */
-    @Override
-    protected ToXContent.Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 }

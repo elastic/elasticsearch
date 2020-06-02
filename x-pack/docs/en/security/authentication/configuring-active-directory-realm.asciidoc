@@ -1,20 +1,9 @@
-[role="xpack"]
-[[configuring-ad-realm]]
-=== Configuring an Active Directory realm
-
-You can configure {es} to communicate with Active Directory to authenticate
-users. To integrate with Active Directory, you configure an `active_directory`
+To integrate with Active Directory, you configure an `active_directory`
 realm and map Active Directory users and groups to roles in the role mapping file.
-
-For more information about Active Directory realms, see 
-{stack-ov}/active-directory-realm.html[Active Directory User Authentication].
 
 . Add a realm configuration of type `active_directory` to `elasticsearch.yml`
 under the `xpack.security.authc.realms.active_directory` namespace.
-At a minimum, you must specify the Active Directory `domain_name`.
-If you are configuring multiple realms, you should also 
-explicitly set the `order` attribute to control the order in which the realms 
-are consulted during authentication. 
+At a minimum, you must specify the Active Directory `domain_name` and `order`.
 +
 --
 See <<ref-ad-settings>> for all of the options you can set for an 
@@ -119,7 +108,7 @@ can be configured and is used to perform all operations other than the LDAP bind
 request, which is required to authenticate the credentials provided by the user.
 
 The use of a bind user enables the 
-{stack-ov}/run-as-privilege.html[run as feature] to be used with the Active 
+<<run-as-privilege,run as feature>> to be used with the Active 
 Directory realm and the ability to maintain a set of pooled connections to 
 Active Directory. These pooled connection reduce the number of resources that 
 must be created and destroyed with every user authentication.
@@ -184,7 +173,8 @@ Directory `admins` group to both the `monitoring` and `user` roles, maps the
 role.
 
 Configured via the role-mapping API:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admins
 {
@@ -195,10 +185,10 @@ PUT /_security/role_mapping/admins
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The Active Directory distinguished name (DN) of the `admins` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_users
 {
@@ -214,7 +204,7 @@ PUT /_security/role_mapping/basic_users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The Active Directory distinguished name (DN) of the `users` group.
 <2> The Active Directory distinguished name (DN) of the user `John Doe`.
 
@@ -234,7 +224,7 @@ user:
 <4> The Active Directory distinguished name (DN) of the user `John Doe`.
 
 For more information, see 
-{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+<<mapping-roles>>.
 --
 
 . (Optional) Configure the `metadata` setting in the Active Directory realm to 
@@ -243,5 +233,5 @@ include extra properties in the user's metadata.
 --
 By default, `ldap_dn` and `ldap_groups` are populated in the user's metadata. 
 For more information, see 
-{xpack-ref}/active-directory-realm.html#ad-user-metadata[User Metadata in Active Directory Realms]. 
+<<ad-user-metadata>>. 
 --

@@ -149,7 +149,7 @@ public class GeoIpProcessorNonIngestNodeTests extends ESIntegTestCase {
         internalCluster().getInstance(IngestService.class, ingestNode);
         // the geo-IP database should not be loaded yet as we have no indexed any documents using a pipeline that has a geo-IP processor
         assertDatabaseLoadStatus(ingestNode, false);
-        final IndexRequest indexRequest = new IndexRequest("index", "_doc");
+        final IndexRequest indexRequest = new IndexRequest("index");
         indexRequest.setPipeline("geoip");
         indexRequest.source(Collections.singletonMap("ip", "1.1.1.1"));
         final IndexResponse indexResponse = client().index(indexRequest).actionGet();

@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -72,7 +72,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
         super(shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
             shardTarget == null ? -1 : shardTarget.getShardId().getId(),
-            ExceptionsHelper.detailedMessage(e),
+            ExceptionsHelper.stackTrace(e),
             ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)),
             ExceptionsHelper.unwrapCause(e));
 
@@ -169,7 +169,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
         SearchShardTarget searchShardTarget = null;
         if (nodeId != null) {
             searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
         }
         return new ShardSearchFailure(exception, searchShardTarget);
     }

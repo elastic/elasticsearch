@@ -22,10 +22,11 @@ package org.elasticsearch.search.rescore;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -138,11 +139,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     public void testBuildRescoreSearchContext() throws ElasticsearchParseException, IOException {
         final long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, null,
-            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
+            null, null, null, null, null,
+            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -181,11 +183,12 @@ public class QueryRescorerBuilderTests extends ESTestCase {
 
         final long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, null,
-            xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
+                null, null, null, null, null,
+                xContentRegistry(), namedWriteableRegistry, null, null, () -> nowInMillis, null, null, () -> true, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -220,7 +223,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("[3:27] unable to parse RescorerBuilder with name [bad_rescorer_name]: parser not found", e.getMessage());
+            assertEquals("[3:27] unknown field [bad_rescorer_name]", e.getMessage());
         }
         rescoreElement = "{\n" +
             "    \"bad_fieldName\" : 20\n" +
@@ -251,7 +254,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             "}\n";
         try (XContentParser parser = createParser(rescoreElement)) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("[3:17] [query] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[3:17] [query] unknown field [bad_fieldname]", e.getMessage());
         }
 
         rescoreElement = "{\n" +

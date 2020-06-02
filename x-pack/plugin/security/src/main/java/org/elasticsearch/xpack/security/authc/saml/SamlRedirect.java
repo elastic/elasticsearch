@@ -25,7 +25,7 @@ public class SamlRedirect {
     private final SAMLObject samlObject;
     private final String destination;
     private final String parameterName;
-        private final SigningConfiguration signing;
+    private final SigningConfiguration signing;
 
     public SamlRedirect(RequestAbstractType request, SigningConfiguration signing) {
         this.samlObject = request;

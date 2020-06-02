@@ -32,10 +32,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -99,7 +99,7 @@ public class InnerHitBuilderTests extends ESTestCase {
      *
      * This is necessary to ensure because we use the serialized BytesReference
      * of this builder as part of the cacheKey in
-     * {@link ShardSearchLocalRequest} (via
+     * {@link ShardSearchRequest} (via
      * {@link SearchSourceBuilder#collapse(org.elasticsearch.search.collapse.CollapseBuilder)})
      */
     public void testSerializationOrder() throws Exception {

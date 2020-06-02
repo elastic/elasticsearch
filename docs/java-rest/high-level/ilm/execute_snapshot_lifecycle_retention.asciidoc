@@ -1,0 +1,35 @@
+--
+:api: slm-execute-snapshot-lifecycle-retention
+:request: ExecuteSnapshotLifecycleRetentionRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Execute Snapshot Lifecycle Retention API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Execute Snapshot Lifecycle Retention API allows you to execute Snapshot Lifecycle Management
+Retention immediately, rather than waiting for its regularly scheduled execution.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains a boolean for whether the request was
+acknowledged by the master node.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+

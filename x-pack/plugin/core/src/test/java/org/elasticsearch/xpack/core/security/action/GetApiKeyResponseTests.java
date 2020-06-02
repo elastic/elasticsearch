@@ -24,8 +24,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetApiKeyResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
+        boolean withApiKeyName = randomBoolean();
         boolean withExpiration = randomBoolean();
-        ApiKey apiKeyInfo = createApiKeyInfo(randomAlphaOfLength(4), randomAlphaOfLength(5), Instant.now(),
+        ApiKey apiKeyInfo = createApiKeyInfo((withApiKeyName) ? randomAlphaOfLength(4) : null, randomAlphaOfLength(5), Instant.now(),
                 (withExpiration) ? Instant.now() : null, false, randomAlphaOfLength(4), randomAlphaOfLength(5));
         GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -42,7 +43,9 @@ public class GetApiKeyResponseTests extends ESTestCase {
                 "user-a", "realm-x");
         ApiKey apiKeyInfo2 = createApiKeyInfo("name2", "id-2", Instant.ofEpochMilli(100000L), Instant.ofEpochMilli(10000000L), true,
                 "user-b", "realm-y");
-        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2));
+        ApiKey apiKeyInfo3 = createApiKeyInfo(null, "id-3", Instant.ofEpochMilli(100000L), null, true,
+            "user-c", "realm-z");
+        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo(
@@ -51,7 +54,9 @@ public class GetApiKeyResponseTests extends ESTestCase {
                 + "{\"id\":\"id-1\",\"name\":\"name1\",\"creation\":100000,\"expiration\":10000000,\"invalidated\":false,"
                 + "\"username\":\"user-a\",\"realm\":\"realm-x\"},"
                 + "{\"id\":\"id-2\",\"name\":\"name2\",\"creation\":100000,\"expiration\":10000000,\"invalidated\":true,"
-                + "\"username\":\"user-b\",\"realm\":\"realm-y\"}"
+                + "\"username\":\"user-b\",\"realm\":\"realm-y\"},"
+                + "{\"id\":\"id-3\",\"name\":null,\"creation\":100000,\"invalidated\":true,"
+                + "\"username\":\"user-c\",\"realm\":\"realm-z\"}"
                 + "]"
                 + "}"));
     }

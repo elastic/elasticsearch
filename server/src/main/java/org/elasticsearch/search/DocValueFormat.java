@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -114,6 +116,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            try {
+                // Prefer parsing as a long to avoid losing precision
+                return Long.parseLong(value);
+            } catch (NumberFormatException e) {
+                // retry as a double
+            }
             double d = Double.parseDouble(value);
             if (roundUp) {
                 d = Math.ceil(d);
@@ -131,6 +139,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
+        }
+
+        @Override
+        public String toString() {
+            return "raw";
         }
     };
 
@@ -189,6 +202,13 @@ public interface DocValueFormat extends NamedWriteable {
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
+            if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().before(Version.V_8_0_0)) {
+                /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style
+                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
+                   All indices in 8 should use java style pattern. Hence we can ignore this flag.
+                */
+                in.readBoolean();
+            }
         }
 
         @Override
@@ -201,6 +221,17 @@ public interface DocValueFormat extends NamedWriteable {
             out.writeString(formatter.pattern());
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
+            if (out.getVersion().onOrAfter(Version.V_7_7_0) && out.getVersion().before(Version.V_8_0_0)) {
+                /* when serializing to 7.7+  send out a flag indicating if a pattern is of joda style
+                   This is only used to support joda style indices in 7.x, in 8 we no longer support this.
+                   All indices in 8 should use java style pattern. Hence this flag is always false.
+                */
+                out.writeBoolean(false);
+            }
+        }
+
+        public DateMathParser getDateMathParser() {
+            return parser;
         }
 
         @Override
@@ -238,6 +269,28 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String format(long value) {
             return Geohash.stringEncode(value);
+        }
+
+        @Override
+        public String format(double value) {
+            return format((long) value);
+        }
+    };
+
+    DocValueFormat GEOTILE = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "geo_tile";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String format(long value) {
+            return GeoTileUtils.stringEncode(value);
         }
 
         @Override
@@ -305,6 +358,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        }
+
+        @Override
+        public String toString() {
+            return "ip";
         }
     };
 

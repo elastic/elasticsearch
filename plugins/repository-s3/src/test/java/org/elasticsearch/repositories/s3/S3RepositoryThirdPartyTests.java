@@ -19,7 +19,7 @@
 package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -63,7 +63,15 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
         final String endpoint = System.getProperty("test.s3.endpoint");
         if (endpoint != null) {
-            settings = settings.put("endpoint", endpoint);
+            settings.put("endpoint", endpoint);
+        } else {
+            // only test different storage classes when running against the default endpoint, i.e. a genuine S3 service
+            if (randomBoolean()) {
+                final String storageClass
+                    = randomFrom("standard", "reduced_redundancy", "standard_ia", "onezone_ia", "intelligent_tiering");
+                logger.info("--> using storage_class [{}]", storageClass);
+                settings.put("storage_class", storageClass);
+            }
         }
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
             .setType("s3")
@@ -86,7 +94,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         assertBusy(() -> super.assertConsistentRepository(repo, executor), 10L, TimeUnit.MINUTES);
     }
 
-    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
+    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetadata> blobs) throws Exception {
         // AWS S3 is eventually consistent so we retry for 10 minutes assuming a list operation will never take longer than that
         // to become consistent.
         assertBusy(() -> super.assertBlobsByPrefix(path, prefix, blobs), 10L, TimeUnit.MINUTES);

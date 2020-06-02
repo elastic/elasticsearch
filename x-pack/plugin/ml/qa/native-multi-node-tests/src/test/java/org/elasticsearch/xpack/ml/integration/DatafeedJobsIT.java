@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -32,7 +33,6 @@ import org.junit.After;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -50,13 +50,13 @@ import static org.hamcrest.Matchers.hasSize;
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void cleanup() throws Exception {
+    public void cleanup() {
         cleanUp();
     }
 
     public void testLookbackOnly() throws Exception {
         client().admin().indices().prepareCreate("data-1")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
@@ -65,7 +65,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
 
         client().admin().indices().prepareCreate("data-2")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         client().admin().cluster().prepareHealth("data-1", "data-2").setWaitForYellowStatus().get();
         long numDocs2 = randomIntBetween(32, 2048);
@@ -101,7 +101,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     public void testDatafeedTimingStats_DatafeedRecreated() throws Exception {
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs = randomIntBetween(32, 2048);
         Instant now = Instant.now();
@@ -110,7 +110,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = createScheduledJob("lookback-job-datafeed-recreated");
 
         String datafeedId = "lookback-datafeed-datafeed-recreated";
-        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Arrays.asList("data"));
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"));
 
         registerJob(job);
         putJob(job);
@@ -138,7 +138,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     public void testDatafeedTimingStats_QueryDelayUpdated_TimingStatsNotReset() throws Exception {
         client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
+            .setMapping("time", "type=date")
             .get();
         long numDocs = randomIntBetween(32, 2048);
         Instant now = Instant.now();
@@ -149,7 +149,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
 
         String datafeedId = "lookback-datafeed-query-delay-updated";
-        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Arrays.asList("data"));
+        DatafeedConfig datafeedConfig = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"));
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
 
@@ -201,6 +201,26 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
             GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
             assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
+    }
+
+    public void testRealtime_noDataAndAutoStop() throws Exception {
+        String jobId = "realtime-job-auto-stop";
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId, randomIntBetween(1, 3));
+
+        // Datafeed should auto-stop...
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
+
+        // ...and should have auto-closed the job too
+        assertBusy(() -> {
+            GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+            GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getState(), equalTo(JobState.CLOSED));
         });
     }
 
@@ -314,7 +334,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
      */
     public void testStopLookbackFollowedByProcessKill() throws Exception {
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
         long numDocs = randomIntBetween(1024, 2048);
         long now = System.currentTimeMillis();
@@ -359,13 +379,22 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void startRealtime(String jobId) throws Exception {
+        startRealtime(jobId, null);
+    }
+
+    private void startRealtime(String jobId, Integer maxEmptySearches) throws Exception {
         client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
+                .setMapping("time", "type=date")
                 .get();
-        long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
-        long lastWeek = now - 604800000;
-        indexDocs(logger, "data", numDocs1, lastWeek, now);
+        long numDocs1;
+        if (maxEmptySearches == null) {
+            numDocs1 = randomIntBetween(32, 2048);
+            long lastWeek = now - 604800000;
+            indexDocs(logger, "data", numDocs1, lastWeek, now);
+        } else {
+            numDocs1 = 0;
+        }
 
         Job.Builder job = createScheduledJob(jobId);
         registerJob(job);
@@ -373,7 +402,12 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));
+        DatafeedConfig.Builder datafeedConfigBuilder =
+            createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));
+        if (maxEmptySearches != null) {
+            datafeedConfigBuilder.setMaxEmptySearches(maxEmptySearches);
+        }
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
@@ -383,9 +417,15 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
 
-        long numDocs2 = randomIntBetween(2, 64);
         now = System.currentTimeMillis();
-        indexDocs(logger, "data", numDocs2, now + 5000, now + 6000);
+        long numDocs2;
+        if (maxEmptySearches == null) {
+            numDocs2 = randomIntBetween(2, 64);
+            indexDocs(logger, "data", numDocs2, now + 5000, now + 6000);
+        } else {
+            numDocs2 = 0;
+        }
+
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs1 + numDocs2));

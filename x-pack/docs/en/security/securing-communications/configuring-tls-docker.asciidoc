@@ -1,0 +1,220 @@
+[role="xpack"]
+[[configuring-tls-docker]]
+=== Encrypting communications in an {es} Docker Container
+
+Unless you are using a trial license, {stack} {security-features} require
+SSL/TLS encryption for the transport networking layer.
+
+This section demonstrates an easy path to get started with SSL/TLS for both
+HTTPS and transport using the {es} Docker image. The example uses
+Docker Compose to manage the containers.
+
+For further details, see
+<<encrypting-communications>> and
+https://www.elastic.co/subscriptions[available subscriptions].
+
+[float]
+==== Prepare the environment
+
+<<docker,Install {es} with Docker>>.
+
+Inside a new, empty directory, create the following four files:
+
+`instances.yml`:
+["source","yaml"]
+----
+instances:
+  - name: es01
+    dns:
+      - es01 <1>
+      - localhost
+    ip:
+      - 127.0.0.1
+
+  - name: es02
+    dns:
+      - es02
+      - localhost
+    ip:
+      - 127.0.0.1
+----
+<1> Allow use of embedded Docker DNS server names.
+
+`.env`:
+[source,yaml]
+----
+COMPOSE_PROJECT_NAME=es <1>
+CERTS_DIR=/usr/share/elasticsearch/config/certificates <2>
+ELASTIC_PASSWORD=PleaseChangeMe <3>
+----
+<1> Use an `es_` prefix for all volumes and networks created by docker-compose.
+<2> The path, inside the Docker image, where certificates are expected to be found.
+<3> Initial password for the `elastic` user.
+
+[[getting-starter-tls-create-certs-composefile]]
+`create-certs.yml`:
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so a
+`create-certs.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+["source","yaml",subs="attributes"]
+----
+version: '2.2'
+
+services:
+  create_certs:
+    container_name: create_certs
+    image: {docker-image}
+    command: >
+      bash -c '
+        if [[ ! -f /certs/bundle.zip ]]; then
+          bin/elasticsearch-certutil cert --silent --pem --in config/certificates/instances.yml -out /certs/bundle.zip;
+          unzip /certs/bundle.zip -d /certs; <1>
+        fi;
+        chown -R 1000:0 /certs
+      '
+    user: "0"
+    working_dir: /usr/share/elasticsearch
+    volumes: ['certs:/certs', '.:/usr/share/elasticsearch/config/certificates']
+
+volumes: {"certs"}
+----
+
+<1> The new node certificates and CA certificate+key are placed in a docker volume `es_certs`.
+endif::[]
+
+[[getting-starter-tls-create-docker-compose]]
+`docker-compose.yml`:
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so a
+`docker-compose.yml` is not available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+["source","yaml",subs="attributes"]
+----
+version: '2.2'
+
+services:
+  es01:
+    container_name: es01
+    image: {docker-image}
+    environment:
+      - node.name=es01
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02
+      - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.license.self_generated.type=trial <2>
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=$CERTS_DIR/es01/es01.key
+      - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.http.ssl.certificate=$CERTS_DIR/es01/es01.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate <3>
+      - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.transport.ssl.certificate=$CERTS_DIR/es01/es01.crt
+      - xpack.security.transport.ssl.key=$CERTS_DIR/es01/es01.key
+    volumes: ['data01:/usr/share/elasticsearch/data', 'certs:$CERTS_DIR']
+    ports:
+      - 9200:9200
+    healthcheck:
+      test: curl --cacert $CERTS_DIR/ca/ca.crt -s https://localhost:9200 >/dev/null; if [[ $$? == 52 ]]; then echo 0; else echo 1; fi
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  es02:
+    container_name: es02
+    image: {docker-image}
+    environment:
+      - node.name=es02
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02
+      - ELASTIC_PASSWORD=$ELASTIC_PASSWORD
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.license.self_generated.type=trial
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=$CERTS_DIR/es02/es02.key
+      - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.http.ssl.certificate=$CERTS_DIR/es02/es02.crt
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate <3>
+      - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+      - xpack.security.transport.ssl.certificate=$CERTS_DIR/es02/es02.crt
+      - xpack.security.transport.ssl.key=$CERTS_DIR/es02/es02.key
+    volumes: ['data02:/usr/share/elasticsearch/data', 'certs:$CERTS_DIR']
+
+  wait_until_ready:
+    image: {docker-image}
+    command: /usr/bin/true
+    depends_on: {"es01": {"condition": "service_healthy"}}
+
+volumes: {"data01", "data02", "certs"}
+----
+
+<1> Bootstrap `elastic` with the password defined in `.env`. See
+<<bootstrap-elastic-passwords>>.
+<2> Automatically generate and apply a trial subscription, in order to enable
+{security-features}.
+<3> Disable verification of authenticity for inter-node communication. Allows
+creating self-signed certificates without having to pin specific internal IP addresses.
+endif::[]
+
+[float]
+==== Run the example
+. Generate the certificates (only needed once):
++
+--
+["source","sh"]
+----
+docker-compose -f create-certs.yml run --rm create_certs
+----
+--
+. Start two {es} nodes configured for SSL/TLS:
++
+--
+["source","sh"]
+----
+docker-compose up -d
+----
+--
+. Access the {es} API over SSL/TLS using the bootstrapped password:
++
+--
+["source","sh",subs="attributes"]
+----
+docker run --rm -v es_certs:/certs --network=es_default {docker-image} curl --cacert /certs/ca/ca.crt -u elastic:PleaseChangeMe https://es01:9200
+----
+// NOTCONSOLE
+--
+. The `elasticsearch-setup-passwords` tool can also be used to generate random
+passwords for all users:
++
+--
+WARNING: Windows users not running PowerShell will need to remove `\` and join lines in the snippet below.
+["source","sh"]
+----
+docker exec es01 /bin/bash -c "bin/elasticsearch-setup-passwords \
+auto --batch \
+--url https://localhost:9200"
+----
+--
+
+[float]
+==== Tear everything down
+To remove all the Docker resources created by the example, issue:
+--
+["source","sh"]
+----
+docker-compose down -v
+----
+--

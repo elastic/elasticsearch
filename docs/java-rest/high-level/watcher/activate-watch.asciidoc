@@ -3,9 +3,9 @@
 :request: ActivateWatchRequest
 :response: ActivateWatchResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Activate Watch API
+=== Activate watch API
 
 [id="{upid}-{api}-request"]
 ==== Execution
@@ -29,7 +29,7 @@ include-tagged::{doc-tests-file}[{api}-response]
 <1> `watchStatus` contains status of the watch
 
 [id="{upid}-{api}-request-async"]
-==== Asynchronous Execution
+==== Asynchronous execution
 
 This request can be executed asynchronously:
 

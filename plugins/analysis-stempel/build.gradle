@@ -26,6 +26,12 @@ dependencies {
   compile "org.apache.lucene:lucene-analyzers-stempel:${versions.lucene}"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search'
+  }
+}
+
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
 }

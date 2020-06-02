@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -30,6 +30,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -39,7 +40,6 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -87,12 +87,12 @@ public class MlMemoryTrackerTests extends ESTestCase {
             memoryTracker.offMaster();
         }
 
-        Map<String, PersistentTasksCustomMetaData.PersistentTask<?>> tasks = new HashMap<>();
+        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = new HashMap<>();
 
         int numAnomalyDetectorJobTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numAnomalyDetectorJobTasks; ++i) {
             String jobId = "job" + i;
-            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
+            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
             tasks.put(task.getId(), task);
         }
 
@@ -101,12 +101,12 @@ public class MlMemoryTrackerTests extends ESTestCase {
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
             allIds.add(id);
-            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id);
+            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
             tasks.put(task.getId(), task);
         }
 
-        PersistentTasksCustomMetaData persistentTasks =
-            new PersistentTasksCustomMetaData(numAnomalyDetectorJobTasks + numDataFrameAnalyticsTasks, tasks);
+        PersistentTasksCustomMetadata persistentTasks =
+            new PersistentTasksCustomMetadata(numAnomalyDetectorJobTasks + numDataFrameAnalyticsTasks, tasks);
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -122,7 +122,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 String jobId = "job" + i;
                 verify(jobResultsProvider, times(1)).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(), any());
             }
-            verify(configProvider, times(1)).getMultiple(eq(String.join(",", allIds)), eq(false), any());
+            verify(configProvider, times(1)).getConfigsForJobsWithTasksLeniently(eq(new HashSet<>(allIds)), any());
         } else {
             verify(jobResultsProvider, never()).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
         }
@@ -130,24 +130,24 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
     public void testRefreshAllFailure() {
 
-        Map<String, PersistentTasksCustomMetaData.PersistentTask<?>> tasks = new HashMap<>();
+        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = new HashMap<>();
 
         int numAnomalyDetectorJobTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numAnomalyDetectorJobTasks; ++i) {
             String jobId = "job" + i;
-            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
+            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestAnomalyDetectorTask(jobId);
             tasks.put(task.getId(), task);
         }
 
         int numDataFrameAnalyticsTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
-            PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id);
+            PersistentTasksCustomMetadata.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id, false);
             tasks.put(task.getId(), task);
         }
 
-        PersistentTasksCustomMetaData persistentTasks =
-            new PersistentTasksCustomMetaData(numAnomalyDetectorJobTasks + numDataFrameAnalyticsTasks, tasks);
+        PersistentTasksCustomMetadata persistentTasks =
+            new PersistentTasksCustomMetadata(numAnomalyDetectorJobTasks + numDataFrameAnalyticsTasks, tasks);
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -161,10 +161,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<List<DataFrameAnalyticsConfig>> listener =
-                (ActionListener<List<DataFrameAnalyticsConfig>>) invocation.getArguments()[2];
+                (ActionListener<List<DataFrameAnalyticsConfig>>) invocation.getArguments()[1];
             listener.onFailure(new IllegalArgumentException("computer says no"));
             return null;
-        }).when(configProvider).getMultiple(anyString(), anyBoolean(), any());
+        }).when(configProvider).getConfigsForJobsWithTasksLeniently(any(), any());
 
         AtomicBoolean gotErrorResponse = new AtomicBoolean(false);
         memoryTracker.refresh(persistentTasks,
@@ -177,10 +177,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<List<DataFrameAnalyticsConfig>> listener =
-                (ActionListener<List<DataFrameAnalyticsConfig>>) invocation.getArguments()[2];
+                (ActionListener<List<DataFrameAnalyticsConfig>>) invocation.getArguments()[1];
             listener.onResponse(Collections.emptyList());
             return null;
-        }).when(configProvider).getMultiple(anyString(), anyBoolean(), any());
+        }).when(configProvider).getConfigsForJobsWithTasksLeniently(any(), any());
 
         AtomicBoolean gotSuccessResponse = new AtomicBoolean(false);
         memoryTracker.refresh(persistentTasks,
@@ -255,15 +255,16 @@ public class MlMemoryTrackerTests extends ESTestCase {
         assertEquals("Couldn't run ML memory update - node is shutting down", exception.get().getMessage());
     }
 
-    private PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> makeTestAnomalyDetectorTask(String jobId) {
-        return new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.jobTaskId(jobId), MlTasks.JOB_TASK_NAME,
-            new OpenJobAction.JobParams(jobId), 0, PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT);
+    private PersistentTasksCustomMetadata.PersistentTask<OpenJobAction.JobParams> makeTestAnomalyDetectorTask(String jobId) {
+        return new PersistentTasksCustomMetadata.PersistentTask<>(MlTasks.jobTaskId(jobId), MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams(jobId), 0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
     }
 
     private
-    PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> makeTestDataFrameAnalyticsTask(String id) {
-        return new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.dataFrameAnalyticsTaskId(id),
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT), 0,
-            PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT);
+    PersistentTasksCustomMetadata.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>
+    makeTestDataFrameAnalyticsTask(String id, boolean allowLazyStart) {
+        return new PersistentTasksCustomMetadata.PersistentTask<>(MlTasks.dataFrameAnalyticsTaskId(id),
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT,
+            Collections.emptyList(), allowLazyStart), 0, PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT);
     }
 }

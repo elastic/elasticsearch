@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class MockSecureSettings implements SecureSettings {
 
-    private Map<String, SecureString> secureStrings = new HashMap<>();
+    private Map<String, String> secureStrings = new HashMap<>();
     private Map<String, byte[]> files = new HashMap<>();
     private Map<String, byte[]> sha256Digests = new HashMap<>();
     private Set<String> settingNames = new HashSet<>();
@@ -65,7 +65,11 @@ public class MockSecureSettings implements SecureSettings {
     @Override
     public SecureString getString(String setting) {
         ensureOpen();
-        return secureStrings.get(setting);
+        final String s = secureStrings.get(setting);
+        if (s == null) {
+            return null;
+        }
+        return new SecureString(s.toCharArray());
     }
 
     @Override
@@ -81,7 +85,7 @@ public class MockSecureSettings implements SecureSettings {
 
     public void setString(String setting, String value) {
         ensureOpen();
-        secureStrings.put(setting, new SecureString(value.toCharArray()));
+        secureStrings.put(setting, value);
         sha256Digests.put(setting, MessageDigests.sha256().digest(value.getBytes(StandardCharsets.UTF_8)));
         settingNames.add(setting);
     }

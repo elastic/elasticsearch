@@ -3,7 +3,7 @@
 :request: StopRollupJobRequest
 :response: StopRollupJobResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Stop Rollup Job API
 

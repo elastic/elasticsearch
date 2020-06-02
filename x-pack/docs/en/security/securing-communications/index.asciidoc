@@ -1,0 +1,24 @@
+[role="xpack"]
+[[encrypting-communications]]
+== Encrypting communications
+
+Elasticsearch nodes store data that may be confidential. Attacks on the data may
+come from the network. These attacks could include sniffing of the data,
+manipulation of the data, and attempts to gain access to the server and thus the
+files storing the data. Securing your nodes helps reduce the risk from
+network-based attacks.
+
+This section shows how to:
+
+* Encrypt traffic to, from and within an Elasticsearch cluster using SSL/TLS,
+* Require nodes to authenticate as they join the cluster using SSL certificates, and
+* Make it more difficult for remote attackers to issue any commands to Elasticsearch.
+
+The authentication of new nodes helps prevent a rogue node from joining the
+cluster and receiving data through replication.
+
+include::setting-up-ssl.asciidoc[]
+include::securing-elasticsearch.asciidoc[]
+include::configuring-tls-docker.asciidoc[]
+include::enabling-cipher-suites.asciidoc[]
+

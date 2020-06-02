@@ -10,8 +10,8 @@
         {
           "path":"/{index}/_doc/{id}",
           "methods":[
-            "POST",
-            "PUT"
+            "PUT",
+            "POST"
           ],
           "parts":{
             "id":{
@@ -35,53 +35,6 @@
               "description":"The name of the index"
             }
           }
-        },
-        {
-          "path":"/{index}/{type}",
-          "methods":[
-            "POST"
-          ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"The name of the index"
-            },
-            "type":{
-              "type":"string",
-              "description":"The type of the document",
-              "deprecated":true
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
-          }
-        },
-        {
-          "path":"/{index}/{type}/{id}",
-          "methods":[
-            "POST",
-            "PUT"
-          ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"Document ID"
-            },
-            "index":{
-              "type":"string",
-              "description":"The name of the index"
-            },
-            "type":{
-              "type":"string",
-              "description":"The type of the document",
-              "deprecated":true
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
-          }
         }
       ]
     },
@@ -96,8 +49,7 @@
           "index",
           "create"
         ],
-        "default":"index",
-        "description":"Explicit operation type"
+        "description":"Explicit operation type. Defaults to `index` for requests with an explicit document ID, and to `create`for requests without an explicit document ID"
       },
       "refresh":{
         "type":"enum",
@@ -125,8 +77,7 @@
         "options":[
           "internal",
           "external",
-          "external_gte",
-          "force"
+          "external_gte"
         ],
         "description":"Specific version type"
       },

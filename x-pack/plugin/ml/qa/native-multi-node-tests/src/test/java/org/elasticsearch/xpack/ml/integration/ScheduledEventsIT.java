@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.junit.After;
 
 import java.io.IOException;
@@ -223,7 +225,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the process was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+            SearchResponse searchResponse =
+                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
                     .setSize(1)
                     .addSort("timestamp", SortOrder.DESC)
                     .setQuery(QueryBuilders.boolQuery()
@@ -298,7 +301,8 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the job was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+            SearchResponse searchResponse =
+                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
                     .setSize(1)
                     .addSort("timestamp", SortOrder.DESC)
                     .setQuery(QueryBuilders.boolQuery()
@@ -332,7 +336,54 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         assertEquals(0, buckets.get(8).getScheduledEvents().size());
     }
 
-    private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
+    /**
+     * An open job that later gets added to a calendar, should take the scheduled events into account
+     */
+    public void testNewJobWithGlobalCalendar() throws Exception {
+        String calendarId = "test-global-calendar";
+
+        // Create a new calendar referencing groupName
+        putCalendar(calendarId, Collections.singletonList(Metadata.ALL), "testNewJobWithGlobalCalendar calendar");
+
+        long startTime = 1514764800000L;
+        final int bucketCount = 3;
+        TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
+
+        // Put events in the calendar
+        List<ScheduledEvent> events = new ArrayList<>();
+        long eventStartTime = startTime;
+        long eventEndTime = eventStartTime + (long) (1.5 * bucketSpan.millis());
+        events.add(new ScheduledEvent.Builder().description("Some Event")
+            .startTime((Instant.ofEpochMilli(eventStartTime)))
+            .endTime((Instant.ofEpochMilli(eventEndTime)))
+            .calendarId(calendarId).build());
+
+        postScheduledEvents(calendarId, events);
+
+        Job.Builder job = createJob("scheduled-events-add-to-new-job--with-global-calendar", bucketSpan);
+
+        // Open the job
+        openJob(job.getId());
+
+        // write some buckets of data
+        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount + 1, bucketIndex -> randomIntBetween(100, 200))
+            .stream().collect(Collectors.joining()));
+
+        // and close
+        closeJob(job.getId());
+
+        GetBucketsAction.Request getBucketsRequest = new GetBucketsAction.Request(job.getId());
+        List<Bucket> buckets = getBuckets(getBucketsRequest);
+
+        // 1st and 2nd buckets have the event but the last one does not
+        assertEquals(1, buckets.get(0).getScheduledEvents().size());
+        assertEquals("Some Event", buckets.get(0).getScheduledEvents().get(0));
+        assertEquals(1, buckets.get(1).getScheduledEvents().size());
+        assertEquals("Some Event", buckets.get(1).getScheduledEvents().get(0));
+        assertEquals(0, buckets.get(2).getScheduledEvents().size());
+    }
+
+        private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);

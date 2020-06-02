@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -13,7 +15,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -31,6 +33,8 @@ import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 import java.io.IOException;
 
 public class TransportRetryAction extends TransportMasterNodeAction<Request, Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportRetryAction.class);
 
     IndexLifecycleService indexLifecycleService;
 
@@ -58,13 +62,13 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Res
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return indexLifecycleService.moveClusterStateToFailedStep(currentState, request.indices());
+                    return indexLifecycleService.moveClusterStateToPreviouslyFailedStep(currentState, request.indices());
                 }
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     for (String index : request.indices()) {
-                        IndexMetaData idxMeta = newState.metaData().index(index);
+                        IndexMetadata idxMeta = newState.metadata().index(index);
                         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
                         StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
                         if (idxMeta == null) {

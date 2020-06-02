@@ -80,7 +80,7 @@ public final class CircleProcessor extends AbstractProcessor {
             parser.nextToken(); // START_OBJECT
             parser.nextToken(); // "shape" field key
             parser.nextToken(); // shape value
-            GeometryFormat geometryFormat = PARSER.geometryFormat(parser);
+            GeometryFormat<Geometry> geometryFormat = PARSER.geometryFormat(parser);
             Geometry geometry = geometryFormat.fromXContent(parser);
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;

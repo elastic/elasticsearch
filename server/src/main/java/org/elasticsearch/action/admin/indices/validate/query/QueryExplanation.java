@@ -44,7 +44,7 @@ public class QueryExplanation implements Writeable, ToXContentFragment {
 
     public static final int RANDOM_SHARD = -1;
 
-    static ConstructingObjectParser<QueryExplanation, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<QueryExplanation, Void> PARSER = new ConstructingObjectParser<>(
         "query_explanation",
         true,
         a -> {

@@ -25,6 +25,8 @@ import org.elasticsearch.client.Node.Roles;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.junit.Assert.assertEquals;
 
@@ -64,9 +66,19 @@ public class NodeSelectorTests extends RestClientTestCase {
     }
 
     private static Node dummyNode(boolean master, boolean data, boolean ingest) {
+        final Set<String> roles = new TreeSet<>();
+        if (master) {
+            roles.add("master");
+        }
+        if (data) {
+            roles.add("data");
+        }
+        if (ingest) {
+            roles.add("ingest");
+        }
         return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
                 randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
-                new Roles(master, data, ingest),
+                new Roles(roles),
                 Collections.<String, List<String>>emptyMap());
     }
 }

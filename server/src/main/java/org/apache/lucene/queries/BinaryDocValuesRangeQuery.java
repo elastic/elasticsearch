@@ -145,25 +145,31 @@ public final class BinaryDocValuesRangeQuery extends Query {
         INTERSECTS {
             @Override
             boolean matches(BytesRef from, BytesRef to, BytesRef otherFrom, BytesRef otherTo) {
-                // part of the other range must touch this range
-                // this:    |---------------|
-                // other:               |------|
+                /*
+                 * part of the other range must touch this range
+                 * this:    |---------------|
+                 * other:               |------|
+                 */
                 return from.compareTo(otherTo) <= 0 && to.compareTo(otherFrom) >= 0;
             }
         }, WITHIN {
             @Override
             boolean matches(BytesRef from, BytesRef to, BytesRef otherFrom, BytesRef otherTo) {
-                // other range must entirely lie within this range
-                // this:    |---------------|
-                // other:       |------|
+                /*
+                 * other range must entirely lie within this range
+                 * this:    |---------------|
+                 * other:       |------|
+                 */
                 return from.compareTo(otherFrom) <= 0 && to.compareTo(otherTo) >= 0;
             }
         }, CONTAINS {
             @Override
             boolean matches(BytesRef from, BytesRef to, BytesRef otherFrom, BytesRef otherTo) {
-                // this and other range must overlap
-                // this:       |------|
-                // other:    |---------------|
+                /*
+                 * this and other range must overlap
+                 * this:       |------|
+                 * other:    |---------------|
+                 */
                 return from.compareTo(otherFrom) >= 0 && to.compareTo(otherTo) <= 0;
             }
         }, CROSSES {

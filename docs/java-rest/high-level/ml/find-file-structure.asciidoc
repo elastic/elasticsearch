@@ -3,6 +3,7 @@
 :request: FindFileStructureRequest
 :response: FindFileStructureResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Find File Structure API
 

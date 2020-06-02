@@ -2,10 +2,10 @@
 = Elasticsearch Reference
 
 :include-xpack:         true
-:es-test-dir:           {docdir}/../src/test
-:plugins-examples-dir:  {docdir}/../../plugins/examples
-:xes-repo-dir:          {docdir}/../../x-pack/docs/{lang}
-:es-repo-dir:           {docdir}
+:es-test-dir:           {elasticsearch-root}/docs/src/test
+:plugins-examples-dir:  {elasticsearch-root}/plugins/examples
+:xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
+:es-repo-dir:           {elasticsearch-root}/docs/reference
 
 
 include::../Versions.asciidoc[]
@@ -16,19 +16,19 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::monitoring/configuring-monitoring.asciidoc[]
-
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
-include::setup/bootstrap-checks-xes.asciidoc[]
-
 include::upgrade.asciidoc[]
 
-include::aggregations.asciidoc[]
+include::search/index.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
-include::modules/cross-cluster-search.asciidoc[]
+ifdef::permanently-unreleased-branch[]
+include::eql/index.asciidoc[]
+endif::[]
+
+include::sql/index.asciidoc[]
+
+include::aggregations.asciidoc[]
 
 include::scripting.asciidoc[]
 
@@ -36,29 +36,35 @@ include::mapping.asciidoc[]
 
 include::analysis.asciidoc[]
 
-include::modules.asciidoc[]
-
 include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
-include::sql/index.asciidoc[]
+ifdef::permanently-unreleased-branch[]
+
+include::autoscaling/index.asciidoc[]
+
+endif::[]
 
 include::monitoring/index.asciidoc[]
 
-include::rollup/index.asciidoc[]
-
 include::frozen-indices.asciidoc[]
 
-include::administering.asciidoc[]
+include::data-rollup-transform.asciidoc[]
+
+include::high-availability.asciidoc[]
+
+include::snapshot-restore/index.asciidoc[]
+
+include::{xes-repo-dir}/security/index.asciidoc[]
+
+include::{xes-repo-dir}/watcher/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
-
-include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 

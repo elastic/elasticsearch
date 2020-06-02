@@ -23,29 +23,34 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalAggregationBuilder> {
+    public static GlobalAggregationBuilder parse(XContentParser parser, String aggregationName) throws IOException {
+        parser.nextToken();
+        return new GlobalAggregationBuilder(aggregationName);
+    }
+
     public static final String NAME = "global";
 
     public GlobalAggregationBuilder(String name) {
         super(name);
     }
 
-    protected GlobalAggregationBuilder(GlobalAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GlobalAggregationBuilder(GlobalAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GlobalAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GlobalAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -61,9 +66,14 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
     }
 
     @Override
-    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
+    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new GlobalAggregatorFactory(name, context, parent, subFactoriesBuilder, metaData);
+        return new GlobalAggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -71,11 +81,6 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
         builder.startObject();
         builder.endObject();
         return builder;
-    }
-
-    public static GlobalAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        parser.nextToken();
-        return new GlobalAggregationBuilder(aggregationName);
     }
 
     @Override

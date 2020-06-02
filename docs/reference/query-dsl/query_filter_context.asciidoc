@@ -58,7 +58,7 @@ conditions are met:
 * The `status` field contains the exact word `published`.
 * The `publish_date` field contains a date from 1 Jan 2015 onwards.
 
-[source,js]
+[source,console]
 ------------------------------------
 GET /_search
 {
@@ -76,7 +76,7 @@ GET /_search
   }
 }
 ------------------------------------
-// CONSOLE
+
 <1> The `query` parameter indicates query context.
 <2> The `bool` and two `match` clauses are used in query context,
     which means that they are used to score how well each document

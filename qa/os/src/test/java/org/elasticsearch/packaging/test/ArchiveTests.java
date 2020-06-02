@@ -20,26 +20,25 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
-import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
-import static org.elasticsearch.packaging.util.FileMatcher.file;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
 import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
@@ -51,7 +50,8 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -63,18 +63,18 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test10Install() throws Exception {
-        installation = installArchive(distribution());
+        installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
     }
 
     public void test20PluginsListWithNoPlugins() throws Exception {
         final Installation.Executables bin = installation.executables();
-        final Result r = sh.run(bin.elasticsearchPlugin + " list");
+        final Result r = bin.pluginTool.run("list");
 
-        assertThat(r.stdout, isEmptyString());
+        assertThat(r.stdout, emptyString());
     }
 
-    public void test30NoJava() throws Exception {
+    public void test30MissingBundledJdk() throws Exception {
         final Installation.Executables bin = installation.executables();
         sh.getEnv().remove("JAVA_HOME");
 
@@ -87,7 +87,7 @@ public class ArchiveTests extends PackagingTestCase {
             // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
+            assertThat(runResult.stderr, containsString("could not find java in bundled jdk"));
         } finally {
             if (distribution().hasJdk) {
                 mv(relocatedJdk, installation.bundledJdk);
@@ -95,69 +95,71 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    public void test40CreateKeystoreManually() throws Exception {
+    public void test31BadJavaHome() throws Exception {
         final Installation.Executables bin = installation.executables();
+        sh.getEnv().put("JAVA_HOME", "doesnotexist");
 
-        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
+        // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
+        final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -V");
+        assertThat(runResult.exitCode, is(1));
+        assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME"));
 
-        // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
-        // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
-        // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
-        // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> sh.run(
-                bin.elasticsearchKeystore + " create; " +
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$acl = Get-Acl '" + installation.config("elasticsearch.keystore") + "'; " +
-                "$acl.SetOwner($account); " +
-                "Set-Acl '" + installation.config("elasticsearch.keystore") + "' $acl"
-        ));
+    }
 
-        assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
+    public void test32SpecialCharactersInJdkPath() throws Exception {
+        final Installation.Executables bin = installation.executables();
+        assumeTrue("Only run this test when we know where the JDK is.", distribution().hasJdk);
 
-        Platforms.onLinux(() -> {
-            final Result r = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("a (special) path");
+        sh.getEnv().put("JAVA_HOME", relocatedJdk.toString());
 
-        Platforms.onWindows(() -> {
-            final Result r = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(r.stdout, containsString("keystore.seed"));
-        });
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            // ask for elasticsearch version to avoid starting the app
+            final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
+            assertThat(runResult.stdout, startsWith("Version: "));
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test50StartAndStop() throws Exception {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
-        Archives.runElasticsearch(installation, sh);
+        try {
+            startElasticsearch();
+        } catch (Exception e) {
+            if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
+                String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
+                logger.info("Dumping jstack of elasticsearch processb ({}) that failed to start", pid);
+                sh.runIgnoreExitCode("jstack " + pid);
+            }
+            throw e;
+        }
 
-        assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
+        assertThat(installation.logs.resolve("gc.log"), fileExists());
         ServerUtils.runElasticsearchTests();
 
-        Archives.stopElasticsearch(installation);
-    }
-
-    public void assertRunsWithJavaHome() throws Exception {
-        Platforms.onLinux(() -> {
-            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
-        });
-        Platforms.onWindows(() -> {
-            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
-        });
-
-        Archives.runElasticsearch(installation, sh);
-        ServerUtils.runElasticsearchTests();
-        Archives.stopElasticsearch(installation);
-
-        String systemJavaHome = sh.getEnv().get("JAVA_HOME");
-        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
-            containsString(systemJavaHome));
+        stopElasticsearch();
     }
 
     public void test51JavaHomeOverride() throws Exception {
-        assertRunsWithJavaHome();
+        Platforms.onLinux(() -> {
+            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+        });
+        Platforms.onWindows(() -> {
+            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+        });
+
+        startElasticsearch();
+        ServerUtils.runElasticsearchTests();
+        stopElasticsearch();
+
+        String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
+        assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
     }
 
     public void test52BundledJdkRemoved() throws Exception {
@@ -166,7 +168,21 @@ public class ArchiveTests extends PackagingTestCase {
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
         try {
             mv(installation.bundledJdk, relocatedJdk);
-            assertRunsWithJavaHome();
+            Platforms.onLinux(() -> {
+                String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            });
+            Platforms.onWindows(() -> {
+                final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            });
+
+            startElasticsearch();
+            ServerUtils.runElasticsearchTests();
+            stopElasticsearch();
+
+            String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
+            assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"), containsString(systemJavaHome1));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }
@@ -174,47 +190,42 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
-            final Shell sh = new Shell();
+            String javaPath = "C:\\Program Files (x86)\\java";
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
-                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
+                sh.run("cmd /c mklink /D '" + javaPath + "' $Env:SYSTEM_JAVA_HOME");
 
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
-                //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
+                // verify ES can start, stop and run plugin list
+                startElasticsearch();
 
-                Archives.stopElasticsearch(installation);
+                stopElasticsearch();
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
 
             } finally {
-                //clean up sym link
-                sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
+                // clean up sym link
+                if (Files.exists(Paths.get(javaPath))) {
+                    sh.run("cmd /c rmdir '" + javaPath + "' ");
+                }
             }
         });
 
         Platforms.onLinux(() -> {
-            final Shell sh = new Shell();
-            // Create temporary directory with a space and link to java binary.
-            // Use it as java_home
-            String testJavaHome = FileUtils.mkdir(Paths.get("/home", ARCHIVE_OWNER, "java home")).toAbsolutePath().toString();
+            // Create temporary directory with a space and link to real java home
+            String testJavaHome = Paths.get("/tmp", "java home").toString();
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-                final String java = systemJavaHome + "/bin/java";
-
-                sh.run("mkdir -p \"" + testJavaHome + "/bin\"");
-                sh.run("ln -s \"" + java + "\" \"" + testJavaHome + "/bin/java\"");
-                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + testJavaHome + "\"");
-
+                sh.run("ln -s \"" + systemJavaHome + "\" \"" + testJavaHome + "\"");
                 sh.getEnv().put("JAVA_HOME", testJavaHome);
 
-                //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
+                // verify ES can start, stop and run plugin list
+                startElasticsearch();
 
-                Archives.stopElasticsearch(installation);
+                stopElasticsearch();
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
@@ -225,19 +236,16 @@ public class ArchiveTests extends PackagingTestCase {
         });
     }
 
-    public void test60AutoCreateKeystore() throws Exception {
-        assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
+    public void test54ForceBundledJdkEmptyJavaHome() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+        // cleanup from previous test
+        rm(installation.config("elasticsearch.keystore"));
 
-        final Installation.Executables bin = installation.executables();
-        Platforms.onLinux(() -> {
-            final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
-        });
+        sh.getEnv().put("JAVA_HOME", "");
 
-        Platforms.onWindows(() -> {
-            final Result result = sh.run(bin.elasticsearchKeystore + " list");
-            assertThat(result.stdout, containsString("keystore.seed"));
-        });
+        startElasticsearch();
+        ServerUtils.runElasticsearchTests();
+        stopElasticsearch();
     }
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
@@ -252,37 +260,80 @@ public class ArchiveTests extends PackagingTestCase {
             // we have to disable Log4j from using JMX lest it will hit a security
             // manager exception before we have configured logging; this will fail
             // startup since we detect usages of logging before it is configured
-            final String jvmOptions =
-                "-Xms512m\n" +
-                "-Xmx512m\n" +
-                "-Dlog4j2.disable.jmx=true\n";
-            append(tempConf.resolve("jvm.options"), jvmOptions);
+            final List<String> jvmOptions = List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
+            Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
-            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempConf));
-            Platforms.onWindows(() -> sh.run(
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
-                "$tempConf += Get-Item '" + tempConf + "'; " +
-                "$tempConf | ForEach-Object { " +
-                    "$acl = Get-Acl $_.FullName; " +
-                    "$acl.SetOwner($account); " +
-                    "Set-Acl $_.FullName $acl " +
-                "}"
-            ));
+            sh.chown(tempConf);
 
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
 
-            Archives.runElasticsearch(installation, sh);
+            startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            Archives.stopElasticsearch(installation);
+            stopElasticsearch();
 
         } finally {
             rm(tempConf);
+        }
+    }
+
+    public void test71CustomJvmOptionsDirectoryFile() throws Exception {
+        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
+        try {
+            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+
+            stopElasticsearch();
+        } finally {
+            rm(heapOptions);
+        }
+    }
+
+    public void test72CustomJvmOptionsDirectoryFilesAreProcessedInSortedOrder() throws Exception {
+        final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
+        final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
+        try {
+            /*
+             * We override the heap in the first file, and disable compressed oops, and override the heap in the second file. By doing this,
+             * we can test that both files are processed by the JVM options parser, and also that they are processed in lexicographic order.
+             */
+            append(firstOptions, "-Xms384m\n-Xmx384m\n-XX:-UseCompressedOops\n");
+            append(secondOptions, "-Xms512m\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+
+            stopElasticsearch();
+        } finally {
+            rm(firstOptions);
+            rm(secondOptions);
+        }
+    }
+
+    public void test73CustomJvmOptionsDirectoryFilesWithoutOptionsExtensionIgnored() throws Exception {
+        final Path jvmOptionsIgnored = installation.config(Paths.get("jvm.options.d", "jvm.options.ignored"));
+        try {
+            append(jvmOptionsIgnored, "-Xms512\n-Xmx512m\n");
+
+            startElasticsearch();
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
+
+            stopElasticsearch();
+        } finally {
+            rm(jvmOptionsIgnored);
         }
     }
 
@@ -293,34 +344,21 @@ public class ArchiveTests extends PackagingTestCase {
 
         try {
             mkdir(tempConf);
-            Stream.of(
-                "elasticsearch.yml",
-                "log4j2.properties",
-                "jvm.options"
-            ).forEach(file -> cp(installation.config(file), tempConf.resolve(file)));
+            Stream.of("elasticsearch.yml", "log4j2.properties", "jvm.options")
+                .forEach(file -> cp(installation.config(file), tempConf.resolve(file)));
 
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
-            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + temp));
-            Platforms.onWindows(() -> sh.run(
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
-                "$tempConf += Get-Item '" + temp + "'; " +
-                "$tempConf | ForEach-Object { " +
-                    "$acl = Get-Acl $_.FullName; " +
-                    "$acl.SetOwner($account); " +
-                    "Set-Acl $_.FullName $acl " +
-                "}"
-            ));
+            sh.chown(temp);
 
             sh.setWorkingDirectory(temp);
             sh.getEnv().put("ES_PATH_CONF", "config");
-            Archives.runElasticsearch(installation, sh);
+            startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
-            Archives.stopElasticsearch(installation);
+            stopElasticsearch();
 
         } finally {
             rm(tempConf);
@@ -331,20 +369,20 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         if (distribution().isDefault()) {
-            assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
             final Platforms.PlatformAction action = () -> {
-                Result result = sh.run(bin.elasticsearchCertutil + " --help");
+                Result result = sh.run(bin.certutilTool + " --help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
                 // Ensure that the exit code from the java command is passed back up through the shell script
-                result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
+                result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
                 assertThat(result.exitCode, is(not(0)));
                 assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
             };
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         } else {
-            assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
+            assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileDoesNotExist());
         }
     }
 
@@ -352,7 +390,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
-            final Result result = sh.run(bin.elasticsearchShard + " -h");
+            final Result result = sh.run(bin.shardTool + " -h");
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
@@ -367,9 +405,8 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         Platforms.PlatformAction action = () -> {
-            final Result result = sh.run(bin.elasticsearchNode + " -h");
-            assertThat(result.stdout,
-                    containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
+            final Result result = sh.run(bin.nodeTool + " -h");
+            assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
         // TODO: this should be checked on all distributions
@@ -385,10 +422,10 @@ public class ArchiveTests extends PackagingTestCase {
 
         sh.setWorkingDirectory(getTempDir());
 
-        Archives.runElasticsearch(installation, sh);
-        Archives.stopElasticsearch(installation);
+        startElasticsearch();
+        stopElasticsearch();
 
-        Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
+        Result result = sh.run("echo y | " + installation.executables().nodeTool + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
 
@@ -398,18 +435,14 @@ public class ArchiveTests extends PackagingTestCase {
         sh.setWorkingDirectory(getTempDir());
 
         Platforms.PlatformAction action = () -> {
-            Result result = sh.run(bin.elasticsearchCertutil+ " -h");
-            assertThat(result.stdout,
-                containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            result = sh.run(bin.elasticsearchSyskeygen+ " -h");
-            assertThat(result.stdout,
-                containsString("system key tool"));
-            result = sh.run(bin.elasticsearchSetupPasswords+ " -h");
-            assertThat(result.stdout,
-                containsString("Sets the passwords for reserved users"));
-            result = sh.run(bin.elasticsearchUsers+ " -h");
-            assertThat(result.stdout,
-                containsString("Manages elasticsearch file users"));
+            Result result = sh.run(bin.certutilTool + " -h");
+            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            result = sh.run(bin.syskeygenTool + " -h");
+            assertThat(result.stdout, containsString("system key tool"));
+            result = sh.run(bin.setupPasswordsTool + " -h");
+            assertThat(result.stdout, containsString("Sets the passwords for reserved users"));
+            result = sh.run(bin.usersTool + " -h");
+            assertThat(result.stdout, containsString("Manages elasticsearch file users"));
         };
 
         // TODO: this should be checked on all distributions

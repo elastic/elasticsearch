@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.nio.file.Path;
@@ -83,7 +81,7 @@ public class DiscoveryModule {
 
     private final Discovery discovery;
 
-    public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public DiscoveryModule(Settings settings, TransportService transportService,
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
                            AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState,
@@ -147,14 +145,18 @@ public class DiscoveryModule {
         if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
             discovery = new Coordinator(NODE_NAME_SETTING.get(settings),
                 settings, clusterSettings,
-                transportService, namedWriteableRegistry, allocationService, masterService,
-                () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), seedHostsProvider,
-                clusterApplier, joinValidators, new Random(Randomness.get().nextLong()), rerouteService, electionStrategy);
+                transportService, namedWriteableRegistry, allocationService, masterService, gatewayMetaState::getPersistedState,
+                seedHostsProvider, clusterApplier, joinValidators, new Random(Randomness.get().nextLong()), rerouteService,
+                electionStrategy);
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
 
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
+    }
+
+    public static boolean isSingleNodeDiscovery(Settings settings) {
+        return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
     }
 
     public Discovery getDiscovery() {

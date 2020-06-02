@@ -1,0 +1,15 @@
+[[restore-cluster-data]]
+=== Restore a cluster's data
+++++
+<titleabbrev>Restore the data</titleabbrev>
+++++
+
+include::../snapshot-restore/index.asciidoc[tag=restore-intro]
+
+[TIP]
+====
+If your cluster has {es} {security-features} enabled, the restore API requires the `manage` cluster privilege. There is no bespoke role for the restore process. This privilege is very permissive and should only
+be granted to users in the "administrator" category. Specifically, it allows
+malicious users to exfiltrate data to a location of their choosing. Automated
+tools should not run as users with this privilege.
+====

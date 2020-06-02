@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -51,18 +50,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     private static final Pattern UNDERSCORE_THEN_ANYTHING = Pattern.compile("_(.)");
 
-    private static String toCamelCase(String s) {
-        Matcher m = UNDERSCORE_THEN_ANYTHING.matcher(s);
-        StringBuffer sb = new StringBuffer();
-        while (m.find()) {
-            m.appendReplacement(sb, m.group(1).toUpperCase(Locale.ROOT));
-        }
-        m.appendTail(sb);
-        sb.setCharAt(0, Character.toUpperCase(sb.charAt(0)));
-        return sb.toString();
-    }
-
-    static final Map<String,Class<?>> KNOWN_TOKENIZERS = Map.ofEntries(
+    private static final Map<String,Class<?>> KNOWN_TOKENIZERS = Map.ofEntries(
         // exposed in ES
         entry("classic", MovedToAnalysisCommon.class),
         entry("edgengram", MovedToAnalysisCommon.class),
@@ -203,7 +191,10 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // particular token filters based on the attributes of the current token.
         entry("protectedterm", Void.class),
         // LUCENE-8332
-        entry("concatenategraph", Void.class));
+        entry("concatenategraph", Void.class),
+        // LUCENE-8936
+        entry("spanishminimalstem", Void.class),
+        entry("delimitedboost", Void.class));
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(
             "htmlstrip", MovedToAnalysisCommon.class,

@@ -23,7 +23,7 @@ User credentials are cached in memory on each node to avoid connecting to a
 remote authentication service or hitting the disk for every incoming request.
 There are realm settings that you can use to configure the user cache. For more
 information, see
-{stack-ov}/controlling-user-cache.html[Controlling the user cache].
+<<controlling-user-cache>>.
 
 To evict roles from the role cache, see the 
 <<security-api-clear-role-cache,Clear roles cache API>>.
@@ -44,25 +44,22 @@ To evict roles from the role cache, see the
 
 For example, to evict all users cached by the `file` realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/realm/default_file/_clear_cache
 --------------------------------------------------
-// CONSOLE
 
 To evict selected users, specify the `usernames` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/realm/default_file/_clear_cache?usernames=rdeniro,alpacino
 --------------------------------------------------
-// CONSOLE
 
 To clear the caches for multiple realms, specify the realms as a comma-delimited
 list:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/realm/default_file,ldap1/_clear_cache
 ------------------------------------------------------------
-// CONSOLE

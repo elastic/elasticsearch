@@ -20,7 +20,6 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -115,22 +114,13 @@ public class Environment {
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
         final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        if (DiscoveryNode.nodeRequiresLocalStorage(settings)) {
-            if (dataPaths.isEmpty() == false) {
-                dataFiles = new Path[dataPaths.size()];
-                for (int i = 0; i < dataPaths.size(); i++) {
-                    dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
-                }
-            } else {
-                dataFiles = new Path[]{homeFile.resolve("data")};
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
             }
         } else {
-            if (dataPaths.isEmpty()) {
-                dataFiles = EMPTY_PATH_ARRAY;
-            } else {
-                final String paths = String.join(",", dataPaths);
-                throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
-            }
+            dataFiles = new Path[]{homeFile.resolve("data")};
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();

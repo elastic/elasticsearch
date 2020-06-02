@@ -19,41 +19,36 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
-import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.apache.lucene.search.DoubleValues;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+
+import java.io.IOException;
 
 /**
  * ValueSource to return latitudes as a double "stream" for geopoint fields
  */
-final class GeoLatitudeValueSource extends ValueSource {
-    final IndexFieldData<?> fieldData;
+final class GeoLatitudeValueSource extends FieldDataBasedDoubleValuesSource {
 
     GeoLatitudeValueSource(IndexFieldData<?> fieldData) {
-        this.fieldData = Objects.requireNonNull(fieldData);
+        super(fieldData);
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicGeoPointFieldData leafData = (AtomicGeoPointFieldData) fieldData.load(leaf);
+    public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
+        LeafGeoPointFieldData leafData = (LeafGeoPointFieldData) fieldData.load(leaf);
         final MultiGeoPointValues values = leafData.getGeoPointValues();
-        return new DoubleDocValues(this) {
+        return new DoubleValues() {
             @Override
-            public double doubleVal(int doc) throws IOException {
-                if (values.advanceExact(doc)) {
-                    return values.nextValue().getLat();
-                } else {
-                    return 0.0;
-                }
+            public double doubleValue() throws IOException {
+                return values.nextValue().getLat();
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
             }
         };
     }
@@ -69,12 +64,11 @@ final class GeoLatitudeValueSource extends ValueSource {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         GeoLatitudeValueSource other = (GeoLatitudeValueSource) obj;
-        if (!fieldData.equals(other.fieldData)) return false;
-        return true;
+        return fieldData.equals(other.fieldData);
     }
 
     @Override
-    public String description() {
+    public String toString() {
         return "lat: field(" + fieldData.getFieldName() + ")";
     }
 }

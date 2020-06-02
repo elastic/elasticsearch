@@ -3,6 +3,7 @@
 :request: OpenJobRequest
 :response: OpenJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Open {anomaly-job} API
 
@@ -29,7 +30,12 @@ execution should wait for the job to be opened.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> `isOpened()` from the +{response}+ indicates if the job was successfully
-opened or not.
+<1> `isOpened()` from the +{response}+ is always `true` if the job was
+opened successfully. (An exception would be thrown instead if the job
+was not opened successfully.)
+<2> `getNode()` returns the node that the job was assigned to. If the
+job is allowed to open lazily and has not yet been assigned to a node
+then an empty string is returned. If `getNode()` returns `null` then
+the server is an old version that does not return node information.
 
 include::../execution.asciidoc[]

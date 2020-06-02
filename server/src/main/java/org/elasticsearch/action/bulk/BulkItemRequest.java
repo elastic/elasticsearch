@@ -78,7 +78,7 @@ public class BulkItemRequest implements Writeable {
      */
     public void abort(String index, Exception cause) {
         if (primaryResponse == null) {
-            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.type(), request.id(),
+            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.id(),
                     Objects.requireNonNull(cause), true);
             setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
         } else {

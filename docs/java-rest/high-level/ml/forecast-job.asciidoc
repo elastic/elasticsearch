@@ -3,6 +3,7 @@
 :request: ForecastJobRequest
 :response: ForecastJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Forecast Job API
 
@@ -33,6 +34,10 @@ include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
 <1> Set when the forecast for the job should expire
 <2> Set how far into the future should the forecast predict
+<3> Set the maximum amount of memory the forecast is allowed to use.
+    Defaults to 20mb. Maximum is 500mb, minimum is 1mb. If set to
+    40% or more of the job's configured memory limit, it is
+    automatically reduced to below that number.
 
 [id="{upid}-{api}-response"]
 ==== Forecast Job Response

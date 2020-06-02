@@ -16,7 +16,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Phaser;
@@ -222,7 +223,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     e -> logger.warn("Failed to refresh job memory requirements", e)
                 );
                 threadPool.executor(executorName()).execute(
-                    () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), listener));
+                    () -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
                 logger.warn("Couldn't schedule ML memory update - node might be shutting down", e);
@@ -248,7 +249,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return;
         }
 
-        PersistentTasksCustomMetaData persistentTasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         refresh(persistentTasks,
             ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure));
     }
@@ -270,7 +271,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         memoryRequirementByDataFrameAnalyticsJob.put(id, mem + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
 
-        PersistentTasksCustomMetaData persistentTasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         refresh(persistentTasks, listener);
     }
 
@@ -280,7 +281,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * to a race where a job was opened part way through the refresh.  (Instead, entries are removed when
      * jobs are deleted.)
      */
-    void refresh(PersistentTasksCustomMetaData persistentTasks, ActionListener<Void> onCompletion) {
+    void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
 
         synchronized (fullRefreshCompletionListeners) {
             fullRefreshCompletionListeners.add(onCompletion);
@@ -316,19 +317,19 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (persistentTasks == null) {
             refreshComplete.onResponse(null);
         } else {
-            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks().stream()
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks = persistentTasks.tasks().stream()
                 .filter(task -> MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
             ActionListener<Void> refreshDataFrameAnalyticsJobs =
                 ActionListener.wrap(aVoid -> refreshAllDataFrameAnalyticsJobTasks(mlDataFrameAnalyticsJobTasks, refreshComplete),
                     refreshComplete::onFailure);
 
-            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlAnomalyDetectorJobTasks = persistentTasks.tasks().stream()
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> mlAnomalyDetectorJobTasks = persistentTasks.tasks().stream()
                 .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
             iterateAnomalyDetectorJobTasks(mlAnomalyDetectorJobTasks.iterator(), refreshDataFrameAnalyticsJobs);
         }
     }
 
-    private void iterateAnomalyDetectorJobTasks(Iterator<PersistentTasksCustomMetaData.PersistentTask<?>> iterator,
+    private void iterateAnomalyDetectorJobTasks(Iterator<PersistentTasksCustomMetadata.PersistentTask<?>> iterator,
                                                 ActionListener<Void> refreshComplete) {
         if (iterator.hasNext()) {
             OpenJobAction.JobParams jobParams = (OpenJobAction.JobParams) iterator.next().getParams();
@@ -345,17 +346,17 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }
     }
 
-    private void refreshAllDataFrameAnalyticsJobTasks(List<PersistentTasksCustomMetaData.PersistentTask<?>> mlDataFrameAnalyticsJobTasks,
+    private void refreshAllDataFrameAnalyticsJobTasks(List<PersistentTasksCustomMetadata.PersistentTask<?>> mlDataFrameAnalyticsJobTasks,
                                                       ActionListener<Void> listener) {
         if (mlDataFrameAnalyticsJobTasks.isEmpty()) {
             listener.onResponse(null);
             return;
         }
 
-        String startedJobIds = mlDataFrameAnalyticsJobTasks.stream()
-            .map(task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId()).sorted().collect(Collectors.joining(","));
+        Set<String> jobsWithTasks = mlDataFrameAnalyticsJobTasks.stream().map(
+            task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId()).collect(Collectors.toSet());
 
-        configProvider.getMultiple(startedJobIds, false, ActionListener.wrap(
+        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, ActionListener.wrap(
             analyticsConfigs -> {
                 for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
                     memoryRequirementByDataFrameAnalyticsJob.put(analyticsConfig.getId(),

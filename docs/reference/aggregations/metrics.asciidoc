@@ -15,7 +15,11 @@ include::metrics/avg-aggregation.asciidoc[]
 
 include::metrics/weighted-avg-aggregation.asciidoc[]
 
+include::metrics/boxplot-aggregation.asciidoc[]
+
 include::metrics/cardinality-aggregation.asciidoc[]
+
+include::metrics/stats-aggregation.asciidoc[]
 
 include::metrics/extendedstats-aggregation.asciidoc[]
 
@@ -27,24 +31,25 @@ include::metrics/max-aggregation.asciidoc[]
 
 include::metrics/min-aggregation.asciidoc[]
 
+include::metrics/median-absolute-deviation-aggregation.asciidoc[]
+
 include::metrics/percentile-aggregation.asciidoc[]
 
 include::metrics/percentile-rank-aggregation.asciidoc[]
 
 include::metrics/scripted-metric-aggregation.asciidoc[]
 
-include::metrics/stats-aggregation.asciidoc[]
+include::metrics/string-stats-aggregation.asciidoc[]
 
 include::metrics/sum-aggregation.asciidoc[]
 
 include::metrics/tophits-aggregation.asciidoc[]
 
+include::metrics/top-metrics-aggregation.asciidoc[]
+
 include::metrics/valuecount-aggregation.asciidoc[]
 
-include::metrics/median-absolute-deviation-aggregation.asciidoc[]
-
-
-
+include::metrics/t-test-aggregation.asciidoc[]
 
 
 

@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -238,7 +238,7 @@ public class ReplicationResponse extends ActionResponse {
             }
 
             public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
-                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.detailedMessage(cause), status, cause);
+                super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.stackTrace(cause), status, cause);
                 this.shardId = shardId;
                 this.nodeId = nodeId;
                 this.primary = primary;
@@ -328,7 +328,7 @@ public class ReplicationResponse extends ActionResponse {
                         parser.skipChildren(); // skip potential inner arrays for forward compatibility
                     }
                 }
-                return new Failure(new ShardId(shardIndex, IndexMetaData.INDEX_UUID_NA_VALUE, shardId), nodeId, reason, status, primary);
+                return new Failure(new ShardId(shardIndex, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), nodeId, reason, status, primary);
             }
         }
     }

@@ -7,10 +7,14 @@ produces a single token.
 
 The `normalizer` is applied prior to indexing the keyword, as well as at
 search-time when the `keyword` field is searched via a query parser such as
-the <<query-dsl-match-query,`match`>> query or via a term-level query 
+the <<query-dsl-match-query,`match`>> query or via a term-level query
 such as the <<query-dsl-term-query,`term`>> query.
 
-[source,js]
+A simple normalizer called `lowercase` ships with elasticsearch and can be used.
+Custom normalizers can be defined as part of analysis settings as follows.
+
+
+[source,console]
 --------------------------------
 PUT index
 {
@@ -70,12 +74,11 @@ GET index/_search
   }
 }
 --------------------------------
-// CONSOLE
 
 The above queries match documents 1 and 2 since `BÀR` is converted to `bar` at
 both index and query time.
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": $body.took,
@@ -91,22 +94,20 @@ both index and query time.
         "value": 2,
         "relation": "eq"
     },
-    "max_score": 0.47000363,
+    "max_score": 0.4700036,
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
-        "_score": 0.47000363,
+        "_score": 0.4700036,
         "_source": {
           "foo": "BÀR"
         }
       },
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "2",
-        "_score": 0.47000363,
+        "_score": 0.4700036,
         "_source": {
           "foo": "bar"
         }
@@ -120,7 +121,7 @@ both index and query time.
 Also, the fact that keywords are converted prior to indexing also means that
 aggregations return normalized values:
 
-[source,js]
+[source,console]
 ----------------------------
 GET index/_search
 {
@@ -134,12 +135,11 @@ GET index/_search
   }
 }
 ----------------------------
-// CONSOLE
 // TEST[continued]
 
 returns
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": 43,

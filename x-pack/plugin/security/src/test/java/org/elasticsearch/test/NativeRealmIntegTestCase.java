@@ -11,11 +11,14 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -68,6 +71,16 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         return templates;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        // we are randomly running a large number of nodes in these tests so we limit the number of worker threads
+        // since the default of 2 * CPU count might use up too much direct memory for thread-local direct buffers for each node's
+        // transport threads
+        builder.put(Netty4Transport.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
+        return builder.build();
+    }
+
     private SecureString reservedPassword = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     protected SecureString getReservedPassword() {
@@ -96,8 +109,8 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
         RequestOptions options = optionsBuilder.build();
-        final List<String> usernames = Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
-            RemoteMonitoringUser.NAME);
+        final List<String> usernames = Arrays.asList(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
+            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
         for (String username : usernames) {
             Request request = new Request("PUT", "/_security/user/" + username + "/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");

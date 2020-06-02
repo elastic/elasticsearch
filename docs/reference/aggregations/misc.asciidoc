@@ -15,7 +15,7 @@ See <<shard-request-cache>> for more details.
 There are many occasions when aggregations are required but search hits are not.  For these cases the hits can be ignored by
 setting `size=0`. For example:
 
-[source,js]
+[source,console,id=returning-only-agg-results-example]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -29,7 +29,6 @@ GET /twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Setting `size` to `0` avoids executing the fetch phase of the search making the request more efficient.
@@ -42,7 +41,7 @@ at response time.
 
 Consider this example where we want to associate the color blue with our `terms` aggregation.
 
-[source,js]
+[source,console,id=agg-metadata-example]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -59,12 +58,11 @@ GET /twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Then that piece of metadata will be returned in place for our `titles` terms aggregation
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "aggregations": {
@@ -94,7 +92,7 @@ Considering the following <<search-aggregations-bucket-datehistogram-aggregation
 `tweets_over_time` which has a sub <<search-aggregations-metrics-top-hits-aggregation, 'top_hits` aggregation>> named
  `top_users`:
 
-[source,js]
+[source,console,id=returning-aggregation-type-example]
 --------------------------------------------------
 GET /twitter/_search?typed_keys
 {
@@ -115,13 +113,12 @@ GET /twitter/_search?typed_keys
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 In the response, the aggregations names will be changed to respectively `date_histogram#tweets_over_time` and
 `top_hits#top_users`, reflecting the internal types of each aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "aggregations": {
@@ -141,7 +138,6 @@ In the response, the aggregations names will be changed to respectively `date_hi
                             "hits" : [
                                 {
                                   "_index": "twitter",
-                                  "_type": "_doc",
                                   "_id": "0",
                                   "_score": 1.0,
                                   "_source": {
@@ -171,3 +167,12 @@ request. This is the case for Terms, Significant Terms and Percentiles aggregati
 also contains information about the type of the targeted field: `lterms` (for a terms aggregation on a Long field),
  `sigsterms` (for a significant terms aggregation on a String field), `tdigest_percentiles` (for a percentile
  aggregation based on the TDigest algorithm).
+ 
+
+[[indexing-aggregation-results]]
+== Indexing aggregation results with {transforms}
+ 
+<<transforms,{transforms-cap}>> enable you to convert existing {es} indices 
+into summarized indices, which provide opportunities for new insights and 
+analytics. You can use {transforms} to persistently index your aggregation 
+results into entity-centric indices.

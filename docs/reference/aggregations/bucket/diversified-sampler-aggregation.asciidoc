@@ -26,7 +26,7 @@ Example:
 We might want to see which tags are strongly associated with `#elasticsearch` on StackOverflow
 forum posts but ignoring the effects of some prolific users with a tendency to misspell #Kibana as #Cabana.
 
-[source,js]
+[source,console,id=diversified-sampler-aggregation-example]
 --------------------------------------------------
 POST /stackoverflow/_search?size=0
 {
@@ -53,12 +53,11 @@ POST /stackoverflow/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:stackoverflow]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -92,7 +91,7 @@ Response:
 In this scenario we might want to diversify on a combination of field values. We can use a `script` to produce a hash of the
 multiple values in a tags field to ensure we don't have a sample that consists of the same repeated combinations of tags.
 
-[source,js]
+[source,console,id=diversified-sampler-aggregation-scripted-example]
 --------------------------------------------------
 POST /stackoverflow/_search?size=0
 {
@@ -123,12 +122,11 @@ POST /stackoverflow/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:stackoverflow]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

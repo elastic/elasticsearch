@@ -50,7 +50,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(calendar.toXContent(builder,
-                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"))));
+                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise calendar with id [" + calendar.getId() + "]", e);
         }
@@ -68,7 +68,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
                     @Override
                     public void onFailure(Exception e) {
-                        if (e instanceof VersionConflictEngineException) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                             listener.onFailure(ExceptionsHelper.badRequestException("Cannot create calendar with id [" +
                                     calendar.getId() + "] as it already exists"));
                         } else {

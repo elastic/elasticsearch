@@ -16,7 +16,6 @@
   - do:
       index:
         index: logs-1
-        type:  test
         id:    "1"
         body:  { "foo": "hello world" }
         # make this doc visible in index stats
@@ -25,11 +24,9 @@
   - do:
       get:
         index: logs_search
-        type:  test
         id:    "1"
 
   - match: { _index:   logs-1 }
-  - match: { _type:    test   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -59,7 +56,6 @@
   - do:
       index:
         index: logs-000002
-        type:  test
         id:    "2"
         body:  { "foo": "hello world" }
 

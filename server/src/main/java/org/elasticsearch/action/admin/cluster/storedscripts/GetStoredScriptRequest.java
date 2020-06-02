@@ -44,7 +44,7 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
 
     public GetStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             this.ids = in.readStringArray();
         } else {
             this.ids = new String[] { in.readString() };
@@ -90,7 +90,7 @@ public class GetStoredScriptRequest extends MasterNodeReadRequest<GetStoredScrip
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeStringArray(ids);
         } else {
             out.writeString(ids[0]);

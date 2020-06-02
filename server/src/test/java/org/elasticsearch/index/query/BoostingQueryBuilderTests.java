@@ -20,8 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -40,11 +40,13 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        Query positive = queryBuilder.positiveQuery().toQuery(context.getQueryShardContext());
-        Query negative = queryBuilder.negativeQuery().toQuery(context.getQueryShardContext());
+    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        Query positive = queryBuilder.positiveQuery().rewrite(context).toQuery(context);
+        Query negative = queryBuilder.negativeQuery().rewrite(context).toQuery(context);
         if (positive == null || negative == null) {
             assertThat(query, nullValue());
+        } else if (positive instanceof MatchNoDocsQuery) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(FunctionScoreQuery.class));
         }
@@ -92,9 +94,9 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
     public void testRewrite() throws IOException {
         QueryBuilder positive = randomBoolean() ? new MatchAllQueryBuilder() :
-            new WrapperQueryBuilder(new TermQueryBuilder("pos", "bar").toString());
+            new WrapperQueryBuilder(new TermQueryBuilder(KEYWORD_FIELD_NAME, "bar").toString());
         QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() :
-            new WrapperQueryBuilder(new TermQueryBuilder("neg", "bar").toString());
+            new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString());
         BoostingQueryBuilder qb = new BoostingQueryBuilder(positive, negative);
         QueryBuilder rewrite = qb.rewrite(createShardContext());
         if (positive instanceof MatchAllQueryBuilder && negative instanceof MatchAllQueryBuilder) {
@@ -103,5 +105,31 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
             assertNotSame(rewrite, qb);
             assertEquals(new BoostingQueryBuilder(positive.rewrite(createShardContext()), negative.rewrite(createShardContext())), rewrite);
         }
+    }
+
+    public void testRewriteToMatchNone() throws IOException {
+        BoostingQueryBuilder builder = new BoostingQueryBuilder(
+            new TermQueryBuilder("unmapped_field", "value"),
+            new TermQueryBuilder(KEYWORD_FIELD_NAME, "other_value"));
+        QueryBuilder rewrite = builder.rewrite(createShardContext());
+        assertThat(rewrite, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+
+        BoostingQueryBuilder queryBuilder1 = new BoostingQueryBuilder(
+                new TermQueryBuilder("unmapped_field", "foo"), new MatchNoneQueryBuilder());
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder1.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+
+        BoostingQueryBuilder queryBuilder2 = new BoostingQueryBuilder(
+                new MatchAllQueryBuilder(), new TermQueryBuilder("unmapped_field", "foo"));
+        e = expectThrows(IllegalStateException.class,
+                () -> queryBuilder2.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
     }
 }

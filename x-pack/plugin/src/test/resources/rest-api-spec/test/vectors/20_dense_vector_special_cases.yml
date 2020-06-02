@@ -6,12 +6,10 @@ setup:
 
   - do:
       indices.create:
-        include_type_name: false
         index: test-index
         body:
           settings:
             number_of_replicas: 0
-            # we need to have 1 shard to get request failure in test "Dense vectors should error with sparse vector functions"
             number_of_shards: 1
           mappings:
             properties:
@@ -46,7 +44,7 @@ setup:
         index: test-index
         id: 2
         body:
-          my_dense_vector: [10.9, 10.9, 10.9]
+          my_dense_vector: [10.5, 10.9, 10.4]
 
   - do:
       indices.refresh: {}
@@ -57,12 +55,13 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [10, 10, 10]
 
@@ -76,12 +75,13 @@ setup:
         Content-Type: application/json
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [10.0, 10.0, 10.0]
 
@@ -106,12 +106,13 @@ setup:
       catch: bad_request
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
               query: {match_all: {} }
               script:
-                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [1, 2, 3, 4]
   - match: { error.root_cause.0.type: "script_exception" }
@@ -120,12 +121,13 @@ setup:
       catch: bad_request
       search:
         rest_total_hits_as_int: true
+        index: test-index
         body:
           query:
             script_score:
               query: {match_all: {} }
               script:
-                source: "dotProduct(params.query_vector, doc['my_dense_vector'])"
+                source: "dotProduct(params.query_vector, 'my_dense_vector')"
                 params:
                   query_vector: [1, 2, 3, 4]
   - match: { error.root_cause.0.type: "script_exception" }
@@ -156,12 +158,13 @@ setup:
       Content-Type: application/json
     search:
       rest_total_hits_as_int: true
+      index: test-index
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+              source: "cosineSimilarity(params.query_vector, 'my_dense_vector')"
               params:
                 query_vector: [10.0, 10.0, 10.0]
 - match: { error.root_cause.0.type: "script_exception" }
@@ -172,12 +175,13 @@ setup:
       Content-Type: application/json
     search:
       rest_total_hits_as_int: true
+      index: test-index
       body:
         query:
           script_score:
             query: {match_all: {} }
             script:
-              source: "doc['my_dense_vector'].size() == 0 ? 0 : cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+              source: "doc['my_dense_vector'].size() == 0 ? 0 : cosineSimilarity(params.query_vector, 'my_dense_vector')"
               params:
                 query_vector: [10.0, 10.0, 10.0]
 
@@ -185,31 +189,3 @@ setup:
 - match: {hits.hits.0._id: "1"}
 - match: {hits.hits.1._id: "2"}
 - match: {hits.hits.1._score: 0.0}
-
----
-"Dense vectors should error with sparse vector functions":
-
-- do:
-    index:
-      index: test-index
-      id: 1
-      body:
-        my_dense_vector: [10, 2, 0.15]
-
-- do:
-    indices.refresh: {}
-
-- do:
-    catch: bad_request
-    headers:
-      Content-Type: application/json
-    search:
-      body:
-        query:
-          script_score:
-            query: {match_all: {} }
-            script:
-              source: "dotProductSparse(params.query_vector, doc['my_dense_vector'])"
-              params:
-                query_vector: {"2": 0.5, "10" : 111.3, "3": 44}
-- match: { error.root_cause.0.type: "script_exception" }

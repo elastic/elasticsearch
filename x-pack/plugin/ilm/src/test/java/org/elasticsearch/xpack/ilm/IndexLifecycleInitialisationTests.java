@@ -5,11 +5,8 @@
  */
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -18,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
@@ -39,10 +37,10 @@ import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
@@ -59,18 +57,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static java.time.format.DateTimeFormatter.ISO_ZONED_DATE_TIME;
 import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.CombinableMatcher.both;
@@ -86,23 +86,22 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     static {
         List<Step> steps = new ArrayList<>();
         Step.StepKey key = new Step.StepKey("mock", ObservableAction.NAME, ObservableClusterStateWaitStep.NAME);
-        steps.add(new ObservableClusterStateWaitStep(key, TerminalPolicyStep.KEY));
+        Step.StepKey compKey = new Step.StepKey("mock", "complete", "complete");
+        steps.add(new ObservableClusterStateWaitStep(key, compKey));
         OBSERVABLE_ACTION = new ObservableAction(steps, true);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
 
-        // This is necessary to prevent SLM installing a lifecycle policy, these tests assume a blank slate
+        // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate
+        settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
         settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         return settings.build();
     }
@@ -123,7 +122,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, "test").build();
         List<Step> steps = new ArrayList<>();
         Step.StepKey key = new Step.StepKey("mock", ObservableAction.NAME, ObservableClusterStateWaitStep.NAME);
-        steps.add(new ObservableClusterStateWaitStep(key, TerminalPolicyStep.KEY));
+        Step.StepKey compKey = new Step.StepKey("mock", "complete", "complete");
+        steps.add(new ObservableClusterStateWaitStep(key, compKey));
+        steps.add(new PhaseCompleteStep(compKey, null));
         Map<String, LifecycleAction> actions = Collections.singletonMap(ObservableAction.NAME, OBSERVABLE_ACTION);
         mockPhase = new Phase("mock", TimeValue.timeValueSeconds(0), actions);
         Map<String, Phase> phases = Collections.singletonMap("mock", mockPhase);
@@ -137,7 +138,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
 
-        // test get-lifecycle behavior when IndexLifecycleMetaData is null
+        // test get-lifecycle behavior when IndexLifecycleMetadata is null
         GetLifecycleAction.Response getUninitializedLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
             new GetLifecycleAction.Request()).get();
         assertThat(getUninitializedLifecycleResponse.getPolicies().size(), equalTo(0));
@@ -159,7 +160,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
         assertThat(actualModifiedDate,
             is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
 
@@ -178,15 +179,15 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertNotNull(indexLifecycleService.getScheduledJob());
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
-                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
-            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
+                .prepareState().execute().actionGet().getState().getMetadata().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo("complete"));
         });
     }
 
     public void testExplainExecution() throws Exception {
         // start node
         logger.info("Starting server1");
-        final String server_1 = internalCluster().startNode();
+        internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
@@ -198,22 +199,46 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
             .actionGet();
         assertAcked(createIndexResponse);
 
+        // using AtomicLong only to extract a value from a lambda rather than the more traditional atomic update use-case
+        AtomicLong originalLifecycleDate = new AtomicLong();
         {
             PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), mockPhase, 1L, actualModifiedDate);
             assertBusy(() -> {
-                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
-                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
-                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
-                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
                 assertThat(indexResponse.getStep(), equalTo("observable_cluster_state_action"));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+                originalLifecycleDate.set(indexResponse.getLifecycleDate());
+            });
+        }
+
+        // set the origination date setting to an older value
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L)).get();
+
+        {
+            assertBusy(() -> {
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
+                assertThat("The configured origination date dictates the lifecycle date",
+                    indexResponse.getLifecycleDate(), equalTo(1000L));
+            });
+        }
+
+        // set the origination date setting to null
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null)).get();
+
+        {
+            assertBusy(() -> {
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
+                assertThat("Without the origination date, the index create date should dictate the lifecycle date",
+                    indexResponse.getLifecycleDate(), equalTo(originalLifecycleDate.get()));
             });
         }
 
@@ -222,17 +247,89 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
 
         {
-            PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), null, 1L, actualModifiedDate);
+            Phase phase = new Phase("mock", TimeValue.ZERO, Collections.singletonMap("TEST_ACTION", OBSERVABLE_ACTION));
+            PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), phase, 1L, actualModifiedDate);
             assertBusy(() -> {
-                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
-                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
-                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
-                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
-                assertThat(indexResponse.getPhase(), equalTo(TerminalPolicyStep.COMPLETED_PHASE));
-                assertThat(indexResponse.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
+                assertThat("expected to be in the 'mock' phase", indexResponse.getPhase(), equalTo("mock"));
+                assertThat("expected to be in the mock phase complete step", indexResponse.getStep(), equalTo("complete"));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
             });
         }
+    }
+
+    public void testExplainParseOriginationDate() throws Exception {
+        // start node
+        logger.info("Starting server1");
+        internalCluster().startNode();
+        logger.info("Starting server2");
+        internalCluster().startNode();
+        logger.info("Creating lifecycle [test_lifecycle]");
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+
+        String indexName = "test-2019.09.14";
+        logger.info("Creating index [{}]", indexName);
+        CreateIndexResponse createIndexResponse =
+            client().admin().indices().create(createIndexRequest(indexName)
+                .settings(Settings.builder().put(settings).put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true))
+            ).actionGet();
+        assertAcked(createIndexResponse);
+
+        DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd");
+        long expectedDate = dateFormatter.parseMillis("2019.09.14");
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(expectedDate));
+        });
+
+        // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(expectedDate));
+        });
+
+        // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null)).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(greaterThan(expectedDate)));
+        });
+
+        // setting the lifecycle origination date to an explicit value overrides the date parsing
+        long originationDate = 42L;
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(
+                Map.of(
+                    LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true,
+                    LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate)
+            ).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(originationDate));
+        });
+    }
+
+    private IndexLifecycleExplainResponse executeExplainRequestAndGetTestIndexResponse(String indexName) throws ExecutionException,
+        InterruptedException {
+        ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+        assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
+        return explainResponse.getIndexResponses().get(indexName);
     }
 
     public void testMasterDedicatedDataDedicated() throws Exception {
@@ -273,81 +370,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         assertBusy(() -> assertTrue(indexExists("test")));
         assertBusy(() -> {
             LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
-                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
-            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
-        });
-    }
-
-    public void testMasterFailover() throws Exception {
-        // start one server
-        logger.info("Starting sever1");
-        final String server_1 = internalCluster().startNode();
-        final String node1 = getLocalNodeId(server_1);
-
-        logger.info("Creating lifecycle [test_lifecycle]");
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
-        assertAcked(putLifecycleResponse);
-
-        logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
-                .actionGet();
-        assertAcked(createIndexResponse);
-
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        RoutingNode routingNodeEntry1 = clusterState.getRoutingNodes().node(node1);
-        assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(1));
-
-        logger.info("Starting server2");
-        // start another server
-        internalCluster().startNode();
-
-        // first wait for 2 nodes in the cluster
-        logger.info("Waiting for replicas to be assigned");
-        ClusterHealthResponse clusterHealth = client().admin().cluster()
-                .health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
-        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-
-        // check step in progress in lifecycle
-        assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
-                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
-            assertThat(lifecycleState.getStep(), equalTo(ObservableClusterStateWaitStep.NAME));
-        });
-
-        if (randomBoolean()) {
-            // this checks that the phase execution is picked up from the phase definition settings
-            logger.info("updating lifecycle [test_lifecycle] to be empty");
-            PutLifecycleAction.Request updateLifecycleRequest = new PutLifecycleAction.Request
-                (newLockableLifecyclePolicy(lifecyclePolicy.getName(), Collections.emptyMap()));
-            PutLifecycleAction.Response updateLifecycleResponse = client()
-                .execute(PutLifecycleAction.INSTANCE, updateLifecycleRequest).get();
-            assertAcked(updateLifecycleResponse);
-        }
-
-
-        logger.info("Closing server1");
-        // kill the first server
-        internalCluster().stopCurrentMasterNode();
-
-        // check that index lifecycle picked back up where it
-        assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
-                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
-            assertThat(lifecycleState.getStep(), equalTo(ObservableClusterStateWaitStep.NAME));
-        });
-
-        logger.info("new master is operation");
-        // complete the step
-        AcknowledgedResponse repsonse = client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Collections.singletonMap("index.lifecycle.test.complete", true)).get();
-
-        assertBusy(() -> {
-            LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(client().admin().cluster()
-                .prepareState().execute().actionGet().getState().getMetaData().index("test"));
-            assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
+                .prepareState().execute().actionGet().getState().getMetadata().index("test"));
+            assertThat(lifecycleState.getStep(), equalTo("complete"));
         });
     }
 
@@ -376,7 +400,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
         assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
         assertThat(responseItem.getVersion(), equalTo(1L));
-        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        long actualModifiedDate = Instant.from(ISO_ZONED_DATE_TIME.parse(responseItem.getModifiedDate())).toEpochMilli();
         assertThat(actualModifiedDate,
             is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
         // assert ILM is still stopped
@@ -485,7 +509,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public Result isConditionMet(Index index, ClusterState clusterState) {
-            boolean complete = clusterState.metaData().index("test").getSettings()
+            boolean complete = clusterState.metadata().index("test").getSettings()
                 .getAsBoolean("index.lifecycle.test.complete", false);
             return new Result(complete, null);
         }

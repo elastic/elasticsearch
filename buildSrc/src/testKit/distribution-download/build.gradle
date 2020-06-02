@@ -1,5 +1,7 @@
 import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,26 +21,33 @@ import org.elasticsearch.gradle.Version
  * under the License.
  */
 
-// bring in build-tools onto the classpath
 plugins {
-    id 'elasticsearch.global-build-info' apply false
+  id 'elasticsearch.global-build-info'
 }
+boolean internal = Boolean.parseBoolean(System.getProperty("tests.internal", "true"))
+BuildParams.init { it.setIsInternal(internal) }
+
 project.gradle.projectsEvaluated {
-    // wire the download service url to wiremock
-    String fakeDownloadService = System.getProperty('tests.download_service')
-    if (fakeDownloadService != null) {
-        println rootProject.repositories.asMap.keySet()
-        IvyArtifactRepository repository = (IvyArtifactRepository) rootProject.repositories.getByName("elasticsearch-downloads")
-        repository.setUrl(fakeDownloadService)
-        repository = (IvyArtifactRepository) project('subproj').repositories.getByName("elasticsearch-downloads")
-        repository.setUrl(fakeDownloadService)
+  // wire the download service url to wiremock
+  String fakeDownloadService = System.getProperty('tests.download_service')
+  if (fakeDownloadService != null) {
+    IvyArtifactRepository repository = (IvyArtifactRepository) rootProject.repositories.getByName("elasticsearch-downloads")
+    repository.setUrl(fakeDownloadService)
+    repository = (IvyArtifactRepository) project('subproj').repositories.getByName("elasticsearch-downloads")
+    repository.setUrl(fakeDownloadService)
+    if (internal == false) {
+      repository = (IvyArtifactRepository) rootProject.repositories.getByName("elasticsearch-snapshots")
+      repository.setUrl(fakeDownloadService)
+      repository = (IvyArtifactRepository) project('subproj').repositories.getByName("elasticsearch-snapshots")
+      repository.setUrl(fakeDownloadService)
     }
+  }
 }
 
-Version currentVersion = Version.fromString("2.0.0")
-BwcVersions versions = new BwcVersions(new TreeSet<>(
-        Arrays.asList(Version.fromString("1.0.0"), Version.fromString("1.0.1"), Version.fromString("1.1.0"), currentVersion)),
-        currentVersion)
-allprojects {
-    ext.bwcVersions = versions
+if (internal) {
+  Version currentVersion = Version.fromString("9.0.0")
+  BwcVersions versions = new BwcVersions(new TreeSet<>(
+    Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
+    currentVersion)
+  BuildParams.init { it.setBwcVersions(versions) }
 }

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -31,13 +29,10 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 
 public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(NGramTokenFilterFactory.class));
-
     private final int minGram;
-
     private final int maxGram;
+    private final boolean preserveOriginal;
+    private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     NGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -51,12 +46,12 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
                     + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
                     + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
         }
+        preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        // TODO: Expose preserveOriginal
-        return new NGramTokenFilter(tokenStream, minGram, maxGram, false);
+        return new NGramTokenFilter(tokenStream, minGram, maxGram, preserveOriginal);
     }
 
     @Override

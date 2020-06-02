@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
@@ -50,10 +51,11 @@ public class TransportStopILMAction extends TransportMasterNodeAction<StopILMReq
     @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+                new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.IMMEDIATE, request, listener) {
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                        return (new OperationModeUpdateTask(OperationMode.STOPPING)).execute(currentState);
+                        return (OperationModeUpdateTask.ilmMode(OperationMode.STOPPING)).execute(currentState);
                 }
 
                 @Override

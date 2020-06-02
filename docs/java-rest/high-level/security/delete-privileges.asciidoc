@@ -3,7 +3,7 @@
 :request: DeletePrivilegesRequest
 :response: DeletePrivilegesResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Privileges API
 

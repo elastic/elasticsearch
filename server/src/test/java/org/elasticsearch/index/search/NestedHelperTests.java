@@ -23,6 +23,7 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -51,7 +52,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
+                .startObject("_doc")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "keyword")
@@ -96,7 +97,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject();
-        indexService = createIndex("index", Settings.EMPTY, "type", mapping);
+        indexService = createIndex("index", Settings.EMPTY, mapping);
         mapperService = indexService.mapperService();
     }
 
@@ -117,28 +118,28 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsQuery() {
-        Query termsQuery = mapperService.fullName("foo").termsQuery(Collections.singletonList("bar"), null);
+        Query termsQuery = mapperService.fieldType("foo").termsQuery(Collections.singletonList("bar"), null);
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested_missing"));
 
-        termsQuery = mapperService.fullName("nested1.foo").termsQuery(Collections.singletonList("bar"), null);
+        termsQuery = mapperService.fieldType("nested1.foo").termsQuery(Collections.singletonList("bar"), null);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertFalse(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested_missing"));
 
-        termsQuery = mapperService.fullName("nested2.foo").termsQuery(Collections.singletonList("bar"), null);
+        termsQuery = mapperService.fieldType("nested2.foo").termsQuery(Collections.singletonList("bar"), null);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested_missing"));
 
-        termsQuery = mapperService.fullName("nested3.foo").termsQuery(Collections.singletonList("bar"), null);
+        termsQuery = mapperService.fieldType("nested3.foo").termsQuery(Collections.singletonList("bar"), null);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termsQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termsQuery, "nested2"));
@@ -147,28 +148,28 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testTermQuery() {
-        Query termQuery = mapperService.fullName("foo").termQuery("bar", null);
+        Query termQuery = mapperService.fieldType("foo").termQuery("bar", null);
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(termQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested_missing"));
 
-        termQuery = mapperService.fullName("nested1.foo").termQuery("bar", null);
+        termQuery = mapperService.fieldType("nested1.foo").termQuery("bar", null);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termQuery));
         assertFalse(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested_missing"));
 
-        termQuery = mapperService.fullName("nested2.foo").termQuery("bar", null);
+        termQuery = mapperService.fieldType("nested2.foo").termQuery("bar", null);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested_missing"));
 
-        termQuery = mapperService.fullName("nested3.foo").termQuery("bar", null);
+        termQuery = mapperService.fieldType("nested3.foo").termQuery("bar", null);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(termQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(termQuery, "nested2"));
@@ -177,28 +178,29 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testRangeQuery() {
-        Query rangeQuery = mapperService.fullName("foo2").rangeQuery(2, 5, true, true, null, null, null, null);
+        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        Query rangeQuery = mapperService.fieldType("foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertFalse(new NestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested_missing"));
 
-        rangeQuery = mapperService.fullName("nested1.foo2").rangeQuery(2, 5, true, true, null, null, null, null);
+        rangeQuery = mapperService.fieldType("nested1.foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertFalse(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested_missing"));
 
-        rangeQuery = mapperService.fullName("nested2.foo2").rangeQuery(2, 5, true, true, null, null, null, null);
+        rangeQuery = mapperService.fieldType("nested2.foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested2"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested3"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested_missing"));
 
-        rangeQuery = mapperService.fullName("nested3.foo2").rangeQuery(2, 5, true, true, null, null, null, null);
+        rangeQuery = mapperService.fieldType("nested3.foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertTrue(new NestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
         assertTrue(new NestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested2"));
@@ -327,14 +329,14 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testNested() throws IOException {
-        QueryShardContext context = indexService.newQueryShardContext(0, new MultiReader(), () -> 0, null);
+        QueryShardContext context = indexService.newQueryShardContext(0, new IndexSearcher(new MultiReader()), () -> 0, null);
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 
         Query expectedChildQuery = new BooleanQuery.Builder()
                 .add(new MatchAllDocsQuery(), Occur.MUST)
                 // we automatically add a filter since the inner query might match non-nested docs
-                .add(new TermQuery(new Term("_type", "__nested1")), Occur.FILTER)
+                .add(new TermQuery(new Term("_nested_path", "nested1")), Occur.FILTER)
                 .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
@@ -363,7 +365,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         // we need to add the filter again because of include_in_parent
         expectedChildQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term("nested2.foo", "bar")), Occur.MUST)
-                .add(new TermQuery(new Term("_type", "__nested2")), Occur.FILTER)
+                .add(new TermQuery(new Term("_nested_path", "nested2")), Occur.FILTER)
                 .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 
@@ -379,7 +381,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
         // we need to add the filter again because of include_in_root
         expectedChildQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term("nested3.foo", "bar")), Occur.MUST)
-                .add(new TermQuery(new Term("_type", "__nested3")), Occur.FILTER)
+                .add(new TermQuery(new Term("_nested_path", "nested3")), Occur.FILTER)
                 .build();
         assertEquals(expectedChildQuery, query.getChildQuery());
 

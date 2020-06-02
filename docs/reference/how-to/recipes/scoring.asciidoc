@@ -100,7 +100,7 @@ look like this:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
@@ -116,12 +116,10 @@ PUT index
     }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -137,8 +135,8 @@ GET index/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 //TEST[continued]
+
 <1> `pagerank` must be mapped as a <<number>>
 
 while with the <<query-dsl-rank-feature-query,`rank_feature` query>> it would
@@ -146,7 +144,7 @@ look like below:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
@@ -162,12 +160,11 @@ PUT index
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _search
 {
@@ -188,7 +185,7 @@ GET _search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> `pagerank` must be mapped as a <<rank-feature,`rank_feature`>> field
 
 While both options would return similar scores, there are trade-offs:

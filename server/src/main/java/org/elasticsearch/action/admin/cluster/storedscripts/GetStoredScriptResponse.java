@@ -70,7 +70,7 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
     GetStoredScriptResponse(StreamInput in) throws IOException {
         super(in);
 
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             storedScripts = in.readMap(StreamInput::readString, StoredScriptSource::new);
         } else {
             StoredScriptSource source;
@@ -177,7 +177,7 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             if (storedScripts == null ) {
                 out.writeVInt(0);
                 return;

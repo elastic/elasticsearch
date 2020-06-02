@@ -1,5 +1,0 @@
-// this is just shell gradle file for eclipse to have separate projects for ssl-config src and tests
-apply from: '../../build.gradle'
-dependencies {
-  testCompile project(':libs:elasticsearch-ssl-config')
-}

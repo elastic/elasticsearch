@@ -1,6 +1,8 @@
 {
-  "description": "Parameters that are accepted by all API endpoints.",
-  "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html",
+  "documentation" : {
+    "description": "Parameters that are accepted by all API endpoints.",
+    "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html"
+  },
   "params": {
     "pretty": {
       "type": "boolean",

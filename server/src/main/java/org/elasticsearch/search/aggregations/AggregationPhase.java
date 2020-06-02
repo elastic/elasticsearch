@@ -24,8 +24,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -52,7 +50,7 @@ public class AggregationPhase implements SearchPhase {
             Aggregator[] aggregators;
             try {
                 AggregatorFactories factories = context.aggregations().factories();
-                aggregators = factories.createTopLevelAggregators();
+                aggregators = factories.createTopLevelAggregators(context);
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
@@ -116,7 +114,7 @@ public class AggregationPhase implements SearchPhase {
                 globalsCollector.preCollection();
                 context.searcher().search(query, collector);
             } catch (Exception e) {
-                throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
+                throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
             } finally {
                 context.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }
@@ -127,27 +125,15 @@ public class AggregationPhase implements SearchPhase {
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();
-                aggregations.add(aggregator.buildAggregation(0));
+                aggregations.add(aggregator.buildTopLevel());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
         }
-        List<PipelineAggregator> pipelineAggregators = context.aggregations().factories().createPipelineAggregators();
-        List<SiblingPipelineAggregator> siblingPipelineAggregators = new ArrayList<>(pipelineAggregators.size());
-        for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            if (pipelineAggregator instanceof SiblingPipelineAggregator) {
-                siblingPipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
-            } else {
-                throw new AggregationExecutionException("Invalid pipeline aggregation named [" + pipelineAggregator.name()
-                    + "] of type [" + pipelineAggregator.getWriteableName() + "]. Only sibling pipeline aggregations are "
-                    + "allowed at the top level");
-            }
-        }
-        context.queryResult().aggregations(new InternalAggregations(aggregations, siblingPipelineAggregators));
+        context.queryResult().aggregations(new InternalAggregations(aggregations));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
         context.queryCollectors().remove(AggregationPhase.class);
     }
-
 }

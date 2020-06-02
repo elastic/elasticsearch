@@ -19,14 +19,18 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -37,7 +41,7 @@ import java.util.Map;
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
  * field type.
  */
-public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
+public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final double interval, offset;
     private final BucketOrder order;
@@ -45,20 +49,29 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final long minDocCount;
     private final double minBound, maxBound;
 
-    @Override
-    protected ValuesSource resolveMissingAny(Object missing) {
-        if (missing instanceof Number) {
-            return ValuesSource.Numeric.EMPTY;
-        }
-        throw new IllegalArgumentException("Only numeric missing values are supported for histogram aggregation, found ["
-            + missing + "]");
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(HistogramAggregationBuilder.NAME, CoreValuesSourceType.RANGE,
+            (HistogramAggregatorSupplier) RangeHistogramAggregator::new);
+
+        builder.register(HistogramAggregationBuilder.NAME,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            (HistogramAggregatorSupplier) NumericHistogramAggregator::new);
     }
 
-    public HistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double interval, double offset,
-                                      BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                                      SearchContext context, AggregatorFactory parent,
-                                      AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    public HistogramAggregatorFactory(String name,
+                                        ValuesSourceConfig config,
+                                        double interval,
+                                        double offset,
+                                        BucketOrder order,
+                                        boolean keyed,
+                                        long minDocCount,
+                                        double minBound,
+                                        double maxBound,
+                                        QueryShardContext queryShardContext,
+                                        AggregatorFactory parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder,
+                                        Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.interval = interval;
         this.offset = offset;
         this.order = order;
@@ -73,34 +86,27 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            Map<String, Object> metadata) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
+            HistogramAggregationBuilder.NAME);
+        if (aggregatorSupplier instanceof HistogramAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
         }
-        if (valuesSource instanceof ValuesSource.Numeric) {
-            return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                (ValuesSource.Numeric) valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
-        } else if (valuesSource instanceof ValuesSource.Range) {
-            ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
-            if (rangeValueSource.rangeType().isNumeric() == false) {
-                throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
-                    + rangeValueSource.rangeType().name + "]");
-            }
-            return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                (ValuesSource.Range) valuesSource, config.format(), context, parent, pipelineAggregators,
-                metaData);
-        }
-        else {
-            throw new IllegalArgumentException("Expected one of [Numeric, Range] values source, found ["
-                + valuesSource.toString() + "]");
-        }
+        HistogramAggregatorSupplier histogramAggregatorSupplier = (HistogramAggregatorSupplier) aggregatorSupplier;
+        return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+                valuesSource, config.format(), searchContext, parent, collectsFromSingleBucket, metadata);
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            Map<String, Object> metadata) throws IOException {
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            null, config.format(), context, parent, pipelineAggregators, metaData);
+            null, config.format(), searchContext, parent, false, metadata);
     }
 }

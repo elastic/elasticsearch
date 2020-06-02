@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
@@ -64,7 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
-public class PluginsService {
+public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
 
@@ -231,6 +232,7 @@ public class PluginsService {
     /**
      * Get information about plugins and modules
      */
+    @Override
     public PluginsAndModules info() {
         return info;
     }
@@ -559,7 +561,7 @@ public class PluginsService {
             throw new IllegalStateException(signatureMessage(pluginClass));
         }
 
-        final Class[] parameterTypes = constructor.getParameterTypes();
+        final Class<?>[] parameterTypes = constructor.getParameterTypes();
         try {
             if (constructor.getParameterCount() == 2 && parameterTypes[0] == Settings.class && parameterTypes[1] == Path.class) {
                 return (Plugin)constructor.newInstance(settings, configPath);
@@ -585,6 +587,7 @@ public class PluginsService {
                 "()");
     }
 
+    @SuppressWarnings("unchecked")
     public <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.v2().getClass()))
             .map(p -> ((T)p.v2())).collect(Collectors.toList());

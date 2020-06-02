@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -30,7 +29,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -72,8 +70,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     @Override
-    protected InternalScriptedMetric createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    protected InternalScriptedMetric createTestInstance(String name, Map<String, Object> metadata) {
         Map<String, Object> params = new HashMap<>();
         if (randomBoolean()) {
             params.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -83,7 +80,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME, params);
         }
         Object randomValue = randomValue(valueTypes, 0);
-        return new InternalScriptedMetric(name, randomValue, reduceScript, pipelineAggregators, metaData);
+        return new InternalScriptedMetric(name, randomValue, reduceScript, metadata);
     }
 
     @SuppressWarnings("unchecked")
@@ -126,18 +123,12 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     protected void assertReduced(InternalScriptedMetric reduced, List<InternalScriptedMetric> inputs) {
         InternalScriptedMetric firstAgg = inputs.get(0);
         assertEquals(firstAgg.getName(), reduced.getName());
-        assertEquals(firstAgg.pipelineAggregators(), reduced.pipelineAggregators());
-        assertEquals(firstAgg.getMetaData(), reduced.getMetaData());
+        assertEquals(firstAgg.getMetadata(), reduced.getMetadata());
         if (hasReduceScript) {
             assertEquals(inputs.size(), reduced.aggregation());
         } else {
-            assertEquals(inputs.size(), ((List<Object>) reduced.aggregation()).size());
+            assertEquals(inputs.size(), ((List<?>) reduced.aggregation()).size());
         }
-    }
-
-    @Override
-    protected Reader<InternalScriptedMetric> instanceReader() {
-        return InternalScriptedMetric::new;
     }
 
     @Override
@@ -199,8 +190,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         String name = instance.getName();
         Object value = instance.aggregation();
         Script reduceScript = instance.reduceScript;
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -227,16 +217,16 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             reduceScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, REDUCE_SCRIPT_NAME + "-mutated", Collections.emptyMap());
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalScriptedMetric(name, value, reduceScript, pipelineAggregators, metaData);
+        return new InternalScriptedMetric(name, value, reduceScript, metadata);
     }
 }

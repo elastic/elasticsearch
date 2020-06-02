@@ -10,7 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -20,9 +20,9 @@ import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.io.IOException;
@@ -81,8 +81,8 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(request2));
 
         // create the test-index index and set the policy to policy_1
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.allocation.include._name", "integTest-0")
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.allocation.include._name", "integTest-0")
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(LifecycleSettings.LIFECYCLE_NAME, "policy_1").build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
         createIndexRequest.setJsonEntity(
@@ -113,21 +113,11 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
 
         // Check the index goes to the warm phase and completes
-        assertBusy(() -> assertStep(indexName, TerminalPolicyStep.KEY), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertStep(indexName, PhaseCompleteStep.finalStep("warm").getKey()), 30, TimeUnit.SECONDS);
 
         // Check index is allocated on integTest-1 and integTest-2 as per policy_2
-        Request getSettingsRequest = new Request("GET", "/" + indexName + "/_settings");
-        Response getSettingsResponse = client().performRequest(getSettingsRequest);
-        assertOK(getSettingsResponse);
-        Map<String, Object> getSettingsResponseMap = entityAsMap(getSettingsResponse);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> indexSettings = (Map<String, Object>) ((Map<String, Object>) getSettingsResponseMap.get(indexName))
-                .get("settings");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> routingSettings = (Map<String, Object>) ((Map<String, Object>) indexSettings.get("index")).get("routing");
-        @SuppressWarnings("unchecked")
-        String includesAllocation = (String) ((Map<String, Object>) ((Map<String, Object>) routingSettings.get("allocation"))
-                .get("include")).get("_name");
+        Map<String, Object> indexSettings = getIndexSettingsAsMap(indexName);
+        String includesAllocation = (String) indexSettings.get("index.routing.allocation.include._name");
         assertEquals("integTest-1,integTest-2", includesAllocation);
     }
 

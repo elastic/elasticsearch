@@ -22,7 +22,6 @@ setup:
   - do:
       index:
         index: test
-        type: _doc
         id: 1
         body:
           a_field: "quick brown fox jump lazy dog"
@@ -165,7 +164,7 @@ setup:
   - match: { hits.hits.0._source.a_field: "quick brown fox jump lazy dog" }
   - match: { hits.hits.0._source.text_field: "quick brown fox jump lazy dog" }
   - match: { hits.hits.0.highlight.a_field: ["quick <em>brown</em> <em>fox</em> <em>jump</em> lazy dog"] }
-  - match: { hits.hits.0.highlight.a_field\._2gram: ["quick <em>brown fox</em><em> jump</em> lazy dog"] }
+  - match: { hits.hits.0.highlight.a_field\._2gram: ["quick <em>brown fox jump</em> lazy dog"] }
   - match: { hits.hits.0.highlight.a_field\._3gram: ["quick <em>brown fox jump</em> lazy dog"] }
   - match: { hits.hits.0.highlight.a_field\._4gram: null }
 
@@ -197,6 +196,6 @@ setup:
   - match: { hits.hits.0._source.a_field: "quick brown fox jump lazy dog" }
   - match: { hits.hits.0._source.text_field: "quick brown fox jump lazy dog" }
   - match: { hits.hits.0.highlight.a_field: ["quick <em>brown</em> <em>fox</em> <em>jump</em> <em>lazy</em> dog"] }
-  - match: { hits.hits.0.highlight.a_field\._2gram: ["quick <em>brown fox</em><em> jump</em><em> lazy</em> dog"] }
-  - match: { hits.hits.0.highlight.a_field\._3gram: ["quick <em>brown fox jump</em><em> lazy</em> dog"] }
+  - match: { hits.hits.0.highlight.a_field\._2gram: ["quick <em>brown fox jump lazy</em> dog"] }
+  - match: { hits.hits.0.highlight.a_field\._3gram: ["quick <em>brown fox jump lazy</em> dog"] }
   - match: { hits.hits.0.highlight.a_field\._4gram: ["quick <em>brown fox jump lazy</em> dog"] }

@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.ml.transforms;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
-import java.time.Clock;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -25,6 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PainlessDomainSplitIT extends ESRestTestCase {
@@ -180,8 +181,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
     public void testIsolated() throws Exception {
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
         Request createDoc = new Request("PUT", "/painless/_doc/1");
@@ -239,7 +240,6 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32966")
     public void testHRDSplit() throws Exception {
         // Create job
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job");
@@ -261,14 +261,14 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         // Create index to hold data
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build(), "\"properties\": { \"domain\": { \"type\": \"keyword\" }," +
                 "\"time\": { \"type\": \"date\" } }");
 
         // Index some data
-        ZonedDateTime baseTime = ZonedDateTime.now(Clock.systemDefaultZone()).minusYears(1);
+        ZonedDateTime baseTime = ZonedDateTime.now(ZoneOffset.UTC).minusYears(1);
         TestConfiguration test = tests.get(randomInt(tests.size()-1));
 
         // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() did not, so we need a special case for sub
@@ -276,20 +276,18 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         String expectedHRD = test.domainExpected.replace(".", "\\.");
         Pattern pattern = Pattern.compile("domain_split\":\\[\"(" + expectedSub + "),(" + expectedHRD +")\"[,\\]]");
 
-        for (int i = 0; i < 100; i++) {
-
+        for (int i = 1; i <= 100; i++) {
             ZonedDateTime time = baseTime.plusHours(i);
-            if (i == 64) {
+            String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
+            if (i % 50 == 0) {
                 // Anomaly has 100 docs, but we don't care about the value
                 for (int j = 0; j < 100; j++) {
-                    String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
-                    Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime + "_" + j);
+                    Request createDocRequest = new Request("POST", "/painless/_doc");
                     createDocRequest.setJsonEntity("{\"domain\": \"" + "bar.bar.com\", \"time\": \"" + formattedTime + "\"}");
                     client().performRequest(createDocRequest);
                 }
             } else {
                 // Non-anomalous values will be what's seen when the anomaly is reported
-                String formattedTime = time.format(DateTimeFormatter.ISO_DATE_TIME);
                 Request createDocRequest = new Request("PUT", "/painless/_doc/" + formattedTime);
                 createDocRequest.setJsonEntity("{\"domain\": \"" + test.hostName + "\", \"time\": \"" + formattedTime + "\"}");
                 client().performRequest(createDocRequest);
@@ -304,7 +302,6 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "{\n" +
                 "   \"job_id\":\"hrd-split-job\",\n" +
                 "   \"indexes\":[\"painless\"],\n" +
-                "   \"types\":[\"_doc\"],\n" +
                 "   \"script_fields\": {\n" +
                 "      \"domain_split\": {\n" +
                 "         \"script\": \"return domainSplit(doc['domain'].value, params);\"\n" +
@@ -313,54 +310,67 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 "}");
 
         client().performRequest(createFeedRequest);
-        client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start"));
+        Request startDatafeedRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
+        startDatafeedRequest.addParameter("start", baseTime.format(DateTimeFormatter.ISO_DATE_TIME));
+        startDatafeedRequest.addParameter("end", ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME));
+        client().performRequest(startDatafeedRequest);
 
-        boolean passed = awaitBusy(() -> {
-            try {
-                client().performRequest(new Request("POST", "/_refresh"));
+        waitUntilDatafeedIsStopped("hrd-split-datafeed");
+        waitUntilJobIsClosed("hrd-split-job");
 
-                Response response = client().performRequest(new Request("GET",
-                        MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
-                String responseBody = EntityUtils.toString(response.getEntity());
+        client().performRequest(new Request("POST", "/.ml-anomalies-*/_refresh"));
 
-                if (responseBody.contains("\"count\":2")) {
-                    Matcher m = pattern.matcher(responseBody);
+        Response records = client().performRequest(new Request("GET",
+            MachineLearning.BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
+        String responseBody = EntityUtils.toString(records.getEntity());
+        assertThat("response body [" + responseBody + "] did not contain [\"count\":2]",
+            responseBody,
+            containsString("\"count\":2"));
 
-                    String actualSubDomain = "";
-                    String actualDomain = "";
-                    if (m.find()) {
-                        actualSubDomain = m.group(1).replace("\"", "");
-                        actualDomain = m.group(2).replace("\"", "");
-                    }
-
-                    String expectedTotal = "[" + test.subDomainExpected + "," + test.domainExpected + "]";
-                    String actualTotal = "[" + actualSubDomain + "," + actualDomain + "]";
-
-                    // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
-                    if (test.subDomainExpected != null) {
-                        assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
-                                + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
-                                equalTo(test.subDomainExpected));
-                    }
-
-                    assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
-                            + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
-
-                    return true;
-                } else {
-                    logger.error(responseBody);
-                    return false;
-                }
-
-            } catch (Exception e) {
-                logger.error(e.getMessage());
-                return false;
-            }
-
-        }, 5, TimeUnit.SECONDS);
-
-        if (!passed) {
-            fail("Anomaly records were not found within 5 seconds");
+        Matcher m = pattern.matcher(responseBody);
+        String actualSubDomain = "";
+        String actualDomain = "";
+        if (m.find()) {
+            actualSubDomain = m.group(1).replace("\"", "");
+            actualDomain = m.group(2).replace("\"", "");
         }
+
+        String expectedTotal = "[" + test.subDomainExpected + "," + test.domainExpected + "]";
+        String actualTotal = "[" + actualSubDomain + "," + actualDomain + "]";
+
+        // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
+        if (test.subDomainExpected != null) {
+            assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
+                + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
+                equalTo(test.subDomainExpected));
+        }
+
+        assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
+           + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
+    }
+
+    private void waitUntilJobIsClosed(String jobId) throws Exception {
+        assertBusy(() -> {
+            try {
+                Response jobStatsResponse = client().performRequest(new Request("GET",
+                    MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                assertThat(EntityUtils.toString(jobStatsResponse.getEntity()), containsString("\"state\":\"closed\""));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void waitUntilDatafeedIsStopped(String dfId) throws Exception {
+        assertBusy(() -> {
+            try {
+                Response datafeedStatsResponse = client().performRequest(new Request("GET",
+                    MachineLearning.BASE_PATH + "datafeeds/" + dfId + "/_stats"));
+                assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()),
+                    containsString("\"state\":\"stopped\""));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, 60, TimeUnit.SECONDS);
     }
 }

@@ -25,7 +25,7 @@ The query then returns exact matches for each expansion.
 [[fuzzy-query-ex-simple]]
 ===== Simple example
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -38,12 +38,11 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[fuzzy-query-ex-advanced]]
 ===== Example using advanced parameters
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -61,7 +60,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 [[fuzzy-query-top-level-params]]
 ==== Top-level parameters for `fuzzy`
@@ -100,3 +98,7 @@ adjacent characters (ab → ba). Defaults to `true`.
 `rewrite`::
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
+
+==== Notes
+Fuzzy queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

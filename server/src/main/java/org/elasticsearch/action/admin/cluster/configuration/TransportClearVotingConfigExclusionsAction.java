@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -29,10 +31,10 @@ import org.elasticsearch.cluster.ClusterStateObserver.Listener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -48,6 +50,8 @@ import java.util.function.Predicate;
 
 public class TransportClearVotingConfigExclusionsAction
     extends TransportMasterNodeAction<ClearVotingConfigExclusionsRequest, ClearVotingConfigExclusionsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportClearVotingConfigExclusionsAction.class);
 
     @Inject
     public TransportClearVotingConfigExclusionsAction(TransportService transportService, ClusterService clusterService,
@@ -116,11 +120,11 @@ public class TransportClearVotingConfigExclusionsAction
         clusterService.submitStateUpdateTask("clear-voting-config-exclusions", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final CoordinationMetaData newCoordinationMetaData =
-                        CoordinationMetaData.builder(currentState.coordinationMetaData()).clearVotingConfigExclusions().build();
-                final MetaData newMetaData = MetaData.builder(currentState.metaData()).
-                        coordinationMetaData(newCoordinationMetaData).build();
-                return ClusterState.builder(currentState).metaData(newMetaData).build();
+                final CoordinationMetadata newCoordinationMetadata =
+                        CoordinationMetadata.builder(currentState.coordinationMetadata()).clearVotingConfigExclusions().build();
+                final Metadata newMetadata = Metadata.builder(currentState.metadata()).
+                        coordinationMetadata(newCoordinationMetadata).build();
+                return ClusterState.builder(currentState).metadata(newMetadata).build();
             }
 
             @Override

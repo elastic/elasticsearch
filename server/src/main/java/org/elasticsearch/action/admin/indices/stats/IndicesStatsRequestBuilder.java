@@ -54,15 +54,6 @@ public class IndicesStatsRequestBuilder
         return this;
     }
 
-    /**
-     * Document types to return stats for. Mainly affects {@link #setIndexing(boolean)} when
-     * enabled, returning specific indexing stats for those types.
-     */
-    public IndicesStatsRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
     public IndicesStatsRequestBuilder setGroups(String... groups) {
         request.groups(groups);
         return this;
@@ -155,6 +146,11 @@ public class IndicesStatsRequestBuilder
 
     public IndicesStatsRequestBuilder setRecovery(boolean recovery) {
         request.recovery(recovery);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setBulk(boolean bulk) {
+        request.bulk(bulk);
         return this;
     }
 

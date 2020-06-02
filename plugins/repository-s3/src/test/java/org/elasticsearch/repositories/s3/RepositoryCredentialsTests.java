@@ -24,7 +24,8 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -32,7 +33,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.List;
@@ -145,9 +145,9 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetaData metadata,
-                                                NamedXContentRegistry registry, ThreadPool threadPool) {
-            return new S3Repository(metadata, registry, service, threadPool) {
+        protected S3Repository createRepository(RepositoryMetadata metadata,
+                                                NamedXContentRegistry registry, ClusterService clusterService) {
+            return new S3Repository(metadata, registry, service, clusterService) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads

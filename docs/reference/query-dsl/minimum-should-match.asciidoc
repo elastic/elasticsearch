@@ -1,7 +1,7 @@
 [[query-dsl-minimum-should-match]]
 == `minimum_should_match` parameter
 
-The `minimum_should_match` parameter possible values:
+The `minimum_should_match` parameter's possible values:
 
 [cols="<,<,<",options="header",]
 |=======================================================================

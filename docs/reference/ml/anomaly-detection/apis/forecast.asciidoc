@@ -18,18 +18,25 @@ Predicts the future behavior of a time series by using its historical behavior.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-forecast-desc]]
 ==== {api-description-title}
 
-See {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
+You can create a forecast job based on an {anomaly-job} to extrapolate future 
+behavior. Refer to 
+{ml-docs}/ml-overview.html#ml-forecasting[Forecasting the future] and 
+{ml-docs}/ml-limitations.html#ml-forecast-limitations[forecast limitations] to 
+learn more.
+
+You can delete a forecast by using the 
+<<ml-delete-forecast,Delete forecast API>>.
 
 [NOTE]
 ===============================
 
 * If you use an `over_field_name` property in your job, you cannot create a
-forecast. For more information about this property, see <<ml-job-resource>>.
+forecast. For more information about this property, see <<ml-put-job>>.
 * The job must be open when you create a forecast. Otherwise, an error occurs.
 ===============================
 
@@ -37,7 +44,8 @@ forecast. For more information about this property, see <<ml-job-resource>>.
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-forecast-request-body]]
 ==== {api-request-body-title}
@@ -49,23 +57,28 @@ forecast. For more information about this property, see <<ml-job-resource>>.
   processed.
 
 `expires_in`::
-  (Optional, <<time-units, time units>>) The period of time that forecast results are retained.
-  After a forecast expires, the results are deleted. The default value is 14 days.
-  If set to a value of `0`, the forecast is never automatically deleted.
+  (Optional, <<time-units, time units>>) The period of time that forecast 
+  results are retained. After a forecast expires, the results are deleted. The 
+  default value is 14 days. If set to a value of `0`, the forecast is never 
+  automatically deleted.
+
+`max_model_memory`::
+  (Optional, <<byte-units,byte value>>) The maximum memory the forecast can use.
+  If the forecast needs to use more than the provided amount, it will spool to
+  disk. Default is 20mb, maximum is 500mb and minimum is 1mb. If set to 40% or
+  more of the job's configured memory limit, it is automatically reduced to
+  below that amount.
 
 [[ml-forecast-example]]
 ==== {api-examples-title}
 
-The following example requests a 10 day forecast for the `total-requests` job:
-
-[source,js]
+[source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_forecast
+POST _ml/anomaly_detectors/low_request_rate/_forecast
 {
   "duration": "10d"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:requires delay]
 
 When the forecast is created, you receive the following results:
@@ -79,4 +92,3 @@ When the forecast is created, you receive the following results:
 // NOTCONSOLE
 
 You can subsequently see the forecast in the *Single Metric Viewer* in {kib}.
-

@@ -1,5 +1,8 @@
 [[analysis-pattern_replace-tokenfilter]]
-=== Pattern Replace Token Filter
+=== Pattern replace token filter
+++++
+<titleabbrev>Pattern replace</titleabbrev>
+++++
 
 The `pattern_replace` token filter allows to easily handle string
 replacements based on a regular expression. The regular expression is

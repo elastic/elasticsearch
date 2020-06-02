@@ -13,7 +13,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.support.RestorableContextClassLoader;
+import org.elasticsearch.xpack.core.security.support.RestorableContextClassLoader;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.Unmarshaller;
@@ -47,7 +47,9 @@ import org.xml.sax.SAXException;
 import javax.xml.parsers.DocumentBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.security.AccessController;
 import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.time.Clock;
@@ -141,14 +143,20 @@ public class SamlRequestHandler {
         }
 
         checkIdpSignature(credential -> {
-            try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
-                SignatureValidator.validate(signature, credential);
-                logger.debug(() -> new ParameterizedMessage("SAML Signature [{}] matches credentials [{}] [{}]",
-                        signatureText, credential.getEntityId(), credential.getPublicKey()));
-                return true;
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> {
+                    try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(SignatureValidator.class)) {
+                        SignatureValidator.validate(signature, credential);
+                        logger.debug(() -> new ParameterizedMessage("SAML Signature [{}] matches credentials [{}] [{}]",
+                            signatureText, credential.getEntityId(), credential.getPublicKey()));
+                        return true;
+                    } catch (PrivilegedActionException e) {
+                        logger.warn("SecurityException while attempting to validate SAML signature", e);
+                        return false;
+                    }
+                });
             } catch (PrivilegedActionException e) {
-                logger.warn("SecurityException while attempting to validate SAML signature", e);
-                return false;
+                throw new SecurityException("SecurityException while attempting to validate SAML signature", e);
             }
         }, signatureText);
     }
@@ -218,11 +226,11 @@ public class SamlRequestHandler {
 
     protected void checkIssuer(Issuer issuer, XMLObject parent) {
         if (issuer == null) {
-            throw samlException("Element {} ({}) has no issuer, but expected {}",
+            throw samlException("Element {} ({}) has no issuer, but expected [{}]",
                     parent.getElementQName(), text(parent, 16), idp.getEntityId());
         }
         if (idp.getEntityId().equals(issuer.getValue()) == false) {
-            throw samlException("SAML Issuer {} does not match expected value {}", issuer.getValue(), idp.getEntityId());
+            throw samlException("SAML Issuer [{}] does not match expected value [{}]", issuer.getValue(), idp.getEntityId());
         }
     }
 
@@ -259,7 +267,7 @@ public class SamlRequestHandler {
             Object[] args = new Object[] { element.getTagName(), type.getName(), object == null ? "<null>" : object.getClass().getName() };
             throw samlException("SAML object [{}] is incorrect type. Expected [{}] but was [{}]", args);
         } catch (UnmarshallingException e) {
-            throw samlException("Failed to unmarshall SAML content [{}", e, element.getTagName());
+            throw samlException("Failed to unmarshall SAML content [{}]", e, element.getTagName());
         }
     }
 

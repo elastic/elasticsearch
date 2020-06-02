@@ -27,14 +27,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,8 +46,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder>
-    implements MultiBucketAggregationBuilder {
+public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = "filters";
 
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
@@ -98,8 +96,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         this.keyed = false;
     }
 
-    public FiltersAggregationBuilder(FiltersAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    public FiltersAggregationBuilder(FiltersAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.filters = new ArrayList<>(clone.filters);
         this.keyed = clone.keyed;
         this.otherBucket = clone.otherBucket;
@@ -107,8 +105,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new FiltersAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new FiltersAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -199,6 +197,11 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         boolean changed = false;
@@ -220,10 +223,10 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
-        return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, context, parent,
-            subFactoriesBuilder, metaData);
+        return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, queryShardContext, parent,
+            subFactoriesBuilder, metadata);
     }
 
     @Override

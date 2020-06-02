@@ -62,7 +62,7 @@ If you use {ml-features} and your {ml} indices were created before
 {prev-major-version}, you must temporarily halt the tasks associated with your
 {ml} jobs and {dfeeds} and prevent new jobs from opening during the reindex. Use
 the <<ml-set-upgrade-mode,set upgrade mode API>> or
-{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
+{ml-docs}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
 
 If you use {es} {security-features}, before you reindex `.security*` internal
 indices it is a good idea to create a temporary superuser account in the `file`
@@ -94,7 +94,7 @@ bin/elasticsearch-users userdel <user_name>
 ----------------------------------------------------------
 --
 
-For more information, see <<configuring-file-realm>>.
+For more information, see <<file-realm>>.
 ====
 endif::include-xpack[]
 
@@ -102,8 +102,8 @@ endif::include-xpack[]
 === Reindex from a remote cluster
 
 You can use <<reindex-from-remote,reindex from remote>> to migrate indices from
-your old cluster to a new {version} cluster. This enables you move to {version}
-from a pre-6.8 cluster without interrupting service.
+your old cluster to a new {version} cluster. This enables you to move to
+{version} from a pre-6.8 cluster without interrupting service.
 
 [WARNING]
 =============================================
@@ -121,7 +121,7 @@ from a 6.6 or later cluster, it is a good idea to temporarily halt the tasks
 associated with your {ml} jobs and {dfeeds} to prevent inconsistencies between
 different {ml} indices that are reindexed at slightly different times. Use the
 <<ml-set-upgrade-mode,set upgrade mode API>> or 
-{stack-ov}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
+{ml-docs}/stopping-ml.html[stop all {dfeeds} and close all {ml} jobs].
 endif::include-xpack[]
 
 =============================================
@@ -156,7 +156,7 @@ cluster and remove nodes from the old one.
   remote index into the new {version} index:
 +
 --
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -178,7 +178,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/oldhost:9200",/\${host}"/]

@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -29,7 +30,7 @@ public class NativeRealmTests extends ESTestCase {
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetaData.State.OPEN);
+            Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -38,8 +39,9 @@ public class NativeRealmTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         int expectedInvalidation = 0;
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("native", "native");
+        Settings settings = Settings.builder().put("path.home", createTempDir())
+            .put(RealmSettings.realmSettingPrefix(realmId) + "order", 0).build();
         RealmConfig config = new RealmConfig(realmId, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings));
         final NativeRealm nativeRealm = new NativeRealm(config, mock(NativeUsersStore.class), threadPool) {
             @Override

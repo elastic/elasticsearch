@@ -62,11 +62,10 @@ It's highly recommended to <<indices-forcemerge,`_forcemerge`>> your indices pri
 segment on disk. This not only provides much better compression but also simplifies the data structures needed to service aggregation
 or sorted search requests.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_forcemerge?max_num_segments=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [role="xpack"]
@@ -75,26 +74,16 @@ POST /twitter/_forcemerge?max_num_segments=1
 == Searching a frozen index
 
 Frozen indices are throttled in order to limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
-limited by the number of threads in the <<search-throttled,search_throttled>> threadpool,  which is `1` by default. 
-Search requests will not be executed against frozen indices by default, even if a frozen index is named explicitly. This is 
+limited by the number of threads in the <<search-throttled,search_throttled>> threadpool,  which is `1` by default.
+Search requests will not be executed against frozen indices by default, even if a frozen index is named explicitly. This is
 to prevent accidental slowdowns by targeting a frozen index by mistake. To include frozen indices a search request must be executed with
 the query parameter `ignore_throttled=false`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?q=user:kimchy&ignore_throttled=false
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
-
-[IMPORTANT]
-================================
-While frozen indices are slow to search, they can be pre-filtered efficiently. The request parameter `pre_filter_shard_size` specifies
-a threshold that, when exceeded, will enforce a round-trip to pre-filter search shards that cannot possibly match.
-This filter phase can limit the number of shards significantly. For instance, if a date range filter is applied, then all indices (frozen or unfrozen) that do not contain documents within the date range can be skipped efficiently.
-The default value for `pre_filter_shard_size` is `128` but it's recommended to set it to `1` when searching frozen indices. There is no
-significant overhead associated with this pre-filter phase.
-================================
 
 [role="xpack"]
 [testenv="basic"]
@@ -104,11 +93,10 @@ significant overhead associated with this pre-filter phase.
 Frozen indices are ordinary indices that use search throttling and a memory efficient shard implementation. For API's like the
 <<cat-indices>> frozen indices may identified by an index's `search.throttled` property (`sth`).
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/indices/twitter?v&h=i,sth
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\nPOST twitter\/_freeze\n/]
 
 The response looks like:

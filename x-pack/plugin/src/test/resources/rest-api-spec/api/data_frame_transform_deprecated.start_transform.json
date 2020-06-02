@@ -1,0 +1,36 @@
+{
+  "data_frame_transform_deprecated.start_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html",
+      "description":"Starts one or more transforms."
+    },
+    "stability":"beta",
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_frame/transforms/{transform_id}/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id of the transform to start"
+            }
+          },
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the transform to start"
+      }
+    }
+  }
+}

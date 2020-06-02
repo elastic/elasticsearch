@@ -60,7 +60,7 @@ final class TypeUtils {
         aMap.put(GregorianCalendar.class, EsType.DATETIME);
         aMap.put(java.util.Date.class, EsType.DATETIME);
         aMap.put(java.sql.Date.class, EsType.DATETIME);
-        aMap.put(java.sql.Time.class, EsType.DATETIME);
+        aMap.put(java.sql.Time.class, EsType.TIME);
         aMap.put(LocalDateTime.class, EsType.DATETIME);
         CLASS_TO_TYPE = Collections.unmodifiableMap(aMap);
 
@@ -76,6 +76,7 @@ final class TypeUtils {
         types.put(EsType.SCALED_FLOAT, Double.class);
         types.put(EsType.KEYWORD, String.class);
         types.put(EsType.TEXT, String.class);
+        types.put(EsType.CONSTANT_KEYWORD, String.class);
         types.put(EsType.BINARY, byte[].class);
         types.put(EsType.DATETIME, Timestamp.class);
         types.put(EsType.IP, String.class);
@@ -94,6 +95,7 @@ final class TypeUtils {
         types.put(EsType.INTERVAL_MINUTE_TO_SECOND, Duration.class);
         types.put(EsType.GEO_POINT, String.class);
         types.put(EsType.GEO_SHAPE, String.class);
+        types.put(EsType.SHAPE, String.class);
 
         TYPE_TO_CLASS = unmodifiableMap(types);
 
@@ -156,7 +158,7 @@ final class TypeUtils {
     }
 
     static boolean isString(EsType dataType) {
-        return dataType == EsType.KEYWORD || dataType == EsType.TEXT;
+        return dataType == EsType.KEYWORD || dataType == EsType.TEXT || dataType == EsType.CONSTANT_KEYWORD;
     }
 
     static EsType of(Class<? extends Object> clazz) throws SQLException {

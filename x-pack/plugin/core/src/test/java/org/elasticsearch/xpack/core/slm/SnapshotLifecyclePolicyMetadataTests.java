@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -50,7 +51,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         switch (between(0, 5)) {
             case 0:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> createRandomPolicy(randomAlphaOfLength(10))))
+                    .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))
                     .build();
             case 1:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
@@ -81,7 +82,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
 
     public static SnapshotLifecyclePolicyMetadata createRandomPolicyMetadata(String policyId) {
         SnapshotLifecyclePolicyMetadata.Builder builder = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(createRandomPolicy(policyId))
+            .setPolicy(randomSnapshotLifecyclePolicy(policyId))
             .setVersion(randomNonNegativeLong())
             .setModifiedDate(randomNonNegativeLong());
         if (randomBoolean()) {
@@ -96,7 +97,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
         return builder.build();
     }
 
-    public static SnapshotLifecyclePolicy createRandomPolicy(String policyId) {
+    public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String policyId) {
         Map<String, Object> config = new HashMap<>();
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
@@ -105,10 +106,18 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
             randomAlphaOfLength(4),
             randomSchedule(),
             randomAlphaOfLength(4),
-            config);
+            config,
+            randomRetention());
     }
 
-    private static String randomSchedule() {
+    public static SnapshotRetentionConfiguration randomRetention() {
+        return rarely() ? null : new SnapshotRetentionConfiguration(
+            rarely() ? null : TimeValue.parseTimeValue(randomTimeValue(), "random retention generation"),
+            rarely() ? null : randomIntBetween(1, 10),
+            rarely() ? null : randomIntBetween(15, 30));
+    }
+
+    public static String randomSchedule() {
         return randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 12) + " * * ?";

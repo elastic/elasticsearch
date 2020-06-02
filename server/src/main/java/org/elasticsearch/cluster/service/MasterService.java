@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -234,10 +234,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 // new cluster state, notify all listeners
                 final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
                 if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
-                    String nodeSummary = nodesDelta.shortSummary();
-                    if (nodeSummary.length() > 0) {
-                        logger.info("{}, term: {}, version: {}, reason: {}",
-                            summary, newClusterState.term(), newClusterState.version(), nodeSummary);
+                    String nodesDeltaSummary = nodesDelta.shortSummary();
+                    if (nodesDeltaSummary.length() > 0) {
+                        logger.info("{}, term: {}, version: {}, delta: {}",
+                            summary, newClusterState.term(), newClusterState.version(), nodesDeltaSummary);
                     }
                 }
 
@@ -332,8 +332,8 @@ public class MasterService extends AbstractLifecycleComponent {
                 builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
                     .version(newClusterState.routingTable().version() + 1).build());
             }
-            if (previousClusterState.metaData() != newClusterState.metaData()) {
-                builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
+            if (previousClusterState.metadata() != newClusterState.metadata()) {
+                builder.metadata(Metadata.builder(newClusterState.metadata()).version(newClusterState.metadata().version() + 1));
             }
 
             newClusterState = builder.build();

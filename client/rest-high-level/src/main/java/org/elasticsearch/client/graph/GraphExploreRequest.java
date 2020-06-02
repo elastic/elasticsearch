@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
 import java.io.IOException;
@@ -47,7 +47,6 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
-    private String[] types = Strings.EMPTY_ARRAY;
     private String routing;
     private TimeValue timeout;
 
@@ -106,31 +105,6 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
         return this;
     }
 
-    /**
-     * The document types to execute the explore against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public String[] types() {
-        return this.types;
-    }
-
-    /**
-     * The document types to execute the explore request against. Defaults to be executed against
-     * all types.
-     *
-     * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
-     * filter on a field on the document.
-     */
-    @Deprecated
-    public GraphExploreRequest types(String... types) {
-        this.types = types;
-        return this;
-    }
-
     public String routing() {
         return this.routing;
     }
@@ -154,7 +128,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * operations involved in each hop are limited to the remaining time
      * available but can still overrun due to the nature of their "best efforts"
      * timeout support. When a timeout occurs partial results are returned.
-     * 
+     *
      * @param timeout
      *            a {@link TimeValue} object which determines the maximum length
      *            of time to spend exploring
@@ -174,7 +148,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
 
     @Override
     public String toString() {
-        return "graph explore [" + Arrays.toString(indices) + "][" + Arrays.toString(types) + "]";
+        return "graph explore [" + Arrays.toString(indices) + "]";
     }
 
     /**
@@ -190,7 +164,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * better with smaller samples as there are less look-ups required for
      * background frequencies of terms found in the documents
      * </p>
-     * 
+     *
      * @param maxNumberOfDocsPerHop
      *            shard-level sample size in documents
      */
@@ -231,7 +205,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * default value is true which means terms are selected based on
      * significance (see the {@link SignificantTerms} aggregation) rather than
      * popularity (using the {@link TermsAggregator}).
-     * 
+     *
      * @param value
      *            true if the significant_terms algorithm should be used.
      */
@@ -246,7 +220,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
     /**
      * Return detailed information about vertex frequencies as part of JSON
      * results - defaults to false
-     * 
+     *
      * @param value
      *            true if detailed information is required in JSON responses
      */
@@ -262,7 +236,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * Add a stage in the graph exploration. Each hop represents a stage of
      * querying elasticsearch to identify terms which can then be connnected to
      * other terms in a subsequent hop.
-     * 
+     *
      * @param guidingQuery
      *            optional choice of query which influences which documents are
      *            considered in this stage
@@ -316,7 +290,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        
+
         builder.startObject("controls");
         {
             if (sampleSize != SamplerAggregationBuilder.DEFAULT_SHARD_SAMPLE_SIZE) {

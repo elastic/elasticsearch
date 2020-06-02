@@ -106,17 +106,8 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     private boolean assertDefaultContext(Runnable r) {
-        try {
-            assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
-                Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
-        } catch (IllegalStateException ex) {
-            // sometimes we execute on a closed context and isDefaultContext doen't bypass the ensureOpen checks
-            // this must not trigger an exception here since we only assert if the default is restored and
-            // we don't really care if we are closed
-            if (contextHolder.isClosed() == false) {
-                throw ex;
-            }
-        }
+        assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
+            Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
         return true;
     }
 

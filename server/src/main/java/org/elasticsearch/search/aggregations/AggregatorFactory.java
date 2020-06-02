@@ -25,13 +25,15 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+
+import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
 public abstract class AggregatorFactory {
 
@@ -43,8 +45,8 @@ public abstract class AggregatorFactory {
         ObjectArray<Aggregator> aggregators;
         ObjectArray<LeafBucketCollector> collectors;
 
-        MultiBucketAggregatorWrapper(BigArrays bigArrays, SearchContext context, Aggregator parent, AggregatorFactory factory,
-                Aggregator first) {
+        MultiBucketAggregatorWrapper(BigArrays bigArrays, SearchContext context,
+                                        Aggregator parent, AggregatorFactory factory, Aggregator first) {
             this.bigArrays = bigArrays;
             this.parent = parent;
             this.factory = factory;
@@ -126,7 +128,7 @@ public abstract class AggregatorFactory {
                         aggregators = bigArrays.grow(aggregators, bucket + 1);
                         Aggregator aggregator = aggregators.get(bucket);
                         if (aggregator == null) {
-                            aggregator = factory.create(parent, true);
+                            aggregator = factory.create(context(), parent, true);
                             aggregator.preCollection();
                             aggregators.set(bucket, aggregator);
                         }
@@ -145,14 +147,27 @@ public abstract class AggregatorFactory {
         }
 
         @Override
-        public InternalAggregation buildAggregation(long bucket) throws IOException {
-            if (bucket < aggregators.size()) {
-                Aggregator aggregator = aggregators.get(bucket);
-                if (aggregator != null) {
-                    return aggregator.buildAggregation(0);
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+                if (owningBucketOrds[ordIdx] < aggregators.size()) {
+                    Aggregator aggregator = aggregators.get(owningBucketOrds[ordIdx]);
+                    if (aggregator != null) {
+                        /*
+                         * This is the same call as buildTopLevel but since
+                         * this aggregator may not be the top level we don't
+                         * call that method here. It'd be weird sounding. And
+                         * it'd trip assertions. Both bad.
+                         */
+                        results[ordIdx] = aggregator.buildAggregations(new long [] {0})[0];
+                    } else {
+                        results[ordIdx] = buildEmptyAggregation();
+                    }
+                } else {
+                    results[ordIdx] = buildEmptyAggregation();
                 }
             }
-            return buildEmptyAggregation();
+            return results;
         }
 
         @Override
@@ -164,13 +179,26 @@ public abstract class AggregatorFactory {
         public void close() {
             Releasables.close(aggregators, collectors);
         }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            /*
+             * There isn't really a sane way to give our delegates a way to
+             * add entries because we'd have to merge them. So we just *don't*
+             * and leave a marker of our own. This ain't great, but we plan
+             * to cut down on usage of this wrapper in the future.
+             */
+            add.accept("wrapped_in_multi_bucket_aggregator", true);
+            super.collectDebugInfo(add);
+        }
     }
 
     protected final String name;
     protected final AggregatorFactory parent;
     protected final AggregatorFactories factories;
-    protected final Map<String, Object> metaData;
-    protected final SearchContext context;
+    protected final Map<String, Object> metadata;
+
+    protected final QueryShardContext queryShardContext;
 
     /**
      * Constructs a new aggregator factory.
@@ -180,13 +208,13 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public AggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
+                             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
         this.name = name;
-        this.context = context;
+        this.queryShardContext = queryShardContext;
         this.parent = parent;
-        this.factories = subFactoriesBuilder.build(context, this);
-        this.metaData = metaData;
+        this.factories = subFactoriesBuilder.build(queryShardContext, this);
+        this.metadata = metadata;
     }
 
     public String name() {
@@ -196,12 +224,17 @@ public abstract class AggregatorFactory {
     public void doValidate() {
     }
 
-    protected abstract Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator createInternal(SearchContext searchContext,
+                                                    Aggregator parent,
+                                                    boolean collectsFromSingleBucket,
+                                                    Map<String, Object> metadata) throws IOException;
 
     /**
      * Creates the aggregator
      *
+     *
+     * @param searchContext
+     *            The search context
      * @param parent
      *            The parent aggregator (if this is a top level factory, the
      *            parent will be {@code null})
@@ -213,8 +246,8 @@ public abstract class AggregatorFactory {
      *
      * @return The created aggregator
      */
-    public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
+    public final Aggregator create(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
+        return createInternal(searchContext, parent, collectsFromSingleBucket, this.metadata);
     }
 
     public AggregatorFactory getParent() {
@@ -225,12 +258,23 @@ public abstract class AggregatorFactory {
      * Utility method. Given an {@link AggregatorFactory} that creates
      * {@link Aggregator}s that only know how to collect bucket {@code 0}, this
      * returns an aggregator that can collect any bucket.
+     * @deprecated implement the aggregator to handle many owning buckets
      */
-    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final SearchContext context,
+    @Deprecated
+    protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final SearchContext searchContext,
             final Aggregator parent) throws IOException {
-        final Aggregator first = factory.create(parent, true);
-        final BigArrays bigArrays = context.bigArrays();
-        return new MultiBucketAggregatorWrapper(bigArrays, context, parent, factory, first);
+        final Aggregator first = factory.create(searchContext, parent, true);
+        final BigArrays bigArrays = searchContext.bigArrays();
+        return new MultiBucketAggregatorWrapper(bigArrays, searchContext, parent, factory, first);
     }
 
+    /**
+     * Returns the aggregation subtype for nodes usage stats.
+     * <p>
+     * It should match the types registered by calling {@linkplain org.elasticsearch.search.aggregations.support.AggregationUsageService}.
+     * In other words, it should be ValueSourcesType for the VST aggregations OTHER_SUBTYPE for all other aggregations.
+     */
+    public String getStatsSubtype() {
+        return OTHER_SUBTYPE;
+    }
 }

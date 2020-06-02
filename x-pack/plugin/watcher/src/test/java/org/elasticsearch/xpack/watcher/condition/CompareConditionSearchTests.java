@@ -9,7 +9,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -35,10 +34,10 @@ import static org.mockito.Mockito.when;
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testExecuteWithAggs() throws Exception {
-        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:00").get();
-        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:10").get();
-        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:20").get();
-        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:30").get();
+        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:00").get();
+        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:10").get();
+        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:20").get();
+        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:30").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("my-index")
@@ -56,7 +55,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         assertThat(resolvedValues.size(), is(1));
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 4));
 
-        client().prepareIndex("my-index", "my-type").setSource("@timestamp", "2005-01-01T00:40").get();
+        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:40").get();
         refresh();
 
         response = client().prepareSearch("my-index")
@@ -76,7 +75,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
     public void testExecuteAccessHits() throws Exception {
         CompareCondition condition = new CompareCondition("ctx.payload.hits.hits.0._score", CompareCondition.Op.EQ, 1,
                 Clock.systemUTC());
-        SearchHit hit = new SearchHit(0, "1", new Text("type"), null);
+        SearchHit hit = new SearchHit(0, "1", null, null);
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null, OriginalIndices.NONE));
 

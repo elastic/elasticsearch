@@ -67,11 +67,10 @@ After starting Elasticsearch, you can see whether this setting was applied
 successfully by checking the value of `mlockall` in the output from this
 request:
 
-[source,js]
+[source,console]
 --------------
 GET _nodes?filter_path=**.mlockall
 --------------
-// CONSOLE
 
 If you see that `mlockall` is `false`, then it means that the `mlockall`
 request has failed.  You will also see a line with more information in the logs
@@ -88,12 +87,6 @@ follows:
   <<limits.conf,`/etc/security/limits.conf`>>.
 
 RPM and Debian::
-
-  Set `MAX_LOCKED_MEMORY` to `unlimited` in the
-  <<sysconfig,system configuration file>> (or see below for systems using
-  `systemd`).
-
-Systems using `systemd`::
 
   Set `LimitMEMLOCK` to `infinity` in the <<systemd,systemd configuration>>.
 

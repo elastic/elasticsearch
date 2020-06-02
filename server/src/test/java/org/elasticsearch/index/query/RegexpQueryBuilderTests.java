@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -71,13 +70,13 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     private static RegexpQueryBuilder randomRegexpQuery() {
         // mapped or unmapped fields
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
         String value = randomAlphaOfLengthBetween(1, 10);
         return new RegexpQueryBuilder(fieldName, value);
     }
 
     @Override
-    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(RegexpQuery.class));
         RegexpQuery regexpQuery = (RegexpQuery) query;
 

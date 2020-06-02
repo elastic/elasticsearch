@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -67,10 +67,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong());
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
                 Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                     LifecycleExecutionState.builder()
                         .setPhase(step.getKey().getPhase())
@@ -81,7 +81,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         .setStepTime(0L)
                         .build().asMap())
                 .numberOfShards(numberOfShards).numberOfReplicas(0))).build();
-        step.performAction(state.metaData().index(indexName).getIndex(), state);
+        step.performAction(state.metadata().index(indexName).getIndex(), state);
         assertThat(step.getNextStepKey(), equalTo(nextStepKey));
     }
 
@@ -102,10 +102,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong());
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
                 Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetaData.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
                 .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                     LifecycleExecutionState.builder()
                         .setPhase(step.getKey().getPhase())
@@ -116,7 +116,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         .setStepTime(0L)
                         .build().asMap())
                 .numberOfShards(numShards).numberOfReplicas(0))).build();
-        ClusterState newState = step.performAction(state.metaData().index(indexName).getIndex(), state);
+        ClusterState newState = step.performAction(state.metadata().index(indexName).getIndex(), state);
         assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
     }
 
@@ -151,7 +151,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(2) instanceof UpdateSettingsStep);
         assertThat(steps.get(2).getKey(), equalTo(expectedThirdKey));
         assertThat(steps.get(2).getNextStepKey(), equalTo(expectedFourthKey));
-        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(((UpdateSettingsStep)steps.get(2)).getSettings()));
+        assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(((UpdateSettingsStep)steps.get(2)).getSettings()));
 
         assertTrue(steps.get(3) instanceof SetSingleNodeAllocateStep);
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));
@@ -174,7 +174,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(7) instanceof CopyExecutionStateStep);
         assertThat(steps.get(7).getKey(), equalTo(expectedEighthKey));
         assertThat(steps.get(7).getNextStepKey(), equalTo(expectedNinthKey));
-        assertThat(((CopyExecutionStateStep) steps.get(7)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(((CopyExecutionStateStep) steps.get(7)).getTargetIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
 
         assertTrue(steps.get(8) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(8).getKey(), equalTo(expectedNinthKey));

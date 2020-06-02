@@ -13,7 +13,7 @@ Delete auto-follow patterns.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
@@ -25,17 +25,15 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
   "follow_index_pattern" : "{{leader_index}}-follower"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:remote_cluster]
 // TESTSETUP
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/<auto_follow_pattern_name>
 --------------------------------------------------
-// CONSOLE
 // TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
 
 [[ccr-delete-auto-follow-pattern-prereqs]]
@@ -43,13 +41,13 @@ DELETE /_ccr/auto_follow/<auto_follow_pattern_name>
 
 * If the {es} {security-features} are enabled, you must have `manage_ccr` cluster
 privileges on the cluster that contains the follower index. For more information,
-see {stack-ov}/security-privileges.html[Security privileges].
+see <<security-privileges>>.
 
 [[ccr-delete-auto-follow-pattern-desc]]
 ==== {api-description-title}
 
 This API deletes a configured collection of
-{stack-ov}/ccr-auto-follow.html[auto-follow patterns].
+<<ccr-auto-follow,auto-follow patterns>>.
 
 [[ccr-delete-auto-follow-pattern-path-parms]]
 ==== {api-path-parms-title}
@@ -64,19 +62,17 @@ This API deletes a configured collection of
 This example deletes an auto-follow pattern collection named
 `my_auto_follow_pattern`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:remote_cluster]
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

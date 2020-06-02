@@ -18,7 +18,7 @@ Deletes expired and unused machine learning data.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-expired-data-desc]]
 ==== {api-description-title}
@@ -27,23 +27,33 @@ Deletes all job results, model snapshots and forecast data that have exceeded
 their `retention days` period. Machine learning state documents that are not
 associated with any job are also deleted.
 
+[[ml-delete-expired-data-request-body]]
+==== {api-request-body-title}
+
+`requests_per_second`::
+(Optional, float) The desired requests per second for the deletion processes.
+The default behavior is no throttling.
+
+`timeout`::
+(Optional, string) How long can the underlying delete processes run until they are canceled.
+The default value is `8h` (8 hours).
+
 [[ml-delete-expired-data-example]]
 ==== {api-examples-title}
 
 The endpoint takes no arguments:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/_delete_expired_data
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 When the expired data is deleted, you receive the following response:
-[source,js]
+
+[source,console-result]
 ----
 {
   "deleted": true
 }
 ----
-// TESTRESPONSE

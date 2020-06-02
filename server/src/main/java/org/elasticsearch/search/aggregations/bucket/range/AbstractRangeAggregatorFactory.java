@@ -19,49 +19,78 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
+public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
 
     private final InternalRange.Factory<?, ?> rangeFactory;
     private final R[] ranges;
     private final boolean keyed;
+    private final String aggregationTypeName;
 
-    public AbstractRangeAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, R[] ranges, boolean keyed,
-            InternalRange.Factory<?, ?> rangeFactory, SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder,
+                                           String aggregationName) {
+        builder.register(aggregationName,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            (RangeAggregatorSupplier) RangeAggregator::new);
+    }
+
+    public AbstractRangeAggregatorFactory(String name,
+                                          String aggregationTypeName,
+                                          ValuesSourceConfig config,
+                                          R[] ranges,
+                                          boolean keyed,
+                                          InternalRange.Factory<?, ?> rangeFactory,
+                                          QueryShardContext queryShardContext,
+                                          AggregatorFactory parent,
+                                          AggregatorFactories.Builder subFactoriesBuilder,
+                                          Map<String, Object> metadata) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
+        this.aggregationTypeName = aggregationTypeName;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        return new Unmapped<>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            Map<String, Object> metadata) throws IOException {
+        return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new RangeAggregator(name, factories, valuesSource, config.format(), rangeFactory, ranges, keyed, context, parent,
-                pipelineAggregators, metaData);
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            Map<String, Object> metadata) throws IOException {
+
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
+            aggregationTypeName);
+        if (aggregatorSupplier instanceof RangeAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected RangeAggregatorSupplier, found [" +
+                aggregatorSupplier.getClass().toString() + "]");
+        }
+        return ((RangeAggregatorSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
+            ranges, keyed, searchContext, parent, metadata);
     }
-
-
 }

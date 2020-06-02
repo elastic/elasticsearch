@@ -1,5 +1,8 @@
 [[cluster-get-settings]]
-=== Cluster Get Settings
+=== Cluster get settings API
+++++
+<titleabbrev>Cluster get settings</titleabbrev>
+++++
 
 Returns cluster-wide settings.
 
@@ -17,10 +20,10 @@ defined, but can also include the default settings by calling the
 ==== {api-query-parms-title}
 
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
     (Optional, boolean) If `true`, returns all default cluster settings. 
     Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

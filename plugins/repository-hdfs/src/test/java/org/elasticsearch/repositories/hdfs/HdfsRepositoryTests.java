@@ -47,8 +47,15 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
     }
 
     @Override
+    public void tearDown() throws Exception {
+        if (isJava11() == false) {
+            super.tearDown();
+        }
+    }
+
+    @Override
     protected void createRepository(String repoName) {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", isJava11());
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository(repoName)
             .setType("hdfs")
             .setSettings(Settings.builder()
@@ -69,5 +76,9 @@ public class HdfsRepositoryTests extends AbstractThirdPartyRepositoryTestCase {
         } else {
             assertThat(response.result().blobs(), equalTo(0L));
         }
+    }
+
+    public static boolean isJava11() {
+        return JavaVersion.current().equals(JavaVersion.parse("11"));
     }
 }

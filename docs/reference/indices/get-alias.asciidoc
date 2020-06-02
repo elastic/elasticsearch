@@ -6,13 +6,12 @@
 
 Returns information about one or more index aliases.
 
-include::alias-exists.asciidoc[tag=index-alias-def]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
-[source,js]
+[source,console]
 ----
 GET /twitter/_alias/alias1
 ----
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT twitter\/_alias\/alias1\n/]
 
@@ -32,26 +31,28 @@ GET /twitter/_alias/alias1
 
 `<alias>`::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
 +
 To retrieve information for all index aliases,
 use a value of `_all` or `*`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 
 [[get-alias-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `all`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
 
 [[get-alias-api-example]]
@@ -71,7 +72,7 @@ with two aliases:
 in the `logs_20302801` index
 with a `year` field value of `2030`
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /logs_20302801
 {
@@ -85,21 +86,19 @@ PUT /logs_20302801
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following get index alias API request returns all aliases
 for the index `logs_20302801`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /logs_20302801/_alias/*
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
  "logs_20302801" : {
@@ -117,7 +116,6 @@ The API returns the following response:
  }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [[get-alias-api-named-ex]]
@@ -125,16 +123,15 @@ The API returns the following response:
 
 The following index alias API request returns the `2030` alias:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_alias/2030
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "logs_20302801" : {
@@ -150,23 +147,22 @@ The API returns the following response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[get-alias-api-wildcard-ex]]
 ===== Get aliases based on a wildcard
 
 The following index alias API request returns any alias that begin with `20`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_alias/20*
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "logs_20302801" : {
@@ -182,4 +178,3 @@ The API returns the following response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

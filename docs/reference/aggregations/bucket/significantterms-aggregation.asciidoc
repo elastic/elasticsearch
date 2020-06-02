@@ -7,7 +7,7 @@ An aggregation that returns interesting or unusual occurrences of terms in a set
 * Suggesting "H5N1" when users search for "bird flu" in text
 * Identifying the merchant that is the "common point of compromise" from the transaction history of credit card owners reporting loss
 * Suggesting keywords relating to stock symbol $ATI for an automated news classifier
-* Spotting the fraudulent doctor who is diagnosing more than his fair share of whiplash injuries
+* Spotting the fraudulent doctor who is diagnosing more than their fair share of whiplash injuries
 * Spotting the tire manufacturer who has a disproportionate number of blow-outs
 
 In all these cases the terms being selected are not simply the most popular terms in a set.
@@ -17,7 +17,7 @@ that is significant and probably very relevant to their search. 5/10,000,000 vs 
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /reports
 {
@@ -52,7 +52,6 @@ POST /reports/_bulk?refresh
 {"force": "Metropolitan Police Service", "crime_type": "Robbery"}
 
 -------------------------------------------------
-// NOTCONSOLE
 // TESTSETUP
 
 //////////////////////////
@@ -64,7 +63,7 @@ set used for statistical comparisons is the index or indices from which the resu
 
 Example:
 
-[source,js]
+[source,console,id=significantterms-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -78,12 +77,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -125,7 +123,7 @@ A simpler way to perform analysis across multiple categories is to use a parent-
 
 Example using a parent aggregation for segmentation:
 
-[source,js]
+[source,console,id=significantterms-aggregation-multiset--example]
 --------------------------------------------------
 GET /_search
 {
@@ -141,12 +139,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
  ...
@@ -203,7 +200,7 @@ Now we have anomaly detection for each of the police forces using a single reque
 We can use other forms of top-level aggregations to segment our data, for example segmenting by geographic
 area to identify unusual hot-spots of a particular crime type:
 
-[source,js]
+[source,console,id=significantterms-aggregation-hotspot-example]
 --------------------------------------------------
 GET /_search
 {
@@ -222,7 +219,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 This example uses the `geohash_grid` aggregation to create result buckets that represent geographic areas, and inside each
 bucket we can identify anomalous levels of a crime type in these tightly-focused areas e.g.
@@ -392,7 +388,7 @@ By default this produces a score greater than zero and less than one.
 
 The benefit of this heuristic is that the scoring logic is simple to explain to anyone familiar with a "per capita" statistic. However, for fields with high cardinality there is a tendency for this heuristic to select the rarest terms such as typos that occur only once because they score 1/1 = 100%.
 
-It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under his belt would be impossible to beat.
+It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under their belt would be impossible to beat.
 Multiple observations are typically required to reinforce a view so it is recommended in these cases to set both `min_doc_count` and `shard_min_doc_count` to a higher value such as 10 in order to filter out the low-frequency terms that otherwise take precedence.
 
 [source,js]
@@ -464,7 +460,7 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
-[source,js]
+[source,console,id=significantterms-aggregation-min-document-example]
 --------------------------------------------------
 GET /_search
 {
@@ -478,7 +474,7 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
 
@@ -507,7 +503,7 @@ The default source of statistical information for background term frequencies is
 scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
 context:
 
-[source,js]
+[source,console,id=significantterms-aggregation-custom-background-example]
 --------------------------------------------------
 GET /_search
 {
@@ -528,7 +524,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing
 terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the
@@ -566,7 +561,7 @@ is significantly faster. By default, `map` is only used when running an aggregat
 ordinals.
 
 
-[source,js]
+[source,console,id=significantterms-aggregation-execution-hint-example]
 --------------------------------------------------
 GET /_search
 {
@@ -580,7 +575,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> the possible values are `map`, `global_ordinals`
 

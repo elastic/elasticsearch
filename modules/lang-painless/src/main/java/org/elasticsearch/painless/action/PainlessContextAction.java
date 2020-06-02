@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptContext;
@@ -58,8 +57,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Internal REST API for querying context information about Painless whitelists.
  * Commands include the following:
  * <ul>
- *     <li> GET /_script/painless/_context -- retrieves a list of contexts </li>
- *     <li> GET /_script/painless/_context?context=%name% --
+ *     <li> GET /_scripts/painless/_context -- retrieves a list of contexts </li>
+ *     <li> GET /_scripts/painless/_context?context=%name% --
  *     retrieves all available information about the API for this specific context</li>
  * </ul>
  */
@@ -194,8 +193,9 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
     public static class RestAction extends BaseRestHandler {
 
-        public RestAction(RestController controller) {
-            controller.registerHandler(GET, "/_script/painless/_context", this);
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, "/_script/painless/_context"));
         }
 
         @Override

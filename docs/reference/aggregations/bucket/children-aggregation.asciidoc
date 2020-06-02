@@ -9,7 +9,7 @@ This aggregation has a single option:
 
 For example, let's say we have an index of questions and answers. The answer type has the following `join` field in the mapping:
 
-[source,js]
+[source,console,id=children-aggregation-example]
 --------------------------------------------------
 PUT child_example
 {
@@ -25,7 +25,6 @@ PUT child_example
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `question` document contain a tag field and the `answer` documents contain an owner field. With the `children`
 aggregation the tag buckets can be mapped to the owner buckets in a single request even though the two fields exist in
@@ -33,7 +32,7 @@ two different kinds of documents.
 
 An example of a question document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT child_example/_doc/1
 {
@@ -49,12 +48,11 @@ PUT child_example/_doc/1
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Examples of `answer` documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT child_example/_doc/2?routing=1
 {
@@ -86,12 +84,11 @@ PUT child_example/_doc/3?routing=1&refresh
   "creation_date": "2009-05-05T13:45:37.030"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The following request can be built that connects the two together:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST child_example/_search?size=0
 {
@@ -120,7 +117,6 @@ POST child_example/_search?size=0
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The `type` points to type / mapping with the name `answer`.
@@ -129,7 +125,7 @@ The above example returns the top question tags and per tag the top answer owner
 
 Possible response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 25,

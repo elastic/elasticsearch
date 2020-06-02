@@ -49,11 +49,18 @@ public abstract class AbstractRequestTestCase<C extends ToXContent, S> extends E
 
         final XContent xContent = XContentFactory.xContent(xContentType);
         final XContentParser parser = xContent.createParser(
-            NamedXContentRegistry.EMPTY,
+            xContentRegistry(),
             LoggingDeprecationHandler.INSTANCE,
             bytes.streamInput());
         final S serverInstance = doParseToServerInstance(parser);
         assertInstances(serverInstance, clientTestInstance);
+    }
+
+    /**
+     * The {@link NamedXContentRegistry} to use for this test. Subclasses may override this to have a more realistic registry.
+     */
+    protected NamedXContentRegistry xContentRegistry() {
+        return NamedXContentRegistry.EMPTY;
     }
 
     /**

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -90,6 +91,14 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
             return in.readEnum(ForecastRequestStatus.class);
         }
 
+        /**
+         * @return {@code true} if state matches any of the given {@code candidates}
+         */
+        public boolean isAnyOf(ForecastRequestStatus... candidates) {
+            return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
+        }
+
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
@@ -120,6 +129,22 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.forecastId = Objects.requireNonNull(forecastId);
     }
 
+    public ForecastRequestStats(ForecastRequestStats forecastRequestStats) {
+        this.jobId = forecastRequestStats.jobId;
+        this.forecastId = forecastRequestStats.forecastId;
+        this.recordCount = forecastRequestStats.recordCount;
+        this.messages = forecastRequestStats.messages;
+        this.timestamp = forecastRequestStats.timestamp;
+        this.startTime = forecastRequestStats.startTime;
+        this.endTime = forecastRequestStats.endTime;
+        this.createTime = forecastRequestStats.createTime;
+        this.expiryTime = forecastRequestStats.expiryTime;
+        this.progress = forecastRequestStats.progress;
+        this.processingTime = forecastRequestStats.processingTime;
+        this.memoryUsage = forecastRequestStats.memoryUsage;
+        this.status = forecastRequestStats.status;
+    }
+
     public ForecastRequestStats(StreamInput in) throws IOException {
         jobId = in.readString();
         forecastId = in.readString();
@@ -130,7 +155,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
             messages = null;
         }
 
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             timestamp = in.readInstant();
             startTime = in.readInstant();
             endTime = in.readInstant();
@@ -161,7 +186,7 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeInstant(timestamp);
             out.writeInstant(startTime);
             out.writeInstant(endTime);

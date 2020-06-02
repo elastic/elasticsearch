@@ -12,29 +12,18 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.BoostingQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
+import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -127,11 +116,9 @@ public final class DocumentPermissions {
                                        BooleanQuery.Builder filter) throws IOException {
         for (BytesReference bytesReference : queries) {
             QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
-            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(bytesReference.utf8ToString(), scriptService, user);
-            try (XContentParser parser = XContentFactory.xContent(templateResult).createParser(queryShardContext.getXContentRegistry(),
-                    LoggingDeprecationHandler.INSTANCE, templateResult)) {
-                QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
-                verifyRoleQuery(queryBuilder);
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
+                queryShardContext.getXContentRegistry(), user);
+            if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, queryShardContext);
                 Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
@@ -139,11 +126,11 @@ public final class DocumentPermissions {
                     NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
-                                .add(Queries.newNonNestedFilter(), FILTER).build();
+                            .add(Queries.newNonNestedFilter(), FILTER).build();
                     }
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
                     BitSetProducer rootDocs = queryShardContext
-                            .bitsetFilter(Queries.newNonNestedFilter());
+                        .bitsetFilter(Queries.newNonNestedFilter());
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                     filter.add(includeNestedDocs, SHOULD);
                 }
@@ -151,50 +138,6 @@ public final class DocumentPermissions {
         }
         // at least one of the queries should match
         filter.setMinimumNumberShouldMatch(1);
-    }
-
-    /**
-     * Checks whether the role query contains queries we know can't be used as DLS role query.
-     */
-    static void verifyRoleQuery(QueryBuilder queryBuilder) throws IOException {
-        if (queryBuilder instanceof TermsQueryBuilder) {
-            TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
-            if (termsQueryBuilder.termsLookup() != null) {
-                throw new IllegalArgumentException("terms query with terms lookup isn't supported as part of a role query");
-            }
-        } else if (queryBuilder instanceof GeoShapeQueryBuilder) {
-            GeoShapeQueryBuilder geoShapeQueryBuilder = (GeoShapeQueryBuilder) queryBuilder;
-            if (geoShapeQueryBuilder.shape() == null) {
-                throw new IllegalArgumentException("geoshape query referring to indexed shapes isn't support as part of a role query");
-            }
-        } else if (queryBuilder.getName().equals("percolate")) {
-            // actually only if percolate query is referring to an existing document then this is problematic,
-            // a normal percolate query does work. However we can't check that here as this query builder is inside
-            // another module. So we don't allow the entire percolate query. I don't think users would ever use
-            // a percolate query as role query, so this restriction shouldn't prohibit anyone from using dls.
-            throw new IllegalArgumentException("percolate query isn't support as part of a role query");
-        } else if (queryBuilder.getName().equals("has_child")) {
-            throw new IllegalArgumentException("has_child query isn't support as part of a role query");
-        } else if (queryBuilder.getName().equals("has_parent")) {
-            throw new IllegalArgumentException("has_parent query isn't support as part of a role query");
-        } else if (queryBuilder instanceof BoolQueryBuilder) {
-            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
-            List<QueryBuilder> clauses = new ArrayList<>();
-            clauses.addAll(boolQueryBuilder.filter());
-            clauses.addAll(boolQueryBuilder.must());
-            clauses.addAll(boolQueryBuilder.mustNot());
-            clauses.addAll(boolQueryBuilder.should());
-            for (QueryBuilder clause : clauses) {
-                verifyRoleQuery(clause);
-            }
-        } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
-            verifyRoleQuery(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
-        } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
-            verifyRoleQuery(((FunctionScoreQueryBuilder) queryBuilder).query());
-        } else if (queryBuilder instanceof BoostingQueryBuilder) {
-            verifyRoleQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
-            verifyRoleQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
-        }
     }
 
     /**

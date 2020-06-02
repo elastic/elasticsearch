@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
@@ -32,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class MockSearchService extends SearchService {
     /**
@@ -40,6 +42,8 @@ public class MockSearchService extends SearchService {
     public static class TestPlugin extends Plugin {}
 
     private static final Map<SearchContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+
+    private Consumer<SearchContext> onPutContext = context -> {};
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -68,14 +72,15 @@ public class MockSearchService extends SearchService {
 
     public MockSearchService(ClusterService clusterService,
             IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
-            BigArrays bigArrays, FetchPhase fetchPhase) {
-        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null);
+            BigArrays bigArrays, FetchPhase fetchPhase, CircuitBreakerService circuitBreakerService) {
+        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null, circuitBreakerService);
     }
 
     @Override
     protected void putContext(SearchContext context) {
-        super.putContext(context);
+        onPutContext.accept(context);
         addActiveContext(context);
+        super.putContext(context);
     }
 
     @Override
@@ -85,5 +90,9 @@ public class MockSearchService extends SearchService {
             removeActiveContext(removed);
         }
         return removed;
+    }
+
+    public void setOnPutContext(Consumer<SearchContext> onPutContext) {
+        this.onPutContext = onPutContext;
     }
 }

@@ -20,22 +20,22 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchContextException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
-public class QueryPhaseExecutionException extends SearchContextException {
+public class QueryPhaseExecutionException extends SearchException {
 
-    public QueryPhaseExecutionException(SearchContext context, String msg, Throwable cause) {
-        super(context, "Query Failed [" + msg + "]", cause);
+    public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable cause) {
+        super(shardTarget, "Query Failed [" + msg + "]", cause);
     }
 
     public QueryPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
     }
 
-    public QueryPhaseExecutionException(SearchContext context, String msg) {
-        super(context, msg);
+    public QueryPhaseExecutionException(SearchShardTarget shardTarget, String msg) {
+        super(shardTarget, msg);
     }
 }

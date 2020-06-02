@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
@@ -30,7 +32,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -49,7 +52,9 @@ import java.util.Optional;
  */
 public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
-    private final MetaDataMappingService metaDataMappingService;
+    private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
+
+    private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
 
     @Inject
@@ -57,13 +62,13 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             final TransportService transportService,
             final ClusterService clusterService,
             final ThreadPool threadPool,
-            final MetaDataMappingService metaDataMappingService,
+            final MetadataMappingService metadataMappingService,
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RequestValidators<PutMappingRequest> requestValidators) {
         super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest::new,
             indexNameExpressionResolver);
-        this.metaDataMappingService = metaDataMappingService;
+        this.metadataMappingService = metadataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
     }
 
@@ -101,12 +106,11 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
-            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest()
-                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                    .indices(concreteIndices).type(request.type())
-                    .source(request.source());
+            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
+                .indices(concreteIndices)
+                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
 
-            metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+            metadataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
                 @Override
                 public void onResponse(ClusterStateUpdateResponse response) {
@@ -115,14 +119,14 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
 
                 @Override
                 public void onFailure(Exception t) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
-                        concreteIndices, request.type()), t);
+                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                        Arrays.asList(concreteIndices)), t);
                     listener.onFailure(t);
                 }
             });
         } catch (IndexNotFoundException ex) {
-            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
-                request.indices(), request.type()), ex);
+            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                Arrays.asList(request.indices())), ex);
             throw ex;
         }
     }

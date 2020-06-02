@@ -274,6 +274,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitNamedQuery(SqlBaseParser.NamedQueryContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#topClause}.
+   * @param ctx the parse tree
+   */
+  void enterTopClause(SqlBaseParser.TopClauseContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#topClause}.
+   * @param ctx the parse tree
+   */
+  void exitTopClause(SqlBaseParser.TopClauseContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#setQuantifier}.
    * @param ctx the parse tree
    */
@@ -283,6 +293,16 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitSetQuantifier(SqlBaseParser.SetQuantifierContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#selectItems}.
+   * @param ctx the parse tree
+   */
+  void enterSelectItems(SqlBaseParser.SelectItemsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#selectItems}.
+   * @param ctx the parse tree
+   */
+  void exitSelectItems(SqlBaseParser.SelectItemsContext ctx);
   /**
    * Enter a parse tree produced by the {@code selectExpression}
    * labeled alternative in {@link SqlBaseParser#selectItem}.
@@ -371,6 +391,36 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitAliasedRelation(SqlBaseParser.AliasedRelationContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#pivotClause}.
+   * @param ctx the parse tree
+   */
+  void enterPivotClause(SqlBaseParser.PivotClauseContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#pivotClause}.
+   * @param ctx the parse tree
+   */
+  void exitPivotClause(SqlBaseParser.PivotClauseContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#pivotArgs}.
+   * @param ctx the parse tree
+   */
+  void enterPivotArgs(SqlBaseParser.PivotArgsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#pivotArgs}.
+   * @param ctx the parse tree
+   */
+  void exitPivotArgs(SqlBaseParser.PivotArgsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#namedValueExpression}.
+   * @param ctx the parse tree
+   */
+  void enterNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#namedValueExpression}.
+   * @param ctx the parse tree
+   */
+  void exitNamedValueExpression(SqlBaseParser.NamedValueExpressionContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#expression}.
    * @param ctx the parse tree

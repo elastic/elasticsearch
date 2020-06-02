@@ -56,10 +56,10 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     @Before
     public void setup() throws IOException {
         createIndex("test");
-        client().prepareIndex("test", "type", "1")
+        client().prepareIndex("test").setId("1")
                 .setSource(jsonBuilder().startObject().field("text", "value1").endObject())
                 .get();
-        client().prepareIndex("test", "type", "2")
+        client().prepareIndex("test").setId("2")
                 .setSource(jsonBuilder().startObject().field("text", "value2").endObject())
                 .get();
         client().admin().indices().prepareRefresh().get();
@@ -175,11 +175,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
@@ -226,11 +226,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 
@@ -265,7 +265,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         createIndex("testindex");
         ensureGreen("testindex");
 
-        client().prepareIndex("testindex", "test", "1")
+        client().prepareIndex("testindex").setId("1")
                 .setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject())
                 .get();
         client().admin().indices().prepareRefresh().get();
@@ -342,11 +342,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                         .setContent(new BytesArray(multiQuery), XContentType.JSON)
         );
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("3").setSource("{\"theField\":\"foo 3\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
+        bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
         client().admin().indices().prepareRefresh().get();
 

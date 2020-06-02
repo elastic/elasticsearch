@@ -25,7 +25,7 @@ PUT /products
     }
 }
 
-POST /products/_doc/_bulk?refresh
+POST /products/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}
@@ -85,7 +85,7 @@ better approximation, but higher memory usage. Cannot be smaller than `0.00001` 
 
 Example:
 
-[source,js]
+[source,console,id=rare-terms-aggregation-example]
 --------------------------------------------------
 GET /_search
 {
@@ -98,12 +98,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -124,7 +123,7 @@ Response:
 In this example, the only bucket that we see is the "swing" bucket, because it is the only term that appears in
 one document.  If we increase the `max_doc_count` to `2`, we'll see some more buckets:
 
-[source,js]
+[source,console,id=rare-terms-aggregation-max-doc-count-example]
 --------------------------------------------------
 GET /_search
 {
@@ -138,12 +137,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 This now shows the "jazz" term which has a `doc_count` of 2":
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -275,7 +273,7 @@ It is possible to filter the values for which buckets will be created. This can 
 
 ===== Filtering Values with regular expressions
 
-[source,js]
+[source,console,id=rare-terms-aggregation-regex-example]
 --------------------------------------------------
 GET /_search
 {
@@ -290,7 +288,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 In the above example, buckets will be created for all the tags that starts with `swi`, except those starting
 with `electro` (so the tag `swing` will be aggregated but not `electro_swing`). The `include` regular expression will determine what
@@ -304,7 +301,7 @@ The syntax is the same as <<regexp-syntax,regexp queries>>.
 For matching based on exact values the `include` and `exclude` parameters can simply take an array of
 strings that represent the terms as they are found in the index:
 
-[source,js]
+[source,console,id=rare-terms-aggregation-exact-value-example]
 --------------------------------------------------
 GET /_search
 {
@@ -319,7 +316,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 ==== Missing value
@@ -328,7 +324,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console,id=rare-terms-aggregation-missing-example]
 --------------------------------------------------
 GET /_search
 {
@@ -342,7 +338,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.
 

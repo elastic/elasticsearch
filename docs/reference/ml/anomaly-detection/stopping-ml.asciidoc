@@ -23,15 +23,14 @@ When you stop a {dfeed}, it ceases to retrieve data from {es}. You can stop a
 {ref}/ml-stop-datafeed.html[stop {dfeeds} API]. For example, the following
 request stops the `feed1` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/feed1/_stop
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_startdf]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
-For more information, see <<security-privileges>>.
+For more information, see {ref}/security-privileges.html[Security privileges]
 
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
@@ -44,11 +43,10 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 If you are upgrading your cluster, you can use the following request to stop all
 {dfeeds}:
 
-[source,js]
+[source,console]
 ----------------------------------
 POST _ml/datafeeds/_all/_stop
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]
 
 [float]
@@ -64,15 +62,14 @@ You can close a job by using the
 {ref}/ml-close-job.html[close {anomaly-job} API]. For 
 example, the following request closes the `job1` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/job1/_close
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 NOTE: You must have `manage_ml`, or `manage` cluster privileges to stop {dfeeds}.
-For more information, see <<security-privileges>>.
+For more information, see {ref}/security-privileges.html[Security privileges]
 
 {anomaly-jobs-cap} can be opened and closed multiple times throughout their
 lifecycle.
@@ -84,9 +81,8 @@ lifecycle.
 If you are upgrading your cluster, you can use the following request to close
 all open {anomaly-jobs} on the cluster:
 
-[source,js]
+[source,console]
 ----------------------------------
 POST _ml/anomaly_detectors/_all/_close
 ----------------------------------
-// CONSOLE
 // TEST[skip:needs-licence]

@@ -6,20 +6,12 @@
 
 Checks if an index alias exists.
 
-//tag::index-alias-def[]
-An index alias is a secondary name
-used to refer to one or more existing indices.
-//end::index-alias-def[]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
-The returned HTTP status code indicates whether the index alias exists or not.
-A `404` means it does not exist,
-and `200` means it does.
-
-[source,js]
+[source,console]
 ----
 HEAD /_alias/alias1
 ----
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT twitter\/_alias\/alias1\n/]
 
@@ -37,22 +29,20 @@ HEAD /_alias/alias1
 
 `<alias>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 [[alias-exists-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `all`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
 
 [[alias-exists-api-response-codes]]
@@ -68,11 +58,10 @@ Indicates one or more specified index aliases **do not** exist.
 [[alias-exists-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 ----
 HEAD /_alias/2030
 HEAD /_alias/20*
 HEAD /logs_20302801/_alias/*
 ----
-// CONSOLE
 // TEST[s/^/PUT logs_20302801\nPUT logs_20302801\/_alias\/2030\n/]

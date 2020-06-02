@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.flattened.FlattenedMapperPlugin;
 import org.junit.Before;
 
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class FlatObjectSearchTests extends ESSingleNodeTestCase {
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(FlattenedMapperPlugin.class, XPackPlugin.class);
+        return pluginList(FlattenedMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     @Before
@@ -75,11 +75,11 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                 .endObject()
            .endObject()
         .endObject();
-        createIndex("test", Settings.EMPTY, "_doc", mapping);
+        createIndex("test", Settings.EMPTY, mapping);
     }
 
     public void testMatchQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -108,7 +108,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiMatchQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -141,7 +141,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testQueryStringQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -172,7 +172,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleQueryStringQuery() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -203,7 +203,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testExists() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -233,7 +233,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(2, 100);
         int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
 
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         // Add a random number of documents containing a flat object field, plus
@@ -249,7 +249,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         }
 
         for (int i = 0; i < 10; i++) {
-            bulkRequest.add(client().prepareIndex("test", "_doc")
+            bulkRequest.add(client().prepareIndex("test")
                 .setSource("other_field", "1"));
         }
 
@@ -300,7 +300,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsAggregation() throws IOException {
-        BulkRequestBuilder bulkRequest = client().prepareBulk("test", "_doc")
+        BulkRequestBuilder bulkRequest = client().prepareBulk("test")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 5; i++) {
             bulkRequest.add(client().prepareIndex()
@@ -396,7 +396,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
 
 
     public void testLoadDocValuesFields() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -426,7 +426,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldSort() throws Exception {
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -437,7 +437,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                 .endObject())
             .get();
 
-        client().prepareIndex("test", "_doc", "2")
+        client().prepareIndex("test").setId("2")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -448,7 +448,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
                 .endObject())
             .get();
 
-        client().prepareIndex("test", "_doc", "3")
+        client().prepareIndex("test").setId("3")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -486,7 +486,7 @@ public class FlatObjectSearchTests extends ESSingleNodeTestCase {
         headers.put("origin", "https://www.elastic.co");
         Map<String, Object> source = Collections.singletonMap("headers", headers);
 
-        client().prepareIndex("test", "_doc", "1")
+        client().prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(source)
             .get();

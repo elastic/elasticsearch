@@ -19,9 +19,13 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.Request;
+import com.amazonaws.Response;
+import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import com.amazonaws.util.AWSRequestMetrics;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -29,7 +33,10 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 class S3BlobStore implements BlobStore {
 
@@ -45,18 +52,62 @@ class S3BlobStore implements BlobStore {
 
     private final StorageClass storageClass;
 
-    private final RepositoryMetaData repositoryMetaData;
+    private final RepositoryMetadata repositoryMetadata;
+
+    private final Stats stats = new Stats();
+
+    final RequestMetricCollector getMetricCollector;
+    final RequestMetricCollector listMetricCollector;
+    final RequestMetricCollector putMetricCollector;
+    final RequestMetricCollector multiPartUploadMetricCollector;
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetaData repositoryMetaData) {
+                RepositoryMetadata repositoryMetadata) {
         this.service = service;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
-        this.repositoryMetaData = repositoryMetaData;
+        this.repositoryMetadata = repositoryMetadata;
+        this.getMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("GET");
+                stats.getCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.listMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("GET");
+                stats.listCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.putMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT");
+                stats.putCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.multiPartUploadMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT")
+                    || request.getHttpMethod().name().equals("POST");
+                stats.postCount.addAndGet(getRequestCount(request));
+            }
+        };
+    }
+
+    private long getRequestCount(Request<?> request) {
+        Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
+            .getCounter(AWSRequestMetrics.Field.RequestCount.name());
+        assert requestCount != null;
+
+        return requestCount.longValue();
     }
 
     @Override
@@ -65,7 +116,11 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return service.client(repositoryMetaData);
+        return service.client(repositoryMetadata);
+    }
+
+    int getMaxRetries() {
+        return service.settings(repositoryMetadata).maxRetries;
     }
 
     public String bucket() {
@@ -88,6 +143,11 @@ class S3BlobStore implements BlobStore {
     @Override
     public void close() throws IOException {
         this.service.close();
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return stats.toMap();
     }
 
     public CannedAccessControlList getCannedACL() {
@@ -130,5 +190,25 @@ class S3BlobStore implements BlobStore {
         }
 
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
+    }
+
+    static class Stats {
+
+        final AtomicLong listCount = new AtomicLong();
+
+        final AtomicLong getCount = new AtomicLong();
+
+        final AtomicLong putCount = new AtomicLong();
+
+        final AtomicLong postCount = new AtomicLong();
+
+        Map<String, Long> toMap() {
+            final Map<String, Long> results = new HashMap<>();
+            results.put("GET", getCount.get());
+            results.put("LIST", listCount.get());
+            results.put("PUT", putCount.get());
+            results.put("POST", postCount.get());
+            return results;
+        }
     }
 }

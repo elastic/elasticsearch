@@ -22,47 +22,43 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class MatrixStatsAggregationBuilder
-    extends ArrayValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregationBuilder> {
+        extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
 
     private MultiValueMode multiValueMode = MultiValueMode.AVG;
 
     public MatrixStatsAggregationBuilder(String name) {
-        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name);
     }
 
     protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone,
-                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.multiValueMode = clone.multiValueMode;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in);
     }
 
     @Override
@@ -80,9 +76,11 @@ public class MatrixStatsAggregationBuilder
     }
 
     @Override
-    protected MatrixStatsAggregatorFactory innerBuild(SearchContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, context, parent, subFactoriesBuilder, metaData);
+    protected MatrixStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                        Map<String, ValuesSourceConfig> configs,
+                                                        AggregatorFactory parent,
+                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

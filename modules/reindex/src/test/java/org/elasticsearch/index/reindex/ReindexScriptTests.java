@@ -47,20 +47,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         }
     }
 
-    public void testSetType() throws Exception {
-        Object type = randomFrom(new Object[] {234, 234L, "pancake"});
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_type", type));
-        assertEquals(type.toString(), index.type());
-    }
-
-    public void testSettingTypeToNullIsError() throws Exception {
-        try {
-            applyScript((Map<String, Object> ctx) -> ctx.put("_type", null));
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), containsString("Can't reindex without a destination type!"));
-        }
-    }
-
     public void testSetId() throws Exception {
         Object id = randomFrom(new Object[] {null, 234, 234L, "pancake"});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_id", id));

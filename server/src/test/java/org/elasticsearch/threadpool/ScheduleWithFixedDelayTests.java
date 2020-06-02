@@ -178,7 +178,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
         // rarely wait and make sure the runnable didn't run at the next interval
         if (rarely()) {
-            assertFalse(awaitBusy(runAfterDone::get, 1L, TimeUnit.SECONDS));
+            assertBusy(() -> assertFalse("Runnable was run after being cancelled", runAfterDone.get()), 1L, TimeUnit.SECONDS);
         }
     }
 
@@ -283,10 +283,10 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         assertThat(counterValue, equalTo(iterations));
 
         if (rarely()) {
-            awaitBusy(() -> {
-                final int value = counter.get();
-                return value == iterations;
-            }, 5 * interval.millis(), TimeUnit.MILLISECONDS);
+            assertBusy(
+                () -> assertThat(counter.get(), equalTo(iterations)),
+                5 * interval.millis(),
+                TimeUnit.MILLISECONDS);
         }
     }
 

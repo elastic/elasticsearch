@@ -104,7 +104,6 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures.0.index:  test}
-  - match: {failures.0.type:   _doc}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
@@ -144,7 +143,6 @@
   - match: {version_conflicts: 1}
   - match: {batches: 1}
   - match: {failures.0.index:  test}
-  - match: {failures.0.type:   _doc}
   - match: {failures.0.id:     "1"}
   - match: {failures.0.status: 409}
   - match: {failures.0.cause.type:   version_conflict_engine_exception}
@@ -164,7 +162,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -173,7 +170,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test2" }
 

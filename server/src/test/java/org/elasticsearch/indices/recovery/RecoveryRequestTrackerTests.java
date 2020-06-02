@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -68,7 +69,7 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
                         // Ensure that we only return 1 future per sequence number
                         assertTrue(added);
                         if (rarely()) {
-                            listener.onFailure(new Exception());
+                            listener.onFailure(new ElasticsearchException(randomAlphaOfLength(10)));
                         } else {
                             listener.onResponse(null);
                         }
@@ -103,7 +104,7 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
                         future.actionGet();
                         fail("expected exception");
                     } catch (Exception e) {
-                        assertSame(e, expectedException);
+                        assertEquals(expectedException.getMessage(), e.getMessage());
                     }
                 }
             }

@@ -89,7 +89,7 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             PercentilesAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof PercentilesAggregatorSupplier == false) {

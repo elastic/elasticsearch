@@ -82,7 +82,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             aggregationTypeName);
         if (aggregatorSupplier instanceof RangeAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected RangeAggregatorSupplier, found [" +

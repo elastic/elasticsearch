@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -30,9 +31,11 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     protected final Index index;
     protected final String fieldName;
     private final boolean isDense;
+    protected final ValuesSourceType valuesSourceType;
 
-    public VectorIndexFieldData(Index index, String fieldName, boolean isDense) {
+    public VectorIndexFieldData(Index index, String fieldName, boolean isDense, ValuesSourceType valuesSourceType) {
         this.isDense = isDense;
+        this.valuesSourceType = valuesSourceType;
         this.index = index;
         this.fieldName = fieldName;
     }
@@ -40,6 +43,11 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -75,15 +83,17 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
 
     public static class Builder implements IndexFieldData.Builder {
         private final boolean isDense;
-        public Builder(boolean isDense) {
+        private final ValuesSourceType valuesSourceType;
+        public Builder(boolean isDense, ValuesSourceType valuesSourceType) {
             this.isDense = isDense;
+            this.valuesSourceType = valuesSourceType;
         }
 
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             final String fieldName = fieldType.name();
-            return new VectorIndexFieldData(indexSettings.getIndex(), fieldName, isDense);
+            return new VectorIndexFieldData(indexSettings.getIndex(), fieldName, isDense, valuesSourceType);
         }
 
     }

@@ -165,7 +165,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         TYPE_TEST_BLACKLIST = blacklist;
     }
 
-
     /**
      * Allows subclasses to provide alternate names for the provided field type, which
      * can be useful when testing aggregations on field aliases.
@@ -720,7 +719,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
-                    ValuesSourceType vst = fieldType.getValuesSourceType();
+                    ValuesSourceType vst = fieldToVST(fieldType);
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
                     AssertionError failure = null;
                     try {
@@ -744,6 +743,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
+        return fieldType.fielddataBuilder("")
+                                .build(createIndexSettings(), fieldType, null, null, null).getValuesSourceType();
+    }
+
     /**
      * Helper method to write a single document with a single value specific to the requested fieldType.
      *
@@ -753,7 +757,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
         String typeName = fieldType.typeName();
-        ValuesSourceType vst = fieldType.getValuesSourceType();
+        ValuesSourceType vst = fieldToVST(fieldType);
         Document doc = new Document();
         String json;
 

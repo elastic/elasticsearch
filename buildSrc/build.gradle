@@ -174,8 +174,11 @@ if (project != rootProject) {
     'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
-  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
+    // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
+    // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
     test.enabled = false
+    testingConventions.enabled = false
   }
 
   configurations {

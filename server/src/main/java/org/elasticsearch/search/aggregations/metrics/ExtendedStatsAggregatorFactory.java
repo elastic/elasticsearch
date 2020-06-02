@@ -71,7 +71,7 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             ExtendedStatsAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof ExtendedStatsAggregatorProvider == false) {

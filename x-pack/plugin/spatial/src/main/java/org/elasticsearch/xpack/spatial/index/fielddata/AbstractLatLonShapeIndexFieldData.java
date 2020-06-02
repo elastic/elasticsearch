@@ -22,21 +22,29 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShapeFieldData {
     protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    AbstractLatLonShapeIndexFieldData(Index index, String fieldName) {
+    AbstractLatLonShapeIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
         this.index = index;
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -56,8 +64,8 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     public static class LatLonShapeIndexFieldData extends AbstractLatLonShapeIndexFieldData {
-        public LatLonShapeIndexFieldData(Index index, String fieldName) {
-            super(index, fieldName);
+        public LatLonShapeIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
+            super(index, fieldName, valuesSourceType);
         }
 
         @Override
@@ -95,11 +103,16 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     public static class Builder implements IndexFieldData.Builder {
+        private final ValuesSourceType valuesSourceType;
+
+        public Builder(ValuesSourceType valuesSourceType) {
+            this.valuesSourceType = valuesSourceType;
+        }
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // ignore breaker
-            return new LatLonShapeIndexFieldData(indexSettings.getIndex(), fieldType.name());
+            return new LatLonShapeIndexFieldData(indexSettings.getIndex(), fieldType.name(), valuesSourceType);
         }
     }
 }

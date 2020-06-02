@@ -34,8 +34,7 @@ SELECT COUNT(*) count FROM test_emp_copy WHERE extra_gender IS NOT NULL;
 100
 ;
 
-// Awaits for https://github.com/elastic/elasticsearch/issues/53545
-aggWithNullFilter-Ignore
+aggWithNullFilter
 SELECT COUNT(*) count FROM test_emp_copy WHERE null_constant IS NULL;
 
      count:l     

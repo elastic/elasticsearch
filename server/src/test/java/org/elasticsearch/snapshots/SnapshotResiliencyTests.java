@@ -155,7 +155,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.ShardLimitService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -1486,10 +1486,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             actionFilters)),
                     RetentionLeaseSyncer.EMPTY,
                     client);
-                final ShardLimitService shardLimitService = new ShardLimitService(settings, clusterService);
+                final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
                     indicesService,
-                    allocationService, new AliasValidator(), shardLimitService, environment, indexScopedSettings,
+                    allocationService, new AliasValidator(), shardLimitValidator, environment, indexScopedSettings,
                     threadPool, namedXContentRegistry, Collections.emptyList(), false);
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
@@ -1520,7 +1520,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         mapperRegistry,
                         indexScopedSettings),
                     clusterSettings,
-                    shardLimitService
+                        shardLimitValidator
                 );
                 actions.put(PutMappingAction.INSTANCE,
                     new TransportPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,

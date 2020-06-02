@@ -33,12 +33,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 
-public class ShardLimitService {
+public class ShardLimitValidator {
     public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE =
         Setting.intSetting("cluster.max_shards_per_node", 1000, 1, Setting.Property.Dynamic, Setting.Property.NodeScope);
     protected final AtomicInteger shardLimitPerNode = new AtomicInteger();
 
-    public ShardLimitService(final Settings settings, ClusterService clusterService) {
+    public ShardLimitValidator(final Settings settings, ClusterService clusterService) {
         this.shardLimitPerNode.set(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SETTING_CLUSTER_MAX_SHARDS_PER_NODE, this::setShardLimitPerNode);
     }

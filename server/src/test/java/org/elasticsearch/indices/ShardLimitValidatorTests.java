@@ -42,11 +42,11 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
 import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
-import static org.elasticsearch.indices.ShardLimitService.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ShardLimitServiceTests extends ESTestCase {
+public class ShardLimitValidatorTests extends ESTestCase {
 
     public void testOverShardLimit() {
         int nodesInCluster = randomIntBetween(1, 90);
@@ -58,7 +58,7 @@ public class ShardLimitServiceTests extends ESTestCase {
         );
 
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = ShardLimitService.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode());
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode());
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
@@ -80,7 +80,7 @@ public class ShardLimitServiceTests extends ESTestCase {
 
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = ShardLimitService.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode());
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode());
 
         assertFalse(errorMessage.isPresent());
     }
@@ -99,9 +99,9 @@ public class ShardLimitServiceTests extends ESTestCase {
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        ShardLimitService shardLimitService = createTestShardLimitService(counts.getShardsPerNode());
+        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode());
         ValidationException exception = expectThrows(ValidationException.class,
-            () -> shardLimitService.validateShardLimit(state, indices));
+            () -> shardLimitValidator.validateShardLimit(state, indices));
         assertEquals("Validation Failed: 1: this action would add [" + totalShards + "] total shards, but this cluster currently has [" +
             currentShards + "]/[" + maxShards + "] maximum shards open;", exception.getMessage());
     }
@@ -155,31 +155,31 @@ public class ShardLimitServiceTests extends ESTestCase {
     }
 
     /**
-     * Creates a {@link ShardLimitService} for testing with the given setting and a mocked cluster service.
+     * Creates a {@link ShardLimitValidator} for testing with the given setting and a mocked cluster service.
      *
      * @param maxShardsPerNode the value to use for the max shards per node setting
      * @return a test instance
      */
-    public static ShardLimitService createTestShardLimitService(int maxShardsPerNode) {
+    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode) {
         // Use a mocked clusterService - for unit tests we won't be updating the setting anyway.
         ClusterService clusterService = mock(ClusterService.class);
         Settings limitOnlySettings = Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode).build();
         when(clusterService.getClusterSettings())
             .thenReturn(new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
 
-        return new ShardLimitService(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService);
     }
 
     /**
-     * Creates a {@link ShardLimitService} for testing with the given setting and a given cluster service.
+     * Creates a {@link ShardLimitValidator} for testing with the given setting and a given cluster service.
      *
      * @param maxShardsPerNode the value to use for the max shards per node setting
      * @param clusterService   the cluster service to use
      * @return a test instance
      */
-    public static ShardLimitService createTestShardLimitService(int maxShardsPerNode, ClusterService clusterService) {
+    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, ClusterService clusterService) {
         Settings limitOnlySettings = Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode).build();
 
-        return new ShardLimitService(limitOnlySettings, clusterService);
+        return new ShardLimitValidator(limitOnlySettings, clusterService);
     }
 }

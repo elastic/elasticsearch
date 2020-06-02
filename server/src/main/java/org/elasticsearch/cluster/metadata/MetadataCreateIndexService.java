@@ -71,7 +71,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.indices.ShardLimitService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -126,7 +126,7 @@ public class MetadataCreateIndexService {
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
     private final Collection<SystemIndexDescriptor> systemIndexDescriptors;
-    private final ShardLimitService shardLimitService;
+    private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
 
     public MetadataCreateIndexService(
@@ -135,7 +135,7 @@ public class MetadataCreateIndexService {
         final IndicesService indicesService,
         final AllocationService allocationService,
         final AliasValidator aliasValidator,
-        final ShardLimitService shardLimitService,
+        final ShardLimitValidator shardLimitValidator,
         final Environment env,
         final IndexScopedSettings indexScopedSettings,
         final ThreadPool threadPool,
@@ -153,7 +153,7 @@ public class MetadataCreateIndexService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndexDescriptors = systemIndexDescriptors;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
-        this.shardLimitService = shardLimitService;
+        this.shardLimitValidator = shardLimitValidator;
     }
 
     /**
@@ -462,7 +462,7 @@ public class MetadataCreateIndexService {
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request, MetadataIndexTemplateService.resolveSettings(templates), mappings,
-                null, settings, indexScopedSettings, shardLimitService);
+                null, settings, indexScopedSettings, shardLimitValidator);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -488,7 +488,7 @@ public class MetadataCreateIndexService {
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
-                mappings, null, settings, indexScopedSettings, shardLimitService);
+                mappings, null, settings, indexScopedSettings, shardLimitValidator);
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -521,7 +521,7 @@ public class MetadataCreateIndexService {
         final Map<String, Object> mappings = Collections.unmodifiableMap(MapperService.parseMapping(xContentRegistry, request.mappings()));
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(currentState, request, Settings.EMPTY, mappings, sourceMetadata,
-            settings, indexScopedSettings, shardLimitService);
+            settings, indexScopedSettings, shardLimitValidator);
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
@@ -755,7 +755,7 @@ public class MetadataCreateIndexService {
     static Settings aggregateIndexSettings(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
                                            Settings templateSettings, Map<String, Object> mappings,
                                            @Nullable IndexMetadata sourceMetadata, Settings settings,
-                                           IndexScopedSettings indexScopedSettings, ShardLimitService shardLimitService) {
+                                           IndexScopedSettings indexScopedSettings, ShardLimitValidator shardLimitValidator) {
         Settings.Builder indexSettingsBuilder = Settings.builder();
         if (sourceMetadata == null) {
             indexSettingsBuilder.put(templateSettings);
@@ -801,7 +801,7 @@ public class MetadataCreateIndexService {
          * We can not validate settings until we have applied templates, otherwise we do not know the actual settings
          * that will be used to create this index.
          */
-        shardLimitService.validateShardLimit(indexSettings, currentState);
+        shardLimitValidator.validateShardLimit(indexSettings, currentState);
         validateSoftDeleteSettings(indexSettings);
         validateTranslogRetentionSettings(indexSettings);
         return indexSettings;

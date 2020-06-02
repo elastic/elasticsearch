@@ -61,7 +61,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.indices.ShardLimitServiceTests.createTestShardLimitService;
+import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;

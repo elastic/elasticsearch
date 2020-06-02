@@ -66,7 +66,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.ShardLimitService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -106,7 +106,7 @@ public class MetadataIndexStateService {
     private final AllocationService allocationService;
     private final MetadataIndexUpgradeService metadataIndexUpgradeService;
     private final IndicesService indicesService;
-    private final ShardLimitService shardLimitService;
+    private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
     private final NodeClient client;
     private final ActiveShardsObserver activeShardsObserver;
@@ -114,7 +114,7 @@ public class MetadataIndexStateService {
     @Inject
     public MetadataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetadataIndexUpgradeService metadataIndexUpgradeService,
-                                     IndicesService indicesService, ShardLimitService shardLimitService,
+                                     IndicesService indicesService, ShardLimitValidator shardLimitValidator,
                                      NodeClient client, ThreadPool threadPool) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -122,7 +122,7 @@ public class MetadataIndexStateService {
         this.threadPool = threadPool;
         this.client = client;
         this.metadataIndexUpgradeService = metadataIndexUpgradeService;
-        this.shardLimitService = shardLimitService;
+        this.shardLimitValidator = shardLimitValidator;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
@@ -555,7 +555,7 @@ public class MetadataIndexStateService {
             }
         }
 
-        shardLimitService.validateShardLimit(currentState, indices);
+        shardLimitValidator.validateShardLimit(currentState, indices);
         if (indicesToOpen.isEmpty()) {
             return currentState;
         }

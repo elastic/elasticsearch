@@ -56,7 +56,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.indices.ShardLimitService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -100,7 +100,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getI
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.elasticsearch.indices.ShardLimitServiceTests.createTestShardLimitService;
+import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1279,7 +1279,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
-    private ShardLimitService randomShardLimitService() {
+    private ShardLimitValidator randomShardLimitService() {
         return createTestShardLimitService(randomIntBetween(10,10000));
     }
 

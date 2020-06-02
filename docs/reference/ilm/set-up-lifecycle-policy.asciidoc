@@ -153,3 +153,80 @@ PUT test-index
 IMPORTANT: Do not manually apply a policy that uses the rollover action.
 Policies that use rollover must be applied by the <<apply-policy-template, index template>>. 
 Otherwise, the policy is not carried forward when the rollover action creates a new index.
+
+[discrete]
+[[apply-policy-multiple]]
+==== Apply a policy to multiple indices
+
+You can apply the same policy to multiple indices by using wildcards in the index name 
+when you call the <<indices-update-settings,update settings>> API.
+
+WARNING: Be careful that you don't inadvertently match indices that you don't want to modify.
+
+//////////////////////////
+[source,console]
+-----------------------
+PUT _template/mylogs_template
+{
+  "index_patterns": [
+    "mylogs-*"
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "message": {
+        "type": "text"
+      },
+      "@timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+-----------------------
+
+[source,console]
+-----------------------
+POST mylogs-pre-ilm-2019.06.24/_doc
+{
+  "@timestamp": "2019-06-24T10:34:00",
+  "message": "this is one log message"
+}
+-----------------------
+// TEST[continued]
+
+[source,console]
+-----------------------
+POST mylogs-pre-ilm-2019.06.25/_doc
+{
+  "@timestamp": "2019-06-25T17:42:00",
+  "message": "this is another log message"
+}
+-----------------------
+// TEST[continued]
+
+[source,console]
+--------------------------------------------------
+DELETE _template/mylogs_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+[source,console]
+-----------------------
+PUT mylogs-pre-ilm*/_settings <1>
+{
+  "index": {
+    "lifecycle": {
+      "name": "mylogs_policy_existing"
+    }
+  }
+}
+-----------------------
+// TEST[continued]
+
+<1> Updates all indices with names that start with `mylogs-pre-ilm`

@@ -25,7 +25,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -82,15 +81,15 @@ import org.elasticsearch.search.aggregations.bucket.range.ParsedRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.ParsedSampler;
-import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
@@ -171,6 +170,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * can be extracted from the AggregatorSpecs in the plugin (as well as any other custom NamedWriteables)
  */
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
+
     /**
      * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
      */
@@ -186,12 +186,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(BigArrays.NON_RECYCLING_INSTANCE, null, () -> pipelineTree);
+                return InternalAggregation.ReduceContext.forPartialReduction(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
+                    new NoneCircuitBreakerService()), null, () -> pipelineTree);
             }
 
             @Override
             public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, pipelineTree);
+                return InternalAggregation.ReduceContext.forFinalReduction(new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY),
+                    new NoneCircuitBreakerService()), null, b -> {}, pipelineTree);
             }
         };
     }

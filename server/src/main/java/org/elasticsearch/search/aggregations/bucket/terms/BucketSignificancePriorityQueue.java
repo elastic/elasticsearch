@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
-public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends PriorityQueue<B> {
+import java.util.function.LongConsumer;
 
-    public BucketSignificancePriorityQueue(int size) {
-        super(size);
+public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends BreakingPriorityQueue<B> {
+
+    BucketSignificancePriorityQueue(int size, LongConsumer circuitBreaker) {
+        super(size, circuitBreaker);
     }
 
     @Override

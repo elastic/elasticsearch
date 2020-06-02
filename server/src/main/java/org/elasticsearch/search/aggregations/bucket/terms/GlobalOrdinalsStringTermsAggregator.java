@@ -51,6 +51,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
 
@@ -73,6 +74,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     private final long valueCount;
     private final GlobalOrdLookupFunction lookupGlobalOrd;
     protected final CollectionStrategy collectionStrategy;
+    private final LongConsumer breakerConsumer;
 
     public interface GlobalOrdLookupFunction {
         BytesRef apply(long ord) throws IOException;
@@ -104,6 +106,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.lookupGlobalOrd = values::lookupOrd;
         this.acceptedGlobalOrdinals = includeExclude == null ? l -> true : includeExclude.acceptedGlobalOrdinals(values)::get;
         this.collectionStrategy = remapGlobalOrds ? new RemapGlobalOrds() : new DenseGlobalOrds();
+        this.breakerConsumer = this::addRequestCircuitBreakerBytes;
     }
 
     String descriptCollectionStrategy() {
@@ -527,7 +530,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
             }
             long[] otherDocCount = new long[1];
-            PriorityQueue<TB> ordered = buildPriorityQueue(size);
+            PriorityQueue<TB> ordered = buildPriorityQueue(size, breakerConsumer);
             collectionStrategy.forEach(new BucketInfoConsumer() {
                 TB spare = null;
 
@@ -586,7 +589,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract PriorityQueue<TB> buildPriorityQueue(int size);
+        abstract PriorityQueue<TB> buildPriorityQueue(int size, LongConsumer breakerConsumer);
 
         /**
          * Build an array of buckets for a particular ordinal to collect the
@@ -652,8 +655,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
         
         @Override
-        PriorityQueue<OrdBucket> buildPriorityQueue(int size) {
-            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        PriorityQueue<OrdBucket> buildPriorityQueue(int size, LongConsumer breakerConsumer) {
+            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator, breakerConsumer);
         }
 
         StringTerms.Bucket convertTempBucketToRealBucket(OrdBucket temp) throws IOException {
@@ -748,8 +751,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        PriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketSignificancePriorityQueue<>(size);
+        PriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size, LongConsumer breakerConsumer) {
+            return new BucketSignificancePriorityQueue<>(size, breakerConsumer);
         }
 
         @Override

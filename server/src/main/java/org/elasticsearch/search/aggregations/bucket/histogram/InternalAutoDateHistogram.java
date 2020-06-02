@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
+import org.elasticsearch.search.aggregations.support.BreakingPriorityQueue;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -303,48 +303,51 @@ public final class InternalAutoDateHistogram extends
         RoundingInfo reduceRoundingInfo = bucketInfo.roundingInfos[reduceRoundingIdx];
         Rounding reduceRounding = reduceRoundingInfo.rounding;
 
-        final PriorityQueue<IteratorAndCurrent> pq = new PriorityQueue<IteratorAndCurrent>(aggregations.size()) {
+        List<Bucket> reducedBuckets = new ArrayList<>();
+        List<Bucket> currentBuckets = new ArrayList<>();
+        try (BreakingPriorityQueue<IteratorAndCurrent> pq
+                 = new BreakingPriorityQueue<>(aggregations.size(), reduceContext::addRequestCircuitBreakerBytes) {
             @Override
             protected boolean lessThan(IteratorAndCurrent a, IteratorAndCurrent b) {
                 return a.current.key < b.current.key;
             }
-        };
-        for (InternalAggregation aggregation : aggregations) {
-            InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
-            if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
+        }) {
+            for (InternalAggregation aggregation : aggregations) {
+                InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
+                if (histogram.buckets.isEmpty() == false) {
+                    pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
+                }
             }
-        }
 
-        List<Bucket> reducedBuckets = new ArrayList<>();
-        if (pq.size() > 0) {
-            // list of buckets coming from different shards that have the same key
-            List<Bucket> currentBuckets = new ArrayList<>();
-            long key = reduceRounding.round(pq.top().current.key);
 
-            do {
-                final IteratorAndCurrent top = pq.top();
+            if (pq.size() > 0) {
+                // list of buckets coming from different shards that have the same key
+                long key = reduceRounding.round(pq.top().current.key);
 
-                if (reduceRounding.round(top.current.key) != key) {
-                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
-                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                    reduceContext.consumeBucketsAndMaybeBreak(1);
-                    reducedBuckets.add(reduced);
-                    currentBuckets.clear();
-                    key = reduceRounding.round(top.current.key);
-                }
+                do {
+                    final IteratorAndCurrent top = pq.top();
 
-                currentBuckets.add(top.current);
+                    if (reduceRounding.round(top.current.key) != key) {
+                        // the key changes, reduce what we already buffered and reset the buffer for current buckets
+                        final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
+                        reducedBuckets.add(reduced);
+                        currentBuckets.clear();
+                        key = reduceRounding.round(top.current.key);
+                    }
 
-                if (top.iterator.hasNext()) {
-                    final Bucket next = top.iterator.next();
-                    assert next.key > top.current.key : "shards must return data sorted by key";
-                    top.current = next;
-                    pq.updateTop();
-                } else {
-                    pq.pop();
-                }
-            } while (pq.size() > 0);
+                    currentBuckets.add(top.current);
+
+                    if (top.iterator.hasNext()) {
+                        final Bucket next = top.iterator.next();
+                        assert next.key > top.current.key : "shards must return data sorted by key";
+                        top.current = next;
+                        pq.updateTop();
+                    } else {
+                        pq.pop();
+                    }
+                } while (pq.size() > 0);
+            }
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -221,27 +222,31 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         }
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
         final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
-        BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
-        for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
-            List<B> sameTermBuckets = entry.getValue();
-            final B b = reduceBucket(sameTermBuckets, reduceContext);
-            b.updateScore(heuristic);
-            if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
-                B removed = ordered.insertWithOverflow(b);
-                if (removed == null) {
-                    reduceContext.consumeBucketsAndMaybeBreak(1);
+        CircuitBreaker requestBreaker = reduceContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+        try (BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size,
+            bytes -> requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "<internal-sigterms-coordinator-reduce [" + name + "]>"))) {
+
+            for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
+                List<B> sameTermBuckets = entry.getValue();
+                final B b = reduceBucket(sameTermBuckets, reduceContext);
+                b.updateScore(heuristic);
+                if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
+                    B removed = ordered.insertWithOverflow(b);
+                    if (removed == null) {
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                    }
                 } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
                 }
-            } else {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
             }
+            B[] list = createBucketsArray(ordered.size());
+            for (int i = ordered.size() - 1; i >= 0; i--) {
+                list[i] = ordered.pop();
+            }
+            return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
         }
-        B[] list = createBucketsArray(ordered.size());
-        for (int i = ordered.size() - 1; i >= 0; i--) {
-            list[i] = ordered.pop();
-        }
-        return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
     }
 
     @Override

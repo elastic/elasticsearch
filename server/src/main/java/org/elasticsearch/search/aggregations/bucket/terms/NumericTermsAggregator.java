@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -60,6 +61,7 @@ public class NumericTermsAggregator extends TermsAggregator {
     private final ValuesSource.Numeric valuesSource;
     private final LongKeyedBucketOrds bucketOrds;
     private final LongFilter longFilter;
+    private final LongConsumer breakerConsumer;
 
     public NumericTermsAggregator(
         String name,
@@ -81,6 +83,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
+        this.breakerConsumer = this::addRequestCircuitBreakerBytes;
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
     }
 
@@ -135,7 +138,7 @@ public class NumericTermsAggregator extends TermsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(super::doClose, bucketOrds, resultStrategy);
+        Releasables.close(() -> super.doClose(), bucketOrds, resultStrategy);
     }
 
     @Override
@@ -159,7 +162,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
                 int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
-                PriorityQueue<B> ordered = buildPriorityQueue(size);
+                PriorityQueue<B> ordered = buildPriorityQueue(size, breakerConsumer);
                 B spare = null;
                 BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
@@ -241,7 +244,7 @@ public class NumericTermsAggregator extends TermsAggregator {
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract PriorityQueue<B> buildPriorityQueue(int size);
+        abstract PriorityQueue<B> buildPriorityQueue(int size, LongConsumer breakerConsumer);
 
         /**
          * Build the sub-aggregations into the buckets. This will usually
@@ -281,8 +284,8 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        final PriorityQueue<B> buildPriorityQueue(int size) {
-            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        final PriorityQueue<B> buildPriorityQueue(int size, LongConsumer breakerConsumer) {
+            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator, breakerConsumer);
         }
 
         @Override
@@ -538,8 +541,8 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        PriorityQueue<SignificantLongTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketSignificancePriorityQueue<>(size);
+        PriorityQueue<SignificantLongTerms.Bucket> buildPriorityQueue(int size, LongConsumer breakerConsumer) {
+            return new BucketSignificancePriorityQueue<>(size, breakerConsumer);
         }
 
         @Override

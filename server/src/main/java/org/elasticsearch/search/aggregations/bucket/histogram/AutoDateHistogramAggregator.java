@@ -221,7 +221,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     int valuesCount = values.docValueCount();
 
                     long previousRounded = Long.MIN_VALUE;
-                    byte roundingIdx = roundingIndexFor(owningBucketOrd);
+                    int roundingIdx = roundingIndexFor(owningBucketOrd);
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
                         long rounded = preparedRoundings[roundingIdx].round(value);
@@ -235,7 +235,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 }
             }
 
-            private byte collectValue(LeafBucketCollector sub, long owningBucketOrd, byte roundingIdx, int doc, long rounded)
+            private int collectValue(LeafBucketCollector sub, long owningBucketOrd, int roundingIdx, int doc, long rounded)
                     throws IOException {
                 long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
                 if (bucketOrd < 0) { // already seen
@@ -254,7 +254,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
              * estimated, bucket counts, {@link #rebucket() rebucketing} the all
              * buckets if the estimated number of wasted buckets is too high.
              */
-            private byte increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, byte oldRounding) {
+            private int increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, int oldRounding) {
                 if (oldRounding >= roundingInfos.length - 1) {
                     return oldRounding;
                 }
@@ -278,7 +278,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     return oldRounding;
                 }
                 long oldRoughDuration = roundingInfos[oldRounding].roughEstimateDurationMillis;
-                byte newRounding = oldRounding;
+                int newRounding = oldRounding;
                 int newEstimatedBucketCount;
                 do {
                     newRounding++;
@@ -362,9 +362,9 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 });
     }
 
-    private void setRounding(long owningBucketOrd, byte newRounding) {
+    private void setRounding(long owningBucketOrd, int newRounding) {
         roundingIndices = context.bigArrays().grow(roundingIndices, owningBucketOrd + 1);
-        roundingIndices.set(owningBucketOrd, newRounding);
+        roundingIndices.set(owningBucketOrd, (byte) newRounding);
         if (preparedRoundings[newRounding] == null) {
             preparedRoundings[newRounding] = roundingPreparer.apply(roundingInfos[newRounding].rounding);
         }
@@ -386,7 +386,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         add.accept("rebucket_count", rebucketCount);
     }
 
-    private byte roundingIndexFor(long owningBucketOrd) {
+    private int roundingIndexFor(long owningBucketOrd) {
         return owningBucketOrd < roundingIndices.size() ? roundingIndices.get(owningBucketOrd) : 0;
     }
 

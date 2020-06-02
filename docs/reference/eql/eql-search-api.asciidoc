@@ -174,7 +174,7 @@ If `true`, the request timed out before completion.
 
 `hits`::
 (object)
-Contains matching events and metadata.
+Contains matching events and sequences. Also contains related metadata.
 +
 .Properties of `hits`
 [%collapsible%open]
@@ -182,7 +182,7 @@ Contains matching events and metadata.
 
 `total`::
 (object)
-Metadata about the number of matching events.
+Metadata about the number of matching events or sequences.
 +
 .Properties of `total`
 [%collapsible%open]
@@ -190,18 +190,21 @@ Metadata about the number of matching events.
 
 `value`::
 (integer)
-Total number of matching events.
+For <<eql-basic-syntax,basic queries>>, the total number of matching events.
++
+For <<eql-sequences,sequence queries>>, the total number of matching sequences.
 
 `relation`::
 +
 --
 (string)
-Indicates whether the number of events returned is accurate or a lower bound.
+Indicates whether the number of events or sequences returned is accurate or a
+lower bound.
 
 Returned values are:
 
 `eq`::: Accurate
-`gte`::: Lower bound, including returned events
+`gte`::: Lower bound, including returned events or sequences
 --
 =====
 

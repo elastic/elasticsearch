@@ -64,7 +64,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), GeoBoundsAggregationBuilder.NAME);
+            .getAggregator(config, GeoBoundsAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof GeoBoundsAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "

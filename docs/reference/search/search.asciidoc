@@ -38,6 +38,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 [[search-search-api-query-params]]
 ==== {api-query-parms-title}
 
+IMPORTANT: Several options for this API can be specified using a query parameter
+or a request body parameter. If both parameters are specified, only the query
+parameter is used.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
@@ -75,14 +79,6 @@ Defaults to `open`.
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
-+
---
-[IMPORTANT]
-====
-You can also specify this value using the `explain` request body parameter. If
-both parameters are specified, only the query parameter is used.
-====
---
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
@@ -100,12 +96,6 @@ correct.
 As an alternative to deep paging, we recommend using
 <<request-body-search-scroll,scroll>> or the
 <<request-body-search-search-after,`search_after`>> parameter.
-
-[IMPORTANT]
-====
-You can also specify this value using the `from` request body parameter. If
-both parameters are specified, only the query parameter is used.
-====
 --
 
 `ignore_throttled`::
@@ -139,18 +129,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 [[search-api-query-params-q]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
 +
---
 You can use the `q` parameter to run a query parameter search. Query parameter
 searches do not support the full {es} <<query-dsl,Query DSL>> but are handy for
 testing.
-
-[IMPORTANT]
-====
-The `q` parameter overrides the <<request-body-search-query,`query`>>
++
+IMPORTANT: The `q` parameter overrides the <<request-body-search-query,`query`>>
 parameter in the request body. If both parameters are specified, documents
-matching the `query` request body parameter are not returned.
-====
---
+matching the `query` request body parameter are not returned.	
+
 
 `request_cache`::
 (Optional, boolean) If `true`, the caching of search results is enabled for
@@ -177,17 +163,8 @@ this limit using the `search.max_keep_alive` cluster-level setting.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `seq_no_primary_term`::
-+
---
 (Optional, boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
-
-[IMPORTANT]
-====
-You can also specify this value using the `seq_no_primary_term` request body
-parameter. If both parameters are specified, only the query parameter is used.
-====
---
 
 `size`::
 (Optional, integer) Defines the number of hits to return. Defaults to `10`.
@@ -208,13 +185,7 @@ As an alternative to deep paging, we recommend using
 <<request-body-search-search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
-value cannot be zero (`0`).
-
-[IMPORTANT]
-====
-You can also specify this value using the `size` request body parameter. If
-both parameters are specified, only the query parameter is used.
-====
+value cannot be `0`.
 --
 
 `sort`::
@@ -247,29 +218,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
---
 Defaults to `0`, which does not terminate query execution early.
 
-[IMPORTANT]
-====
-You can also specify this value using the `terminate_after` request body
-parameter. If both parameters are specified, only the query parameter is used.
-====
---
-
 `timeout`::
-+
---
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
 for a response. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
-
-[IMPORTANT]
-====
-You can also specify this value using the `timeout` request body
-parameter. If both parameters are specified, only the query parameter is used.
-====
---
 
 `track_scores`::
   (Optional, boolean) If `true`, calculate and return document scores, even if
@@ -287,18 +241,8 @@ include the total number of hits matching the query.
   by their respective types in the response. Defaults to `true`.
 
 `version`::
-+
---
 (Optional, boolean)
 If `true`, returns document version as part of a hit. Defaults to `false`.
-
-[IMPORTANT]
-====
-You can also specify this value using the `version` request body parameter. If
-both parameters are specified, only the query parameter is used.
-====
---
-
 
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
@@ -307,14 +251,6 @@ both parameters are specified, only the query parameter is used.
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
-+
---
-[IMPORTANT]
-====
-You can also specify this value using the `explain` query parameter. If
-both parameters are specified, only the query parameter is used.
-====
---
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
@@ -332,12 +268,6 @@ correct.
 As an alternative to deep paging, we recommend using
 <<request-body-search-scroll,scroll>> or the
 <<request-body-search-search-after,`search_after`>> parameter.
-
-[IMPORTANT]
-====
-You can also specify this value using the `from` query parameter. If both
-parameters are specified, only the query parameter is used.
-====
 --
 
 [[request-body-search-query]]
@@ -347,17 +277,8 @@ parameters are specified, only the query parameter is used.
 
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::
-+
---
 (Optional, boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
-
-[IMPORTANT]
-====
-You can also specify this value using the `seq_no_primary_term` query parameter.
-If both parameters are specified, only the query parameter is used.
-====
---
 
 `size`:: 
 (Optional, integer) The number of hits to return. Needs to be non-negative and defaults to `10`.
@@ -378,54 +299,22 @@ As an alternative to deep paging, we recommend using
 <<request-body-search-search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
-value cannot be zero (`0`).
-
-[IMPORTANT]
-====
-You can also specify this value using the `size` query parameter. If both
-parameters are specified, only the query parameter is used.
-====
+value cannot be `0`.
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
---
 Defaults to `0`, which does not terminate query execution early.
 
-[IMPORTANT]
-====
-You can also specify this value using the `terminate_after` query parameter. If
-both parameters are specified, only the query parameter is used.
-====
---
-
 `timeout`::
-+
---
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
 for a response. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
-[IMPORTANT]
-====
-You can also specify this value using the `timeout` query parameter. If both
-parameters are specified, only the query parameter is used.
-====
---
-
 [[request-body-search-version]]
 `version`::
-+
---
 (Optional, boolean)
 If `true`, returns document version as part of a hit. Defaults to `false`.
-
-[IMPORTANT]
-====
-You can also specify this value using the `version` query parameter. If both
-parameters are specified, only the query parameter is used.
-====
---
 
 
 [role="child_attributes"]

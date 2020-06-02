@@ -1869,7 +1869,8 @@ SELECT CAST('123' AS INT) AS int;
 // end::conversionStringToIntCast
 ;
 
-conversionIntToStringCast-Ignore
+conversionIntToStringCast
+schema::string:s
 // tag::conversionIntToStringCast
 SELECT CAST(123 AS VARCHAR) AS string;
 
@@ -2576,8 +2577,7 @@ SELECT ISO_WEEK_OF_YEAR(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS week;
 // end::isoWeekOfYear
 ;
 
-// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
-constantDayName-Ignore
+constantDayName
 // tag::dayName
 SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 
@@ -2588,8 +2588,7 @@ Monday
 ;
 
 
-// Ignored because of https://github.com/elastic/elasticsearch/issues/33796
-constantMonthName-Ignore
+constantMonthName
 // tag::monthName
 SELECT MONTH_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;
 

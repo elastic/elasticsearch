@@ -50,7 +50,7 @@ WARNING: Version {version} of the {es} Docker image has not yet been released.
 
 endif::[]
 
- ifeval::["{release-state}"!="unreleased"]
+ifeval::["{release-state}"!="unreleased"]
 
 To start a single-node {es} cluster for development or testing, specify
 <<single-node-discovery,single-node discovery>> to bypass the <<bootstrap-checks,bootstrap checks>>:

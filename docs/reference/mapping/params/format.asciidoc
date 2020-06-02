@@ -69,6 +69,13 @@ The following tables lists all the defaults ISO formats supported:
     A generic ISO datetime parser where the date, in `year_month_day` format, is
     mandatory and the time, separated by `T`, is optional.
     Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSZ` or  `yyyy-MM-dd`.
+    
+`strict_date_optional_time_nanos`::
+
+    A generic ISO datetime parser where the date, in `year_month_day` format, is
+    mandatory and the time, separated by `T`, is optional. Fraction of a second has
+    nanosecond resolution
+    Examples: `yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ` or  `yyyy-MM-dd`.    
 
 `basic_date`::
 

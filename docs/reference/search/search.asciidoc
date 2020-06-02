@@ -185,7 +185,7 @@ As an alternative to deep paging, we recommend using
 <<request-body-search-search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
-value cannot be zero (`0`).
+value cannot be `0`.
 --
 
 `sort`::
@@ -299,7 +299,7 @@ As an alternative to deep paging, we recommend using
 <<request-body-search-search-after,`search_after`>> parameter.
 
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
-value cannot be zero (`0`).
+value cannot be `0`.
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]

@@ -171,9 +171,6 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      * most docs match.
      */
     protected class DenseCollectionStrategy implements CollectionStrategy {
-        /**
-         * Otherwise we use a dense bit array to record the global ordinals.
-         */
         private final BitArray ordsBits;
 
         public DenseCollectionStrategy(long maxOrd, BigArrays bigArrays) {
@@ -203,9 +200,6 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
      * when only some docs might match.
      */
     protected class SparseCollectionStrategy implements CollectionStrategy {
-        /**
-         * If this aggregator is nested under another aggregator we allocate a long hash per bucket.
-         */
         private final LongHash ordsHash;
 
         public SparseCollectionStrategy(BigArrays bigArrays) {

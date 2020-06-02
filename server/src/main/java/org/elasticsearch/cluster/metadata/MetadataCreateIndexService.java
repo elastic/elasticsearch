@@ -572,7 +572,7 @@ public class MetadataCreateIndexService {
                 nonProperties = innerTemplateNonProperties;
 
                 if (maybeProperties != null) {
-                    properties = mergeIgnoringDots(properties, maybeProperties);
+                    properties = mergeFailingOnReplacement(properties, maybeProperties);
                 }
             }
         }
@@ -587,7 +587,7 @@ public class MetadataCreateIndexService {
             nonProperties = innerRequestNonProperties;
 
             if (maybeRequestProperties != null) {
-                properties = mergeIgnoringDots(properties, maybeRequestProperties);
+                properties = mergeFailingOnReplacement(properties, maybeRequestProperties);
             }
         }
 
@@ -687,18 +687,23 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Add the objects in the second map to the first, where the keys in the {@code second} map have
-     * higher predecence and overwrite the keys in the {@code first} map. In the event of a key with
-     * a dot in it (ie, "foo.bar"), the keys are treated as only the prefix counting towards
-     * equality. If the {@code second} map has a key such as "foo", all keys starting from "foo." in
-     * the {@code first} map are discarded.
+     * Add the objects in the second map to the first, A duplicated field is treated as illegal and
+     * an exception is thrown.
      */
-    static Map<String, Object> mergeIgnoringDots(Map<String, Object> first, Map<String, Object> second) {
+    static Map<String, Object> mergeFailingOnReplacement(Map<String, Object> first, Map<String, Object> second) {
         Objects.requireNonNull(first, "merging requires two non-null maps but the first map was null");
         Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
         Map<String, Object> results = new HashMap<>(first);
         Set<String> prefixes = second.keySet().stream().map(MetadataCreateIndexService::prefix).collect(Collectors.toSet());
-        results.keySet().removeIf(k -> prefixes.contains(prefix(k)));
+        List<String> matchedPrefixes = new ArrayList<>();
+        results.keySet().forEach(k -> {
+            if (prefixes.contains(prefix(k))) {
+                matchedPrefixes.add(k);
+            }
+        });
+        if (matchedPrefixes.size() > 0) {
+            throw new IllegalArgumentException("mapping fields " + matchedPrefixes + " cannot be replaced during template composition");
+        }
         results.putAll(second);
         return results;
     }

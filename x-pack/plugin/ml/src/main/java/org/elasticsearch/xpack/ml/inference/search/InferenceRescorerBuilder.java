@@ -83,6 +83,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     private final Map<String, String> fieldMap;
 
     private LocalModel model;
+    private Supplier<LocalModel> modelSupplier;
 
     private float queryWeight = DEFAULT_QUERY_WEIGHT;
     private float modelWeight = DEFAULT_MODEL_WEIGHT;
@@ -105,7 +106,17 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                                      Supplier<LocalModel> modelSupplier
     ) {
         this(modelId, modelLoadingService, config, fieldMap);
-        this.model = modelSupplier.get();
+        this.modelSupplier = modelSupplier;
+    }
+
+    private InferenceRescorerBuilder(String modelId,
+                                     SetOnce<ModelLoadingService> modelLoadingService,
+                                     @Nullable InferenceConfig config,
+                                     @Nullable Map<String, String> fieldMap,
+                                     LocalModel model
+    ) {
+        this(modelId, modelLoadingService, config, fieldMap);
+        this.model = model;
     }
 
     public InferenceRescorerBuilder(StreamInput in, SetOnce<ModelLoadingService> modelLoadingService) throws IOException {
@@ -174,23 +185,33 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     @Override
     public RescorerBuilder<InferenceRescorerBuilder> rewrite(QueryRewriteContext ctx) {
-
         assert modelId != null;
 
-        if (model != null) {
-            return this;
-        } else {
+        if (modelSupplier != null) {
+            LocalModel m = modelSupplier.get();
+            if (m == null) {
+                return this;
+            } else {
+                return copyScoringSettings(
+                    new InferenceRescorerBuilder(modelId, modelLoadingService, inferenceConfig, fieldMap, m));
+            }
+        } else if (model == null) {
+
             SetOnce<LocalModel> modelHolder = new SetOnce<>();
 
             ctx.registerAsyncAction(((client, actionListener) ->
                 modelLoadingService.get().getModel(modelId, ActionListener.wrap(
-                    modelHolder::set,
+                    m -> {
+                        modelHolder.set(m);
+                        actionListener.onResponse(null);
+                    },
                     actionListener::onFailure))
             ));
 
             return copyScoringSettings(
                 new InferenceRescorerBuilder(modelId, modelLoadingService, inferenceConfig, fieldMap, modelHolder::get));
         }
+        return this;
     }
 
     private InferenceRescorerBuilder copyScoringSettings(InferenceRescorerBuilder target) {
@@ -208,7 +229,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         if (inferenceConfig == null) {
             update = new EmptyConfigUpdate();
         } else if (inferenceConfig instanceof RegressionConfig) {
-            update = RegressionConfigUpdate.fromConfig((RegressionConfig)inferenceConfig);
+            update = RegressionConfigUpdate.fromConfig((RegressionConfig) inferenceConfig);
         } else {
             // TODO better message
             throw ExceptionsHelper.badRequestException("unrecognized inference configuration type {}. Supported types {}",

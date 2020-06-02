@@ -206,6 +206,7 @@ integTest.runner {
     'ml/validate_detector/Test invalid detector',
     'ml/delete_forecast/Test delete on _all forecasts not allow no forecasts',
     'ml/delete_forecast/Test delete forecast on missing forecast',
+    'ml/rescore/Test rescore',
     'ml/set_upgrade_mode/Attempt to open job when upgrade_mode is enabled',
     'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',

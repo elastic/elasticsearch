@@ -13,7 +13,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -29,10 +28,6 @@ import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
 import java.util.List;
-
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 
 public class SecurityRestFilter implements RestHandler {
 
@@ -94,16 +89,7 @@ public class SecurityRestFilter implements RestHandler {
             channel.sendResponse(new BytesRestResponse(channel, restStatus, e) {
 
                 @Override
-                protected ToXContent.Params paramsFromRequest(RestRequest restRequest) {
-                    ToXContent.Params params = restRequest;
-                    if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)
-                            && restStatus != RestStatus.UNAUTHORIZED) {
-                        params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
-                    } else {
-                        params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "true"), params);
-                    }
-                    return params;
-                }
+                protected boolean skipStackTrace() { return restStatus == RestStatus.UNAUTHORIZED; }
 
             });
         } catch (Exception inner) {

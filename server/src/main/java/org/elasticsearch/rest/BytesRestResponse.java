@@ -131,14 +131,16 @@ public class BytesRestResponse extends RestResponse {
         return this.status;
     }
 
-    protected ToXContent.Params paramsFromRequest(RestRequest restRequest) {
+    private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
         ToXContent.Params params = restRequest;
-        if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
+        if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && false == skipStackTrace()) {
             params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
-        } else {
-            params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "true"), params);
         }
         return params;
+    }
+
+    protected boolean skipStackTrace() {
+        return false;
     }
 
     private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status,

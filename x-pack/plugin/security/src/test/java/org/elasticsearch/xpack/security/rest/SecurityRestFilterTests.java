@@ -39,8 +39,11 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -148,10 +151,14 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
         filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, true, true, false);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, true, false, false);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, false, true, false);
-        testProcessAuthenticationFailed(authenticationError("failed authn"), RestStatus.UNAUTHORIZED, false, false, false);
+        testProcessAuthenticationFailed(randomBoolean() ? authenticationError("failed authn") : authenticationError("failed authn with " +
+                "cause", new ElasticsearchException("cause")), RestStatus.UNAUTHORIZED, true, true, false);
+        testProcessAuthenticationFailed(randomBoolean() ? authenticationError("failed authn") : authenticationError("failed authn with " +
+                "cause", new ElasticsearchException("cause")), RestStatus.UNAUTHORIZED, true, false, false);
+        testProcessAuthenticationFailed(randomBoolean() ? authenticationError("failed authn") : authenticationError("failed authn with " +
+                "cause", new ElasticsearchException("cause")), RestStatus.UNAUTHORIZED, false, true, false);
+        testProcessAuthenticationFailed(randomBoolean() ? authenticationError("failed authn") : authenticationError("failed authn with " +
+                "cause", new ElasticsearchException("cause")), RestStatus.UNAUTHORIZED, false, false, false);
         testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, false, false, false);
         testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, true, false, false);
         testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, false, true, false);

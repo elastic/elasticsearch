@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
@@ -92,7 +91,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Simulated(indexRequest.index(), MapperService.SINGLE_MAPPING_NAME, indexRequest.id(),
+            return new IndexAction.Simulated(indexRequest.index(), indexRequest.id(),
                 action.refreshPolicy, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 

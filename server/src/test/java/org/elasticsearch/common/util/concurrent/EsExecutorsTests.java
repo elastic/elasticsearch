@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.lessThan;
@@ -53,7 +54,7 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testFixedForcedExecution() throws Exception {
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext, randomBoolean());
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -116,7 +117,7 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testFixedRejected() throws Exception {
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext);
+                EsExecutors.newFixed(getName(), 1, 1, EsExecutors.daemonThreadFactory("test"), threadContext, randomBoolean());
         final CountDownLatch wait = new CountDownLatch(1);
 
         final CountDownLatch exec1Wait = new CountDownLatch(1);
@@ -249,7 +250,7 @@ public class EsExecutorsTests extends ESTestCase {
         int actions = queue + pool;
         final CountDownLatch latch = new CountDownLatch(1);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
         try {
             for (int i = 0; i < actions; i++) {
                 executor.execute(new Runnable() {
@@ -279,8 +280,9 @@ public class EsExecutorsTests extends ESTestCase {
             } catch (EsRejectedExecutionException e) {
                 assertFalse("Thread pool registering as terminated when it isn't", e.isExecutorShutdown());
                 String message = e.getMessage();
-                assertThat(message, containsString("of dummy runnable"));
-                assertThat(message, containsString("on EsThreadPoolExecutor[name = " + getName()));
+                assertThat(message, containsString("dummy runnable"));
+                assertThat(message, either(containsString("on EsThreadPoolExecutor[name = " + getName()))
+                    .or(containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())));
                 assertThat(message, containsString("queue capacity = " + queue));
                 assertThat(message, containsString("[Running"));
                 /*
@@ -319,8 +321,9 @@ public class EsExecutorsTests extends ESTestCase {
         } catch (EsRejectedExecutionException e) {
             assertTrue("Thread pool not registering as terminated when it is", e.isExecutorShutdown());
             String message = e.getMessage();
-            assertThat(message, containsString("of dummy runnable"));
-            assertThat(message, containsString("on EsThreadPoolExecutor[name = " + getName()));
+            assertThat(message, containsString("dummy runnable"));
+            assertThat(message, either(containsString("on EsThreadPoolExecutor[name = " + getName()))
+                .or(containsString("on EWMATrackingEsThreadPoolExecutor[name = " + getName())));
             assertThat(message, containsString("queue capacity = " + queue));
             assertThat(message, containsString("[Terminated"));
             assertThat(message, containsString("active threads = 0"));
@@ -339,7 +342,7 @@ public class EsExecutorsTests extends ESTestCase {
         final Integer one = Integer.valueOf(1);
         threadContext.putTransient("foo", one);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
         try {
             executor.execute(() -> {
                 try {
@@ -370,7 +373,7 @@ public class EsExecutorsTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch executed = new CountDownLatch(1);
         EsThreadPoolExecutor executor =
-                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext);
+                EsExecutors.newFixed(getName(), pool, queue, EsExecutors.daemonThreadFactory("dummy"), threadContext, randomBoolean());
         try {
             Runnable r = () -> {
                 latch.countDown();

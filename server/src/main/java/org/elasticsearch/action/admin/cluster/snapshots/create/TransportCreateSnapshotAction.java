@@ -53,9 +53,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
     @Override
     protected String executor() {
-        // Using the generic instead of the snapshot threadpool here as the snapshot threadpool might be blocked on long running tasks
-        // which would block the request from getting an error response because of the ongoing task
-        return ThreadPool.Names.GENERIC;
+        return ThreadPool.Names.SAME;
     }
 
     @Override

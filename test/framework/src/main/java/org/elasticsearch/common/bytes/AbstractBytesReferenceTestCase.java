@@ -591,7 +591,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             for (int j = crazyStream.size(); j < crazyLength; j++) {
                 crazyStream.writeByte((byte) random().nextInt(1 << 8));
             }
-            PagedBytesReference crazyReference = crazyStream.bytes();
+            BytesReference crazyReference = crazyStream.bytes();
 
             assertFalse(crazyReference.compareTo(bytesReference) == 0);
             assertEquals(0, crazyReference.slice(offset, length).compareTo(

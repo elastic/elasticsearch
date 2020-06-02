@@ -15,25 +15,23 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper.KeyedFlatObjectFieldType;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
+public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase<KeyedFlatObjectFieldType> {
 
     @Before
-    public void setupProperties() {
-        addModifier(new Modifier("split_queries_on_whitespace", true) {
-            @Override
-            public void modify(MappedFieldType type) {
-                KeyedFlatObjectFieldType ft = (KeyedFlatObjectFieldType) type;
-                ft.setSplitQueriesOnWhitespace(!ft.splitQueriesOnWhitespace());
-            }
+    public void addModifiers() {
+        addModifier(t -> {
+            KeyedFlatObjectFieldType copy = t.clone();
+            copy.setSplitQueriesOnWhitespace(t.splitQueriesOnWhitespace() == false);
+            return copy;
         });
     }
 
@@ -98,7 +96,12 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         Query expected = new PrefixQuery(new Term("field", "key\0val"));
-        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, null));
+        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
+                "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
     }
 
     public void testFuzzyQuery() {
@@ -106,7 +109,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
+            () -> ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, randomMockShardContext()));
         assertEquals("[fuzzy] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
@@ -117,12 +120,12 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         TermRangeQuery expected = new TermRangeQuery("field",
             new BytesRef("key\0lower"),
             new BytesRef("key\0upper"), false, false);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, null));
+        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, MOCK_QSC));
 
         expected = new TermRangeQuery("field",
             new BytesRef("key\0lower"),
             new BytesRef("key\0upper"), true, true);
-        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, null));
+        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, MOCK_QSC));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             ft.rangeQuery("lower", null, false, false, null));
@@ -130,9 +133,14 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
             e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
-            ft.rangeQuery(null, "upper", false, false, null));
+            ft.rangeQuery(null, "upper", false, false, MOCK_QSC));
         assertEquals("[range] queries on keyed [flattened] fields must include both an upper and a lower bound.",
             e.getMessage());
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.rangeQuery("lower", "upper", false, false, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
+                "'search.allow_expensive_queries' is set to false.", ee.getMessage());
     }
 
     public void testRegexpQuery() {
@@ -140,7 +148,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.regexpQuery("valu*", 0, 10, null, null));
+            () -> ft.regexpQuery("valu*", 0, 10, null, randomMockShardContext()));
         assertEquals("[regexp] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 
@@ -149,7 +157,7 @@ public class KeyedFlatObjectFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.wildcardQuery("valu*", null, null));
+            () -> ft.wildcardQuery("valu*", null, randomMockShardContext()));
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
     }
 }

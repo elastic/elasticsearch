@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,17 +14,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * Evaluation of binary soft classification methods, e.g. outlier detection.
@@ -41,17 +39,21 @@ public class BinarySoftClassification implements Evaluation {
     private static final ParseField METRICS = new ParseField("metrics");
 
     public static final ConstructingObjectParser<BinarySoftClassification, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(), a -> new BinarySoftClassification((String) a[0], (String) a[1], (List<SoftClassificationMetric>) a[2]));
+        NAME.getPreferredName(), a -> new BinarySoftClassification((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PREDICTED_PROBABILITY_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(SoftClassificationMetric.class, n, null), METRICS);
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c), METRICS);
     }
 
     public static BinarySoftClassification fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    static QueryBuilder actualIsTrueQuery(String actualField) {
+        return QueryBuilders.queryStringQuery(actualField + ": (1 OR true)");
     }
 
     /**
@@ -68,25 +70,16 @@ public class BinarySoftClassification implements Evaluation {
     /**
      * The list of metrics to calculate
      */
-    private final List<SoftClassificationMetric> metrics;
+    private final List<EvaluationMetric> metrics;
 
     public BinarySoftClassification(String actualField, String predictedProbabilityField,
-                                    @Nullable List<SoftClassificationMetric> metrics) {
+                                    @Nullable List<EvaluationMetric> metrics) {
         this.actualField = ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD);
         this.predictedProbabilityField = ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD);
-        this.metrics = initMetrics(metrics);
+        this.metrics = initMetrics(metrics, BinarySoftClassification::defaultMetrics);
     }
 
-    private static List<SoftClassificationMetric> initMetrics(@Nullable List<SoftClassificationMetric> parsedMetrics) {
-        List<SoftClassificationMetric> metrics = parsedMetrics == null ? defaultMetrics() : parsedMetrics;
-        if (metrics.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[{}] must have one or more metrics", NAME.getPreferredName());
-        }
-        Collections.sort(metrics, Comparator.comparing(SoftClassificationMetric::getName));
-        return metrics;
-    }
-
-    private static List<SoftClassificationMetric> defaultMetrics() {
+    private static List<EvaluationMetric> defaultMetrics() {
         return Arrays.asList(
             new AucRoc(false),
             new Precision(Arrays.asList(0.25, 0.5, 0.75)),
@@ -97,7 +90,27 @@ public class BinarySoftClassification implements Evaluation {
     public BinarySoftClassification(StreamInput in) throws IOException {
         this.actualField = in.readString();
         this.predictedProbabilityField = in.readString();
-        this.metrics = in.readNamedWriteableList(SoftClassificationMetric.class);
+        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+    }
+
+    @Override
+    public String getName() {
+        return NAME.getPreferredName();
+    }
+
+    @Override
+    public String getActualField() {
+        return actualField;
+    }
+
+    @Override
+    public String getPredictedField() {
+        return predictedProbabilityField;
+    }
+
+    @Override
+    public List<EvaluationMetric> getMetrics() {
+        return metrics;
     }
 
     @Override
@@ -119,7 +132,7 @@ public class BinarySoftClassification implements Evaluation {
         builder.field(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField);
 
         builder.startObject(METRICS.getPreferredName());
-        for (SoftClassificationMetric metric : metrics) {
+        for (EvaluationMetric metric : metrics) {
             builder.field(metric.getName(), metric);
         }
         builder.endObject();
@@ -141,61 +154,5 @@ public class BinarySoftClassification implements Evaluation {
     @Override
     public int hashCode() {
         return Objects.hash(actualField, predictedProbabilityField, metrics);
-    }
-
-    @Override
-    public String getName() {
-        return NAME.getPreferredName();
-    }
-
-    @Override
-    public List<SoftClassificationMetric> getMetrics() {
-        return metrics;
-    }
-
-    @Override
-    public SearchSourceBuilder buildSearch(QueryBuilder userProvidedQueryBuilder) {
-        ExceptionsHelper.requireNonNull(userProvidedQueryBuilder, "userProvidedQueryBuilder");
-        SearchSourceBuilder searchSourceBuilder =
-            newSearchSourceBuilder(List.of(actualField, predictedProbabilityField), userProvidedQueryBuilder);
-        BinaryClassInfo binaryClassInfo = new BinaryClassInfo();
-        for (SoftClassificationMetric metric : metrics) {
-            List<AggregationBuilder> aggs = metric.aggs(actualField, Collections.singletonList(binaryClassInfo));
-            aggs.forEach(searchSourceBuilder::aggregation);
-        }
-        return searchSourceBuilder;
-    }
-
-    @Override
-    public void process(SearchResponse searchResponse) {
-        ExceptionsHelper.requireNonNull(searchResponse, "searchResponse");
-        if (searchResponse.getHits().getTotalHits().value == 0) {
-            throw ExceptionsHelper.badRequestException(
-                "No documents found containing both [{}, {}] fields", actualField, predictedProbabilityField);
-        }
-        BinaryClassInfo binaryClassInfo = new BinaryClassInfo();
-        for (SoftClassificationMetric metric : metrics) {
-            metric.process(binaryClassInfo, searchResponse.getAggregations());
-        }
-    }
-
-    private class BinaryClassInfo implements SoftClassificationMetric.ClassInfo {
-
-        private QueryBuilder matchingQuery = QueryBuilders.queryStringQuery(actualField + ": (1 OR true)");
-
-        @Override
-        public String getName() {
-            return String.valueOf(true);
-        }
-
-        @Override
-        public QueryBuilder matchingQuery() {
-            return matchingQuery;
-        }
-
-        @Override
-        public String getProbabilityField() {
-            return predictedProbabilityField;
-        }
     }
 }

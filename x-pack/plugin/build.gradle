@@ -1,16 +1,24 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
+  testCompile project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-// https://github.com/elastic/x-plugins/issues/724
 configurations {
   testArtifacts.extendsFrom testRuntime
+}
+
+artifacts {
+  restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
+  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
 }
 
 task testJar(type: Jar) {
@@ -48,7 +56,7 @@ File nodeCert = file("$keystoreDir/testnode.crt")
 task copyKeyCerts(type: Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
-    }
+  }
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there
@@ -65,12 +73,11 @@ integTest.runner {
 
   // TODO: fix this rest test to not depend on a hardcoded port!
   def blacklist = ['getting_started/10_monitor_cluster_health/*']
-  boolean snapshot = Boolean.valueOf(System.getProperty("build.snapshot", "true"))
-  if (!snapshot) {
+  if (BuildParams.isSnapshotBuild() == false) {
     // these tests attempt to install basic/internal licenses signed against the dev/public.key
     // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are whitelisted in non-snapshot test runs
-    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*'])
+    // private key, these tests are blacklisted in non-snapshot test runs
+    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
   dependsOn copyKeyCerts
@@ -80,6 +87,7 @@ testClusters.integTest {
   testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
   // Integration tests are supposed to enable/disable exporters before/after each test
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
@@ -91,10 +99,19 @@ testClusters.integTest {
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'
   keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+  user username: "cat_test_user", password: "cat-test-password", role: "cat_test_role"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
+  }
 }
+
+

@@ -27,6 +27,9 @@ The top_hits aggregation returns regular search hits, because of this many per h
 * <<request-body-search-version,Include versions>>
 * <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 
+IMPORTANT: If you *only* need `docvalue_fields`, `size`, and `sort` then
+<<search-aggregations-metrics-top-metrics>> might be a more efficient choice than the Top Hits Aggregation.
+
 ==== Example
 
 In the following example we group the sales by type and per type we show the last sale. 

@@ -25,7 +25,7 @@ Retrieves information about users in the native realm and built-in users.
 ==== {api-description-title}
 
 For more information about the native realm, see 
-<<realms>> and <<configuring-native-realm>>. 
+<<realms>> and <<native-realm>>. 
 
 [[security-api-get-user-path-params]]
 ==== {api-path-parms-title}

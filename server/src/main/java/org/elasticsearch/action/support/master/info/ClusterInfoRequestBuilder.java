@@ -47,18 +47,6 @@ public abstract class ClusterInfoRequestBuilder<Request extends ClusterInfoReque
     }
 
     @SuppressWarnings("unchecked")
-    public Builder setTypes(String... types) {
-        request.types(types);
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Builder addTypes(String... types) {
-        request.types(ArrayUtils.concat(request.types(), types));
-        return (Builder) this;
-    }
-
-    @SuppressWarnings("unchecked")
     public Builder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
         return (Builder) this;

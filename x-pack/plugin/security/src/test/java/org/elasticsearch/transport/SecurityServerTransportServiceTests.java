@@ -13,7 +13,8 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
 
     public void testSecurityServerTransportServiceWrapsAllHandlers() {
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            RequestHandlerRegistry handler = transportService.transport.getRequestHandler(TransportService.HANDSHAKE_ACTION_NAME);
+            RequestHandlerRegistry handler = transportService.transport.getRequestHandlers()
+                .getHandler(TransportService.HANDSHAKE_ACTION_NAME);
             assertEquals(
                     "handler not wrapped by " + SecurityServerTransportInterceptor.ProfileSecuredRequestHandler.class +
                             "; do all the handler registration methods have overrides?",

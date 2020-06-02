@@ -44,8 +44,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         public static final ParseField FORCE = new ParseField("force");
         public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
             PARSER.declareString((request, val) ->

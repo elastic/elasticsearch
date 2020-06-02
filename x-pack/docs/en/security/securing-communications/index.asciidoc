@@ -18,4 +18,7 @@ The authentication of new nodes helps prevent a rogue node from joining the
 cluster and receiving data through replication.
 
 include::setting-up-ssl.asciidoc[]
+include::securing-elasticsearch.asciidoc[]
+include::configuring-tls-docker.asciidoc[]
+include::enabling-cipher-suites.asciidoc[]
 

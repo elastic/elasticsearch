@@ -121,18 +121,14 @@
                 type:     keyword
 
 ---
-"Create index with explicit _doc type":
-
+"Create index without soft deletes":
+  - skip:
+      version:  " - 7.99.99"
+      reason:   "indices without soft-deletes is no longer supported "
   - do:
-      catch: bad_request
+      catch: /illegal_argument_exception/
       indices.create:
         index: test_index
         body:
-          mappings:
-            _doc:
-              properties:
-                field:
-                  type: keyword
-
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }
+          settings:
+            soft_deletes.enabled: false

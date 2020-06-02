@@ -57,7 +57,12 @@ public class MaxAgeCondition extends Condition<TimeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        //TODO here we should just use TimeValue#writeTo and same for de-serialization in the constructor, we lose information this way
+        // While we technically could serialize this with out.writeTimeValue(...), that would
+        // require doing the song and dance around backwards compatibility for this value. Since
+        // in this case the deserialized version is not displayed to a user, it's okay to simply use
+        // milliseconds. It's possible to lose precision if someone were to say, specify 50
+        // nanoseconds, however, in that case, their max age is indistinguishable from 0
+        // milliseconds regardless.
         out.writeLong(value.getMillis());
     }
 

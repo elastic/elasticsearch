@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -100,10 +99,9 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
         }
     }
 
-    LongRareTerms(String name, BucketOrder order, List<PipelineAggregator> pipelineAggregators,
-                  Map<String, Object> metaData, DocValueFormat format,
+    LongRareTerms(String name, BucketOrder order, Map<String, Object> metadata, DocValueFormat format,
                   List<LongRareTerms.Bucket> buckets, long maxDocCount, SetBackedScalingCuckooFilter filter) {
-        super(name, order, pipelineAggregators, metaData, format, buckets, maxDocCount, filter);
+        super(name, order, metadata, format, buckets, maxDocCount, filter);
     }
 
     /**
@@ -120,7 +118,7 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
 
     @Override
     public LongRareTerms create(List<LongRareTerms.Bucket> buckets) {
-        return new LongRareTerms(name, order, pipelineAggregators(), metaData, format, buckets, maxDocCount, filter);
+        return new LongRareTerms(name, order, metadata, format, buckets, maxDocCount, filter);
     }
 
     @Override
@@ -130,8 +128,7 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
 
     @Override
     protected LongRareTerms createWithFilter(String name, List<LongRareTerms.Bucket> buckets, SetBackedScalingCuckooFilter filter) {
-        return new LongRareTerms(name, order, pipelineAggregators(), getMetaData(), format,
-            buckets, maxDocCount, filter);
+        return new LongRareTerms(name, order, getMetadata(), format, buckets, maxDocCount, filter);
     }
 
     @Override

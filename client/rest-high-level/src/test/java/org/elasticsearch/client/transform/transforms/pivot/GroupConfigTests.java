@@ -55,8 +55,11 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
                         groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
                         break;
                     case DATE_HISTOGRAM:
-                    default:
                         groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
+                        break;
+                    case GEOTILE_GRID:
+                    default:
+                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
                 }
                 groups.put(targetFieldName, groupBy);
             }
@@ -87,21 +90,25 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
     public void testLenientParsing() throws IOException {
         BytesArray json = new BytesArray(
-                "{ " +
-                        "\"unknown-field\":\"foo\", " +
-                        "\"destination-field\": {" +
-                            "\"terms\": {" +
-                                "\"field\": \"term-field\"" +
-                            "}" +
-                        "}," +
-                        "\"unknown-field-2\":\"bar\"," +
-                        "\"destination-field2\": {" +
-                            "\"terms\": {" +
-                                "\"field\": \"term-field2\"" +
-                            "}" +
-                        "}," +
-                        "\"array-field\" : [1.0, 2.0]" +
-                "}");
+            "{"
+                + "  \"unknown-field\": \"foo\","
+                + "  \"destination-field\": {"
+                + "    \"terms\": {"
+                + "      \"field\": \"term-field\""
+                + "    }"
+                + "  },"
+                + "  \"unknown-field-2\": \"bar\","
+                + "  \"destination-field2\": {"
+                + "    \"terms\": {"
+                + "      \"field\": \"term-field2\""
+                + "    }"
+                + "  },"
+                + "  \"array-field\": ["
+                + "    1,"
+                + "    2"
+                + "  ]"
+                + "}"
+        );
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
 
@@ -116,20 +123,21 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
     public void testLenientParsingUnknowGroupType() throws IOException {
         BytesArray json = new BytesArray(
-                "{ " +
-                    "\"destination-field1\": {" +
-                        "\"newgroup\": {" +
-                            "\"field1\": \"bar\"," +
-                            "\"field2\": \"foo\"" +
-                        "}" +
-                    "}," +
-                    "\"unknown-field\":\"bar\"," +
-                    "\"destination-field2\": {" +
-                        "\"terms\": {" +
-                            "\"field\": \"term-field\"" +
-                        "}" +
-                    "}" +
-                "}");
+            "{"
+                + "  \"destination-field1\": {"
+                + "    \"newgroup\": {"
+                + "      \"field1\": \"bar\","
+                + "      \"field2\": \"foo\""
+                + "    }"
+                + "  },"
+                + "  \"unknown-field\": \"bar\","
+                + "  \"destination-field2\": {"
+                + "    \"terms\": {"
+                + "      \"field\": \"term-field\""
+                + "    }"
+                + "  }"
+                + "}"
+        );
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
 

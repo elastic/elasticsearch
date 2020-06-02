@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalEnumBinaryProcessor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
-import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.function.BiFunction;
@@ -18,7 +18,7 @@ import java.util.function.BiFunction;
  * Processor class covering string manipulating functions that have the first parameter as string,
  * second parameter as numeric and a string result.
  */
-public class BinaryStringNumericProcessor extends FunctionalBinaryProcessor<String, Number, String, BinaryStringNumericOperation> {
+public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<String, Number, String, BinaryStringNumericOperation> {
     
     public enum BinaryStringNumericOperation implements BiFunction<String, Number, String> {
         LEFT((s,c) -> {

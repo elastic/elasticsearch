@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 public class TransportGetSnapshotLifecycleAction extends
     TransportMasterNodeAction<GetSnapshotLifecycleAction.Request, GetSnapshotLifecycleAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetSnapshotLifecycleAction.class);
 
     @Inject
     public TransportGetSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
@@ -64,7 +64,7 @@ public class TransportGetSnapshotLifecycleAction extends
     protected void masterOperation(final Task task, final GetSnapshotLifecycleAction.Request request,
                                    final ClusterState state,
                                    final ActionListener<GetSnapshotLifecycleAction.Response> listener) {
-        SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null) {
             if (request.getLifecycleIds().length == 0) {
                 listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));

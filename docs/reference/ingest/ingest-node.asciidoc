@@ -372,11 +372,11 @@ is not null safe alternative, so an explicit null check is needed.
 
 [[ingest-conditional-complex]]
 === Complex Conditionals
-The `if` condition can be more then a simple equality check.
+The `if` condition can be more complex than a simple equality check.
 The full power of the <<modules-scripting-painless, Painless Scripting Language>> is available and
 running in the {painless}/painless-ingest-processor-context.html[ingest processor context].
 
-IMPORTANT: The value of ctx is read-only in `if` conditions. 
+IMPORTANT: The value of ctx is read-only in `if` conditions.
 
 A more complex `if` condition that drops the document (i.e. not index it)
 unless it has a multi-valued tag field with at least one value that contains the characters
@@ -718,8 +718,9 @@ The `ignore_failure` can be set on any processor and defaults to `false`.
 
 You may want to retrieve the actual error message that was thrown
 by a failed processor. To do so you can access metadata fields called
-`on_failure_message`, `on_failure_processor_type`, and `on_failure_processor_tag`. These fields are only accessible
-from within the context of an `on_failure` block.
+`on_failure_message`, `on_failure_processor_type`, `on_failure_processor_tag` and
+`on_failure_pipeline` (in case an error occurred inside a pipeline processor).
+These fields are only accessible from within the context of an `on_failure` block.
 
 Here is an updated version of the example that you
 saw earlier. But instead of setting the error message manually, the example leverages the `on_failure_message`
@@ -748,6 +749,10 @@ metadata field to provide the error message.
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+
+include::enrich.asciidoc[]
+
 
 [[ingest-processors]]
 == Processors
@@ -793,7 +798,6 @@ See <<ingest-conditionals>> to learn more about the `if` field and conditional e
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 
-The <<cluster-nodes-info,node info API>> can be used to figure out what processors are available in a cluster.
 The <<cluster-nodes-info,node info API>> will provide a per node list of what processors are available.
 
 Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline
@@ -820,17 +824,20 @@ include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
 include::processors/circle.asciidoc[]
 include::processors/convert.asciidoc[]
+include::processors/csv.asciidoc[]
 include::processors/date.asciidoc[]
 include::processors/date-index-name.asciidoc[]
 include::processors/dissect.asciidoc[]
 include::processors/dot-expand.asciidoc[]
 include::processors/drop.asciidoc[]
+include::processors/enrich.asciidoc[]
 include::processors/fail.asciidoc[]
 include::processors/foreach.asciidoc[]
 include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
 include::processors/html_strip.asciidoc[]
+include::processors/inference.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]

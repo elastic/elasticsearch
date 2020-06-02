@@ -19,19 +19,21 @@ import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -53,7 +55,7 @@ public class DataFrameDataExtractor {
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
-    private static final String EMPTY_STRING = "";
+    public static final String NULL_VALUE = "\0";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;
@@ -132,14 +134,14 @@ public class DataFrameDataExtractor {
                 .setScroll(SCROLL_TIMEOUT)
                 // This ensures the search throws if there are failures and the scroll context gets cleared automatically
                 .setAllowPartialSearchResults(false)
-                .addSort(DataFrameAnalyticsIndex.ID_COPY, SortOrder.ASC)
+                .addSort(DestinationIndex.ID_COPY, SortOrder.ASC)
                 .setIndices(context.indices)
                 .setSize(context.scrollSize)
                 .setQuery(context.query);
         setFetchSource(searchRequestBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
-            searchRequestBuilder.addDocValueField(docValueField.getName(), docValueField.getDocValueFormat());
+            searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
         }
 
         return searchRequestBuilder;
@@ -188,9 +190,9 @@ public class DataFrameDataExtractor {
             if (values.length == 1 && (values[0] instanceof Number || values[0] instanceof String)) {
                 extractedValues[i] = Objects.toString(values[0]);
             } else {
-                if (values.length == 0 && context.includeRowsWithMissingValues) {
+                if (values.length == 0 && context.supportsRowsWithMissingValues) {
                     // if values is empty then it means it's a missing value
-                    extractedValues[i] = EMPTY_STRING;
+                    extractedValues[i] = NULL_VALUE;
                 } else {
                     // we are here if we have a missing value but the analysis does not support those
                     // or the value type is not supported (e.g. arrays, etc.)
@@ -232,13 +234,19 @@ public class DataFrameDataExtractor {
     }
 
     public List<String> getFieldNames() {
-        return context.extractedFields.getAllFields().stream().map(ExtractedField::getAlias).collect(Collectors.toList());
+        return context.extractedFields.getAllFields().stream().map(ExtractedField::getName).collect(Collectors.toList());
+    }
+
+    public List<ExtractedField> getAllExtractedFields() {
+        return context.extractedFields.getAllFields();
     }
 
     public DataSummary collectDataSummary() {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
+        long rows = searchResponse.getHits().getTotalHits().value;
+        LOGGER.debug("[{}] Data summary rows [{}]", context.jobId, rows);
+        return new DataSummary(rows, context.extractedFields.getAllFields().size());
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
@@ -258,22 +266,31 @@ public class DataFrameDataExtractor {
     }
 
     private SearchRequestBuilder buildDataSummarySearchRequestBuilder() {
+
+        QueryBuilder summaryQuery = context.query;
+        if (context.supportsRowsWithMissingValues == false) {
+            summaryQuery = QueryBuilders.boolQuery()
+                .filter(summaryQuery)
+                .filter(allExtractedFieldsExistQuery());
+        }
+
         return new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setIndices(context.indices)
             .setSize(0)
-            .setQuery(context.query)
+            .setQuery(summaryQuery)
             .setTrackTotalHits(true);
     }
 
-    public Set<String> getCategoricalFields() {
-        Set<String> categoricalFields = new HashSet<>();
-        for (ExtractedField extractedField : context.extractedFields.getAllFields()) {
-            String fieldName = extractedField.getName();
-            if (Types.categorical().containsAll(extractedField.getTypes())) {
-                categoricalFields.add(fieldName);
-            }
+    private QueryBuilder allExtractedFieldsExistQuery() {
+        BoolQueryBuilder query = QueryBuilders.boolQuery();
+        for (ExtractedField field : context.extractedFields.getAllFields()) {
+            query.filter(QueryBuilders.existsQuery(field.getName()));
         }
-        return categoricalFields;
+        return query;
+    }
+
+    public Set<String> getCategoricalFields(DataFrameAnalysis analysis) {
+        return ExtractedFieldsDetector.getCategoricalFields(context.extractedFields, analysis);
     }
 
     public static class DataSummary {

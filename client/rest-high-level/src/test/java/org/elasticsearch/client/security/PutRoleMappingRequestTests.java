@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -132,16 +133,27 @@ public class PutRoleMappingRequestTests extends ESTestCase {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         putRoleMappingRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String output = Strings.toString(builder);
-        final String expected =
-             "{"+
-               "\"enabled\":" + enabled + "," +
-               "\"roles\":[\"superuser\"]," +
-               "\"role_templates\":[]," +
-               "\"rules\":{" +
-                   "\"field\":{\"username\":[\"user\"]}" +
-               "}," +
-               "\"metadata\":{\"k1\":\"v1\"}" +
-             "}";
+        final String expected = String.format(
+            Locale.ROOT,
+            "{"
+                + "  \"enabled\": %s,"
+                + "  \"roles\": ["
+                + "    \"superuser\""
+                + "  ],"
+                + "\"role_templates\":[],"
+                + "\"rules\":{"
+                + "    \"field\": {"
+                + "      \"username\": ["
+                + "        \"user\""
+                + "      ]"
+                + "    }"
+                + "},"
+                + "  \"metadata\": {"
+                + "    \"k1\": \"v1\""
+                + "  }"
+                + "}",
+            enabled
+        ).replaceAll("\\s+", "");
 
         assertThat(output, equalTo(expected));
     }
@@ -164,19 +176,34 @@ public class PutRoleMappingRequestTests extends ESTestCase {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         putRoleMappingRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String output = Strings.toString(builder);
-        final String expected =
-             "{"+
-               "\"enabled\":" + enabled + "," +
-               "\"roles\":[]," +
-               "\"role_templates\":[" +
-                 "{\"template\":\"{\\\"source\\\":\\\"_realm_{{realm.name}}\\\"}\",\"format\":\"string\"}," +
-                 "{\"template\":\"{\\\"source\\\":\\\"some_role\\\"}\",\"format\":\"string\"}" +
-               "]," +
-               "\"rules\":{" +
-                   "\"field\":{\"username\":[\"user\"]}" +
-               "}," +
-               "\"metadata\":{\"k1\":\"v1\"}" +
-             "}";
+        final String expected = String.format(
+            Locale.ROOT,
+            "{"
+                + "  \"enabled\": %s,"
+                + "\"roles\":[],"
+                + "\"role_templates\":["
+                + "    {"
+                + "      \"template\": \"{\\\"source\\\":\\\"_realm_{{realm.name}}\\\"}\","
+                + "      \"format\": \"string\""
+                + "    },"
+                + "    {"
+                + "      \"template\": \"{\\\"source\\\":\\\"some_role\\\"}\","
+                + "      \"format\": \"string\""
+                + "    }"
+                + "],"
+                + "\"rules\":{"
+                + "    \"field\": {"
+                + "      \"username\": ["
+                + "        \"user\""
+                + "      ]"
+                + "    }"
+                + "},"
+                + "  \"metadata\": {"
+                + "    \"k1\": \"v1\""
+                + "  }"
+                + "}",
+            enabled
+        ).replaceAll("\\s+", "");
 
         assertThat(output, equalTo(expected));
     }

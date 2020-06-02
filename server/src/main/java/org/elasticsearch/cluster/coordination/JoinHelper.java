@@ -29,17 +29,19 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportChannel;
@@ -83,6 +85,8 @@ public class JoinHelper {
     private final MasterService masterService;
     private final TransportService transportService;
     private final JoinTaskExecutor joinTaskExecutor;
+
+    @Nullable // if using single-node discovery
     private final TimeValue joinTimeout;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
@@ -95,7 +99,7 @@ public class JoinHelper {
                Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService) {
         this.masterService = masterService;
         this.transportService = transportService;
-        this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
+        this.joinTimeout = DiscoveryModule.isSingleNodeDiscovery(settings) ? null : JOIN_TIMEOUT_SETTING.get(settings);
         this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, rerouteService) {
 
             @Override
@@ -109,10 +113,10 @@ public class JoinHelper {
 
                 final long currentTerm = currentTermSupplier.getAsLong();
                 if (currentState.term() != currentTerm) {
-                    final CoordinationMetaData coordinationMetaData =
-                            CoordinationMetaData.builder(currentState.coordinationMetaData()).term(currentTerm).build();
-                    final MetaData metaData = MetaData.builder(currentState.metaData()).coordinationMetaData(coordinationMetaData).build();
-                    currentState = ClusterState.builder(currentState).metaData(metaData).build();
+                    final CoordinationMetadata coordinationMetadata =
+                            CoordinationMetadata.builder(currentState.coordinationMetadata()).term(currentTerm).build();
+                    final Metadata metadata = Metadata.builder(currentState.metadata()).coordinationMetadata(coordinationMetadata).build();
+                    currentState = ClusterState.builder(currentState).metadata(metadata).build();
                 }
                 return super.execute(currentState, joiningTasks);
             }
@@ -126,7 +130,7 @@ public class JoinHelper {
             StartJoinRequest::new,
             (request, channel, task) -> {
                 final DiscoveryNode destination = request.getSourceNode();
-                sendJoinRequest(destination, Optional.of(joinLeaderInTerm.apply(request)));
+                sendJoinRequest(destination, currentTermSupplier.getAsLong(), Optional.of(joinLeaderInTerm.apply(request)));
                 channel.sendResponse(Empty.INSTANCE);
             });
 
@@ -134,11 +138,11 @@ public class JoinHelper {
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
-                if (localState.metaData().clusterUUIDCommitted() &&
-                    localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID()) == false) {
+                if (localState.metadata().clusterUUIDCommitted() &&
+                    localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
                     throw new CoordinationStateRejectedException("join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metaData().clusterUUID() +
-                        " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
+                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
+                        " than local cluster uuid " + localState.metadata().clusterUUID() + ", rejecting");
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -226,9 +230,9 @@ public class JoinHelper {
         }
     }
 
-    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
+    public void sendJoinRequest(DiscoveryNode destination, long term, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
-        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
+        final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), term, optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);

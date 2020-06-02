@@ -10,8 +10,8 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
@@ -28,6 +28,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -136,6 +139,18 @@ public class MockWebServer implements Closeable {
         logger.info("bound HTTP mock server to [{}:{}]", getHostName(), getPort());
     }
 
+    public SocketAddress getAddress() {
+        return new InetSocketAddress(hostname, port);
+    }
+
+    public URI getUri(String path) throws URISyntaxException {
+        if (hostname == null) {
+            throw new IllegalStateException("Web server must be started in order to determine its URI");
+        }
+        final String scheme = this.sslContext == null ? "http" : "https";
+        return new URI(scheme, null, hostname, port, path, null, null);
+    }
+
     /**
      * A custom HttpsConfigurator that takes the SSL context and the required client authentication into account
      * Also configured the protocols and cipher suites to match the security default ones
@@ -230,6 +245,13 @@ public class MockWebServer implements Closeable {
     }
 
     /**
+     * Removes all requests from the queue.
+     */
+    public void clearRequests() {
+        requests.clear();
+    }
+
+    /**
      * A utility method to peek into the requests and find out if #MockWebServer.takeRequests will not throw an out of bound exception
      * @return true if more requests are available, false otherwise
      */
@@ -246,10 +268,12 @@ public class MockWebServer implements Closeable {
         logger.debug("[{}:{}] Counting down all latches before terminating executor", getHostName(), getPort());
         latches.forEach(CountDownLatch::countDown);
 
-        if (server.getExecutor() instanceof ExecutorService) {
-            terminate((ExecutorService) server.getExecutor());
+        if (server != null) {
+            if (server.getExecutor() instanceof ExecutorService) {
+                terminate((ExecutorService) server.getExecutor());
+            }
+            server.stop(0);
         }
-        server.stop(0);
     }
 
     /**

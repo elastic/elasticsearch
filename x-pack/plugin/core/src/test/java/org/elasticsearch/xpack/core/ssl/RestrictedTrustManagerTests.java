@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESIntegTestCase.inFipsJvm;
+
 public class RestrictedTrustManagerTests extends ESTestCase {
 
     private X509ExtendedTrustManager baseTrustManager;
@@ -132,7 +134,8 @@ public class RestrictedTrustManagerTests extends ESTestCase {
             if (cert.endsWith("/ca")) {
                 assertTrusted(trustManager, cert);
             } else {
-                assertNotValid(trustManager, cert, "PKIX path building failed.*");
+                assertNotValid(trustManager, cert, inFipsJvm() ? "unable to process certificates: Unable to find certificate chain.":
+                    "PKIX path building failed.*");
             }
         }
     }

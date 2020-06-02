@@ -13,11 +13,13 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -112,19 +114,21 @@ public class TransportFollowStatsAction extends TransportTasksAction<
     }
 
     static Set<String> findFollowerIndicesFromShardFollowTasks(ClusterState state, String[] indices) {
-        final PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (persistentTasksMetaData == null) {
+        final PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        if (persistentTasksMetadata == null) {
             return Collections.emptySet();
         }
-
+        final Metadata metadata = state.metadata();
         final Set<String> requestedFollowerIndices = indices != null ?
             new HashSet<>(Arrays.asList(indices)) : Collections.emptySet();
-        return persistentTasksMetaData.tasks().stream()
+        return persistentTasksMetadata.tasks().stream()
             .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
             .map(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
-                return shardFollowTask.getFollowShardId().getIndexName();
+                return shardFollowTask.getFollowShardId().getIndex();
             })
+            .filter(followerIndex -> metadata.index(followerIndex) != null) // hide tasks that are orphaned (see ShardFollowTaskCleaner)
+            .map(Index::getName)
             .filter(followerIndex -> Strings.isAllOrWildcard(indices) || requestedFollowerIndices.contains(followerIndex))
             .collect(Collectors.toSet());
     }

@@ -19,20 +19,18 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Calendar;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TimeZone;
-
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.apache.lucene.search.DoubleValues;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
+
+import java.io.IOException;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.TimeZone;
 
 /** Extracts a portion of a date field with {@code Calendar.get()} */
 class DateMethodValueSource extends FieldDataValueSource {
@@ -50,27 +48,26 @@ class DateMethodValueSource extends FieldDataValueSource {
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
-    public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+    public DoubleValues getValues(LeafReaderContext leaf, DoubleValues scores) {
+        LeafNumericFieldData leafData = (LeafNumericFieldData) fieldData.load(leaf);
         final Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
         NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
-        return new DoubleDocValues(this) {
+        return new DoubleValues() {
             @Override
-            public double doubleVal(int docId) throws IOException {
-                if (docValues.advanceExact(docId)) {
-                    long millis = (long)docValues.doubleValue();
-                    calendar.setTimeInMillis(millis);
-                    return calendar.get(calendarType);
-                } else {
-                    return 0;
-                }
+            public double doubleValue() throws IOException {
+                calendar.setTimeInMillis((long)docValues.doubleValue());
+                return calendar.get(calendarType);
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return docValues.advanceExact(doc);
             }
         };
     }
 
     @Override
-    public String description() {
+    public String toString() {
         return methodName + ": field(" + fieldData.getFieldName() + ")";
     }
 

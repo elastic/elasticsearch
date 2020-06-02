@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
-import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.ClientException;
-import org.elasticsearch.xpack.sql.client.Version;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
+import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.SQLException;
 
@@ -21,6 +22,7 @@ public class CliSession {
     private int fetchSize = Protocol.FETCH_SIZE;
     private String fetchSeparator = "";
     private boolean debug;
+    private boolean binary;
 
     public CliSession(HttpClient httpClient) {
         this.httpClient = httpClient;
@@ -56,6 +58,14 @@ public class CliSession {
     public boolean isDebug() {
         return debug;
     }
+    
+    public void setBinary(boolean binary) {
+        this.binary = binary;
+    }
+
+    public boolean isBinary() {
+        return binary;
+    }
 
     public void checkConnection() throws ClientException {
         MainResponse response;
@@ -64,11 +74,11 @@ public class CliSession {
         } catch (SQLException ex) {
             throw new ClientException(ex);
         }
-        Version version = Version.fromString(response.getVersion());
-        // TODO: We can relax compatibility requirement later when we have a better idea about protocol compatibility guarantees
-        if (version.major != Version.CURRENT.major || version.minor != Version.CURRENT.minor) {
-            throw new ClientException("This alpha version of CLI is only compatible with Elasticsearch version " +
-                    Version.CURRENT.toString());
+        SqlVersion version = SqlVersion.fromString(response.getVersion());
+        if (ClientVersion.isServerCompatible(version) == false) {
+            throw new ClientException("This version of the CLI is only compatible with Elasticsearch version " +
+                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
+                version.toString());
         }
     }
 }

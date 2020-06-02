@@ -27,18 +27,25 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
+
     public void testThreadedUpdatesToChildBreaker() throws Exception {
         final int NUM_THREADS = scaledRandomIntBetween(3, 15);
         final int BYTES_PER_THREAD = scaledRandomIntBetween(500, 4500);
@@ -48,6 +55,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
             @Override
@@ -106,6 +114,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final AtomicInteger parentTripped = new AtomicInteger(0);
         final AtomicReference<ChildMemoryCircuitBreaker> breakerRef = new AtomicReference<>(null);
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
 
             @Override
@@ -165,12 +174,11 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat("total breaker was tripped at least once", tripped.get(), greaterThanOrEqualTo(1));
     }
 
-
     /**
      * Test that a breaker correctly redistributes to a different breaker, in
      * this case, the request breaker borrows space from the fielddata breaker
      */
-    public void testBorrowingSiblingBreakerMemory() throws Exception {
+    public void testBorrowingSiblingBreakerMemory() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200mb")
@@ -178,6 +186,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
             .build();
         try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
             CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(CircuitBreaker.FIELDDATA);
@@ -206,7 +215,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
-    public void testParentBreaksOnRealMemoryUsage() throws Exception {
+    public void testParentBreaksOnRealMemoryUsage() {
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200b")
@@ -216,6 +225,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         AtomicLong memoryUsage = new AtomicLong();
         final CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
             @Override
             long currentMemoryUsage() {
@@ -268,6 +278,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
             .build();
         try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
             CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(CircuitBreaker.FIELDDATA);
@@ -293,7 +304,66 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
-    private long mb(long size) {
+    public void testAllocationBucketsBreaker() {
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "false")
+            .build();
+
+        try (HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+
+            long parentLimitBytes = service.getParentLimit();
+            assertEquals(new ByteSizeValue(100, ByteSizeUnit.BYTES).getBytes(), parentLimitBytes);
+
+            CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+            MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer =
+                new MultiBucketConsumerService.MultiBucketConsumer(10000, breaker);
+
+            // make sure used bytes is greater than the total circuit breaker limit
+            breaker.addWithoutBreaking(200);
+
+            CircuitBreakingException exception =
+                expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(1024));
+            assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [allocated_buckets] would be"));
+            assertThat(exception.getMessage(), containsString("which is larger than the limit of [100/100b]"));
+        }
+    }
+
+    public void testRegisterCustomCircuitBreakers_WithDuplicates() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Collections.singletonList(new BreakerSettings(CircuitBreaker.FIELDDATA, 100, 1.2)),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        assertThat(iae.getMessage(),
+            containsString("More than one circuit breaker with the name [fielddata] exists. Circuit breaker names must be unique"));
+
+        iae = expectThrows(IllegalArgumentException.class,
+            () -> new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("foo", 200, 0.1)),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+        assertThat(iae.getMessage(),
+            containsString("More than one circuit breaker with the name [foo] exists. Circuit breaker names must be unique"));
+    }
+
+    public void testCustomCircuitBreakers() {
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            Settings.EMPTY,
+            Arrays.asList(new BreakerSettings("foo", 100, 1.2), new BreakerSettings("bar", 200, 0.1)),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            assertThat(service.getBreaker("foo"), is(not(nullValue())));
+            assertThat(service.getBreaker("foo").getOverhead(), equalTo(1.2));
+            assertThat(service.getBreaker("foo").getLimit(), equalTo(100L));
+            assertThat(service.getBreaker("bar"), is(not(nullValue())));
+            assertThat(service.getBreaker("bar").getOverhead(), equalTo(0.1));
+            assertThat(service.getBreaker("bar").getLimit(), equalTo(200L));
+        }
+    }
+
+    private static long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
     }
 }

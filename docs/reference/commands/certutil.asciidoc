@@ -4,7 +4,7 @@
 == elasticsearch-certutil
 
 The `elasticsearch-certutil` command simplifies the creation of certificates for
-use with Transport Layer Security (TLS) in the Elastic Stack.
+use with Transport Layer Security (TLS) in the {stack}.
 
 [float]
 === Synopsis
@@ -26,13 +26,16 @@ bin/elasticsearch-certutil
 [-E <KeyValuePair>] [--keysize <bits>] [--out <file_path>]
 [--pass <password>]
 )
+
+| http
+
 [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
 [float]
 === Description
 
-You can specify one of the following modes: `ca`, `cert`, `csr`. The
+You can specify one of the following modes: `ca`, `cert`, `csr`, `http`. The
 `elasticsearch-certutil` command also supports a silent mode of operation to
 enable easier batch operations.
 
@@ -109,6 +112,18 @@ encoding of a PKCS#10 CSR. Each key is provided as a PEM encoding of an RSA
 private key.
 
 [float]
+[[certutil-http]]
+==== HTTP mode
+
+The `http` mode guides you through the process of generating certificates for
+use on the HTTP (REST) interface for {es}. It asks you a number of questions in
+order to generate the right set of files for your needs. For example, depending
+on your choices, it might generate a zip file that contains a certificate
+authority (CA), a certificate signing request (CSR), or certificates and keys
+for use in {es} and {kib}. Each folder in the zip file contains a readme that
+explains how to use the files.
+
+[float]
 === Parameters
 
 `ca`:: Specifies to generate a new local certificate authority (CA). This
@@ -119,6 +134,9 @@ This parameter cannot be used with the `csr` or `ca` parameters.
 
 `csr`:: Specifies to generate certificate signing requests. This parameter
 cannot be used with the `ca` or `cert` parameters.
+
+`http`:: Generates a new certificate or certificate request for the {es} HTTP
+interface.
 
 `--ca <file_path>`:: Specifies the path to an existing CA key pair
 (in PKCS#12 format). This parameter cannot be used with the `ca` or `csr` parameters.

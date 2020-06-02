@@ -176,7 +176,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      *
      * @param name The name of the field to sort by
      * @param order The order in which to sort
+     * @deprecated Specifying a sort field for reindex is deprecated. If using this in combination with maxDocs, consider using a
+     * query filter instead.
      */
+    @Deprecated
     public ReindexRequest addSortField(String name, SortOrder order) {
         this.getSearchRequest().source().sort(name, order);
         return this;
@@ -362,7 +365,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     /**
      * Yank a string array from a map. Emulates XContent's permissive String to
-     * String array conversions.
+     * String array conversions and allow comma separated String.
      */
     private static String[] extractStringArray(Map<String, Object> source, String name) {
         Object value = source.remove(name);
@@ -374,9 +377,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             List<String> list = (List<String>) value;
             return list.toArray(new String[list.size()]);
         } else if (value instanceof String) {
-            return new String[] {(String) value};
+            return Strings.splitStringByCommaToArray((String) value);
         } else {
-            throw new IllegalArgumentException("Expected [" + name + "] to be a list of a string but was [" + value + ']');
+            throw new IllegalArgumentException("Expected [" + name + "] to be a list or a string but was [" + value + ']');
         }
     }
 

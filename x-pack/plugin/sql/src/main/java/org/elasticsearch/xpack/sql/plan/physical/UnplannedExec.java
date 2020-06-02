@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.sql.planner.PlanningException;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.SqlSession;
+
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class UnplannedExec extends LeafExec implements Unexecutable {
 
@@ -34,6 +38,11 @@ public class UnplannedExec extends LeafExec implements Unexecutable {
     @Override
     public List<Attribute> output() {
         return plan.output();
+    }
+
+    @Override
+    void execute(SqlSession session, ActionListener<Page> listener) {
+        throw new PlanningException("Current plan {} is not executable", this);
     }
 
     @Override

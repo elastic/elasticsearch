@@ -1,0 +1,13 @@
+description = 'Run a subset of SQL tests against multiple nodes'
+
+/*
+ * We try to pick a small subset of the SQL tests so it'll
+ * run quickly but still exercise the bits of SQL that we
+ * feel should need to be tested against more than one node.
+ */
+
+testClusters.integTest {
+  numberOfNodes = 2
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}

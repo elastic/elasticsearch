@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
@@ -75,7 +75,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         return "watcher_stats";
     }
 
-    public static class Node extends BaseNodeRequest {
+    public static class Node extends TransportRequest {
 
         private boolean includeCurrentWatches;
         private boolean includeQueuedWatches;

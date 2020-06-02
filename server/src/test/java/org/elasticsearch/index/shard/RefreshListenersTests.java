@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.arrayContaining;
 
 /**
  * Tests how {@linkplain RefreshListeners} interacts with {@linkplain InternalEngine}.
@@ -102,8 +103,6 @@ public class RefreshListenersTests extends ESTestCase {
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
-                // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
-                Runnable::run,
                 logger,
                 threadPool.getThreadContext(),
                 refreshMetric);
@@ -350,7 +349,7 @@ public class RefreshListenersTests extends ESTestCase {
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =
                                     getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId);
-                            assertEquals(new String[] {testFieldValue}, document.getValues("test"));
+                            assertThat(document.getValues("test"), arrayContaining(testFieldValue));
                         }
                     } catch (Exception t) {
                         throw new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + threadId + "]", t);
@@ -416,7 +415,7 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, "test", null, Arrays.asList(document), source, XContentType.JSON,
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON,
             null);
         Engine.Index index = new Engine.Index(new Term("_id", doc.id()), engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);

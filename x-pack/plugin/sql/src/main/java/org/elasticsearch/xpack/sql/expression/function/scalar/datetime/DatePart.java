@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -19,11 +22,11 @@ import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
 
-public class DatePart extends BinaryDateTimeFunction {
+public class DatePart extends BinaryDateTimeDatePartFunction {
 
     public enum Part implements DateTimeField {
         YEAR(DateTimeExtractor.YEAR::extract, "years", "yyyy", "yy"),
@@ -49,10 +52,10 @@ public class DatePart extends BinaryDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Function<ZonedDateTime, Integer> extractFunction;
+        private ToIntFunction<ZonedDateTime> extractFunction;
         private Set<String> aliases;
 
-        Part(Function<ZonedDateTime, Integer> extractFunction, String... aliases) {
+        Part(ToIntFunction<ZonedDateTime> extractFunction, String... aliases) {
             this.extractFunction = extractFunction;
             this.aliases = Set.of(aliases);
         }
@@ -66,27 +69,40 @@ public class DatePart extends BinaryDateTimeFunction {
             return DateTimeField.findSimilar(NAME_TO_PART.keySet(), match);
         }
 
-        public static Part resolve(String truncateTo) {
-            return DateTimeField.resolveMatch(NAME_TO_PART, truncateTo);
+        public static Part resolve(String dateTimePart) {
+            return DateTimeField.resolveMatch(NAME_TO_PART, dateTimePart);
         }
 
         public Integer extract(ZonedDateTime dateTime) {
-            return extractFunction.apply(dateTime);
+            return extractFunction.applyAsInt(dateTime);
         }
     }
 
-    public DatePart(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId) {
-        super(source, truncateTo, timestamp, zoneId);
+    public DatePart(Source source, Expression dateTimePart, Expression timestamp, ZoneId zoneId) {
+        super(source, dateTimePart, timestamp, zoneId);
     }
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return DataTypes.INTEGER;
     }
 
     @Override
-    protected BinaryScalarFunction replaceChildren(Expression newTruncateTo, Expression newTimestamp) {
-        return new DatePart(source(), newTruncateTo, newTimestamp, zoneId());
+    protected TypeResolution resolveType() {
+        TypeResolution resolution = super.resolveType();
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        resolution = isDate(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    protected BinaryScalarFunction replaceChildren(Expression newDateTimePart, Expression newTimestamp) {
+        return new DatePart(source(), newDateTimePart, newTimestamp, zoneId());
     }
 
     @Override
@@ -105,8 +121,8 @@ public class DatePart extends BinaryDateTimeFunction {
     }
 
     @Override
-    protected Pipe createPipe(Pipe left, Pipe right, ZoneId zoneId) {
-        return new DatePartPipe(source(), this, left, right, zoneId);
+    protected Pipe createPipe(Pipe dateTimePart, Pipe timestamp, ZoneId zoneId) {
+        return new DatePartPipe(source(), this, dateTimePart, timestamp, zoneId);
     }
 
     @Override

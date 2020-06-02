@@ -19,28 +19,24 @@
 
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
-
-for (Version bwcVersion : bwcVersions.indexCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
 
   testClusters {
     "${baseName}" {
-      versions = [ bwcVersion.toString(), project.version ]
+      versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 2
       // some tests rely on the translog not being flushed
-      setting 'indices.memory.shard_inactive_time', '20m'
+      setting 'indices.memory.shard_inactive_time', '60m'
       setting 'http.content_type.required', 'true'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = project.file(project.ext.runtimeJavaHome)
     }
   }
 
@@ -63,31 +59,18 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     systemProperty 'tests.is_old_cluster', 'false'
   }
 
+  String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")
   tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
-    it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+    it.systemProperty 'tests.old_cluster_version', oldVersion
     it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
-    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+    it.nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
+    it.nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(
-            tasks.register("${baseName}#bwcTest") {
-              dependsOn tasks.named("${baseName}#upgradedClusterTest")
-            }
-    )
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#upgradedClusterTest")
   }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-
-check.dependsOn(bwcTestSnapshots)
 
 configurations {
   testArtifacts.extendsFrom testRuntime
@@ -101,5 +84,3 @@ task testJar(type: Jar) {
 artifacts {
   testArtifacts testJar
 }
-
-test.enabled = false

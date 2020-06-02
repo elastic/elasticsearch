@@ -64,6 +64,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             allowedFields = new HashSet<>();
             disAllowedFields = new HashSet<>();
             int numFields = scaledRandomIntBetween(5, 50);
+            allowedFields.add("id");
             for (int i = 0; i < numFields; i++) {
                 String field = "field" + i;
                 if (i % 2 == 0) {
@@ -100,21 +101,21 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 "      privileges:\n" +
                 "        - all\n" +
                 "      field_security:\n" +
-                "         grant: [ field1 ]\n" +
+                "         grant: [ id, field1 ]\n" +
                 "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: test\n" +
                 "      privileges: [ ALL ]\n" +
                 "      field_security:\n" +
-                "         grant: [ field2 ]\n" +
+                "         grant: [ id, field2 ]\n" +
                 "role5:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: test\n" +
                 "      privileges: [ ALL ]\n" +
                 "      field_security:\n" +
-                "         grant: [ field3 ]\n";
+                "         grant: [ id, field3 ]\n";
     }
 
     @Override
@@ -125,7 +126,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 .build();
     }
 
-    public void testRandom() throws Exception {
+    public void testRandom() {
         int j = 0;
         Map<String, Object> doc = new HashMap<>();
         String[] fieldMappers = new String[(allowedFields.size() + disAllowedFields.size()) * 2];
@@ -140,9 +141,9 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             doc.put(field, "value");
         }
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", (Object[])fieldMappers)
+                        .setMapping(fieldMappers)
         );
-        client().prepareIndex("test", "type1", "1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 
         for (String allowedField : allowedFields) {
             logger.info("Checking allowed field [{}]", allowedField);
@@ -166,7 +167,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     public void testDuel() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+                        .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 
         int numDocs = scaledRandomIntBetween(32, 128);
@@ -174,14 +175,14 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
         for (int i = 1; i <= numDocs; i++) {
             String field = randomFrom("field1", "field2", "field3");
             String value = "value";
-            requests.add(client().prepareIndex("test", "type1", value).setSource(field, value));
+            requests.add(client().prepareIndex("test").setId(value).setSource("id", Integer.toString(i), field, value));
         }
         indexRandom(true, requests);
 
         SearchResponse actual = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                                 .should(QueryBuilders.termQuery("field2", "value"))
@@ -189,7 +190,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 )
                 .get();
         SearchResponse expected = client().prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                 )
@@ -202,7 +203,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
         actual = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                                 .should(QueryBuilders.termQuery("field2", "value"))
@@ -210,7 +211,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 )
                 .get();
         expected = client().prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field2", "value"))
                 )
@@ -223,7 +224,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
         actual = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                                 .should(QueryBuilders.termQuery("field2", "value"))
@@ -231,7 +232,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 )
                 .get();
         expected = client().prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
+                .addSort("id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field3", "value"))
                 )

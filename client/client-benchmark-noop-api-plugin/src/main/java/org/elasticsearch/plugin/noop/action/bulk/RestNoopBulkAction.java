@@ -32,12 +32,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -45,11 +45,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestNoopBulkAction extends BaseRestHandler {
 
-    public RestNoopBulkAction(RestController controller) {
-        controller.registerHandler(POST, "/_noop_bulk", this);
-        controller.registerHandler(PUT, "/_noop_bulk", this);
-        controller.registerHandler(POST, "/{index}/_noop_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_noop_bulk", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_noop_bulk"),
+            new Route(PUT, "/_noop_bulk"),
+            new Route(POST, "/{index}/_noop_bulk"),
+            new Route(PUT, "/{index}/_noop_bulk"));
     }
 
     @Override

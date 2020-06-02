@@ -426,10 +426,10 @@ class JdbcConnection implements Connection, JdbcWrapper {
     // in fact, this information is cached by the underlying client
     // once retrieved
     int esInfoMajorVersion() throws SQLException {
-        return client.serverInfo().majorVersion;
+        return client.serverInfo().version.major;
     }
 
     int esInfoMinorVersion() throws SQLException {
-        return client.serverInfo().minorVersion;
+        return client.serverInfo().version.minor;
     }
 }

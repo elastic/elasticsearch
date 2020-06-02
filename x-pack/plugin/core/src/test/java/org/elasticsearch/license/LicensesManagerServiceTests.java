@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,7 +37,6 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
@@ -52,7 +50,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTrialLicenseToBeGenerated() throws Exception {
-        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metaData().custom(LicensesMetaData.TYPE)));
+        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().custom(LicensesMetadata.TYPE)));
     }
 
     public void testStoreAndGetLicenses() throws Exception {
@@ -64,8 +62,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         TestUtils.registerAndAckSignedLicenses(licenseService, silverLicense, LicensesStatus.VALID);
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
-        LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), equalTo(platinumLicense));
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        assertThat(licensesMetadata.getLicense(), equalTo(platinumLicense));
         final License getLicenses = licenseService.getLicense();
         assertThat(getLicenses, equalTo(platinumLicense));
     }
@@ -78,14 +76,14 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         License goldLicense = TestUtils.generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
         TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
-        LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(LicenseService.getLicense(licensesMetaData), equalTo(goldLicense));
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        assertThat(LicenseService.getLicense(licensesMetadata), equalTo(goldLicense));
 
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueSeconds(3));
         // put platinum license
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
-        licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(LicenseService.getLicense(licensesMetaData), equalTo(platinumLicense));
+        licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        assertThat(LicenseService.getLicense(licensesMetadata), equalTo(platinumLicense));
     }
 
     public void testInvalidLicenseStorage() throws Exception {
@@ -103,8 +101,8 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         TestUtils.registerAndAckSignedLicenses(licenseService, tamperedLicense, LicensesStatus.INVALID);
 
         // ensure that the invalid license never made it to cluster state
-        LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), not(equalTo(tamperedLicense)));
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        assertThat(licensesMetadata.getLicense(), not(equalTo(tamperedLicense)));
     }
 
     public void testRemoveLicenses() throws Exception {
@@ -114,22 +112,22 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         // generate signed licenses
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, license, LicensesStatus.VALID);
-        LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), not(LicensesMetaData.LICENSE_TOMBSTONE));
+        LicensesMetadata licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        assertThat(licensesMetadata.getLicense(), not(LicensesMetadata.LICENSE_TOMBSTONE));
 
         // remove signed licenses
         removeAndAckSignedLicenses(licenseService);
-        licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
+        licensesMetadata = clusterService.state().metadata().custom(LicensesMetadata.TYPE);
+        assertTrue(License.LicenseType.isBasic(licensesMetadata.getLicense().type()));
     }
 
     private void removeAndAckSignedLicenses(final LicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
-        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<ClusterStateUpdateResponse>() {
+        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<PostStartBasicResponse>() {
             @Override
-            public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
+            public void onResponse(PostStartBasicResponse postStartBasicResponse) {
+                if (postStartBasicResponse.isAcknowledged()) {
                     success.set(true);
                 }
                 latch.countDown();

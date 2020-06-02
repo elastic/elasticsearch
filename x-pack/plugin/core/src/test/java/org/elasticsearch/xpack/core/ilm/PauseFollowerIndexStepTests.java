@@ -8,10 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.mockito.Mockito;
 
@@ -26,23 +23,18 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCase<PauseFollowerIndexStep> {
 
     @Override
-    protected PauseFollowerIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey, Client client) {
+    protected PauseFollowerIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey) {
         return new PauseFollowerIndexStep(key, nextKey, client);
     }
 
     public void testPauseFollowingIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
-        Client client = Mockito.mock(Client.class);
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer(invocation -> {
             PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
@@ -72,7 +64,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
     }
 
     public void testPauseFollowingIndexFailed() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
@@ -80,7 +72,6 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .build();
 
         // Mock pause follow api call:
-        Client client = Mockito.mock(Client.class);
         Exception error = new RuntimeException();
         Mockito.doAnswer(invocation -> {
             PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];

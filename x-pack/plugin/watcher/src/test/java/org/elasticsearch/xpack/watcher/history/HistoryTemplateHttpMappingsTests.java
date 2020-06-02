@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -33,7 +32,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -158,11 +156,10 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // ensure that enabled is set to false
         List<Boolean> indexed = new ArrayList<>();
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings(HistoryStoreField.INDEX_PREFIX + "*").get();
-        Iterator<ImmutableOpenMap<String, MappingMetaData>> iterator = mappingsResponse.getMappings().valuesIt();
+        Iterator<MappingMetadata> iterator = mappingsResponse.getMappings().valuesIt();
         while (iterator.hasNext()) {
-            ImmutableOpenMap<String, MappingMetaData> mapping = iterator.next();
-            assertThat(mapping.containsKey(SINGLE_MAPPING_NAME), is(true));
-            Map<String, Object> docMapping = mapping.get(SINGLE_MAPPING_NAME).getSourceAsMap();
+            MappingMetadata mapping = iterator.next();
+            Map<String, Object> docMapping = mapping.getSourceAsMap();
             if (abortAtInput) {
                 Boolean enabled = ObjectPath.eval("properties.result.properties.input.properties.error.enabled", docMapping);
                 indexed.add(enabled);

@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
@@ -38,11 +39,13 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -66,12 +69,14 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     private final WatchParser parser;
     private final Clock clock;
     private final TriggerService triggerService;
+    private final Supplier<WatcherState> watcherState;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService) {
+    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService, Supplier<WatcherState> watcherState) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;
+        this.watcherState = watcherState;
     }
 
     // package private for testing
@@ -97,11 +102,16 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      *
      * @param shardId   The shard id object of the document being processed
      * @param operation The index operation
-     * @return          The index operation
+     * @param result    The result of the operation
      */
     @Override
-    public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+    public void postIndex(ShardId shardId, Engine.Index operation, Engine.IndexResult result) {
         if (isWatchDocument(shardId.getIndexName())) {
+            if (result.getResultType() == Engine.Result.Type.FAILURE) {
+                postIndex(shardId, operation, result.getFailure());
+                return;
+            }
+
             ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
                 Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
@@ -109,13 +119,14 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 ShardAllocationConfiguration shardAllocationConfiguration = configuration.localShards.get(shardId);
                 if (shardAllocationConfiguration == null) {
                     logger.debug("no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",
-                            watch.id(), shardId, configuration.localShards.keySet());
-                    return operation;
+                        watch.id(), shardId, configuration.localShards.keySet());
+                    return;
                 }
 
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
-                if (shouldBeTriggered) {
-                    if (watch.status().state().isActive()) {
+                WatcherState currentState = watcherState.get();
+                if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
+                    if (watch.status().state().isActive() ) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
                     } else {
@@ -123,26 +134,17 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                         triggerService.remove(watch.id());
                     }
                 } else {
-                    logger.debug("watch [{}] should not be triggered", watch.id());
+                    logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
                 }
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Could not parse watch with id [{}]", e, operation.id());
             }
-
         }
-
-        return operation;
     }
 
     /**
-     *
-     * In case of an error, we have to ensure that the triggerservice does not leave anything behind
-     *
-     * TODO: If the configuration changes between preindex and postindex methods and we add a
-     *       watch, that could not be indexed
-     * TODO: this watch might not be deleted from the triggerservice. Are we willing to accept this?
-     * TODO: This could be circumvented by using a threadlocal  in preIndex(), that contains the
-     *       watch and is cleared afterwards
+     * In case of an engine related error, we just log that we failed the add the watch to the trigger service.
+     * No need to interact with the trigger service.
      *
      * @param shardId   The shard id object of the document being processed
      * @param index     The index operation
@@ -151,8 +153,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
         if (isWatchDocument(shardId.getIndexName())) {
-            logger.debug(() -> new ParameterizedMessage("removing watch [{}] from trigger", index.id()), ex);
-            triggerService.remove(index.id());
+            logger.debug(() -> new ParameterizedMessage("failed to add watch [{}] to trigger service", index.id()), ex);
         }
     }
 
@@ -167,9 +168,9 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
+            logger.debug("removing watch [{}] to trigger service via delete", delete.id());
             triggerService.remove(delete.id());
         }
-
         return delete;
     }
 
@@ -200,13 +201,13 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             return;
         }
 
-        if (event.state().nodes().getLocalNode().isDataNode() && event.metaDataChanged()) {
+        if (event.state().nodes().getLocalNode().isDataNode() && event.metadataChanged()) {
             try {
-                IndexMetaData metaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
-                if (metaData == null) {
+                IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metadata());
+                if (metadata == null) {
                     configuration = INACTIVE;
                 } else {
-                    checkWatchIndexHasChanged(metaData, event);
+                    checkWatchIndexHasChanged(metadata, event);
                 }
             } catch (IllegalStateException e) {
                 logger.error("error loading watches index: [{}]", e.getMessage());
@@ -215,8 +216,8 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
         }
     }
 
-    private void checkWatchIndexHasChanged(IndexMetaData metaData, ClusterChangedEvent event) {
-        String watchIndex = metaData.getIndex().getName();
+    private void checkWatchIndexHasChanged(IndexMetadata metadata, ClusterChangedEvent event) {
+        String watchIndex = metadata.getIndex().getName();
         ClusterState state = event.state();
         String localNodeId = state.nodes().getLocalNode().getId();
         RoutingNode routingNode = state.getRoutingNodes().node(localNodeId);
@@ -360,7 +361,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
          * @return false if watcher is not active or the passed index is not the watcher index
          */
         public boolean isIndexAndActive(String index) {
-            return active == true && index.equals(this.index);
+            return active && index.equals(this.index);
         }
     }
 

@@ -91,11 +91,11 @@ public class XContentParserUtilsTests extends ESTestCase {
     public void testStoredFieldsValueBinary() throws IOException {
         final byte[] value = randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes("UTF-8");
         assertParseFieldsSimpleValue(value, (xcontentType, result) -> {
-            if (xcontentType == XContentType.JSON || xcontentType == XContentType.YAML) {
-                //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+            if (xcontentType == XContentType.JSON) {
+                // binary values will be parsed back and returned as base64 strings when reading from json
                 assertArrayEquals(value, Base64.getDecoder().decode((String) result));
             } else {
-                //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+                // cbor, smile, and yaml support binary
                 assertArrayEquals(value, ((BytesArray) result).array());
             }
         });
@@ -190,7 +190,7 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> parseTypedKeysObject(parser, delimiter, Boolean.class, a -> {}));
-            assertThat(e.getMessage(), endsWith("unable to parse Boolean with name [type]: parser not found"));
+            assertThat(e.getMessage(), endsWith("unknown field [type]"));
         }
 
         final long longValue = randomLong();

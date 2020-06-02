@@ -585,14 +585,14 @@ public class WatchTests extends ESTestCase {
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML), EmailAttachments.EMPTY_ATTACHMENTS);
             list.add(new ActionWrapper("_email_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService), randomTransform(),
-                    new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, 
+                    new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer,
                             Collections.emptyMap()), null, null));
         }
         if (randomBoolean()) {
             ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             WriteRequest.RefreshPolicy refreshPolicy = randomBoolean() ? null : randomFrom(WriteRequest.RefreshPolicy.values());
-            IndexAction action = new IndexAction("_index", null, randomBoolean() ? "123" : null, null, timeout, timeZone,
+            IndexAction action = new IndexAction("_index", randomBoolean() ? "123" : null, null, timeout, timeZone,
                     refreshPolicy);
             list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),

@@ -6,7 +6,7 @@
 You can add more nodes to your cluster and optionally designate specific
 purposes for each node. For example, you can allocate master nodes, data nodes,
 ingest nodes, machine learning nodes, and dedicated coordinating nodes. For
-details about each node type, see {ref}/modules-node.html[Nodes].
+details about each node type, see <<modules-node>>.
 
 Let's add two nodes to our cluster!
 
@@ -111,7 +111,7 @@ The default value for this setting is `127.0.0.1, [::1]`, therefore it isn't
 actually required in this tutorial. When you want to form a cluster with nodes
 on other hosts, however, you must use this setting to provide a list of
 master-eligible nodes to seed the discovery process. For more information, see
-{ref}/modules-discovery-hosts-providers.html[Discovery].
+<<modules-discovery-hosts-providers>>.
 --
 
 . On each node, enable TLS for transport communications. You must also configure
@@ -140,7 +140,7 @@ package, run the following command from each {es} directory:
 ./bin/elasticsearch
 ----------------------------------------------------------------------
 
-See {ref}/starting-elasticsearch.html[Starting {es}].
+See <<starting-elasticsearch>>.
 
 If you encounter errors, you can see some common problems and solutions in
 <<trb-security-ssl>>.
@@ -150,7 +150,7 @@ If you encounter errors, you can see some common problems and solutions in
 +
 --
 For example, log into {kib} with the `elastic` built-in user. Go to
-*Dev Tools > Console* and run the {ref}/cluster-health.html[cluster health API]:
+*Dev Tools > Console* and run the <<cluster-health,cluster health API>>:
 
 [source,console]
 ----------------------------------
@@ -159,7 +159,7 @@ GET _cluster/health
 
 Confirm the `number_of_nodes` in the response from this API.
 
-You can also use the {ref}/cat-nodes.html[cat nodes API] to identify the master
+You can also use the <<cat-nodes,cat nodes API>> to identify the master
 node:
 
 [source,console]
@@ -174,7 +174,7 @@ node.
 Now that you have multiple nodes, your data can be distributed across the
 cluster in multiple primary and replica shards. For more information about the
 concepts of clusters, nodes, and shards, see
-{ref}/getting-started.html[Getting started with {es}].
+<<getting-started>>.
 
 [float]
 [[encrypting-internode-nextsteps]]
@@ -182,7 +182,7 @@ concepts of clusters, nodes, and shards, see
 
 Congratulations! You've encrypted communications between the nodes in your
 cluster and can pass the 
-{ref}/bootstrap-checks-xpack.html#bootstrap-checks-tls[TLS bootstrap check].
+<<bootstrap-checks-tls,TLS bootstrap check>>.
 
 If you want to encrypt communications between other products in the {stack}, see
 <<encrypting-communications>>.

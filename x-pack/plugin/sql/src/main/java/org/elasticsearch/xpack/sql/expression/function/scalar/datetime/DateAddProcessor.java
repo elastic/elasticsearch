@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAdd.Part;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -59,14 +59,14 @@ public class DateAddProcessor extends ThreeArgsDateTimeProcessor {
             }
         }
 
-        if (numberOfUnits instanceof Integer == false) {
-            throw new SqlIllegalArgumentException("An integer is required; received [{}]", numberOfUnits);
+        if (numberOfUnits instanceof Number == false) {
+            throw new SqlIllegalArgumentException("A number is required; received [{}]", numberOfUnits);
         }
 
         if (timestamp instanceof ZonedDateTime == false) {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", timestamp);
         }
 
-        return datePartField.add(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId), (Integer) numberOfUnits);
+        return datePartField.add(((ZonedDateTime) timestamp).withZoneSameInstant(zoneId), ((Number) numberOfUnits).intValue());
     }
 }

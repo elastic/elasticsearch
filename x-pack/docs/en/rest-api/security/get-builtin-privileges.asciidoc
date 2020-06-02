@@ -12,7 +12,7 @@ available in this version of {es}.
 [[security-api-get-builtin-privileges-request]]
 ==== {api-request-title}
 
-`GET /_security/privilege/_builtin` 
+`GET /_security/privilege/_builtin`
 
 
 [[security-api-get-builtin-privileges-prereqs]]
@@ -64,10 +64,13 @@ A successful call returns an object with "cluster" and "index" fields.
     "all",
     "create_snapshot",
     "delegate_pki",
+    "grant_api_key",
     "manage",
     "manage_api_key",
+    "manage_autoscaling",
     "manage_ccr",
     "manage_data_frame_transforms",
+    "manage_enrich",
     "manage_ilm",
     "manage_index_templates",
     "manage_ingest_pipelines",
@@ -86,6 +89,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_data_frame_transforms",
     "monitor_ml",
     "monitor_rollup",
+    "monitor_snapshot",
     "monitor_transform",
     "monitor_watcher",
     "none",
@@ -102,6 +106,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "delete",
     "delete_index",
     "index",
+    "maintenance",
     "manage",
     "manage_follow_index",
     "manage_ilm",

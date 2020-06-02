@@ -1,0 +1,49 @@
+--
+:api: get-trained-models
+:request: GetTrainedModelsRequest
+:response: GetTrainedModelsResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get Trained Models API
+
+experimental[]
+
+Retrieves one or more Trained Models.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Get Trained Models request
+
+A +{request}+ requires either a Trained Model ID, a comma-separated list of
+IDs, or the special wildcard `_all` to get all Trained Models.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new GET request referencing an existing Trained Model
+<2> Set the paging parameters
+<3> Indicate if the complete model definition should be included
+<4> Should the definition be fully decompressed on GET
+<5> Allow empty response if no Trained Models match the provided ID patterns.
+    If false, an error will be thrown if no Trained Models match the
+    ID patterns.
+<6> An optional list of tags used to narrow the model search. A Trained Model
+    can have many tags or none. The trained models in the response will
+    contain all the provided tags.
+<7> Optional boolean value indicating if certain fields should be removed on
+    retrieval. This is useful for getting the trained model in a format that
+    can then be put into another cluster.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested Trained Model.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

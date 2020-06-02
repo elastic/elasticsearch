@@ -42,14 +42,15 @@ public class DieWithDignityPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-            final Settings settings,
-            final RestController restController,
-            final ClusterSettings clusterSettings,
-            final IndexScopedSettings indexScopedSettings,
-            final SettingsFilter settingsFilter,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.singletonList(new RestDieWithDignityAction(restController));
+        final Settings settings,
+        final RestController restController,
+        final ClusterSettings clusterSettings,
+        final IndexScopedSettings indexScopedSettings,
+        final SettingsFilter settingsFilter,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        return Collections.singletonList(new RestDieWithDignityAction());
     }
 
 }

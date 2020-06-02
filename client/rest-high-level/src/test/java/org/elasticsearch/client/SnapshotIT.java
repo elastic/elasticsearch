@@ -146,7 +146,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.result().blobs(), equalTo(0L));
     }
 
-    public void testCreateSnapshot() throws IOException {
+    public void testCreateSnapshot() throws Exception {
         String repository = "test_repository";
         assertTrue(createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}").isAcknowledged());
 

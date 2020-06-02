@@ -22,12 +22,11 @@ import com.microsoft.azure.storage.Constants;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.blob.BlobRequestOptions;
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import fixture.azure.AzureHttpHandler;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,23 +34,16 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -77,12 +69,17 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Map<String, HttpHandler> createHttpHandlers() {
-        return Collections.singletonMap("/container", new InternalHttpHandler());
+        return Collections.singletonMap("/container", new AzureHTTPStatsCollectorHandler(new AzureBlobStoreHttpHandler("container")));
     }
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+    }
+
+    @Override
+    protected List<String> requestTypesTracked() {
+        return List.of("GET", "LIST", "HEAD", "PUT", "PUT_BLOCK");
     }
 
     @Override
@@ -128,111 +125,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
     }
 
-    /**
-     * Minimal HTTP handler that acts as an Azure compliant server
-     */
-    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
-    private static class InternalHttpHandler implements HttpHandler {
+    @SuppressForbidden(reason = "this test uses a HttpHandler to emulate an Azure endpoint")
+    private static class AzureBlobStoreHttpHandler extends AzureHttpHandler implements BlobStoreHttpHandler {
 
-        private final Map<String, BytesReference> blobs = new ConcurrentHashMap<>();
-
-        @Override
-        public void handle(final HttpExchange exchange) throws IOException {
-            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-            try {
-                if (Regex.simpleMatch("PUT /container/*blockid=*", request)) {
-                    final Map<String, String> params = new HashMap<>();
-                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-
-                    final String blockId = params.get("blockid");
-                    blobs.put(blockId, Streams.readFully(exchange.getRequestBody()));
-                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
-
-                } else if (Regex.simpleMatch("PUT /container/*comp=blocklist*", request)) {
-                    final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
-                    final List<String> blockIds = Arrays.stream(blockList.split("<Latest>"))
-                        .filter(line -> line.contains("</Latest>"))
-                        .map(line -> line.substring(0, line.indexOf("</Latest>")))
-                        .collect(Collectors.toList());
-
-                    final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-                    for (String blockId : blockIds) {
-                        BytesReference block = blobs.remove(blockId);
-                        assert block != null;
-                        block.writeTo(blob);
-                    }
-                    blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
-                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
-
-                } else if (Regex.simpleMatch("PUT /container/*", request)) {
-                    blobs.put(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody()));
-                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
-
-                } else if (Regex.simpleMatch("HEAD /container/*", request)) {
-                    final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
-                    if (blob == null) {
-                        TestUtils.sendError(exchange, RestStatus.NOT_FOUND);
-                        return;
-                    }
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blob.length()));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-
-                } else if (Regex.simpleMatch("GET /container/*", request)) {
-                    final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
-                    if (blob == null) {
-                        TestUtils.sendError(exchange, RestStatus.NOT_FOUND);
-                        return;
-                    }
-
-                    final String range = exchange.getRequestHeaders().getFirst(Constants.HeaderConstants.STORAGE_RANGE_HEADER);
-                    final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
-                    assertTrue(matcher.matches());
-
-                    final int start = Integer.parseInt(matcher.group(1));
-                    final int length = Integer.parseInt(matcher.group(2)) - start + 1;
-
-                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                    exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
-                    exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                    exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
-
-                } else if (Regex.simpleMatch("DELETE /container/*", request)) {
-                    Streams.readFully(exchange.getRequestBody());
-                    blobs.entrySet().removeIf(blob -> blob.getKey().startsWith(exchange.getRequestURI().getPath()));
-                    exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
-
-                } else if (Regex.simpleMatch("GET /container?restype=container&comp=list*", request)) {
-                    final Map<String, String> params = new HashMap<>();
-                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-
-                    final StringBuilder list = new StringBuilder();
-                    list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                    list.append("<EnumerationResults>");
-                    final String prefix = params.get("prefix");
-                    list.append("<Blobs>");
-                    for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
-                        if (prefix == null || blob.getKey().startsWith("/container/" + prefix)) {
-                            list.append("<Blob><Name>").append(blob.getKey().replace("/container/", "")).append("</Name>");
-                            list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
-                            list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
-                        }
-                    }
-                    list.append("</Blobs>");
-                    list.append("</EnumerationResults>");
-
-                    byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
-
-                } else {
-                    TestUtils.sendError(exchange, RestStatus.BAD_REQUEST);
-                }
-            } finally {
-                exchange.close();
-            }
+        AzureBlobStoreHttpHandler(final String container) {
+            super(container);
         }
     }
 
@@ -251,9 +148,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         @Override
         protected void handleAsError(final HttpExchange exchange) throws IOException {
-            Streams.readFully(exchange.getRequestBody());
-            TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
-            exchange.close();
+            try {
+                drainInputStream(exchange.getRequestBody());
+                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+            } finally {
+                exchange.close();
+            }
         }
 
         @Override
@@ -266,9 +166,38 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
     }
 
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47948")
-    public void testIndicesDeletedFromRepository() throws Exception {
+    /**
+     * HTTP handler that keeps track of requests performed against Azure Storage.
+     */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+    private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
 
+        private static final Predicate<String> listPattern = Pattern.compile("GET /[a-zA-Z0-9]+\\??.+").asMatchPredicate();
+
+        private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
+            super(delegate);
+        }
+
+        @Override
+        protected void maybeTrack(String request, Headers headers) {
+            if (Regex.simpleMatch("GET /*/*", request)) {
+                trackRequest("GET");
+            } else if (Regex.simpleMatch("HEAD /*/*", request)) {
+                trackRequest("HEAD");
+            } else if (listPattern.test(request)) {
+                trackRequest("LIST");
+            } else if (isBlockUpload(request)) {
+                trackRequest("PUT_BLOCK");
+            } else if (Regex.simpleMatch("PUT /*/*", request)) {
+                trackRequest("PUT");
+            }
+        }
+
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+        // https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
+        private boolean isBlockUpload(String request) {
+            return Regex.simpleMatch("PUT /*/*?*comp=blocklist*", request)
+                || (Regex.simpleMatch("PUT /*/*?*comp=block*", request) && request.contains("blockid="));
+        }
     }
 }

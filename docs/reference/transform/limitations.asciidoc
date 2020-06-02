@@ -6,22 +6,8 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-beta[]
-
 The following limitations and known problems apply to the {version} release of 
 the Elastic {transform} feature:
-
-
-[float]
-[[transform-compatibility-limitations]]
-==== Beta {transforms} do not have guaranteed backwards or forwards compatibility
-
-Whilst {transforms} are beta, it is not guaranteed that a {transform} created in 
-a previous version of the {stack} will be able to start and operate in a future 
-version. Neither can support be provided for {transform} tasks to be able to 
-operate in a cluster with mixed node versions. Please note that the output of a 
-{transform} is persisted to a destination index. This is a normal {es} index and 
-is not affected by the beta status. 
 
 
 [float]
@@ -33,6 +19,14 @@ upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2,
 the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
 nodes have been upgraded to the newer version before using the {transforms} UI.
 
+[float]
+[[transform-rolling-upgrade-limitation]]
+==== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
+
+If your cluster contains mixed version nodes, for example during a rolling
+upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped will
+not be reassigned until the upgrade is complete. After the upgrade is done, {transforms}
+resume automatically; no action is required.
 
 [float]
 [[transform-datatype-limitations]]
@@ -44,13 +38,6 @@ table.
 
 
 [float]
-[[transform-ccs-limitations]]
-==== {ccs-cap} is not supported
-
-{ccs-cap} is not supported for {transforms}.
-
-
-[float]
 [[transform-kibana-limitations]]
 ==== Up to 1,000 {transforms} are supported
 
@@ -58,7 +45,6 @@ A single cluster will support up to 1,000 {transforms}. When using the
 {ref}/get-transform.html[GET {transforms} API] a total `count` of {transforms} 
 is returned. Use the `size` and `from` parameters to enumerate through the full 
 list.
-
 
 [float]
 [[transform-aggresponse-limitations]]
@@ -181,9 +167,9 @@ for the {transform} checkpoint to complete.
 
 [float]
 [[transform-scheduling-limitations]]
-==== {cdataframe-cap} scheduling limitations
+==== {ctransform-cap} scheduling limitations
 
-A {cdataframe} periodically checks for changes to source data. The functionality 
+A {ctransform} periodically checks for changes to source data. The functionality
 of the scheduler is currently limited to a basic periodic timer which can be 
 within the `frequency` range from 1s to 1h. The default is 1m. This is designed 
 to run little and often. When choosing a `frequency` for this timer consider 
@@ -206,7 +192,7 @@ When using the API to delete a failed {transform}, first stop it using
 
 [float]
 [[transform-availability-limitations]]
-==== {cdataframes-cap} may give incorrect results if documents are not yet available to search
+==== {ctransforms-cap} may give incorrect results if documents are not yet available to search
 
 After a document is indexed, there is a very small delay until it is available 
 to search.
@@ -220,3 +206,10 @@ this entity will not be updated.
 If using a `sync.time.field` that represents the data ingest time and using a 
 zero second or very small `sync.time.delay`, then it is more likely that this 
 issue will occur.
+
+[[transform-date-nanos]]
+==== Support for date nanoseconds data type
+
+If your data uses the <<date_nanos,date nanosecond data type>>, aggregations
+are nonetheless on millisecond resolution. This limitation also affects the
+aggregations in your {transforms}.

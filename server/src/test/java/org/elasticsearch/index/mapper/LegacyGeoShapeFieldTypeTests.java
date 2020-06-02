@@ -19,56 +19,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
-import org.junit.Before;
 
 import java.io.IOException;
 
-public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
+public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new GeoShapeFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("tree", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setTree("geohash");
-            }
-        });
-        addModifier(new Modifier("strategy", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setStrategy(SpatialStrategy.TERM);
-            }
-        });
-        addModifier(new Modifier("tree_levels", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setTreeLevels(10);
-            }
-        });
-        addModifier(new Modifier("precision", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setPrecisionInMeters(20);
-            }
-        });
-        addModifier(new Modifier("distance_error_pct", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
-            }
-        });
-        addModifier(new Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
-            }
-        });
     }
 
     /**

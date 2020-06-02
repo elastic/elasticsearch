@@ -21,16 +21,11 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -106,7 +101,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                         shardContext.lookup().source().setSegmentAndDocument(percolatorLeafReaderContext, slot);
                         shardContext.lookup().source().setSource(document);
                         hitContext.reset(
-                            new SearchHit(slot, "unknown", Collections.emptyMap()),
+                            new SearchHit(slot, "unknown", Collections.emptyMap(), Collections.emptyMap()),
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
                         );
                         hitContext.cache().clear();
@@ -139,33 +134,18 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
     }
 
     static List<PercolateQuery> locatePercolatorQuery(Query query) {
-        if (query instanceof PercolateQuery) {
-            return Collections.singletonList((PercolateQuery) query);
-        } else if (query instanceof BooleanQuery) {
-            List<PercolateQuery> percolateQueries = new ArrayList<>();
-            for (BooleanClause clause : ((BooleanQuery) query).clauses()) {
-                List<PercolateQuery> result = locatePercolatorQuery(clause.getQuery());
-                if (result.isEmpty() == false) {
-                    percolateQueries.addAll(result);
-                }
-            }
-            return percolateQueries;
-        } else if (query instanceof DisjunctionMaxQuery) {
-            List<PercolateQuery> percolateQueries = new ArrayList<>();
-            for (Query disjunct : ((DisjunctionMaxQuery) query).getDisjuncts()) {
-                List<PercolateQuery> result = locatePercolatorQuery(disjunct);
-                if (result.isEmpty() == false) {
-                    percolateQueries.addAll(result);
-                }
-            }
-            return  percolateQueries;
-        } else if (query instanceof ConstantScoreQuery) {
-            return locatePercolatorQuery(((ConstantScoreQuery) query).getQuery());
-        } else if (query instanceof BoostQuery) {
-            return locatePercolatorQuery(((BoostQuery) query).getQuery());
-        } else if (query instanceof FunctionScoreQuery) {
-            return locatePercolatorQuery(((FunctionScoreQuery) query).getSubQuery());
+        if (query == null) {
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
+        List<PercolateQuery> queries = new ArrayList<>();
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query query) {
+                if (query instanceof PercolateQuery) {
+                    queries.add((PercolateQuery)query);
+                }
+            }
+        });
+        return queries;
     }
 }

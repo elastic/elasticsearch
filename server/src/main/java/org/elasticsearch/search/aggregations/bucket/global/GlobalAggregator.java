@@ -25,18 +25,16 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, SearchContext aggregationContext,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, subFactories, aggregationContext, null, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, subFactories, aggregationContext, null, metadata);
     }
 
     @Override
@@ -52,10 +50,11 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
-        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
-                metaData());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0: "global aggregator can only be a top level aggregator";
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalGlobal(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata())
+        );
     }
 
     @Override

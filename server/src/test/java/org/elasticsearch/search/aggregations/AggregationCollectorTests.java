@@ -31,7 +31,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() throws Exception {
         IndexService index = createIndex("idx");
-        client().prepareIndex("idx", "type", "1").setSource("f", 5).execute().get();
+        client().prepareIndex("idx").setId("1").setSource("f", 5).execute().get();
         client().admin().indices().prepareRefresh("idx").get();
 
         // simple field aggregation, no scores needed

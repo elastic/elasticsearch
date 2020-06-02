@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -29,6 +30,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -163,7 +165,7 @@ public class FileUserRolesStore {
 
         Map<String, String[]> usersRoles = new HashMap<>();
         for (Map.Entry<String, List<String>> entry : userToRoles.entrySet()) {
-            usersRoles.put(entry.getKey(), entry.getValue().toArray(new String[entry.getValue().size()]));
+            usersRoles.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()).toArray(new String[0]));
         }
 
         logger.debug("parsed [{}] user to role mappings from file [{}]", usersRoles.size(), path.toAbsolutePath());
@@ -206,9 +208,13 @@ public class FileUserRolesStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserRolesStore.this.file)) {
-                logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                final Map<String, String[]> previousUserRoles = userRoles;
                 userRoles = parseFileLenient(file, logger);
-                notifyRefresh();
+
+                if (Maps.deepEquals(previousUserRoles, userRoles) == false) {
+                    logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                    notifyRefresh();
+                }
             }
         }
     }

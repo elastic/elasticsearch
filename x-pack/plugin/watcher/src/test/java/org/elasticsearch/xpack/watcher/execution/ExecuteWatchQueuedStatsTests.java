@@ -69,7 +69,7 @@ public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTest
                                 .addAction(
                                         "action",
                                         TimeValue.timeValueSeconds(1),
-                                        IndexAction.builder("test_index", "acknowledgement").setDocId("id")))
+                                        IndexAction.builder("test_index").setDocId("id")))
                 .get();
 
         final int numberOfIterations = 128 - scaledRandomIntBetween(0, 128);

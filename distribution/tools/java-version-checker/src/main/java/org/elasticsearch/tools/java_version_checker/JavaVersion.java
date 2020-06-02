@@ -66,5 +66,4 @@ public class JavaVersion {
         return 0;
     }
 
-
 }

@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 
 import java.util.concurrent.TimeUnit;
 
@@ -31,7 +33,11 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
 
     @Override
     public T actionGet() {
-        return FutureUtils.get(this);
+        try {
+            return FutureUtils.get(this);
+        } catch (ElasticsearchException e) {
+            throw unwrapEsException(e);
+        }
     }
 
     @Override
@@ -51,7 +57,11 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
 
     @Override
     public T actionGet(long timeout, TimeUnit unit) {
-        return FutureUtils.get(this, timeout, unit);
+        try {
+            return FutureUtils.get(this, timeout, unit);
+        } catch (ElasticsearchException e) {
+            throw unwrapEsException(e);
+        }
     }
 
     @Override
@@ -66,4 +76,11 @@ public abstract class AdapterActionFuture<T, L> extends BaseFuture<T> implements
 
     protected abstract T convert(L listenerResponse);
 
+    private static RuntimeException unwrapEsException(ElasticsearchException esEx) {
+        Throwable root = esEx.unwrapCause();
+        if (root instanceof RuntimeException) {
+            return (RuntimeException) root;
+        }
+        return new UncategorizedExecutionException("Failed execution", root);
+    }
 }

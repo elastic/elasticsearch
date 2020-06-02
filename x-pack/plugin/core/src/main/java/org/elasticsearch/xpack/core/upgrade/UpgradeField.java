@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.upgrade;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 public final class UpgradeField {
     // this is the required index.format setting for 6.0 services (watcher and security) to start up
@@ -17,7 +17,7 @@ public final class UpgradeField {
     /**
      * Checks the format of an internal index and returns true if the index is up to date or false if upgrade is required
      */
-    public static boolean checkInternalIndexFormat(IndexMetaData indexMetaData) {
-        return indexMetaData.getSettings().getAsInt(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 0) == EXPECTED_INDEX_FORMAT_VERSION;
+    public static boolean checkInternalIndexFormat(IndexMetadata indexMetadata) {
+        return indexMetadata.getSettings().getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) == EXPECTED_INDEX_FORMAT_VERSION;
     }
 }

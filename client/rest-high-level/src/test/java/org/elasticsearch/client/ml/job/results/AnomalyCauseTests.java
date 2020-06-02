@@ -18,11 +18,19 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
+import org.elasticsearch.client.ml.job.config.DetectorFunction;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
 
 public class AnomalyCauseTests extends AbstractXContentTestCase<AnomalyCause> {
 
@@ -102,5 +110,41 @@ public class AnomalyCauseTests extends AbstractXContentTestCase<AnomalyCause> {
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public void testActualAsGeoPoint() {
+        AnomalyCause anomalyCause = new AnomalyCause();
+
+        assertThat(anomalyCause.getActualGeoPoint(), is(nullValue()));
+
+        anomalyCause.setFunction(DetectorFunction.LAT_LONG.getFullName());
+        assertThat(anomalyCause.getActualGeoPoint(), is(nullValue()));
+
+        anomalyCause.setActual(Collections.singletonList(80.0));
+        assertThat(anomalyCause.getActualGeoPoint(), is(nullValue()));
+
+        anomalyCause.setActual(Arrays.asList(90.0, 80.0));
+        assertThat(anomalyCause.getActualGeoPoint(), equalTo(new GeoPoint(90.0, 80.0)));
+
+        anomalyCause.setActual(Arrays.asList(10.0, 100.0, 90.0));
+        assertThat(anomalyCause.getActualGeoPoint(), is(nullValue()));
+    }
+
+    public void testTypicalAsGeoPoint() {
+        AnomalyCause anomalyCause = new AnomalyCause();
+
+        assertThat(anomalyCause.getTypicalGeoPoint(), is(nullValue()));
+
+        anomalyCause.setFunction(DetectorFunction.LAT_LONG.getFullName());
+        assertThat(anomalyCause.getTypicalGeoPoint(), is(nullValue()));
+
+        anomalyCause.setTypical(Collections.singletonList(80.0));
+        assertThat(anomalyCause.getTypicalGeoPoint(), is(nullValue()));
+
+        anomalyCause.setTypical(Arrays.asList(90.0, 80.0));
+        assertThat(anomalyCause.getTypicalGeoPoint(), equalTo(new GeoPoint(90.0, 80.0)));
+
+        anomalyCause.setTypical(Arrays.asList(10.0, 100.0, 90.0));
+        assertThat(anomalyCause.getTypicalGeoPoint(), is(nullValue()));
     }
 }

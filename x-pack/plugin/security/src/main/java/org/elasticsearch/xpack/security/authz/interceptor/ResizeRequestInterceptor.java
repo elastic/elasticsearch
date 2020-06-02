@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.util.Collections;
@@ -44,8 +46,9 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
         if (requestInfo.getRequest() instanceof ResizeRequest) {
             final ResizeRequest request = (ResizeRequest) requestInfo.getRequest();
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
-            if (frozenLicenseState.isAuthAllowed()) {
-                if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            final AuditTrail auditTrail = auditTrailService.get();
+            if (frozenLicenseState.isSecurityEnabled()) {
+                if (frozenLicenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
                     IndicesAccessControl indicesAccessControl =
                         threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                     IndicesAccessControl.IndexAccessControl indexAccessControl =
@@ -68,7 +71,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                             listener.onResponse(null);
                         } else {
                             if (authzResult.isAuditable()) {
-                                auditTrailService.accessDenied(extractRequestId(threadContext), requestInfo.getAuthentication(),
+                                auditTrail.accessDenied(extractRequestId(threadContext), requestInfo.getAuthentication(),
                                     requestInfo.getAction(), request, authorizationInfo);
                             }
                             listener.onFailure(Exceptions.authorizationError("Resizing an index is not allowed when the target index " +

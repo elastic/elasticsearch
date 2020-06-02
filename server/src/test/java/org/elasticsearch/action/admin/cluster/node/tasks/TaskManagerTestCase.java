@@ -24,7 +24,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -45,11 +44,14 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
@@ -92,8 +94,11 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     @After
     public final void shutdownTestNodes() throws Exception {
-        for (TestNode testNode : testNodes) {
-            testNode.close();
+        if (testNodes != null) {
+            for (TestNode testNode : testNodes) {
+                testNode.close();
+            }
+            testNodes = null;
         }
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
@@ -135,7 +140,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     /**
      * Simulates node-based task that can be used to block node tasks so they are guaranteed to be registered by task manager
      */
-    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends BaseNodeRequest>
+    abstract class AbstractTestNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>, NodeRequest extends TransportRequest>
             extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         AbstractTestNodesAction(String actionName, ThreadPool threadPool,
@@ -183,6 +188,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                     }
                 }
             };
+            transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
             transportService.start();
             clusterService = createClusterService(threadPool, discoveryNode.get());
             clusterService.addStateApplier(transportService.getTaskManager());
@@ -222,7 +228,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         }
         for (TestNode nodeA : nodes) {
             for (TestNode nodeB : nodes) {
-                nodeA.transportService.connectToNode(nodeB.discoveryNode());
+                AbstractSimpleTransportTestCase.connectToNode(nodeA.transportService, nodeB.discoveryNode());
             }
         }
     }

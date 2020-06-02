@@ -30,11 +30,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -44,62 +48,35 @@ import java.util.List;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new TextFieldMapper.TextFieldType();
-    }
+public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
 
     @Before
-    public void setupProperties() {
-        addModifier(new Modifier("fielddata", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddata(tft.fielddata() == false);
-            }
+    public void addModifiers() {
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddata(t.fielddata() == false);
+            return copy;
         });
-        addModifier(new Modifier("fielddata_frequency_filter.min", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddataMinFrequency(3);
-            }
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMaxFrequency(t.fielddataMaxFrequency() + 1);
+            return copy;
         });
-        addModifier(new Modifier("fielddata_frequency_filter.max", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddataMaxFrequency(0.2);
-            }
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMinFrequency(t.fielddataMinFrequency() + 1);
+            return copy;
         });
-        addModifier(new Modifier("fielddata_frequency_filter.min_segment_size", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                tft.setFielddataMinSegmentSize(1000);
-            }
+        addModifier(t -> {
+            TextFieldType copy = t.clone();
+            copy.setFielddataMinSegmentSize(t.fielddataMinSegmentSize() + 1);
+            return copy;
         });
-        addModifier(new Modifier("index_phrases", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType) ft;
-                tft.setIndexPhrases(true);
-            }
-        });
-        addModifier(new Modifier("index_prefixes", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                TextFieldMapper.TextFieldType tft = (TextFieldMapper.TextFieldType)ft;
-                TextFieldMapper.PrefixFieldType pft = tft.getPrefixFieldType();
-                if (pft == null) {
-                    tft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft.name(), ft.name() + "._index_prefix", 3, 3));
-                }
-                else {
-                    tft.setPrefixFieldType(null);
-                }
-            }
-        });
+    }
+
+    @Override
+    protected TextFieldType createDefaultFieldType() {
+        return new TextFieldType();
     }
 
     public void testTermQuery() {
@@ -130,17 +107,35 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
+    public void testRangeQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
+                ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[range] queries on [text] or [keyword] fields cannot be executed when " +
+                        "'search.allow_expensive_queries' is set to false.", ee.getMessage());
+    }
+
     public void testRegexpQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(new RegexpQuery(new Term("field","foo.*")),
-                ft.regexpQuery("foo.*", 0, 10, null, null));
+                ft.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.regexpQuery("foo.*", 0, 10, null, null));
+                () -> ft.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.regexpQuery("foo.*", randomInt(10), randomInt(10) + 1, null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                ee.getMessage());
     }
 
     public void testFuzzyQuery() {
@@ -148,26 +143,37 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(new FuzzyQuery(new Term("field","foo"), 2, 1, 50, true),
-                ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true));
+                ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true));
+                () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.fuzzyQuery("foo", Fuzziness.AUTO, randomInt(10) + 1, randomInt(10) + 1,
+                        randomBoolean(), MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[fuzzy] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                ee.getMessage());
     }
 
     public void testIndexPrefixes() {
-        TextFieldMapper.TextFieldType ft = new TextFieldMapper.TextFieldType();
+        TextFieldType ft = new TextFieldType();
         ft.setName("field");
         ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType("field", "field._index_prefix", 2, 10));
 
-        Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, null);
+        Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, randomMockShardContext());
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);
 
-        q = ft.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, null);
+        q = ft.prefixQuery("internationalisatio", CONSTANT_SCORE_REWRITE, MOCK_QSC);
         assertEquals(new PrefixQuery(new Term("field", "internationalisatio")), q);
 
-        q = ft.prefixQuery("g", CONSTANT_SCORE_REWRITE, null);
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.prefixQuery("internationalisatio", null, MOCK_QSC_DISALLOW_EXPENSIVE));
+        assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
+                "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
+
+        q = ft.prefixQuery("g", CONSTANT_SCORE_REWRITE, randomMockShardContext());
         Automaton automaton
             = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
 

@@ -43,6 +43,8 @@ public class TransformState implements Task.Status, PersistentTaskState {
     @Nullable
     private NodeAttributes node;
 
+    private final boolean shouldStopAtNextCheckpoint;
+
     public static final ParseField TASK_STATE = new ParseField("task_state");
     public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
 
@@ -53,28 +55,38 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public static final ParseField REASON = new ParseField("reason");
     public static final ParseField PROGRESS = new ParseField("progress");
     public static final ParseField NODE = new ParseField("node");
+    public static final ParseField SHOULD_STOP_AT_NEXT_CHECKPOINT = new ParseField("should_stop_at_checkpoint");
+
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            true,
-            args -> {
-                TransformTaskState taskState = (TransformTaskState) args[0];
-                IndexerState indexerState = (IndexerState) args[1];
-                Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
-                TransformIndexerPosition transformIndexerPosition = (TransformIndexerPosition) args[3];
+        true,
+        args -> {
+            TransformTaskState taskState = (TransformTaskState) args[0];
+            IndexerState indexerState = (IndexerState) args[1];
+            Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
+            TransformIndexerPosition transformIndexerPosition = (TransformIndexerPosition) args[3];
 
-                // BWC handling, translate current_position to position iff position isn't set
-                if (bwcCurrentPosition != null && transformIndexerPosition == null) {
-                    transformIndexerPosition = new TransformIndexerPosition(bwcCurrentPosition, null);
-                }
+            // BWC handling, translate current_position to position iff position isn't set
+            if (bwcCurrentPosition != null && transformIndexerPosition == null) {
+                transformIndexerPosition = new TransformIndexerPosition(bwcCurrentPosition, null);
+            }
 
-                long checkpoint = (long) args[4];
-                String reason = (String) args[5];
-                TransformProgress progress = (TransformProgress) args[6];
-                NodeAttributes node = (NodeAttributes) args[7];
+            long checkpoint = (long) args[4];
+            String reason = (String) args[5];
+            TransformProgress progress = (TransformProgress) args[6];
+            NodeAttributes node = (NodeAttributes) args[7];
+            boolean shouldStopAtNextCheckpoint = args[8] == null ? false : (boolean)args[8];
 
-                return new TransformState(taskState, indexerState, transformIndexerPosition, checkpoint, reason, progress, node);
-            });
+            return new TransformState(taskState,
+                indexerState,
+                transformIndexerPosition,
+                checkpoint,
+                reason,
+                progress,
+                node,
+                shouldStopAtNextCheckpoint);
+        });
 
     static {
         PARSER.declareField(constructorArg(), p -> TransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
@@ -85,15 +97,17 @@ public class TransformState implements Task.Status, PersistentTaskState {
         PARSER.declareString(optionalConstructorArg(), REASON);
         PARSER.declareField(optionalConstructorArg(), TransformProgress.PARSER::apply, PROGRESS, ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE, ValueType.OBJECT);
+        PARSER.declareBoolean(optionalConstructorArg(), SHOULD_STOP_AT_NEXT_CHECKPOINT);
     }
 
     public TransformState(TransformTaskState taskState,
-                                   IndexerState indexerState,
-                                   @Nullable TransformIndexerPosition position,
-                                   long checkpoint,
-                                   @Nullable String reason,
-                                   @Nullable TransformProgress progress,
-                                   @Nullable NodeAttributes node) {
+                          IndexerState indexerState,
+                          @Nullable TransformIndexerPosition position,
+                          long checkpoint,
+                          @Nullable String reason,
+                          @Nullable TransformProgress progress,
+                          @Nullable NodeAttributes node,
+                          boolean shouldStopAtNextCheckpoint) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.position = position;
@@ -101,14 +115,25 @@ public class TransformState implements Task.Status, PersistentTaskState {
         this.reason = reason;
         this.progress = progress;
         this.node = node;
+        this.shouldStopAtNextCheckpoint = shouldStopAtNextCheckpoint;
     }
 
     public TransformState(TransformTaskState taskState,
-                                   IndexerState indexerState,
-                                   @Nullable TransformIndexerPosition position,
-                                   long checkpoint,
-                                   @Nullable String reason,
-                                   @Nullable TransformProgress progress) {
+                          IndexerState indexerState,
+                          @Nullable TransformIndexerPosition position,
+                          long checkpoint,
+                          @Nullable String reason,
+                          @Nullable TransformProgress progress,
+                          @Nullable NodeAttributes node) {
+        this(taskState, indexerState, position, checkpoint, reason, progress, node, false);
+    }
+
+    public TransformState(TransformTaskState taskState,
+                          IndexerState indexerState,
+                          @Nullable TransformIndexerPosition position,
+                          long checkpoint,
+                          @Nullable String reason,
+                          @Nullable TransformProgress progress) {
         this(taskState, indexerState, position, checkpoint, reason, progress, null);
     }
 
@@ -128,6 +153,11 @@ public class TransformState implements Task.Status, PersistentTaskState {
             node = in.readOptionalWriteable(NodeAttributes::new);
         } else {
             node = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
+            shouldStopAtNextCheckpoint = in.readBoolean();
+        } else {
+            shouldStopAtNextCheckpoint = false;
         }
     }
 
@@ -164,6 +194,10 @@ public class TransformState implements Task.Status, PersistentTaskState {
         return this;
     }
 
+    public boolean shouldStopAtNextCheckpoint() {
+        return shouldStopAtNextCheckpoint;
+    }
+
     public static TransformState fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
@@ -190,6 +224,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         if (node != null) {
             builder.field(NODE.getPreferredName(), node);
         }
+        builder.field(SHOULD_STOP_AT_NEXT_CHECKPOINT.getPreferredName(), shouldStopAtNextCheckpoint);
         builder.endObject();
         return builder;
     }
@@ -214,6 +249,9 @@ public class TransformState implements Task.Status, PersistentTaskState {
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeOptionalWriteable(node);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
+            out.writeBoolean(shouldStopAtNextCheckpoint);
+        }
     }
 
     @Override
@@ -234,12 +272,13 @@ public class TransformState implements Task.Status, PersistentTaskState {
             this.checkpoint == that.checkpoint &&
             Objects.equals(this.reason, that.reason) &&
             Objects.equals(this.progress, that.progress) &&
+            Objects.equals(this.shouldStopAtNextCheckpoint, that.shouldStopAtNextCheckpoint) &&
             Objects.equals(this.node, that.node);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, position, checkpoint, reason, progress, node);
+        return Objects.hash(taskState, indexerState, position, checkpoint, reason, progress, node, shouldStopAtNextCheckpoint);
     }
 
     @Override

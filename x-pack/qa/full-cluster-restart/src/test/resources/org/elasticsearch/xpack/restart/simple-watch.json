@@ -32,7 +32,6 @@
       },
       "index" : {
         "index" : "bwc_watch_index",
-        "doc_type" : "bwc_watch_type",
         "timeout": "100s"
       }
     }

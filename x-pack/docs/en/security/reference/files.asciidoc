@@ -9,10 +9,10 @@ The {es} {security-features} use the following files:
 <<defining-roles>>.
 
 * `ES_PATH_CONF/elasticsearch-users` defines the users and their hashed passwords for
-  the `file` realm. See <<configuring-file-realm>>.
+  the `file` realm. See <<file-realm>>.
 
 * `ES_PATH_CONF/elasticsearch-users_roles` defines the user roles assignment for the
-  the `file` realm. See <<configuring-file-realm>>.
+  the `file` realm. See <<file-realm>>.
 
 * `ES_PATH_CONF/role_mapping.yml` defines the role assignments for a
   Distinguished Name (DN) to a role. This allows for LDAP and Active Directory

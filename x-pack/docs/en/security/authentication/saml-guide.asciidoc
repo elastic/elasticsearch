@@ -111,9 +111,10 @@ SAML authentication is enabled by configuring a SAML realm within the
 authentication chain for {es}.
 
 This realm has a few mandatory settings, and a number of optional settings.
-The available settings are described in detail in the
-<<saml-settings, SAML realm documentation>>, this guide will walk you through
-the most common settings.
+The available settings are described in detail in <<security-settings>>. For
+example, <<ref-saml-settings>>, <<ref-saml-signing-settings>>,
+<<ref-saml-encryption-settings>>, <<ref-saml-ssl-settings>>.
+This guide will walk you through the most common settings.
 
 Create a realm by adding the following to your `elasticsearch.yml`
 configuration file. Each configuration value is explained below.
@@ -125,7 +126,7 @@ xpack.security.authc.realms.saml.saml1:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.example.com/"
-  sp.acs: "https://kibana.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
@@ -172,7 +173,7 @@ sp.acs::
     or the IdP.
     The correct value may vary depending on how you have installed {kib} and
     whether there are any proxies involved, but it will typically be
-    +$\{kibana-url}/api/security/v1/saml+ where _$\{kibana-url}_ is the base URL for
+    +$\{kibana-url}/api/security/saml/callback+ where _$\{kibana-url}_ is the base URL for
     your {kib} instance.
 
 sp.logout::
@@ -240,6 +241,7 @@ The recommended steps for configuring these SAML attributes are as follows:
   in your IdP. In the example above, we have configured the `principal` and
   `groups` attributes.
 
+[[saml-attribute-mapping-nameid]]
 ===== Special attribute names
 
 In general, {es} expects that the configured value for an attribute will be a
@@ -292,7 +294,7 @@ xpack.security.authc.realms.saml.saml1:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.example.com/"
-  sp.acs: "https://kibana.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.example.com/api/security/saml/callback"
   attributes.principal: "nameid:persistent"
   attributes.groups: "roles"
 ------------------------------------------------------------
@@ -337,7 +339,7 @@ xpack.security.authc.realms.saml.saml1:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.example.com/"
-  sp.acs: "https://kibana.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.example.com/api/security/saml/callback"
   attributes.principal: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
   attribute_patterns.principal: "^([^@]+)@staff\\.example\\.com$"
 ------------------------------------------------------------
@@ -637,14 +639,14 @@ through either the
 NOTE: You cannot use <<mapping-roles-file,role mapping files>>
 to grant roles to users authenticating via SAML.
 
-This is an example of a simple role mapping that grants the `kibana_user` role
+This is an example of a simple role mapping that grants the `example_role` role
 to any user who authenticates against the `saml1` realm:
 
 [source,console]
 --------------------------------------------------
-PUT /_security/role_mapping/saml-kibana
+PUT /_security/role_mapping/saml-example
 {
-  "roles": [ "kibana_user" ],
+  "roles": [ "example_role" ], <1>
   "enabled": true,
   "rules": {
     "field": { "realm.name": "saml1" }
@@ -652,6 +654,10 @@ PUT /_security/role_mapping/saml-kibana
 }
 --------------------------------------------------
 
+<1> The `example_role` role is *not* a builtin Elasticsearch role.
+This example assumes that you have created a custom role of your own, with
+appropriate access to your <<roles-indices-priv,indices>> and
+{kibana-ref}/kibana-privileges.html#kibana-feature-privileges[Kibana features].
 
 The attributes that are mapped via the realm configuration are used to process
 role mapping rules, and these rules determine which roles a user is granted.
@@ -742,28 +748,21 @@ The three additional settings that are required for SAML support are shown below
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.providers: [saml]
-xpack.security.authc.saml.realm: saml1
-server.xsrf.whitelist: [/api/security/v1/saml]
+xpack.security.authc.providers:
+  saml.saml1:
+    order: 0
+    realm: "saml1"
 ------------------------------------------------------------
 
 The configuration values used in the example above are:
 
 `xpack.security.authc.providers`::
-Set this to `[ saml ]` to instruct {kib} to use SAML SSO as the authentication
+Add `saml` provider to instruct {kib} to use SAML SSO as the authentication
 method.
 
-`xpack.security.authc.saml.realm`::
+`xpack.security.authc.providers.saml.<provider-name>.realm`::
 Set this to the name of the SAML realm that you have used in your <<saml-create-realm,
 Elasticsearch realm configuration>>, for instance: `saml1`
-
-`server.xsrf.whitelist`::
-{kib} has in-built protection against _Cross Site Request Forgery_ attacks which
-are designed to prevent the {kib} server from processing requests that
-originated from outside the {kib} application.
-In order to support SAML authentication messages that originate from your
-Identity Provider, we need to explicitly _whitelist_ the SAML authentication URL
-within {kib}, so that the {kib} server will not reject these external messages.
 
 [[saml-kibana-basic]]
 ==== Supporting SAML and basic authentication in {kib}
@@ -776,17 +775,19 @@ example below:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.providers: [saml, basic]
+xpack.security.authc.providers:
+  saml.saml1:
+    order: 0
+    realm: "saml1"
+  basic.basic1:
+    order: 1
 ------------------------------------------------------------
 
-The order is important - this will _initiate_ SAML authentication for
-unauthenticated users, but will _accept_ basic authentication.
-
-If {kib} is configured in this way, then users who wish to login with a
-username and password, can do so by directly accessing the `/login` page in
-{kib}. This login will not use SAML credentials, and will rely on one of the
-other security realms within {es}. Only users who have a username and password
-for a configured {es} authentication realm will be able to login via this page.
+If {kib} is configured in this way, users are presented with a choice
+at the Login Selector UI. They log in with SAML or they provide a username and password and rely on one
+of the other security realms within {es}. Only users who have
+a username and password for a configured {es} authentication realm can
+log in via {kib} login form.
 
 Alternatively, when the `basic` authentication provider is enabled, you can
 place a reverse proxy in front of {kib}, and configure it to send a basic
@@ -816,7 +817,7 @@ xpack.security.authc.realms.saml.saml_finance:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.finance.example.com/"
-  sp.acs: "https://kibana.finance.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.finance.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.finance.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
@@ -825,7 +826,7 @@ xpack.security.authc.realms.saml.saml_sales:
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
   sp.entity_id:  "https://kibana.sales.example.com/"
-  sp.acs: "https://kibana.sales.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.sales.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.sales.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
@@ -834,7 +835,7 @@ xpack.security.authc.realms.saml.saml_eng:
   idp.metadata.path: saml/idp-external.xml
   idp.entity_id: "https://engineering.sso.example.net/"
   sp.entity_id:  "https://kibana.engineering.example.com/"
-  sp.acs: "https://kibana.engineering.example.com/api/security/v1/saml"
+  sp.acs: "https://kibana.engineering.example.com/api/security/saml/callback"
   sp.logout: "https://kibana.engineering.example.com/logout"
   attributes.principal: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn"
 ------------------------------------------------------------
@@ -873,7 +874,7 @@ an {es} access token and a refresh token. The access token is used as credential
 for subsequent calls to {es}. The refresh token enables the user to get new {es}
 access tokens after the current one expires.
 
-[[saml-no-kibana-realm]]]
+[[saml-no-kibana-realm]]
 ==== SAML realm
 
 You must create a SAML realm and configure it accordingly
@@ -930,7 +931,7 @@ POST /_security/saml/prepare
 --------------------------------------------------
 
 . Handle the response from `/_security/saml/prepare`. The response from {es} will contain 3 parameters:
-  `redirect`, `realm' and `id`. The custom web application would need to store the value for `id`
+  `redirect`, `realm` and `id`. The custom web application would need to store the value for `id`
  in the user's session (client side in a cookie or server side if session information is
 persisted this way). It must also redirect the user's browser to the URL that  was returned in the 
   `redirect` parameter. The `id` value should not be disregarded as it is used as a nonce in SAML in

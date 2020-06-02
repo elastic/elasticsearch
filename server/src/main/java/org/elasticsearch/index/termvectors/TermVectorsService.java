@@ -44,6 +44,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -56,6 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -193,7 +195,7 @@ public class TermVectorsService  {
         /* only keep valid fields */
         Set<String> validFields = new HashSet<>();
         for (String field : selectedFields) {
-            MappedFieldType fieldType = indexShard.mapperService().fullName(field);
+            MappedFieldType fieldType = indexShard.mapperService().fieldType(field);
             if (!isValidField(fieldType)) {
                 continue;
             }
@@ -230,7 +232,7 @@ public class TermVectorsService  {
         if (perFieldAnalyzer != null && perFieldAnalyzer.containsKey(field)) {
             analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field).toString());
         } else {
-            MappedFieldType fieldType = mapperService.fullName(field);
+            MappedFieldType fieldType = mapperService.fieldType(field);
             analyzer = fieldType.indexAnalyzer();
         }
         if (analyzer == null) {
@@ -300,7 +302,7 @@ public class TermVectorsService  {
         Set<String> seenFields = new HashSet<>();
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {
-            MappedFieldType fieldType = indexShard.mapperService().fullName(field.name());
+            MappedFieldType fieldType = indexShard.mapperService().fieldType(field.name());
             if (!isValidField(fieldType)) {
                 continue;
             }
@@ -313,7 +315,7 @@ public class TermVectorsService  {
             else {
                 seenFields.add(field.name());
             }
-            String[] values = doc.getValues(field.name());
+            String[] values = getValues(doc.getFields(field.name()));
             documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
         }
         return generateTermVectors(indexShard,
@@ -321,12 +323,31 @@ public class TermVectorsService  {
                 request.offsets(), request.perFieldAnalyzer(), seenFields);
     }
 
+    /**
+     * Returns an array of values of the field specified as the method parameter.
+     * This method returns an empty array when there are no
+     * matching fields.  It never returns null.
+     * @param fields The <code>IndexableField</code> to get the values from
+     * @return a <code>String[]</code> of field values
+     */
+    public static String[] getValues(IndexableField[] fields) {
+        List<String> result = new ArrayList<>();
+        for (IndexableField field : fields) {
+            if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
+                result.add(field.binaryValue().utf8ToString());
+            } else if (field.fieldType() instanceof StringFieldType) {
+                result.add(field.stringValue());
+            }
+        }
+        return result.toArray(new String[0]);
+    }
+
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, BytesReference doc,
                                                 XContentType xContentType, String routing) {
         MapperService mapperService = indexShard.mapperService();
-        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(MapperService.SINGLE_MAPPING_NAME);
+        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
-                new SourceToParse(index, MapperService.SINGLE_MAPPING_NAME, "_id_for_tv_api", doc, xContentType, routing));
+                new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing));
         if (docMapper.getMapping() != null) {
             parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
         }

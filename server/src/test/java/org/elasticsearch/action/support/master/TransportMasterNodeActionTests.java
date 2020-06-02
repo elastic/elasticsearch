@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -375,8 +376,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
         DiscoveryNode masterNode = this.remoteNode;
-        setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes))
-            .version(randomIntBetween(0, 10))); // use a random base version so it can go down when simulating a restart.
+        setState(
+            clusterService,
+            // use a random base version so it can go down when simulating a restart.
+            ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes)).version(randomIntBetween(0, 10))
+        );
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
@@ -389,7 +393,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
 
         if (rejoinSameMaster) {
-            transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(masterNode, "Fake error"));
+            transport.handleRemoteError(capturedRequest.requestId,
+                randomBoolean() ? new ConnectTransportException(masterNode, "Fake error") : new NodeClosedException(masterNode));
             assertFalse(listener.isDone());
             if (randomBoolean()) {
                 // simulate master node removal

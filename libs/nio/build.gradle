@@ -16,8 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
   compile project(':libs:elasticsearch-core')
@@ -27,12 +26,12 @@ dependencies {
   testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
   testCompile(project(":test:framework")) {
-     exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'
   }
 }
 
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // nio does not depend on core, so only jdk signatures should be checked
   // es-all is not checked as we connect and accept sockets
   replaceSignatureFiles 'jdk-signatures'

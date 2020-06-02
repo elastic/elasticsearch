@@ -49,8 +49,7 @@ public class DataFrameAnalyticsStateTests extends ESTestCase {
 
     public void testWriteStartingStateToPost75() throws IOException {
         StreamOutput streamOutput = mock(StreamOutput.class);
-        // TODO: change version in backport
-        when(streamOutput.getVersion()).thenReturn(Version.V_8_0_0);
+        when(streamOutput.getVersion()).thenReturn(Version.V_7_5_0);
         DataFrameAnalyticsState.STARTING.writeTo(streamOutput);
         verify(streamOutput, times(1)).writeEnum(DataFrameAnalyticsState.STARTING);
     }

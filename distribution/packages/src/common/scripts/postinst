@@ -8,6 +8,13 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
+# source the default env file
+if [ -f "${path.env}" ]; then
+    . "${path.env}"
+fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+
 IS_UPGRADE=false
 
 case "$1" in
@@ -55,18 +62,6 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         echo " sudo systemctl enable elasticsearch.service"
         echo "### You can start elasticsearch service by executing"
         echo " sudo systemctl start elasticsearch.service"
-
-    elif command -v chkconfig >/dev/null; then
-        echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using chkconfig"
-        echo " sudo chkconfig --add elasticsearch"
-        echo "### You can start elasticsearch service by executing"
-        echo " sudo service elasticsearch start"
-
-    elif command -v update-rc.d >/dev/null; then
-        echo "### NOT starting on installation, please execute the following statements to configure elasticsearch service to start automatically using chkconfig"
-        echo " sudo update-rc.d elasticsearch defaults 95 10"
-        echo "### You can start elasticsearch service by executing"
-        echo " sudo /etc/init.d/elasticsearch start"
     fi
 elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
 
@@ -74,34 +69,24 @@ elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
     if command -v systemctl >/dev/null; then
         systemctl daemon-reload
         systemctl restart elasticsearch.service || true
-
-    elif [ -x /etc/init.d/elasticsearch ]; then
-        if command -v invoke-rc.d >/dev/null; then
-            invoke-rc.d elasticsearch stop || true
-            invoke-rc.d elasticsearch start || true
-        else
-            /etc/init.d/elasticsearch restart || true
-        fi
-
-    # older suse linux distributions do not ship with systemd
-    # but do not have an /etc/init.d/ directory
-    # this tries to start the elasticsearch service on these
-    # as well without failing this script
-    elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
-        /etc/rc.d/init.d/elasticsearch restart || true
     fi
     echo " OK"
 fi
 
 # the equivalent code for rpm is in posttrans
 if [ "$PACKAGE" = "deb" ]; then
-    if [ ! -f /etc/elasticsearch/elasticsearch.keystore ]; then
+    if [ ! -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
         /usr/share/elasticsearch/bin/elasticsearch-keystore create
-        chown root:elasticsearch /etc/elasticsearch/elasticsearch.keystore
-        chmod 660 /etc/elasticsearch/elasticsearch.keystore
-        md5sum /etc/elasticsearch/elasticsearch.keystore > /etc/elasticsearch/.elasticsearch.keystore.initial_md5sum
+        chown root:elasticsearch "${ES_PATH_CONF}"/elasticsearch.keystore
+        chmod 660 "${ES_PATH_CONF}"/elasticsearch.keystore
+        md5sum "${ES_PATH_CONF}"/elasticsearch.keystore > "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
     else
-        /usr/share/elasticsearch/bin/elasticsearch-keystore upgrade
+        if /usr/share/elasticsearch/bin/elasticsearch-keystore has-passwd --silent ; then
+          echo "### Warning: unable to upgrade encrypted keystore" 1>&2
+          echo " Please run elasticsearch-keystore upgrade and enter password" 1>&2
+        else
+          /usr/share/elasticsearch/bin/elasticsearch-keystore upgrade
+        fi
     fi
 fi
 

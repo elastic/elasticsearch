@@ -26,10 +26,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -48,24 +47,21 @@ import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
-public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
+public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
     protected static String indexedShapeId;
-    protected static String indexedShapeType;
     protected static String indexedShapePath;
     protected static String indexedShapeIndex;
     protected static String indexedShapeRouting;
     protected static ShapeBuilder<?, ?, ?> indexedShapeToReturn;
 
-    protected String fieldName() {
-        return GEO_SHAPE_FIELD_NAME;
-    }
+    protected abstract String fieldName();
 
     @Override
     protected Settings createTestIndexSettings() {
@@ -73,7 +69,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         return Settings.builder()
                 .put(super.createTestIndexSettings())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
     }
 
@@ -82,47 +78,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         return doCreateTestQueryBuilder(randomBoolean());
     }
 
-    protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        // LatLonShape does not support MultiPoint queries
-        RandomShapeGenerator.ShapeType shapeType =
-            randomFrom(ShapeType.POINT, ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON);
-        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
-        GeoShapeQueryBuilder builder;
-        clearShapeFields();
-        if (indexedShape == false) {
-            builder = new GeoShapeQueryBuilder(fieldName(), shape);
-        } else {
-            indexedShapeToReturn = shape;
-            indexedShapeId = randomAlphaOfLengthBetween(3, 20);
-            indexedShapeType = randomBoolean() ? randomAlphaOfLengthBetween(3, 20) : null;
-            builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId, indexedShapeType);
-            if (randomBoolean()) {
-                indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
-                builder.indexedShapeIndex(indexedShapeIndex);
-            }
-            if (randomBoolean()) {
-                indexedShapePath = randomAlphaOfLengthBetween(3, 20);
-                builder.indexedShapePath(indexedShapePath);
-            }
-            if (randomBoolean()) {
-                indexedShapeRouting = randomAlphaOfLengthBetween(3, 20);
-                builder.indexedShapeRouting(indexedShapeRouting);
-            }
-        }
-        if (randomBoolean()) {
-            if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
-                builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS));
-            } else {
-                // LatLonShape does not support CONTAINS:
-                builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN));
-            }
-        }
-
-        if (randomBoolean()) {
-            builder.ignoreUnmapped(randomBoolean());
-        }
-        return builder;
-    }
+    abstract GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape);
 
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
@@ -154,7 +110,6 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     public void clearShapeFields() {
         indexedShapeToReturn = null;
         indexedShapeId = null;
-        indexedShapeType = null;
         indexedShapePath = null;
         indexedShapeIndex = null;
         indexedShapeRouting = null;
@@ -181,7 +136,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     public void testNoIndexedShape() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new GeoShapeQueryBuilder(fieldName(), null, "type"));
+            () -> new GeoShapeQueryBuilder(fieldName(), null, null));
         assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 
@@ -207,7 +162,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
                 "  \"geo_shape\" : {\n" +
                 "    \"location\" : {\n" +
                 "      \"shape\" : {\n" +
-                "        \"type\" : \"envelope\",\n" +
+                "        \"type\" : \"Envelope\",\n" +
                 "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n" +
                 "      },\n" +
                 "      \"relation\" : \"intersects\"\n" +
@@ -271,17 +226,18 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("failed to find geo_shape field [unmapped]"));
+        assertThat(e.getMessage(), matchesPattern("failed to find .*geo_shape.* field \\[unmapped\\]"));
     }
 
     public void testWrongFieldType() throws IOException {
         ShapeType shapeType = ShapeType.randomType(random());
         ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         final GeoShapeQueryBuilder queryBuilder = randomBoolean() ?
-            new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape) :
-            new GeoShapeQueryBuilder(STRING_FIELD_NAME, shape.buildGeometry());
+            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape) :
+            new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape.buildGeometry());
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), containsString("Field [mapped_string] is not of type [geo_shape] but of type [text]"));
+        assertThat(e.getMessage(), matchesPattern("Field \\[mapped_string\\] is of unsupported type \\[text\\]." +
+            " \\[geo_shape\\] query supports the following types \\[.*geo_shape.*\\]"));
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
@@ -297,11 +253,6 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(GeoShapeQueryBuilder.class));
-
-        GeoShapeQueryBuilder shapeQuery = (GeoShapeQueryBuilder) query;
-        if (shapeQuery.indexedShapeType() != null) {
-            assertWarnings(GeoShapeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-        }
         return query;
     }
 }

@@ -131,7 +131,7 @@ public final class IndexWarmer {
                 executor.execute(() -> {
                     try {
                         final long start = System.nanoTime();
-                        IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
+                        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(fieldType);
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {
                             global.load(reader.leaves().get(0));

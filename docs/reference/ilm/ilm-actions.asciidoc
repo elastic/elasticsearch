@@ -1,0 +1,56 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-actions]]
+== Index lifecycle actions
+
+[[ilm-allocate-action]]
+<<ilm-allocate,Allocate>>::
+Move shards to nodes with different performance characteristics
+and reduce the number of replicas. 
+
+[[ilm-delete-action]]<<ilm-delete,Delete>>::
+Permanently remove the index.
+
+[[ilm-forcemerge-action]]<<ilm-forcemerge,Force Merge>>::
+Reduce the number of index segments and purge deleted documents.
+Makes the index read-only.
+
+[[ilm-freeze-action]]<<ilm-freeze,Freeze>>::
+Freeze the index to minimize its memory footprint.
+
+[[ilm-readonly-action]]<<ilm-readonly,Read-Only>>::
+Block write operations to the index. 
+  
+[[ilm-rollover-action]]<<ilm-rollover,Rollover>>::
+Remove the index as the write index for the rollover alias and 
+start indexing to a new index.
+
+[[ilm-searchable-snapshot-action]]<<ilm-searchable-snapshot, Searchable Snapshot>>::
+Take a snapshot of the managed index in the configured repository
+and mount it as a searchable snapshot.
+
+[[ilm-set-priority-action]]<<ilm-set-priority,Set Priority>>::
+Lower the priority of an index as it moves through the lifecycle
+to ensure that hot indices are recovered first. 
+
+[[ilm-shrink-action]]<<ilm-shrink,Shrink>>::
+Reduce the number of primary shards by shrinking the index into a new index.
+
+[[ilm-unfollow-action]]<<ilm-unfollow,Unfollow>>::
+Convert a follower index to a regular index.
+Performed automatically before a rollover, shrink, or searchable snapshot action. 
+
+[[ilm-wait-for-snapshot-action]]<<ilm-wait-for-snapshot,Wait For Snapshot>>::
+Ensure that a snapshot exists before deleting the index. 
+
+include::actions/ilm-allocate.asciidoc[]
+include::actions/ilm-delete.asciidoc[]
+include::actions/ilm-forcemerge.asciidoc[]
+include::actions/ilm-freeze.asciidoc[]
+include::actions/ilm-readonly.asciidoc[]
+include::actions/ilm-rollover.asciidoc[]
+include::actions/ilm-searchable-snapshot.asciidoc[]
+include::actions/ilm-set-priority.asciidoc[]
+include::actions/ilm-shrink.asciidoc[]
+include::actions/ilm-unfollow.asciidoc[]
+include::actions/ilm-wait-for-snapshot.asciidoc[]

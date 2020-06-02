@@ -1,24 +1,24 @@
 plugins {
-    id 'java'
-    id 'elasticsearch.build'
+  id 'java'
+  id 'elasticsearch.build'
 }
 
 ext.licenseFile = file("LICENSE")
 ext.noticeFile = file("NOTICE")
 
 dependencies {
-    compile "junit:junit:${versions.junit}"
-    // missing classes in thirdparty audit
-    compile 'org.hamcrest:hamcrest-core:1.3'
+  compile "junit:junit:${versions.junit}"
+  // missing classes in thirdparty audit
+  compile 'org.hamcrest:hamcrest-core:1.3'
 }
 
 repositories {
-    jcenter()
+  jcenter()
 }
 
 // todo remove offending rules
-forbiddenApisMain.enabled = false
-forbiddenApisTest.enabled = false
+tasks.named('forbiddenApisMain').configure { onlyIf { false } }
+tasks.named('forbiddenApisTest').configure { onlyIf { false } }
 // requires dependency on testing fw
 jarHell.enabled = false
 // we don't have tests for now
@@ -26,8 +26,11 @@ test.enabled = false
 // This requires an additional Jar not part of build-tools
 loggerUsageCheck.enabled = false
 
-task hello {
-    doFirst {
-        println "build plugin can be applied"
-    }
+// TODO: shouldn't be part of BuildPlugin, should be tested separately
+validateNebulaPom.enabled = false
+
+tasks.register("hello") {
+  doFirst {
+    println "build plugin can be applied"
+  }
 }

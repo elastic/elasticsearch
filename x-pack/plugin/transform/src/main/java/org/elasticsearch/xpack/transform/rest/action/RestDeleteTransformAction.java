@@ -8,16 +8,20 @@ package org.elasticsearch.xpack.transform.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestDeleteTransformAction extends BaseRestHandler {
 
-    public RestDeleteTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE,  TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(DELETE, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID));
     }
 
     @Override

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Floor_and_ceiling_functions">Ceiling</a>
@@ -33,7 +33,11 @@ public class Ceil extends MathFunction {
 
     @Override
     public Number fold() {
-        return DataTypeConversion.toInteger((double) super.fold(), dataType());
+        Object result = super.fold();
+        if (result == null) {
+            return null;
+        }
+        return DataTypeConverter.toInteger((double) result, dataType());
     }
 
     @Override
@@ -43,6 +47,6 @@ public class Ceil extends MathFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypeConversion.asInteger(field().dataType());
+        return DataTypeConverter.asInteger(field().dataType());
     }
 }

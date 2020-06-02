@@ -19,57 +19,43 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
 
-import static org.elasticsearch.client.indices.GetMappingsResponse.MAPPINGS;
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+public class GetMappingsResponseTests
+    extends AbstractResponseTestCase<org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse, GetMappingsResponse> {
 
-public class GetMappingsResponseTests extends ESTestCase {
-
-    // Because the client-side class does not have a toXContent method, we test xContent serialization by creating
-    // a random client object, converting it to a server object then serializing it to xContent, and finally
-    // parsing it back as a client object. We check equality between the original client object, and the parsed one.
-    public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            GetMappingsResponseTests::createTestInstance,
-            GetMappingsResponseTests::toXContent,
-            GetMappingsResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .assertEqualsConsumer(GetMappingsResponseTests::assertEqualInstances)
-            .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
-            .test();
+    @Override
+    protected org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse createServerTestInstance(XContentType xContentType) {
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        int numberOfIndexes = randomIntBetween(1, 5);
+        for (int i = 0; i < numberOfIndexes; i++) {
+            mappings.put("index-" + randomAlphaOfLength(5), randomMappingMetadata());
+        }
+        return new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse(mappings.build());
     }
 
-    private static GetMappingsResponse createTestInstance() {
-        Map<String, MappingMetaData> mappings = Collections.singletonMap(
-            "index-" + randomAlphaOfLength(5), randomMappingMetaData());
-        return new GetMappingsResponse(mappings);
+    @Override
+    protected GetMappingsResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return GetMappingsResponse.fromXContent(parser);
     }
 
-    private static void assertEqualInstances(GetMappingsResponse expected, GetMappingsResponse actual) {
-        assertEquals(expected.mappings(), actual.mappings());
+    @Override
+    protected void assertInstances(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverTestInstance,
+                                   GetMappingsResponse clientInstance) {
+        assertMapEquals(serverTestInstance.getMappings(), clientInstance.mappings());
     }
 
-    private Predicate<String> randomFieldsExcludeFilter() {
-        return field -> !field.equals(MAPPINGS.getPreferredName());
-    }
-
-    public static MappingMetaData randomMappingMetaData() {
+    public static MappingMetadata randomMappingMetadata() {
         Map<String, Object> mappings = new HashMap<>();
 
         if (frequently()) { // rarely have no fields
@@ -79,11 +65,7 @@ public class GetMappingsResponseTests extends ESTestCase {
             }
         }
 
-        try {
-            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
     }
 
     private static Map<String, Object> randomFieldMapping() {
@@ -99,22 +81,4 @@ public class GetMappingsResponseTests extends ESTestCase {
         return mappings;
     }
 
-    private static void toXContent(GetMappingsResponse response, XContentBuilder builder) throws IOException {
-        Params params = new ToXContent.MapParams(
-            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = ImmutableOpenMap.builder();
-
-        for (Map.Entry<String, MappingMetaData> indexEntry : response.mappings().entrySet()) {
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-            mappings.put(MapperService.SINGLE_MAPPING_NAME, indexEntry.getValue());
-            allMappings.put(indexEntry.getKey(), mappings.build());
-        }
-
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse serverResponse =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse(allMappings.build());
-
-        builder.startObject();
-        serverResponse.toXContent(builder, params);
-        builder.endObject();
-    }
 }

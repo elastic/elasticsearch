@@ -45,7 +45,7 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         Client client = client();
         int numDocs = randomIntBetween(5, 30);
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex("foo", "bar").setSource(Collections.singletonMap("number", i)).get();
+            client.prepareIndex("foo").setSource(Collections.singletonMap("number", i)).get();
         }
         client.admin().indices().prepareRefresh("foo").get();
         SearchRequest request = client.prepareSearch()

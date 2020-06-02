@@ -21,18 +21,23 @@ package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
 
+import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
 public abstract class SingleGroupSource implements ToXContentObject {
 
     protected static final ParseField FIELD = new ParseField("field");
+    protected static final ParseField SCRIPT = new ParseField("script");
 
     public enum Type {
         TERMS,
         HISTOGRAM,
-        DATE_HISTOGRAM;
+        DATE_HISTOGRAM,
+        GEOTILE_GRID;
 
         public String value() {
             return name().toLowerCase(Locale.ROOT);
@@ -40,15 +45,30 @@ public abstract class SingleGroupSource implements ToXContentObject {
     }
 
     protected final String field;
+    protected final Script script;
 
-    public SingleGroupSource(final String field) {
+    public SingleGroupSource(final String field, final Script script) {
         this.field = field;
+        this.script = script;
     }
 
     public abstract Type getType();
 
     public String getField() {
         return field;
+    }
+
+    public Script getScript() {
+        return script;
+    }
+
+    protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
+        if (field != null) {
+            builder.field(FIELD.getPreferredName(), field);
+        }
+        if (script != null) {
+            builder.field(SCRIPT.getPreferredName(), script);
+        }
     }
 
     @Override
@@ -63,11 +83,11 @@ public abstract class SingleGroupSource implements ToXContentObject {
 
         final SingleGroupSource that = (SingleGroupSource) other;
 
-        return Objects.equals(this.field, that.field);
+        return Objects.equals(this.field, that.field) && Objects.equals(this.script, that.script);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field);
+        return Objects.hash(field, script);
     }
 }

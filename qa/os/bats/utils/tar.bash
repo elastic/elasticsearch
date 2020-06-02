@@ -105,6 +105,6 @@ verify_archive_installation() {
     assert_file "$ESHOME/logs" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f elasticsearch elasticsearch 644
     assert_file "$ESHOME/LICENSE.txt" f elasticsearch elasticsearch 644
-    assert_file "$ESHOME/README.textile" f elasticsearch elasticsearch 644
+    assert_file "$ESHOME/README.asciidoc" f elasticsearch elasticsearch 644
     assert_file_not_exist "$ESCONFIG/elasticsearch.keystore"
 }

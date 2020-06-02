@@ -153,16 +153,9 @@ The API returns the following result:
                  "rewrite_time": 51443,
                  "collector": [
                     {
-                       "name": "CancellableCollector",
-                       "reason": "search_cancelled",
-                       "time_in_nanos": "304311",
-                       "children": [
-                         {
-                           "name": "SimpleTopScoreDocCollector",
-                           "reason": "search_top_hits",
-                           "time_in_nanos": "32273"
-                         }
-                       ]
+                       "name": "SimpleTopScoreDocCollector",
+                       "reason": "search_top_hits",
+                       "time_in_nanos": "32273"
                     }
                  ]
               }
@@ -445,16 +438,9 @@ Looking at the previous example:
 --------------------------------------------------
 "collector": [
    {
-      "name": "CancellableCollector",
-      "reason": "search_cancelled",
-      "time_in_nanos": "304311",
-      "children": [
-        {
-          "name": "SimpleTopScoreDocCollector",
-          "reason": "search_top_hits",
-          "time_in_nanos": "32273"
-        }
-      ]
+      "name": "SimpleTopScoreDocCollector",
+      "reason": "search_top_hits",
+      "time_in_nanos": "32273"
    }
 ]
 --------------------------------------------------
@@ -657,33 +643,26 @@ The API returns the following result:
                      "rewrite_time": 7208,
                      "collector": [
                         {
-                          "name": "CancellableCollector",
-                          "reason": "search_cancelled",
-                          "time_in_nanos": 2390,
+                          "name": "MultiCollector",
+                          "reason": "search_multi",
+                          "time_in_nanos": 1820,
                           "children": [
                             {
-                              "name": "MultiCollector",
-                              "reason": "search_multi",
-                              "time_in_nanos": 1820,
+                              "name": "FilteredCollector",
+                              "reason": "search_post_filter",
+                              "time_in_nanos": 7735,
                               "children": [
                                 {
-                                  "name": "FilteredCollector",
-                                  "reason": "search_post_filter",
-                                  "time_in_nanos": 7735,
-                                  "children": [
-                                    {
-                                      "name": "SimpleTopScoreDocCollector",
-                                      "reason": "search_top_hits",
-                                      "time_in_nanos": 1328
-                                    }
-                                  ]
-                                },
-                                {
-                                  "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
-                                  "reason": "aggregation",
-                                  "time_in_nanos": 8273
+                                  "name": "SimpleTopScoreDocCollector",
+                                  "reason": "search_top_hits",
+                                  "time_in_nanos": 1328
                                 }
                               ]
+                            },
+                            {
+                              "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
+                              "reason": "aggregation",
+                              "time_in_nanos": 8273
                             }
                           ]
                         }
@@ -803,7 +782,7 @@ This yields the following aggregation profile output:
       {
         "aggregations" : [
           {
-            "type" : "LongTermsAggregator",
+            "type" : "NumericTermsAggregator",
             "description" : "my_scoped_agg",
             "time_in_nanos" : 195386,
             "breakdown" : {
@@ -815,6 +794,10 @@ This yields the following aggregation profile output:
               "reduce_count" : 0,
               "collect" : 91456,
               "collect_count" : 4
+            },
+            "debug": {
+              "result_strategy": "long_terms",
+              "total_buckets": 4
             }
           },
           {
@@ -833,7 +816,7 @@ This yields the following aggregation profile output:
             },
             "children" : [
               {
-                "type" : "LongTermsAggregator",
+                "type" : "NumericTermsAggregator",
                 "description" : "my_level_agg",
                 "time_in_nanos" : 160329,
                 "breakdown" : {
@@ -844,7 +827,11 @@ This yields the following aggregation profile output:
                   "initialize_count" : 1,
                   "reduce_count" : 0,
                   "collect" : 94052,
-                  "collect_count" : 4
+                  "collect_count" : 4,
+                },
+                "debug": {
+                  "result_strategy": "long_terms",
+                  "total_buckets": 4
                 }
               }
             ]
@@ -860,19 +847,24 @@ This yields the following aggregation profile output:
 // TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
 
 From the profile structure we can see that the `my_scoped_agg` is internally 
-being run as a `LongTermsAggregator` (because the field it is aggregating, 
+being run as a `NumericTermsAggregator` (because the field it is aggregating, 
 `likes`, is a numeric field). At the same level, we see a `GlobalAggregator` 
 which comes from `my_global_agg`. That aggregation then has a child 
-`LongTermsAggregator` which comes from the second term's aggregation on `likes`.
+`NumericTermsAggregator` which comes from the second term's aggregation on `likes`.
 
 The `time_in_nanos` field shows the time executed by each aggregation, and is 
 inclusive of all children.  While the overall time is useful, the `breakdown` 
 field will give detailed stats about how the time was spent.
 
+Some aggregations may return expert `debug` information that describe features
+of the underlying execution of the aggregation that are 'useful for folks that
+hack on aggregations but that we don't expect to be otherwise useful. They can
+vary wildly between versions, aggregations, and aggregation execution
+strategies.
+
 ===== Timing Breakdown
 
-The `breakdown` component lists detailed timing statistics about low-level 
-Lucene execution:
+The `breakdown` component lists detailed statistics about low-level execution:
 
 [source,js]
 --------------------------------------------------

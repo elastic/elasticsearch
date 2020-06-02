@@ -1,0 +1,166 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Date
+//
+
+currentDateKeywordWithDivision
+SELECT YEAR(CURRENT_DATE) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+currentDateFunctionNoArgsWithDivision
+SELECT YEAR(CURRENT_DATE()) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+todayWithDivision
+SELECT YEAR(TODAY()) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+todayIntervalSubstraction
+SELECT TRUNCATE(YEAR(TODAY() - INTERVAL 50 YEARS) / 1000) AS result;
+
+    result
+---------------
+1
+;
+
+
+currentDateFilter
+SELECT first_name FROM test_emp WHERE hire_date > CURRENT_DATE() - INTERVAL 35 YEARS ORDER BY first_name ASC LIMIT 10;
+
+    first_name
+-----------------
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+Basil          
+Berhard        
+Berni          
+Bezalel        
+Bojan          
+;
+
+currentDateFilterScript
+SELECT first_name, TRUNCATE(YEAR(hire_date) - YEAR(TODAY()) / 1000) AS filter FROM test_emp
+WHERE TRUNCATE(YEAR(hire_date) - YEAR(TODAY()) / 1000) > 1990 ORDER BY first_name ASC LIMIT 10;
+
+  first_name   |  filter
+Cristinel      |1991
+Kazuhito       |1993
+Kenroku        |1992
+Lillian        |1997
+Magy           |1991
+Mayumi         |1993
+Mingsen        |1992
+Sailaja        |1994
+Saniya         |1992
+Shahaf         |1993
+;
+
+dateExtractDateParts
+SELECT
+DAY(CAST(birth_date AS DATE)) d,
+DAY_OF_MONTH(CAST(birth_date AS DATE)) dm,
+DAY_OF_WEEK(CAST(birth_date AS DATE)) dw,
+DAY_OF_YEAR(CAST(birth_date AS DATE)) dy,
+ISO_DAY_OF_WEEK(CAST(birth_date AS DATE)) iso_dw,
+WEEK(CAST(birth_date AS DATE)) w,
+IW(CAST(birth_date AS DATE)) iso_w,
+QUARTER(CAST(birth_date AS DATE)) q,
+YEAR(CAST(birth_date AS DATE)) y,
+birth_date, last_name l FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+ d:i      | dm:i     | dw:i     | dy:i    | iso_dw:i  | w:i    |iso_w:i | q:i    | y:i    | birth_date:ts        | l:s
+2         |2         |4         |245      |3          |36      |36      |3       |1953    |1953-09-02T00:00:00Z  |Facello
+2         |2         |3         |154      |2          |23      |23      |2       |1964    |1964-06-02T00:00:00Z  |Simmel
+3         |3         |5         |337      |4          |49      |49      |4       |1959    |1959-12-03T00:00:00Z  |Bamford
+1         |1         |7         |121      |6          |18      |17      |2       |1954    |1954-05-01T00:00:00Z  |Koblick
+21        |21        |6         |21       |5          |4       |3       |1       |1955    |1955-01-21T00:00:00Z  |Maliniak
+20        |20        |2         |110      |1          |17      |17      |2       |1953    |1953-04-20T00:00:00Z  |Preusig
+23        |23        |5         |143      |4          |21      |21      |2       |1957    |1957-05-23T00:00:00Z  |Zielinski
+19        |19        |4         |50       |3          |8       |8       |1       |1958    |1958-02-19T00:00:00Z  |Kalloufi
+19        |19        |7         |110      |6          |16      |16      |2       |1952    |1952-04-19T00:00:00Z  |Peac
+;
+
+
+dateExtractTimePartsTimeSecond
+SELECT
+SECOND(CAST(birth_date AS DATE)) d,
+MINUTE(CAST(birth_date AS DATE)) m,
+HOUR(CAST(birth_date AS DATE)) h
+FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+ d:i     | m:i      | h:i
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+;
+
+dateAsFilter
+SELECT birth_date, last_name FROM "test_emp" WHERE birth_date <= CAST('1955-01-21' AS DATE) ORDER BY emp_no LIMIT 5;
+
+ birth_date:ts        | last_name:s
+1953-09-02T00:00:00Z  |Facello
+1954-05-01T00:00:00Z  |Koblick
+1955-01-21T00:00:00Z  |Maliniak
+1953-04-20T00:00:00Z  |Preusig
+1952-04-19T00:00:00Z  |Peac
+;
+
+dateAndFunctionAsGroupingKey
+SELECT MONTH(CAST(birth_date AS DATE)) AS m, CAST(SUM(emp_no) AS INT) s FROM test_emp GROUP BY m ORDER BY m LIMIT 5;
+
+ m:i        | s:i
+null        |100445
+1           |60288
+2           |80388
+3           |20164
+4           |80401
+;
+
+dateAndInterval
+SELECT YEAR(CAST('2019-01-21' AS DATE) + INTERVAL '1-2' YEAR TO MONTH) AS y, MONTH(INTERVAL '1-2' YEAR TO MONTH + CAST('2019-01-21' AS DATE)) AS m;
+
+y:i       | m:i
+2020      | 3
+;
+
+orderByCurrentDate
+SELECT first_name FROM test_emp ORDER BY TODAY(), first_name LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+;
+
+groupByCurrentDate
+SELECT MAX(salary) FROM test_emp GROUP BY TODAY();
+
+  MAX(salary)
+---------------
+74999
+;

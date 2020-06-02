@@ -9,8 +9,8 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
@@ -46,11 +47,11 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 
@@ -65,18 +66,18 @@ import static java.util.Arrays.asList;
 public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
-    public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME,
-        BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
+    public static final List<String> USERS = asList(ElasticUser.NAME, APMSystemUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
+        LogstashSystemUser.NAME, BeatsSystemUser.NAME, RemoteMonitoringUser.NAME);
 
-    private final BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction;
+    public static final Map<String, String> USERS_WITH_SHARED_PASSWORDS = Map.of(KibanaSystemUser.NAME, KibanaUser.NAME);
+
+    private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
 
     private CommandLineHttpClient client;
 
     SetupPasswordTool() {
-        this((environment, settings) -> {
-            return new CommandLineHttpClient(settings, environment);
-        }, (environment) -> {
+        this(environment -> new CommandLineHttpClient(environment), environment -> {
             KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
             if (keyStoreWrapper == null) {
                 throw new UserException(ExitCodes.CONFIG,
@@ -86,8 +87,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         });
     }
 
-    SetupPasswordTool(BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction,
-            CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+    SetupPasswordTool(Function<Environment, CommandLineHttpClient> clientFunction,
+                      CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Sets the passwords for reserved users");
         subcommands.put("auto", newAutoSetup());
         subcommands.put("interactive", newInteractiveSetup());
@@ -125,7 +126,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -171,7 +172,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         @Override
         protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
-            setupOptions(options, env);
+            setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
 
@@ -221,7 +222,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
      * An abstract class that provides functionality common to both the auto and
      * interactive setup modes.
      */
-    private abstract class SetupCommand extends EnvironmentAwareCommand {
+    private abstract class SetupCommand extends KeyStoreAwareCommand {
 
         boolean shouldPrompt;
 
@@ -248,10 +249,9 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
         }
 
-        void setupOptions(OptionSet options, Environment env) throws Exception {
+        void setupOptions(Terminal terminal, OptionSet options, Environment env) throws Exception {
             keyStoreWrapper = keyStoreFunction.apply(env);
-            // TODO: We currently do not support keystore passwords
-            keyStoreWrapper.decrypt(new char[0]);
+            decryptKeyStore(keyStoreWrapper, terminal);
 
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.put(env.settings(), true);
@@ -261,12 +261,14 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             Settings settings = settingsBuilder.build();
             elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
 
-            client = clientFunction.apply(env, settings);
+            final Environment newEnv = new Environment(settings, env.configFile());
+            Environment.assertEquivalent(newEnv, env);
+
+            client = clientFunction.apply(newEnv);
 
             String providedUrl = urlOption.value(options);
             url = new URL(providedUrl == null ? client.getDefaultURL() : providedUrl);
             setShouldPrompt(options);
-
         }
 
         private void setParser() {
@@ -504,10 +506,18 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          */
         void changePasswords(CheckedFunction<String, SecureString, UserException> passwordFn,
                              CheckedBiConsumer<String, SecureString, Exception> successCallback, Terminal terminal) throws Exception {
-            Map<String, SecureString> passwordsMap = new HashMap<>(USERS.size());
+            Map<String, SecureString> passwordsMap = new LinkedHashMap<>(USERS.size());
             try {
                 for (String user : USERS) {
-                    passwordsMap.put(user, passwordFn.apply(user));
+                    if (USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+                        continue;
+                    }
+
+                    SecureString password = passwordFn.apply(user);
+                    passwordsMap.put(user, password);
+                    if (USERS_WITH_SHARED_PASSWORDS.containsKey(user)) {
+                        passwordsMap.put(USERS_WITH_SHARED_PASSWORDS.get(user), password.clone());
+                    }
                 }
                 /*
                  * Change elastic user last. This tool will not run after the elastic user

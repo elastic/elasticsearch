@@ -2,15 +2,15 @@ evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
-    name 'x-pack-voting-only-node'
-    description 'Elasticsearch Expanded Pack Plugin - Voting-only node'
-    classname 'org.elasticsearch.cluster.coordination.VotingOnlyNodePlugin'
-    extendedPlugins = ['x-pack-core']
+  name 'x-pack-voting-only-node'
+  description 'Elasticsearch Expanded Pack Plugin - Voting-only node'
+  classname 'org.elasticsearch.cluster.coordination.VotingOnlyNodePlugin'
+  extendedPlugins = ['x-pack-core']
 }
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

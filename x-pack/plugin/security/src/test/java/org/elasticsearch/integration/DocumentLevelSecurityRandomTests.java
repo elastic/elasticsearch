@@ -91,14 +91,14 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
 
     public void testDuelWithAliasFilters() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=text", "field2", "type=text")
+                        .setMapping("field1", "type=text", "field2", "type=text")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>(numberOfRoles);
         IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
         for (int i = 1; i <= numberOfRoles; i++) {
             String value = "value" + i;
-            requests.add(client().prepareIndex("test", "type1", value).setSource("field1", value));
+            requests.add(client().prepareIndex("test").setId(value).setSource("field1", value));
             builder.addAlias("test", "alias" + i, QueryBuilders.termQuery("field1", value));
         }
         indexRandom(true, requests);

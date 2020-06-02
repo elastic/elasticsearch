@@ -36,8 +36,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -81,7 +81,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         super.setUp();
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .addMapping("type",
+                .setMapping(
                         "decade", "type=keyword",
                         "people", "type=keyword",
                         "description", "type=text,fielddata=true"));
@@ -93,7 +93,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         for (DocTemplate dt : socialNetTemplate) {
             for (int i = 0; i < dt.numDocs; i++) {
                 // Supply a doc ID for deterministic routing of docs to shards
-                client().prepareIndex("test", "type", "doc#" + numDocs)
+                client().prepareIndex("test").setId("doc#" + numDocs)
                         .setSource("decade", dt.decade, "people", dt.people, "description", dt.description)
                         .get();
                 numDocs++;
@@ -221,6 +221,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         assertNull("Elvis is a 3rd tier connection so should not be returned here", response.getVertex(Vertex.createId("people","elvis")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55396")
     public void testTimedoutQueryCrawl() {
         GraphExploreRequestBuilder grb = new GraphExploreRequestBuilder(client(), GraphExploreAction.INSTANCE).setIndices("test");
         grb.setTimeout(TimeValue.timeValueMillis(400));

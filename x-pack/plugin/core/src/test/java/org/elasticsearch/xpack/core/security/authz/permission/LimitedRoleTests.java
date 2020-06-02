@@ -10,9 +10,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -56,26 +56,26 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     public void testAuthorize() {
-        IndexMetaData.Builder imbBuilder = IndexMetaData
-                .builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .putAlias(AliasMetaData.builder("_alias"));
-        IndexMetaData.Builder imbBuilder1 = IndexMetaData
-                .builder("_index1").settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .putAlias(AliasMetaData.builder("_alias1"));
-        MetaData md = MetaData.builder().put(imbBuilder).put(imbBuilder1).build();
+        IndexMetadata.Builder imbBuilder = IndexMetadata
+                .builder("_index").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .putAlias(AliasMetadata.builder("_alias"));
+        IndexMetadata.Builder imbBuilder1 = IndexMetadata
+                .builder("_index1").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                .putAlias(AliasMetadata.builder("_alias1"));
+        Metadata md = Metadata.builder().put(imbBuilder).put(imbBuilder1).build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         Role fromRole = Role.builder("a-role").cluster(Collections.singleton("manage_security"), Collections.emptyList())
                 .add(IndexPrivilege.ALL, "_index").add(IndexPrivilege.CREATE_INDEX, "_index1").build();
 
-        IndicesAccessControl iac = fromRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
+        IndicesAccessControl iac = fromRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
             fieldPermissionsCache);
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
         assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
         assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-        iac = fromRole.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_index1"), md.getAliasAndIndexLookup(),
+        iac = fromRole.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_index1"), md.getIndicesLookup(),
             fieldPermissionsCache);
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
         assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
@@ -86,19 +86,19 @@ public class LimitedRoleTests extends ESTestCase {
             Role limitedByRole = Role.builder("limited-role")
                     .cluster(Collections.singleton("all"), Collections.emptyList()).add(IndexPrivilege.READ, "_index")
                     .add(IndexPrivilege.NONE, "_index1").build();
-            iac = limitedByRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
+            iac = limitedByRole.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
                 fieldPermissionsCache);
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
             assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = limitedByRole.authorize(DeleteIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
+            iac = limitedByRole.authorize(DeleteIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
                 fieldPermissionsCache);
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = limitedByRole.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
+            iac = limitedByRole.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
                 fieldPermissionsCache);
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
@@ -106,19 +106,19 @@ public class LimitedRoleTests extends ESTestCase {
             assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
 
             Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
-            iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
+            iac = role.authorize(SearchAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
                 fieldPermissionsCache);
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(true));
             assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = role.authorize(DeleteIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getAliasAndIndexLookup(),
+            iac = role.authorize(DeleteIndexAction.NAME, Sets.newHashSet("_index", "_alias1"), md.getIndicesLookup(),
                 fieldPermissionsCache);
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index1"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index1").isGranted(), is(false));
-            iac = role.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_index1"), md.getAliasAndIndexLookup(),
+            iac = role.authorize(CreateIndexAction.NAME, Sets.newHashSet("_index", "_index1"), md.getIndicesLookup(),
                 fieldPermissionsCache);
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.getIndexPermissions("_index").isGranted(), is(false));

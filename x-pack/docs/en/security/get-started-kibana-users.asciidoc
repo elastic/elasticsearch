@@ -1,36 +1,36 @@
 When the {es} {security-features} are enabled, users must log in to {kib}
-with a valid user ID and password. 
+with a valid user ID and password.
 
-{kib} also performs some tasks under the covers that require use of the 
-built-in `kibana` user. 
+{kib} also performs some tasks under the covers that require use of the
+built-in `kibana_system` user.
 
-. Configure {kib} to use the built-in `kibana` user and the password that you 
+. Configure {kib} to use the built-in `kibana_system` user and the password that you
 created:
 
-** If you don't mind having passwords visible in your configuration file, 
-uncomment and update the following settings in the `kibana.yml` file in your 
+** If you don't mind having passwords visible in your configuration file,
+uncomment and update the following settings in the `kibana.yml` file in your
 {kib} directory:
 +
 --
-TIP: If you installed {kib} using archive distributions (`zip` or 
-`tar.gz`), the `kibana.yml` configuration file is in `KIBANA_HOME/config`. If 
-you used package distributions (Debian or RPM), it's in `/etc/kibana`. For more 
-information, see {kibana-ref}/settings.html[Configuring {kib}].  
+TIP: If you installed {kib} using archive distributions (`zip` or
+`tar.gz`), the `kibana.yml` configuration file is in `KIBANA_HOME/config`. If
+you used package distributions (Debian or RPM), it's in `/etc/kibana`. For more
+information, see {kibana-ref}/settings.html[Configuring {kib}].
 
 For example, add the following settings:
 
 [source,yaml]
 ----
-elasticsearch.username: "kibana"
+elasticsearch.username: "kibana_system"
 elasticsearch.password: "your_password"
 ----
 
-Specify the password that you set with the `elasticsearch-setup-passwords` 
-command then save your changes to the file. 
+Specify the password that you set with the `elasticsearch-setup-passwords`
+command then save your changes to the file.
 --
 
-** If you prefer not to put your user ID and password in the `kibana.yml` file, 
-store them in a keystore instead. Run the following commands to create the {kib} 
+** If you prefer not to put your user ID and password in the `kibana.yml` file,
+store them in a keystore instead. Run the following commands to create the {kib}
 keystore and add the secure settings:
 +
 --
@@ -42,14 +42,14 @@ keystore and add the secure settings:
 ./bin/kibana-keystore add elasticsearch.password
 ----------------------------------------------------------------------
 
-When prompted, specify the `kibana` built-in user and its password for these 
-setting values.  The settings are automatically applied when you start {kib}.   
+When prompted, specify the `kibana_system` built-in user and its password for these
+setting values.  The settings are automatically applied when you start {kib}.
 To learn more, see {kibana-ref}/secure-settings.html[Secure settings].
 // end::store-kibana-user[]
 --
 
-. Restart {kib}. For example, if you installed 
-{kib} with a `.tar.gz` package, run the following command from the {kib} 
+. Restart {kib}. For example, if you installed
+{kib} with a `.tar.gz` package, run the following command from the {kib}
 directory:
 +
 --
@@ -58,5 +58,5 @@ directory:
 ./bin/kibana
 ----------------------------------------------------------------------
 
-See {kibana-ref}/start-stop.html[Starting and stopping {kib}]. 
+See {kibana-ref}/start-stop.html[Starting and stopping {kib}].
 --

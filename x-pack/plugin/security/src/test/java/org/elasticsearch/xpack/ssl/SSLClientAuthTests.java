@@ -141,7 +141,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
                 (certPath), getDataPath(nodeCertPath), getDataPath(nodeEcCertPath))));
             KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
                 (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
-            SSLContext context = SSLContext.getInstance(randomFrom("TLSv1.3", "TLSv1.2"));
+            SSLContext context = SSLContext.getInstance(inFipsJvm() ? "TLSv1.2" : randomFrom("TLSv1.3", "TLSv1.2"));
             context.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
             return context;
         } catch (Exception e) {

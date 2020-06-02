@@ -150,9 +150,8 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setJavaTimestampFormats(timestampFormatFinder.getJavaTimestampFormats())
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
-            .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern,
-                customGrokPatternDefinitions, interimTimestampField,
-                timestampFormatFinder.getJavaTimestampFormats(), needClientTimeZone))
+            .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern, customGrokPatternDefinitions, null, mappings,
+                interimTimestampField, timestampFormatFinder.getJavaTimestampFormats(), needClientTimeZone))
             .setMappings(mappings)
             .setFieldStats(fieldStats)
             .setExplanation(explanation)

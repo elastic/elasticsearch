@@ -1,0 +1,18 @@
+[role="xpack"]
+[testenv="platinum"]
+[[searchable-snapshots-apis]]
+== Searchable snapshots APIs
+
+experimental[]
+
+You can use the following APIs to perform searchable snapshots operations.
+
+* <<searchable-snapshots-api-mount-snapshot,Mount snapshot>>
+* <<searchable-snapshots-api-clear-cache,Clear cache>>
+* <<searchable-snapshots-api-stats,Get stats>>
+* <<searchable-snapshots-repository-stats,Repository stats>>
+
+include::mount-snapshot.asciidoc[]
+include::clear-cache.asciidoc[]
+include::get-stats.asciidoc[]
+include::repository-stats.asciidoc[]

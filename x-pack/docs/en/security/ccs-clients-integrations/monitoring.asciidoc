@@ -17,7 +17,7 @@ with the monitoring cluster.
 
 For more information, see:
 
-* {ref}/configuring-monitoring.html[Configuring monitoring in {es}]
+* <<monitoring-production>>
 * {kibana-ref}/monitoring-xpack-kibana.html[Configuring monitoring in {kib}]
 * {logstash-ref}/configuring-logstash.html[Configuring monitoring for Logstash nodes]
 

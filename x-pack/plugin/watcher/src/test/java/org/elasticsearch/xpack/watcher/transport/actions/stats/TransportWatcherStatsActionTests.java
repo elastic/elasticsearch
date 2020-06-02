@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,11 +54,11 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(clusterService.getClusterName()).thenReturn(clusterName);
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
 
         WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
-        when(watcherLifeCycleService.getState()).thenReturn(WatcherState.STARTED);
+        when(watcherLifeCycleService.getState()).thenReturn(() -> WatcherState.STARTED);
 
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.executionThreadPoolQueueSize()).thenReturn(100L);

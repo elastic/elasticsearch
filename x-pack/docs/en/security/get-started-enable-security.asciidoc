@@ -8,7 +8,7 @@ line. See {kibana-ref}/start-stop.html[Starting and stopping {kib}].
 
 . Stop {es}. For example, if you installed {es} from an archive distribution, 
 enter `Ctrl-C` on the command line. See 
-{ref}/stopping-elasticsearch.html[Stopping {es}].
+<<stopping-elasticsearch>>.
 
 . Add the `xpack.security.enabled` setting to the 
 `ES_PATH_CONF/elasticsearch.yml` file. 
@@ -18,7 +18,7 @@ TIP: The `ES_PATH_CONF` environment variable contains the path for the {es}
 configuration files. If you installed {es} using archive distributions (`zip` or 
 `tar.gz`), it defaults to `ES_HOME/config`. If you used package distributions 
 (Debian or RPM), it defaults to `/etc/elasticsearch`. For more information, see 
-{ref}/settings.html[Configuring {es}].  
+<<settings>>.  
 
 For example, add the following setting:
 

@@ -34,8 +34,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
@@ -62,7 +62,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
         SimilarityScript.Factory factory = scriptEngine.compile(
                 "foobar", "return query.boost * doc.freq / doc.length", SimilarityScript.CONTEXT, Collections.emptyMap());
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", null, "foobaz", factory::newInstance, true);
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
         Document doc = new Document();
@@ -101,7 +101,7 @@ public class SimilarityScriptTests extends ScriptTestCase {
         SimilarityScript.Factory factory = scriptEngine.compile(
                 "foobar", "return weight * doc.freq / doc.length", SimilarityScript.CONTEXT, Collections.emptyMap());
         ScriptedSimilarity sim = new ScriptedSimilarity("foobar", weightFactory::newInstance, "foobaz", factory::newInstance, true);
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig().setSimilarity(sim));
 
         Document doc = new Document();

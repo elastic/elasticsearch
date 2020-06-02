@@ -21,3 +21,9 @@ esplugin {
   description 'The Mapper Murmur3 plugin allows to compute hashes of a field\'s values at index-time and to store them in the index.'
   classname 'org.elasticsearch.plugin.mapper.MapperMurmur3Plugin'
 }
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search'
+  }
+}

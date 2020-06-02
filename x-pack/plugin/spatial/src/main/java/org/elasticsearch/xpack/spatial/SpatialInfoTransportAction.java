@@ -32,7 +32,7 @@ public class SpatialInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Override
     public boolean available() {
-        return licenseState.isSpatialAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.SPATIAL);
     }
 
     @Override

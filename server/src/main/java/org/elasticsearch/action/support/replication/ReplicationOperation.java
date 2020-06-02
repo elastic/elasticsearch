@@ -27,17 +27,23 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 public class ReplicationOperation<
             Request extends ReplicationRequest<Request>,
@@ -53,6 +60,7 @@ public class ReplicationOperation<
             PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>
         > {
     private final Logger logger;
+    private final ThreadPool threadPool;
     private final Request request;
     private final String opType;
     private final AtomicInteger totalShards = new AtomicInteger();
@@ -71,6 +79,8 @@ public class ReplicationOperation<
     private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
     private final Replicas<ReplicaRequest> replicasProxy;
     private final AtomicBoolean finished = new AtomicBoolean();
+    private final TimeValue initialRetryBackoffBound;
+    private final TimeValue retryTimeout;
     private final long primaryTerm;
 
     // exposed for tests
@@ -83,14 +93,18 @@ public class ReplicationOperation<
     public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
                                 ActionListener<PrimaryResultT> listener,
                                 Replicas<ReplicaRequest> replicas,
-                                Logger logger, String opType, long primaryTerm) {
+                                Logger logger, ThreadPool threadPool, String opType, long primaryTerm, TimeValue initialRetryBackoffBound,
+                                TimeValue retryTimeout) {
         this.replicasProxy = replicas;
         this.primary = primary;
         this.resultListener = listener;
         this.logger = logger;
+        this.threadPool = threadPool;
         this.request = request;
         this.opType = opType;
         this.primaryTerm = primaryTerm;
+        this.initialRetryBackoffBound = initialRetryBackoffBound;
+        this.retryTimeout = retryTimeout;
     }
 
     public void execute() throws Exception {
@@ -110,8 +124,6 @@ public class ReplicationOperation<
 
     private void handlePrimaryResult(final PrimaryResultT primaryResult) {
         this.primaryResult = primaryResult;
-        primary.updateLocalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.localCheckpoint());
-        primary.updateGlobalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.globalCheckpoint());
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
             if (logger.isTraceEnabled()) {
@@ -131,11 +143,30 @@ public class ReplicationOperation<
             final long maxSeqNoOfUpdatesOrDeletes = primary.maxSeqNoOfUpdatesOrDeletes();
             assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "seqno_of_updates still uninitialized";
             final ReplicationGroup replicationGroup = primary.getReplicationGroup();
+            final PendingReplicationActions pendingReplicationActions = primary.getPendingReplicationActions();
             markUnavailableShardsAsStale(replicaRequest, replicationGroup);
-            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup);
+            performOnReplicas(replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, replicationGroup, pendingReplicationActions);
         }
-        successfulShards.incrementAndGet();  // mark primary as successful
-        decPendingAndFinishIfNeeded();
+        primaryResult.runPostReplicationActions(new ActionListener<>() {
+
+            @Override
+            public void onResponse(Void aVoid) {
+                successfulShards.incrementAndGet();
+                try {
+                    updateCheckPoints(primary.routingEntry(), primary::localCheckpoint, primary::globalCheckpoint);
+                } finally {
+                    decPendingAndFinishIfNeeded();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
+                // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging, or possibly have replicas
+                // go out of sync with the primary
+                finishAsFailed(e);
+            }
+        });
     }
 
     private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, ReplicationGroup replicationGroup) {
@@ -148,7 +179,8 @@ public class ReplicationOperation<
     }
 
     private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
-                                   final long maxSeqNoOfUpdatesOrDeletes, final ReplicationGroup replicationGroup) {
+                                   final long maxSeqNoOfUpdatesOrDeletes, final ReplicationGroup replicationGroup,
+                                   final PendingReplicationActions pendingReplicationActions) {
         // for total stats, add number of unassigned shards and
         // number of initializing shards that are not ready yet to receive operations (recovery has not opened engine yet on the target)
         totalShards.addAndGet(replicationGroup.getSkippedShards().size());
@@ -157,65 +189,96 @@ public class ReplicationOperation<
 
         for (final ShardRouting shard : replicationGroup.getReplicationTargets()) {
             if (shard.isSameAllocation(primaryRouting) == false) {
-                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
+                performOnReplica(shard, replicaRequest, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, pendingReplicationActions);
             }
         }
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest,
-                                  final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes) {
+                                  final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes,
+                                  final PendingReplicationActions pendingReplicationActions) {
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] sending op [{}] to replica {} for request [{}]", shard.shardId(), opType, shard, replicaRequest);
         }
-
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet();
-        replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(ReplicaResponse response) {
-                    successfulShards.incrementAndGet();
-                    try {
-                        primary.updateLocalCheckpointForShard(shard.allocationId().getId(), response.localCheckpoint());
-                        primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), response.globalCheckpoint());
-                    } catch (final AlreadyClosedException e) {
-                        // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
-                    } catch (final Exception e) {
-                        // fail the primary but fall through and let the rest of operation processing complete
-                        final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
-                        primary.failShard(message, e);
-                    }
+        final ActionListener<ReplicaResponse> replicationListener = new ActionListener<>() {
+            @Override
+            public void onResponse(ReplicaResponse response) {
+                successfulShards.incrementAndGet();
+                try {
+                    updateCheckPoints(shard, response::localCheckpoint, response::globalCheckpoint);
+                } finally {
                     decPendingAndFinishIfNeeded();
                 }
+            }
 
-                @Override
-                public void onFailure(Exception replicaException) {
-                    logger.trace(() -> new ParameterizedMessage(
-                        "[{}] failure while performing [{}] on replica {}, request [{}]",
-                        shard.shardId(), opType, shard, replicaRequest), replicaException);
-                    // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.
-                    if (TransportActions.isShardNotAvailableException(replicaException) == false) {
-                        RestStatus restStatus = ExceptionsHelper.status(replicaException);
-                        shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
-                            shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
-                    }
-                    String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                    replicasProxy.failShardIfNeeded(shard, primaryTerm, message, replicaException,
-                        ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
+            @Override
+            public void onFailure(Exception replicaException) {
+                logger.trace(() -> new ParameterizedMessage(
+                    "[{}] failure while performing [{}] on replica {}, request [{}]",
+                    shard.shardId(), opType, shard, replicaRequest), replicaException);
+                // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.
+                if (TransportActions.isShardNotAvailableException(replicaException) == false) {
+                    RestStatus restStatus = ExceptionsHelper.status(replicaException);
+                    shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
+                        shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
                 }
+                String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
+                replicasProxy.failShardIfNeeded(shard, primaryTerm, message, replicaException,
+                    ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
+            }
 
-                @Override
-                public String toString() {
-                    return "[" + replicaRequest + "][" + shard + "]";
-                }
-            });
+            @Override
+            public String toString() {
+                return "[" + replicaRequest + "][" + shard + "]";
+            }
+        };
+
+        final String allocationId = shard.allocationId().getId();
+        final RetryableAction<ReplicaResponse> replicationAction = new RetryableAction<>(logger, threadPool, initialRetryBackoffBound,
+                retryTimeout, replicationListener) {
+
+            @Override
+            public void tryAction(ActionListener<ReplicaResponse> listener) {
+                replicasProxy.performOn(shard, replicaRequest, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener);
+            }
+
+            @Override
+            public void onFinished() {
+                super.onFinished();
+                pendingReplicationActions.removeReplicationAction(allocationId, this);
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                return cause instanceof CircuitBreakingException ||
+                    cause instanceof EsRejectedExecutionException ||
+                    cause instanceof ConnectTransportException;
+            }
+        };
+
+        pendingReplicationActions.addPendingAction(allocationId, replicationAction);
+        replicationAction.run();
+    }
+
+    private void updateCheckPoints(ShardRouting shard, LongSupplier localCheckpointSupplier, LongSupplier globalCheckpointSupplier) {
+        try {
+            primary.updateLocalCheckpointForShard(shard.allocationId().getId(), localCheckpointSupplier.getAsLong());
+            primary.updateGlobalCheckpointForShard(shard.allocationId().getId(), globalCheckpointSupplier.getAsLong());
+        } catch (final AlreadyClosedException e) {
+            // the index was deleted or this shard was never activated after a relocation; fall through and finish normally
+        } catch (final Exception e) {
+            // fail the primary but fall through and let the rest of operation processing complete
+            final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
+            primary.failShard(message, e);
+        }
     }
 
     private void onNoLongerPrimary(Exception failure) {
         final Throwable cause = ExceptionsHelper.unwrapCause(failure);
-        final boolean nodeIsClosing =
-                cause instanceof NodeClosedException
-                        || ExceptionsHelper.isTransportStoppedForAction(cause, "internal:cluster/shard/failure");
+        final boolean nodeIsClosing = cause instanceof NodeClosedException;
         final String message;
         if (nodeIsClosing) {
             message = String.format(Locale.ROOT,
@@ -374,6 +437,13 @@ public class ReplicationOperation<
          * @return the replication group
          */
         ReplicationGroup getReplicationGroup();
+
+        /**
+         * Returns the pending replication actions on the primary shard
+         *
+         * @return the pending replication actions
+         */
+        PendingReplicationActions getPendingReplicationActions();
     }
 
     /**
@@ -466,5 +536,11 @@ public class ReplicationOperation<
         @Nullable RequestT replicaRequest();
 
         void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
+
+        /**
+         * Run actions to be triggered post replication
+         * @param listener calllback that is invoked after post replication actions have completed
+         * */
+        void runPostReplicationActions(ActionListener<Void> listener);
     }
 }

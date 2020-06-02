@@ -1,0 +1,49 @@
+--
+:api: delete-alias
+:request: DeleteAliasRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Delete Alias API
+
+[id="{upid}-{api}-request"]
+==== Delete Alias Request
+
+An +{request}+ requires an `index` and an `alias` argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+[id="{upid}-{api}-response"]
+==== Delete Alias Response
+
+The returned +{response}+ indicates if the request to delete the alias
+was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the request to delete the alias was
+acknowledged.
+
+include::../execution.asciidoc[]

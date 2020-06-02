@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,9 +53,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
     }
 
-    InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
-            pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalGeoCentroid(String name, GeoPoint centroid, long count, Map<String, Object> metadata) {
+        super(name, metadata);
         assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
@@ -114,10 +112,10 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
-    public InternalGeoCentroid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double lonSum = Double.NaN;
         double latSum = Double.NaN;
-        int totalCount = 0;
+        long totalCount = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoCentroid centroidAgg = (InternalGeoCentroid) aggregation;
             if (centroidAgg.count > 0) {
@@ -132,7 +130,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
             }
         }
         final GeoPoint result = (Double.isNaN(lonSum)) ? null : new GeoPoint(latSum/totalCount, lonSum/totalCount);
-        return new InternalGeoCentroid(name, result, totalCount, pipelineAggregators(), getMetaData());
+        return new InternalGeoCentroid(name, result, totalCount, getMetadata());
     }
 
     @Override

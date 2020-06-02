@@ -55,14 +55,6 @@ final class JvmErgonomics {
         final List<String> ergonomicChoices = new ArrayList<>();
         final Map<String, Optional<String>> finalJvmOptions = finalJvmOptions(userDefinedJvmOptions);
         final long heapSize = extractHeapSize(finalJvmOptions);
-        final Map<String, String> systemProperties = extractSystemProperties(userDefinedJvmOptions);
-        if (systemProperties.containsKey("io.netty.allocator.type") == false) {
-            if (heapSize <= 1 << 30) {
-                ergonomicChoices.add("-Dio.netty.allocator.type=unpooled");
-            } else {
-                ergonomicChoices.add("-Dio.netty.allocator.type=pooled");
-            }
-        }
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
@@ -70,14 +62,16 @@ final class JvmErgonomics {
         return ergonomicChoices;
     }
 
-    private static final Pattern OPTION =
-            Pattern.compile("^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}\\s+\\{[^}]+}");
+    private static final Pattern OPTION = Pattern.compile(
+        "^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}\\s+\\{[^}]+}"
+    );
 
-    static Map<String, Optional<String>> finalJvmOptions(
-            final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
+    static Map<String, Optional<String>> finalJvmOptions(final List<String> userDefinedJvmOptions) throws InterruptedException,
+        IOException {
         return flagsFinal(userDefinedJvmOptions).stream()
-                .map(OPTION::matcher).filter(Matcher::matches)
-                .collect(Collectors.toUnmodifiableMap(m -> m.group("flag"), m -> Optional.ofNullable(m.group("value"))));
+            .map(OPTION::matcher)
+            .filter(Matcher::matches)
+            .collect(Collectors.toUnmodifiableMap(m -> m.group("flag"), m -> Optional.ofNullable(m.group("value"))));
     }
 
     private static List<String> flagsFinal(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
@@ -90,22 +84,25 @@ final class JvmErgonomics {
          * without having to implement our own JVM option parsing logic.
          */
         final String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
-        final List<String> command =
-                Stream.of(Stream.of(java), userDefinedJvmOptions.stream(), Stream.of("-XX:+PrintFlagsFinal"), Stream.of("-version"))
-                        .reduce(Stream::concat)
-                        .get()
-                        .collect(Collectors.toUnmodifiableList());
+        final List<String> command = Stream.of(
+            Stream.of(java),
+            userDefinedJvmOptions.stream(),
+            Stream.of("-Xshare:off"),
+            Stream.of("-XX:+PrintFlagsFinal"),
+            Stream.of("-version")
+        ).reduce(Stream::concat).get().collect(Collectors.toUnmodifiableList());
         final Process process = new ProcessBuilder().command(command).start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());
         final int status = process.waitFor();
         if (status != 0) {
             final String message = String.format(
-                    Locale.ROOT,
-                    "starting java failed with [%d]\noutput:\n%s\nerror:\n%s",
-                    status,
-                    String.join("\n", output),
-                    String.join("\n", error));
+                Locale.ROOT,
+                "starting java failed with [%d]\noutput:\n%s\nerror:\n%s",
+                status,
+                String.join("\n", output),
+                String.join("\n", error)
+            );
             throw new RuntimeException(message);
         } else {
             return output;
@@ -113,8 +110,7 @@ final class JvmErgonomics {
     }
 
     private static List<String> readLinesFromInputStream(final InputStream is) throws IOException {
-        try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
-             BufferedReader br = new BufferedReader(isr)) {
+        try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8); BufferedReader br = new BufferedReader(isr)) {
             return br.lines().collect(Collectors.toUnmodifiableList());
         }
     }

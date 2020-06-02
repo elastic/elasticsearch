@@ -1,0 +1,94 @@
+---
+
+##### GLOBAL METADATA
+
+- meta:
+    cluster: elasticsearch-ci
+
+##### JOB DEFAULTS
+
+- job:
+    vault:
+      url: https://secrets.elastic.co:8200
+      role_id: 1ba1ac3e-aee4-d040-d9a3-6ae23bd2b3db
+    node: "general-purpose"
+    concurrent: true
+    logrotate:
+      daysToKeep: 30
+      numToKeep: 90
+      artifactDaysToKeep: 7
+    scm:
+      - git:
+          name: origin
+          # master node jenkins user ~/.ssh
+          credentials-id: f6c7695a-671e-4f4f-a331-acdce44ff9ba
+          reference-repo: "/var/lib/jenkins/.git-references/elasticsearch.git"
+          branches:
+            - "%BRANCH%"
+          url: "https://github.com/elastic/elasticsearch.git"
+          basedir: ""
+          wipe-workspace: "yes"
+    wrappers:
+      - timeout:
+          type: absolute
+          timeout: "120"
+          fail: true
+      - ansicolor
+      - timestamps
+      - gradle-build-scan
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            WORKSPACE=/dev/shm/$JOB_NAME
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA7_HOME=$HOME/.java/java7
+            JAVA8_HOME=$HOME/.java/java8
+            JAVA9_HOME=$HOME/.java/java9
+            JAVA10_HOME=$HOME/.java/java10
+            JAVA11_HOME=$HOME/.java/java11
+            JAVA12_HOME=$HOME/.java/openjdk12
+            JAVA13_HOME=$HOME/.java/openjdk13
+            JAVA14_HOME=$HOME/.java/openjdk14
+            GRADLE_OPTS=-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m
+    properties:
+        - github:
+            url: https://github.com/elastic/elasticsearch/
+        - inject:
+            properties-content: |
+              HOME=$JENKINS_HOME
+    builders:
+       - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr --last-good-commit elastic+elasticsearch+%BRANCH%+git+push
+          .ci/build.sh -Dbwc.checkout.align=true check
+    publishers:
+      - email:
+          recipients: infra-root+build@elastic.co
+      # Upload additional logs
+      - google-cloud-storage:
+          credentials-id: 'elasticsearch-ci-gcs-plugin'
+          uploads:
+            - classic:
+                file-pattern: 'build/*.tar.bz2'
+                storage-location: 'gs://elasticsearch-ci-artifacts/jobs/$JOB_NAME'
+                share-publicly: false
+                upload-for-failed-jobs: true
+                show-inline: true
+      # Notify homer
+      - postbuildscript:
+          builders:
+            - role: SLAVE
+              build-on:
+                  - SUCCESS
+                  - FAILURE
+                  - UNSTABLE
+              build-steps:
+                - shell: |
+                    curl -sS -X POST \
+                      -H "Content-Type: text/plain" \
+                      --data "$BUILD_URL" \
+                      "https://homer.app.elstc.co/webhook/jenkins/build-finished" || true
+
+
+
+

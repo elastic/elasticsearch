@@ -167,7 +167,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         if (eventId != null) {
             builder.field(EVENT_ID.getPreferredName(), eventId);
         }
-        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(TYPE.getPreferredName(), SCHEDULED_EVENT_TYPE);
         }
         builder.endObject();

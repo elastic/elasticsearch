@@ -13,7 +13,7 @@ to have the Active Directory server's certificate or the server's root CA
 certificate installed in their keystore or truststore. 
 
 . Create the realm configuration for the `xpack.security.authc.realms` namespace 
-in the `elasticsearch.yml` file. See <<configuring-ad-realm>>. 
+in the `elasticsearch.yml` file. See <<ad-realm-configuration>>. 
 
 . Set the `url` attribute in the realm configuration to specify the LDAPS protocol
 and the secure port number. For example, `url: ldaps://ad.example.com:636`.

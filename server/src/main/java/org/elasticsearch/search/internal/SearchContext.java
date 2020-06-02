@@ -18,10 +18,11 @@
  */
 package org.elasticsearch.search.internal;
 
+
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -36,7 +37,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -49,8 +49,9 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -86,14 +87,15 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private InnerHitsContext innerHitsContext;
 
     protected SearchContext() {
         super("search_context");
     }
 
-    public abstract void setTask(SearchTask task);
+    public abstract void setTask(SearchShardTask task);
 
-    public abstract SearchTask getTask();
+    public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
 
@@ -130,7 +132,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);
 
-    public abstract long id();
+    public abstract SearchContextId id();
 
     public abstract String source();
 
@@ -162,9 +164,12 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract void highlight(SearchContextHighlight highlight);
 
-    public abstract void innerHits(Map<String, InnerHitContextBuilder> innerHits);
-
-    public abstract Map<String, InnerHitContextBuilder> innerHits();
+    public InnerHitsContext innerHits() {
+        if (innerHitsContext == null) {
+            innerHitsContext = new InnerHitsContext();
+        }
+        return innerHitsContext;
+    }
 
     public abstract SuggestionSearchContext suggest();
 
@@ -192,9 +197,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
 
-    public abstract DocValueFieldsContext docValueFieldsContext();
+    public abstract FetchDocValuesContext docValuesContext();
 
-    public abstract SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext);
+    public abstract SearchContext docValuesContext(FetchDocValuesContext docValuesContext);
 
     public abstract ContextIndexSearcher searcher();
 

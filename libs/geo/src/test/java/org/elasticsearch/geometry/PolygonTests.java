@@ -36,27 +36,27 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("polygon ((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0))",
+        assertEquals("POLYGON ((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0))",
             wkt.toWKT(new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}))));
         assertEquals(new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})),
-            wkt.fromWKT("polygon ((3 1, 4 2, 5 3, 3 1))"));
+            wkt.fromWKT("POLYGON ((3 1, 4 2, 5 3, 3 1))"));
 
-        assertEquals("polygon ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))",
+        assertEquals("POLYGON ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))",
             wkt.toWKT(new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{5, 4, 3, 5}))));
         assertEquals(new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{5, 4, 3, 5})),
-            wkt.fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3, 3 1 5))"));
+            wkt.fromWKT("POLYGON ((3 1 5, 4 2 4, 5 3 3, 3 1 5))"));
 
         // Auto closing in coerce mode
         assertEquals(new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1})),
-            wkt.fromWKT("polygon ((3 1, 4 2, 5 3))"));
+            wkt.fromWKT("POLYGON ((3 1, 4 2, 5 3))"));
         assertEquals(new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{5, 4, 3, 5})),
-            wkt.fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3))"));
+            wkt.fromWKT("POLYGON ((3 1 5, 4 2 4, 5 3 3))"));
         assertEquals(new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}),
             Collections.singletonList(new LinearRing(new double[]{0.5, 2.5, 2.0, 0.5}, new double[]{1.5, 1.5, 1.0, 1.5}))),
-            wkt.fromWKT("polygon ((3 1, 4 2, 5 3, 3 1), (0.5 1.5, 2.5 1.5, 2.0 1.0))"));
+            wkt.fromWKT("POLYGON ((3 1, 4 2, 5 3, 3 1), (0.5 1.5, 2.5 1.5, 2.0 1.0))"));
 
-        assertEquals("polygon EMPTY", wkt.toWKT(Polygon.EMPTY));
-        assertEquals(Polygon.EMPTY, wkt.fromWKT("polygon EMPTY)"));
+        assertEquals("POLYGON EMPTY", wkt.toWKT(Polygon.EMPTY));
+        assertEquals(Polygon.EMPTY, wkt.fromWKT("POLYGON EMPTY)"));
     }
 
     public void testInitValidation() {

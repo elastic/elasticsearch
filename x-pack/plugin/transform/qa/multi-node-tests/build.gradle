@@ -14,10 +14,10 @@ File nodeKey = file("$keystoreDir/testnode.pem")
 File nodeCert = file("$keystoreDir/testnode.crt")
 // Add key and certs to test classpath: it expects it there
 task copyKeyCerts(type: Copy) {
-    from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
-        include 'testnode.crt', 'testnode.pem'
-    }
-    into keystoreDir
+  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
+    include 'testnode.crt', 'testnode.pem'
+  }
+  into keystoreDir
 }
 // Add keys and cets to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystoreDir)
@@ -29,7 +29,6 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', nodeKey.name

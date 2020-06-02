@@ -15,9 +15,10 @@ import java.io.IOException;
 public class TermsGroupSourceTests extends AbstractSerializingTestCase<TermsGroupSource> {
 
     public static TermsGroupSource randomTermsGroupSource() {
-        String field = randomAlphaOfLengthBetween(1, 20);
+        String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+        ScriptConfig scriptConfig = randomBoolean() ? null : ScriptConfigTests.randomScriptConfig();
 
-        return new TermsGroupSource(field);
+        return new TermsGroupSource(field, scriptConfig);
     }
 
     @Override

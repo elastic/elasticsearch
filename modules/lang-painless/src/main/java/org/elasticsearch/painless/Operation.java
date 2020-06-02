@@ -27,37 +27,37 @@ package org.elasticsearch.painless;
  */
 public enum Operation {
 
-    MUL     ( "*"   ),
-    DIV     ( "/"   ),
-    REM     ( "%"   ),
-    ADD     ( "+"   ),
-    SUB     ( "-"   ),
-    FIND    ( "=~"  ),
-    MATCH   ( "==~" ),
-    LSH     ( "<<"  ),
-    RSH     ( ">>"  ),
-    USH     ( ">>>" ),
-    BWNOT   ( "~"   ),
-    BWAND   ( "&"   ),
-    XOR     ( "^"   ),
-    BWOR    ( "|"   ),
-    NOT     ( "!"   ),
-    AND     ( "&&"  ),
-    OR      ( "||"  ),
-    LT      ( "<"   ),
-    LTE     ( "<="  ),
-    GT      ( ">"   ),
-    GTE     ( ">="  ),
-    EQ      ( "=="  ),
-    EQR     ( "===" ),
-    NE      ( "!="  ),
-    NER     ( "!==" ),
-    INCR    ( "++"  ),
-    DECR    ( "--"  );
+    MUL     ( "*"   , "multiplication"         ),
+    DIV     ( "/"   , "division"               ),
+    REM     ( "%"   , "remainder"              ),
+    ADD     ( "+"   , "addition"               ),
+    SUB     ( "-"   , "subtraction"            ),
+    FIND    ( "=~"  , "find"                   ),
+    MATCH   ( "==~" , "match"                  ),
+    LSH     ( "<<"  , "left shift"             ),
+    RSH     ( ">>"  , "right shift"            ),
+    USH     ( ">>>" , "unsigned shift"         ),
+    BWNOT   ( "~"   , "bitwise not"            ),
+    BWAND   ( "&"   , "bitwise and"            ),
+    XOR     ( "^"   , "bitwise xor"            ),
+    BWOR    ( "|"   , "boolean or"             ),
+    NOT     ( "!"   , "boolean not"            ),
+    AND     ( "&&"  , "boolean and"            ),
+    OR      ( "||"  , "boolean or"             ),
+    LT      ( "<"   , "less than"              ),
+    LTE     ( "<="  , "less than or equals"    ),
+    GT      ( ">"   , "greater than"           ),
+    GTE     ( ">="  , "greater than or equals" ),
+    EQ      ( "=="  , "equals"                 ),
+    EQR     ( "===" , "reference equals"       ),
+    NE      ( "!="  , "not equals"             ),
+    NER     ( "!==" , "reference not equals"   );
 
     public final String symbol;
+    public final String name;
 
-    Operation(final String symbol) {
+    Operation(final String symbol, final String name) {
         this.symbol = symbol;
+        this.name = name;
     }
 }

@@ -1,20 +1,9 @@
-[role="xpack"]
-[[configuring-ad-realm]]
-=== Configuring an Active Directory realm
-
-You can configure {es} to communicate with Active Directory to authenticate
-users. To integrate with Active Directory, you configure an `active_directory`
+To integrate with Active Directory, you configure an `active_directory`
 realm and map Active Directory users and groups to roles in the role mapping file.
-
-For more information about Active Directory realms, see 
-<<active-directory-realm>>.
 
 . Add a realm configuration of type `active_directory` to `elasticsearch.yml`
 under the `xpack.security.authc.realms.active_directory` namespace.
-At a minimum, you must specify the Active Directory `domain_name`.
-If you are configuring multiple realms, you should also 
-explicitly set the `order` attribute to control the order in which the realms 
-are consulted during authentication. 
+At a minimum, you must specify the Active Directory `domain_name` and `order`.
 +
 --
 See <<ref-ad-settings>> for all of the options you can set for an 

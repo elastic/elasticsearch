@@ -10,10 +10,10 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin:'base'
 configurations {
-  certificateJars {
-    canBeConsumed = true
-    canBeResolved = false
-  }
+//  certificateJars {
+//    canBeConsumed = true
+//    canBeResolved = false
+//  }
   nodeKeyStores {
     canBeConsumed = true
     canBeResolved = false
@@ -149,19 +149,19 @@ tasks.register("importClientCertificateInNodeKeyStore", LoggedExec) {
     '-file', clientCertificate,
     '-noprompt'
 }
-
-def certificateJar = tasks.register("certificateJar", Jar) {
-  dependsOn("importNodeCertificateInClientKeyStore", "importClientCertificateInNodeKeyStore")
-  from keystoreDir
-  archiveFileName = project.name
-}
+//
+//def certificateJar = tasks.register("certificateJar", Jar) {
+//  dependsOn("importNodeCertificateInClientKeyStore", "importClientCertificateInNodeKeyStore")
+//  from keystoreDir
+//  archiveFileName = project.name + ".jar"
+//}
 
 artifacts {
-  certificateJars(certificateJar)
+//  certificateJars(certificateJar)
   clientKeyStores(clientKeyStore) {
-    builtBy("createClientKeyStore")
+    builtBy("importNodeCertificateInClientKeyStore")
   }
   nodeKeyStores(nodeKeystore){
-    builtBy("exportNodeCertificate")
+    builtBy("importClientCertificateInNodeKeyStore")
   }
 }

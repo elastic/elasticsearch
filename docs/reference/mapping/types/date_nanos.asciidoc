@@ -24,7 +24,9 @@ This means that it will accept dates with optional timestamps, which conform
 to the formats supported by
 <<strict-date-time,`strict_date_optional_time`>> including up to nine second
 fractionals or milliseconds-since-the-epoch (thus losing precision on the
-nano second part).
+nano second part). Using <<strict-date-time,`strict_date_optional_time`>> will
+however format the result up to only 3 second fractionals. In order to both
+print and parse up to 9 digits resolution, use <<strict-date-time-nanos,`strict_date_optional_time_nanos`>>
 
 For instance:
 

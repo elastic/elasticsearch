@@ -315,7 +315,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (indicesThatWillBeLost.isEmpty() == false) {
             deprecationLogger.deprecatedAndMaybeLog("snapshot_expand_wildcards_default",
                 "Snapshot [{}] is using the default value for [expand_wildcards]. In a future major version, this default will " +
-                    "change from [all] to [open,closed], which will result in hidden indices [{}] not being included in snapshots unless " +
+                    "change from [all] to [open,closed], which will result in hidden indices {} not being included in snapshots unless " +
                     "the value of [expand_wildcards] is set explicitly to [all].",
                 snapshotName, indicesThatWillBeLost);
         }

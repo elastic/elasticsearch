@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -134,7 +133,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", List.of(indexMetadata.getIndex()), 1L))
+                    .put(new DataStream(dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()), 1L))
                     .put(indexMetadata, true)
             )
             .build();

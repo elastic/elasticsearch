@@ -28,7 +28,6 @@ import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -150,7 +149,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder().put(indexMetadata, true)
-            .put(new DataStream(dataStreamName, "timestamp", List.of(indexMetadata.getIndex()), 1L))
+            .put(new DataStream(dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()), 1L))
             .build();
         step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 

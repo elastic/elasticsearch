@@ -24,7 +24,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep.parseIndexNameCounter;
@@ -168,7 +167,9 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
+                    .put(new DataStream(dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
+                        rolledIndexMeta.getIndex()),
+                        2L))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
             )

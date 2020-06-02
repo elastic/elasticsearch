@@ -896,6 +896,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected KeywordFieldMapper.KeywordFieldType keywordField(String name) {
         KeywordFieldMapper.KeywordFieldType result = new KeywordFieldMapper.KeywordFieldType();
         result.setName(name);
+        result.setHasDocValues(true);
         return result;
     }
 

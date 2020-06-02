@@ -79,3 +79,7 @@ integTestCluster {
                 "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${ -> azureStorageFixture.addressAndPort }"
     }
 }
+
+task azureThirdPartyTest {
+  dependsOn integTest
+}

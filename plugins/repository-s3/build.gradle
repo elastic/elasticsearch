@@ -320,6 +320,10 @@ if (useFixture) {
   project.check.dependsOn(integTestECS)
 }
 
+task s3ThirdPartyTest {
+  dependsOn integTest
+}
+
 thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'javax.servlet.ServletContextEvent', 

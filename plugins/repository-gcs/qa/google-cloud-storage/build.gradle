@@ -99,3 +99,7 @@ integTestCluster {
         println "Using an external service to test the repository-gcs plugin"
     }
 }
+
+task gcsThirdPartyTest {
+    dependsOn integTest
+}

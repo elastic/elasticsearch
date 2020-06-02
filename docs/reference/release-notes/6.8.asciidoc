@@ -10,9 +10,9 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [float]
 === Known issues
-* Slow loggers are causing log4j loggers to leak over time. When new index is created, new log4j logger was associated with it.
-However when deleting an index it, log4j was keeping a reference internally to its loggers causing a memory leak.
-https://github.com/elastic/elasticsearch/issues/56171 Fixed in 6.8.10 and 7.7.1
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
++
+This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
@@ -72,9 +72,9 @@ Engine::
 
 [float]
 === Known issues
-* Slow loggers are causing log4j loggers to leak over time. When new index is created, new log4j logger was associated with it.
-However when deleting an index it, log4j was keeping a reference internally to its loggers causing a memory leak.
-https://github.com/elastic/elasticsearch/issues/56171 Fixed in 6.8.10 and 7.7.1
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
++
+This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
@@ -117,9 +117,9 @@ Infra/Core::
 
 [float]
 === Known issues
-* Slow loggers are causing log4j loggers to leak over time. When new index is created, new log4j logger was associated with it.
-However when deleting an index it, log4j was keeping a reference internally to its loggers causing a memory leak.
-https://github.com/elastic/elasticsearch/issues/56171 Fixed in 6.8.10 and 7.7.1
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
++
+This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
@@ -175,9 +175,9 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [float]
 === Known issues
-* Slow loggers are causing log4j loggers to leak over time. When new index is created, new log4j logger was associated with it.
-However when deleting an index it, log4j was keeping a reference internally to its loggers causing a memory leak.
-https://github.com/elastic/elasticsearch/issues/56171 Fixed in 6.8.10 and 7.7.1
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
++
+This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
 [[enhancement-6.8.6]]
 [float]
@@ -225,9 +225,9 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
 [float]
 === Known issues
-* Slow loggers are causing log4j loggers to leak over time. When new index is created, new log4j logger was associated with it.
-However when deleting an index it, log4j was keeping a reference internally to its loggers causing a memory leak.
-https://github.com/elastic/elasticsearch/issues/56171 Fixed in 6.8.10 and 7.7.1
+* Slow loggers can cause Log4j loggers to leak over time. When a new index is created, a new Log4j logger is associated with it. However, when an index is deleted, Log4j keeps an internal reference to its loggers that results in a memory leak {pull}57228[#57228] (issue: {issue}56171[#56171])
++
+This issue is fixed in Elasticsearch 6.8.10 and 7.7.1.
 
 [[enhancement-6.8.5]]
 [float]
@@ -613,5 +613,3 @@ SQL::
 Security::
 * Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
 * Add granular API key privileges {pull}41488[#41488] (issue: {issue}40031[#40031])
-
-

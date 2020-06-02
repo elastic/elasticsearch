@@ -41,6 +41,8 @@ dependencies {
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
   testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+
+  compile 'io.ous:jtoml:2.0.0'
 }
 
 

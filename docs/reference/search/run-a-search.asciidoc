@@ -283,3 +283,5 @@ GET /*/_search
 ----
 // TEST[continued]
 ====
+
+include::request/from-size.asciidoc[]

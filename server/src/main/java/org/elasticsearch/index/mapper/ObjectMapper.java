@@ -199,7 +199,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecatedAndMaybeLog("include_in_all",
+                deprecationLogger.deprecate("include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
@@ -496,28 +496,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             throw new MapperException("The [include_in_root] parameter can't be updated for the nested object mapping [" +
                 name() + "].");
         }
-    }
-
-    @Override
-    public ObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        List<Mapper> updatedMappers = null;
-        for (Mapper mapper : this) {
-            Mapper updated = mapper.updateFieldType(fullNameToFieldType);
-            if (mapper != updated) {
-                if (updatedMappers == null) {
-                    updatedMappers = new ArrayList<>();
-                }
-                updatedMappers.add(updated);
-            }
-        }
-        if (updatedMappers == null) {
-            return this;
-        }
-        ObjectMapper updated = clone();
-        for (Mapper updatedMapper : updatedMappers) {
-            updated.putMapper(updatedMapper);
-        }
-        return updated;
     }
 
     @Override

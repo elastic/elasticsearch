@@ -123,6 +123,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             builder.setCreateTime(null);
             builder.setVersion(null);
         }
+        if (version.before(Version.V_8_0_0)) {
+            builder.setMaxNumThreads(null);
+        }
         return builder.build();
     }
 
@@ -232,6 +235,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
         }
         return builder;
     }

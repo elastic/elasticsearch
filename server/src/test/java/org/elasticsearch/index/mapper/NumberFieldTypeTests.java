@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class NumberFieldTypeTests extends FieldTypeTestCase {
+public class NumberFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     NumberType type;
 

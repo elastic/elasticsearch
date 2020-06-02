@@ -201,8 +201,10 @@ public class MetadataUpdateSettingsService {
                              * including updating it to null, indicating that they want to use the default value. In this case, we again
                              * have to provide an explicit value for the setting to the default (one).
                              */
-                            if (indexSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == null) {
-                                indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+                            if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
+                                indexSettings.put(
+                                    IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY));
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
@@ -228,8 +230,10 @@ public class MetadataUpdateSettingsService {
                              * including updating it to null, indicating that they want to use the default value. In this case, we again
                              * have to provide an explicit value for the setting to the default (one).
                              */
-                            if (indexSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == null) {
-                                indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+                            if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
+                                indexSettings.put(
+                                    IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY));
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(

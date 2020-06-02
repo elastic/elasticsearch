@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,10 +48,10 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray mins;
     DoubleArray maxes;
 
-    StatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat format,
-                        SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    StatsAggregator(String name, ValuesSourceConfig valuesSourceConfig, ValuesSource valuesSource,
+                    SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
@@ -61,7 +62,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
             maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-        this.format = format;
+        this.format = valuesSourceConfig.format();
     }
 
     @Override

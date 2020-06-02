@@ -2,7 +2,7 @@
 "Get backing indices for data stream":
   - skip:
       version: " - 7.8.99"
-      reason:  "data streams only supported in 7.9+"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -16,13 +16,13 @@
             mappings:
               properties:
                 '@timestamp':
-                   type: date
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
 
   - do:
       indices.create_data_stream:
         name: data-stream1
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   - do:

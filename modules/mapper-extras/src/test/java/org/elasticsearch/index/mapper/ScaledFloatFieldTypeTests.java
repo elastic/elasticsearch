@@ -29,42 +29,25 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
+public class ScaledFloatFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType();
         ft.setScalingFactor(100);
         return ft;
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("scaling_factor", false) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ScaledFloatFieldMapper.ScaledFloatFieldType tft = (ScaledFloatFieldMapper.ScaledFloatFieldType)ft;
-                tft.setScalingFactor(10);
-            }
-            @Override
-            public void normalizeOther(MappedFieldType other) {
-                super.normalizeOther(other);
-                ((ScaledFloatFieldMapper.ScaledFloatFieldType) other).setScalingFactor(100);
-            }
-        });
     }
 
     public void testTermQuery() {

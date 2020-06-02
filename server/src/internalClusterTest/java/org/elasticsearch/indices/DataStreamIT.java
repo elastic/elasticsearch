@@ -28,8 +28,8 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateV2Action;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateV2Action;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -43,8 +43,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -83,19 +83,17 @@ public class DataStreamIT extends ESIntegTestCase {
 
     @After
     public void deleteAllComposableTemplates() {
-        DeleteIndexTemplateV2Action.Request deleteTemplateRequest = new DeleteIndexTemplateV2Action.Request("*");
-        client().execute(DeleteIndexTemplateV2Action.INSTANCE, deleteTemplateRequest).actionGet();
+        DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
+        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
     }
 
     public void testBasicScenario() throws Exception {
-        createIndexTemplate("id1", "metrics-foo*", "@timestamp1", false);
+        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
-        createDataStreamRequest.setTimestampFieldName("@timestamp1");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        createIndexTemplate("id2", "metrics-bar*", "@timestamp2", false);
+        createIndexTemplate("id2", "metrics-bar*", "@timestamp2");
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
-        createDataStreamRequest.setTimestampFieldName("@timestamp2");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
@@ -168,10 +166,9 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testOtherWriteOps() throws Exception {
-        createIndexTemplate("id", "metrics-foobar*", "@timestamp1", false);
+        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
         String dataStreamName = "metrics-foobar";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        createDataStreamRequest.setTimestampFieldName("@timestamp1");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         {
@@ -220,15 +217,15 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testTimeStampValidation() throws Exception {
         // Adding a template with a mapping without a timestamp field and expect data stream creation to fail.
         {
-            PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
+            PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
             createTemplateRequest.indexTemplate(
-                new IndexTemplateV2(
+                new ComposableIndexTemplate(
                     List.of("logs-*"),
                     new Template(null, new CompressedXContent("{}"), null),
                     null, null, null, null,
-                    new IndexTemplateV2.DataStreamTemplate("@timestamp"))
+                    new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
             );
-            client().execute(PutIndexTemplateV2Action.INSTANCE, createTemplateRequest).actionGet();
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet();
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> client().index(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON)).actionGet());
             assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp], " +
@@ -236,7 +233,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
         // Adding a template with a mapping with a timestamp field and expect data stream creation to succeed.
         {
-            createIndexTemplate("logs-foo", "logs-*", "@timestamp", true);
+            createIndexTemplate("logs-foo", "logs-*", "@timestamp");
             client().index(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON)).actionGet();
 
             GetDataStreamAction.Response getDataStreamResponse =
@@ -248,15 +245,15 @@ public class DataStreamIT extends ESIntegTestCase {
         }
         // Adding a template with a mapping without a timestamp field and expect rollover to fail.
         {
-            PutIndexTemplateV2Action.Request createTemplateRequest = new PutIndexTemplateV2Action.Request("logs-foo");
+            PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
             createTemplateRequest.indexTemplate(
-                new IndexTemplateV2(
+                new ComposableIndexTemplate(
                     List.of("logs-*"),
                     new Template(null, new CompressedXContent("{}"), null),
                     null, null, null, null,
-                    new IndexTemplateV2.DataStreamTemplate("@timestamp"))
+                    new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
             );
-            client().execute(PutIndexTemplateV2Action.INSTANCE, createTemplateRequest).actionGet();
+            client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet();
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).actionGet());
             assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp], " +
@@ -264,7 +261,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
         // Adding a template with a mapping with a timestamp field and expect rollover to succeed.
         {
-            createIndexTemplate("logs-foo", "logs-*", "@timestamp", true);
+            createIndexTemplate("logs-foo", "logs-*", "@timestamp");
 
             RolloverResponse rolloverResponse =
                 client().admin().indices().rolloverIndex(new RolloverRequest("logs-foobar", null)).actionGet();
@@ -274,10 +271,9 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
-        createIndexTemplate("id", "logs-*", "ts", false);
+        createIndexTemplate("id", "logs-*", "ts");
         String dataStreamName = "logs-foobar";
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
-        request.setTimestampFieldName("ts");
         client().admin().indices().createDataStream(request).actionGet();
 
         verifyResolvability(dataStreamName, client().prepareIndex(dataStreamName)
@@ -298,14 +294,14 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
         verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
         verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
-        verifyResolvability(dataStreamName, getMapping(dataStreamName), true);
+        verifyResolvability(dataStreamName, getMapping(dataStreamName), false);
         verifyResolvability(dataStreamName, getSettings(dataStreamName), false);
         verifyResolvability(dataStreamName, health(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().cluster().prepareState().setIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().prepareFieldCaps(dataStreamName).setFields("*"), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareGetIndex().addIndices(dataStreamName), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
-        request.setTimestampFieldName("ts");
         client().admin().indices().createDataStream(request).actionGet();
         verifyResolvability("logs-barbaz", client().prepareIndex("logs-barbaz")
                 .setSource("{}", XContentType.JSON)
@@ -327,11 +323,12 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
         verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
         verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);
-        verifyResolvability(wildcardExpression, getMapping(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getMapping(wildcardExpression), false);
         verifyResolvability(wildcardExpression, getSettings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, health(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().cluster().prepareState().setIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
@@ -400,33 +397,17 @@ public class DataStreamIT extends ESIntegTestCase {
             "] matches a data stream, specify the corresponding concrete indices instead."));
     }
 
-    static void createIndexTemplate(String id,
-                                            String pattern,
-                                            String timestampFieldName,
-                                            boolean autoCreateDataStream) throws IOException {
-        if (autoCreateDataStream) {
-            PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request(id);
-            request.indexTemplate(
-                new IndexTemplateV2(
-                    List.of(pattern),
-                    new Template(null,
-                        new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
-                    null, null, null, null,
-                    new IndexTemplateV2.DataStreamTemplate(timestampFieldName))
-            );
-            client().execute(PutIndexTemplateV2Action.INSTANCE, request).actionGet();
-        } else {
-            PutIndexTemplateV2Action.Request request = new PutIndexTemplateV2Action.Request(id);
-            request.indexTemplate(
-                new IndexTemplateV2(
-                    List.of(pattern),
-                    new Template(null,
-                        new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
-                    null, null, null, null,
-                    null)
-            );
-            client().execute(PutIndexTemplateV2Action.INSTANCE, request).actionGet();
-        }
+    static void createIndexTemplate(String id, String pattern, String timestampFieldName) throws IOException {
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of(pattern),
+                new Template(null,
+                    new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName))
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
 }

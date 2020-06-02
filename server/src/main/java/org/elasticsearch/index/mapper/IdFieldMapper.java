@@ -182,7 +182,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                             + "you can re-enable it by updating the dynamic cluster setting: "
                             + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
                     }
-                    deprecationLogger.deprecatedAndMaybeLog("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
                         breakerService, mapperService);
                     return new IndexFieldData<LeafFieldData>() {
@@ -315,10 +315,5 @@ public class IdFieldMapper extends MetadataFieldMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // do nothing here, no merging, but also no exception
     }
 }

@@ -12,19 +12,19 @@ setup:
             mappings:
               properties:
                 '@timestamp':
-                   type: date
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
 
 ---
 "Delete backing index on data stream":
   - skip:
       version: " - 7.8.99"
-      reason:  "data streams only supported in 7.9+"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
         name: simple-data-stream
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   # rollover data stream to create new backing index
@@ -71,14 +71,12 @@ setup:
 ---
 "Attempt to delete write index on data stream is rejected":
   - skip:
-      version: " - 7.8.99"
-      reason:  "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason:  "mute bwc until backported"
 
   - do:
       indices.create_data_stream:
         name: simple-data-stream
-        body:
-          timestamp_field: "@timestamp"
   - is_true: acknowledged
 
   # rollover data stream to create new backing index

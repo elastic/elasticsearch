@@ -20,13 +20,13 @@ PUT _index_template/template
         }
       }
     }
+  },
+  "data_stream": {
+    "timestamp_field": "@timestamp"
   }
 }
 
 PUT /_data_stream/my-data-stream
-{
-  "timestamp_field" : "@timestamp"
-}
 -----------------------------------
 // TESTSETUP
 ////
@@ -35,7 +35,7 @@ PUT /_data_stream/my-data-stream
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
-DELETE /_index_template/*
+DELETE /_index_template/template
 -----------------------------------
 // TEARDOWN
 ////

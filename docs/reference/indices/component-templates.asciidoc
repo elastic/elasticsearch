@@ -98,7 +98,7 @@ GET /_component_template/template_1
 [[get-component-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-template]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-template]
 +
 To return all component templates, omit this parameter or use a value of `*`.
 
@@ -106,11 +106,11 @@ To return all component templates, omit this parameter or use a value of `*`.
 [[get-component-template-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[get-component-template-api-example]]
@@ -150,7 +150,7 @@ Name of the component template to create.
 If `true`, this request cannot replace or update existing component templates.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[put-component-template-api-request-body]]
 ==== {api-request-body-title}
@@ -160,11 +160,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 This is the template to be applied, may optionally include a `mappings`,
 `settings`, or `aliases` configuration.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
 
 `version`::
 (Optional, integer)

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -227,6 +228,14 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         builder.field("dims", fieldType().dims());
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        DenseVectorFieldType otherType = (DenseVectorFieldType) other.fieldType();
+        if (this.fieldType().dims() != otherType.dims()) {
+            conflicts.add("mapper [" + name() + "] has different dims");
+        }
     }
 
     @Override

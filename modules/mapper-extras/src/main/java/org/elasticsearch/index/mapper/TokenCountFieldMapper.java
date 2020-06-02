@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -200,10 +201,9 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
-        this.enablePositionIncrements = ((TokenCountFieldMapper) mergeWith).enablePositionIncrements;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        this.analyzer = ((TokenCountFieldMapper) other).analyzer;
+        this.enablePositionIncrements = ((TokenCountFieldMapper) other).enablePositionIncrements;
     }
 
     @Override

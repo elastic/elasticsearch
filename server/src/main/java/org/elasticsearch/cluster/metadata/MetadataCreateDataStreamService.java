@@ -106,14 +106,11 @@ public class MetadataCreateDataStreamService {
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
 
         private final String name;
-        private final String timestampFieldName;
 
         public CreateDataStreamClusterStateUpdateRequest(String name,
-                                                         String timestampFieldName,
                                                          TimeValue masterNodeTimeout,
                                                          TimeValue timeout) {
             this.name = name;
-            this.timestampFieldName = timestampFieldName;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
         }
@@ -136,6 +133,8 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
         }
 
+        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
+
         String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
             new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
@@ -143,12 +142,25 @@ public class MetadataCreateDataStreamService {
         currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
         assert firstBackingIndex != null;
-        validateBackingIndexMapping(request.timestampFieldName, firstBackingIndex);
+        validateBackingIndexMapping(template.getDataStreamTemplate().getTimestampField(), firstBackingIndex);
 
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
-            new DataStream(request.name, request.timestampFieldName, List.of(firstBackingIndex.getIndex())));
+            new DataStream(request.name, template.getDataStreamTemplate().getTimestampField(), List.of(firstBackingIndex.getIndex())));
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
+    }
+
+    public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {
+        final String v2Template = MetadataIndexTemplateService.findV2Template(metadata, dataStreamName, false);
+        if (v2Template == null) {
+            throw new IllegalArgumentException("no matching index template found for data stream [" + dataStreamName + "]");
+        }
+        ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(v2Template);
+        if (composableIndexTemplate.getDataStreamTemplate() == null) {
+            throw new IllegalArgumentException("matching index template [" + v2Template + "] for data stream [" + dataStreamName  +
+                "] has no data stream template");
+        }
+        return composableIndexTemplate;
     }
 
     private static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =

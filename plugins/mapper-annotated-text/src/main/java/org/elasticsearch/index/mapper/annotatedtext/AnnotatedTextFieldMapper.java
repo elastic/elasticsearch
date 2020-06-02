@@ -568,6 +568,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         return (AnnotatedTextFieldMapper) super.clone();
     }
 
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+    }
+
     public int getPositionIncrementGap() {
         return this.positionIncrementGap;
     }

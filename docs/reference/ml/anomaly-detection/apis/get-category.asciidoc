@@ -44,7 +44,7 @@ examine the description and examples of that category. For more information, see
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<category_id>`::
 (Optional, long) Identifier for the category. If you do not specify this
@@ -78,7 +78,7 @@ manual tweaking.
 
 `job_id`::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `max_matching_length`::
 (unsigned integer) The maximum length of the fields that matched the category.

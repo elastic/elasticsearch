@@ -1,7 +1,25 @@
 [[release-notes-6.8.10]]
 == {es} version 6.8.10
 
-coming::[6.8.10]
+[float]
+=== Bug fixes
+
+Infra/Logging::
+* SlowLoggers using single logger {pull}56708[#56708] (issue: {issue}56171[#56171])
+
+Machine Learning::
+* Fix delete_expired_data/nightly maintenance when many model snapshots need deleting {pull}57041[#57041] (issue: {issue}47103[#47103])
+
+Search::
+* Ensure search contexts are removed on index delete {pull}56335[#56335]
+* Fix validate query listener invocation bug {pull}56157[#56157]
+
+[[upgrade-6.8.10]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade bundled jdk to 14.0.1 {pull}57233[#57233]
 
 Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 

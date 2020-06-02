@@ -181,10 +181,8 @@ if (project != rootProject) {
     testingConventions.enabled = false
   }
 
-  configurations {
-    distribution
-    reaper
-  }
+  configurations.register("distribution")
+  configurations.register("reaper")
 
   dependencies {
     reaper project('reaper')

@@ -438,7 +438,7 @@ public final class IngestDocument {
     public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource, boolean ignoreEmptyValue) {
         Map<String, Object> model = createTemplateModel();
         Object value = valueSource.copyAndResolve(model);
-        if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue){
+        if (ignoreEmptyValue && valueSource instanceof ValueSource.TemplatedValue) {
             if (value == null) {
                 return;
             }

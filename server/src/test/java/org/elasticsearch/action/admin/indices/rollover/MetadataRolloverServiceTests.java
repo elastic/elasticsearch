@@ -602,7 +602,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
 
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
-            clusterService, indicesService, allocationService, null, env, null, testThreadPool, null, Collections.emptyList(), false);
+            clusterService, indicesService, allocationService, null, null, env,
+            null, testThreadPool, null, Collections.emptyList(), false);
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
             new AliasValidator(), null, xContentRegistry());
         MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,

@@ -197,13 +197,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
   (Optional, string) Specifies which field to use for suggestions.
 
 `suggest_text`::
-<<<<<<< HEAD
 (Optional, string) The source text for which the suggestions should be
 returned. Defaults to `0`, which does not terminate query execution early.
-=======
-  (Optional, string) The source text for which the suggestions should be
-  returned.
->>>>>>> 803028650f3... simplify changes
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +

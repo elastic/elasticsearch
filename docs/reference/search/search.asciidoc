@@ -217,6 +217,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
   returned.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
++
 Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
@@ -302,6 +303,7 @@ value cannot be zero (`0`).
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
++
 Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::

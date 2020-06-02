@@ -77,16 +77,9 @@ integTestCluster {
         // in a hacky way to change the protocol and endpoint. We must fix that.
         setting 'azure.client.integration_test.endpoint_suffix',
                 "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${ -> azureStorageFixture.addressAndPort }"
-
-        gradle.taskGraph.whenReady {
-          if (it.hasTask(azureThirdPartyTests)) {
-            throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables " +
-                    "'azure_storage_account', 'azure_storage_key', 'azure_storage_container' are set.")
-          }
-        }
     }
 }
 
-task azureThirdPartyTests {
-  dependsOn check
+task azureThirdPartyTest {
+  dependsOn integTest
 }

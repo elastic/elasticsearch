@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[slm-retention]]
-=== Snapshot retention
+== Snapshot lifecycle management retention
 
 You can include a retention policy in an {slm-init} policy to automatically delete old snapshots. 
 Retention runs as a cluster-level task and is not associated with a particular policy's schedule.
@@ -24,8 +24,6 @@ The retention task only considers snapshots initiated through {slm-init} policie
 either according to the policy schedule or through the 
 <<slm-api-execute-lifecycle, execute lifecycle>> API. 
 Manual snapshots are ignored and don't count toward the retention limits.
-
-If multiple policies snapshot to the same repository, they can define differing retention criteria. 
 
 To retrieve information about the snapshot retention task history, 
 use the  <<slm-api-get-stats, get stats>> API:

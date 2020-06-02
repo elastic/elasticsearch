@@ -86,7 +86,7 @@ you can request only the part of the cluster state that you need:
       Shows the cluster state version.
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 
 [[cluster-state-api-query-params]]
@@ -104,15 +104,15 @@ Defaults to `true`.
     that are open, closed or both. Available options: `open`, `closed`, `none`, 
     `all`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
     
 `ignore_unavailable`::
     (Optional, boolean) If `true`, unavailable indices (missing or closed) will 
     be ignored.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `wait_for_metadata_version`::
     (Optional, integer) Waits for the metadata version to be equal or greater 

@@ -330,10 +330,13 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        double fractionWasted = ((double) wastedBucketsOverestimate) / ((double) bucketOrds.size());
         /*
-         * Rebucket the aggregation so we have don't send send "wasted" buckets
-         * back to the coordinating node because it'll just merge them back
-         * together.
+         * If there are many incorrect buckets then rebucket the aggregation
+         * so we have don't send them to the coordinating now. It can turn
+         * pretty much everything that we can throw at it into right answers
+         * but it'd be rude to send it huge results just so it can merge them.
+         * On the other hand, rebucketing is fairly slow.
          *
          * TODO it'd be faster if we could apply the merging on the fly as we
          * replay the hits and build the buckets. How much faster is
@@ -343,7 +346,9 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          * But if there is a non-delaying but selectivate aggregation "above"
          * this one then the performance gain could be substantial.
          */
-        rebucket();
+        if (fractionWasted > .2) {
+            rebucket();
+        }
         return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds,
                 (bucketValue, docCount, subAggregationResults) ->
                     new InternalAutoDateHistogram.Bucket(bucketValue, docCount, formatter, subAggregationResults),

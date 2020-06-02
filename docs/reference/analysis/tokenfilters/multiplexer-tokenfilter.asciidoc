@@ -42,8 +42,8 @@ GET /_analyze
 
 The filter produces the following tokens. Note:
 
-* The output includes a single `few` token. No token filter set
-  changed the original `few` token, producing duplicate `few` tokens with a
+* The output includes a single `few` token. None of the specified token filter
+  sets changed the original `few` token, producing duplicate `few` tokens with a
   position of `0`. Because these duplicates were in the same position, the
   `multiplexer` filter removed them, leaving one in the output.
 

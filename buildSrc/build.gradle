@@ -28,11 +28,6 @@ plugins {
 
 group = 'org.elasticsearch.gradle'
 
-String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
-if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-  throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
-}
-
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean
   // won't wipe out the buildscript jar
@@ -179,14 +174,15 @@ if (project != rootProject) {
     'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
-  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
+    // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
+    // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
     test.enabled = false
+    testingConventions.enabled = false
   }
 
-  configurations {
-    distribution
-    reaper
-  }
+  configurations.register("distribution")
+  configurations.register("reaper")
 
   dependencies {
     reaper project('reaper')

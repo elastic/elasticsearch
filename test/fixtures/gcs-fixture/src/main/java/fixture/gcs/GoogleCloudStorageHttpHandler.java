@@ -167,13 +167,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final StringBuilder batch = new StringBuilder();
                 for (String line : Streams.readAllLines(requestBody.streamInput())) {
                     if (line.length() == 0 || line.startsWith("--") || line.toLowerCase(Locale.ROOT).startsWith("content")) {
-                        batch.append(line).append('\n');
+                        batch.append(line).append("\r\n");
                     } else if (line.startsWith("DELETE")) {
                         final String name = line.substring(line.indexOf(uri) + uri.length(), line.lastIndexOf(" HTTP"));
                         if (Strings.hasText(name)) {
                             blobs.remove(URLDecoder.decode(name, UTF_8));
-                            batch.append("HTTP/1.1 204 NO_CONTENT").append('\n');
-                            batch.append('\n');
+                            batch.append("HTTP/1.1 204 NO_CONTENT").append("\r\n");
+                            batch.append("\r\n");
                         }
                     }
                 }
@@ -243,7 +243,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
             } else {
-                exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+                exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
         } finally {
             int read = exchange.getRequestBody().read();

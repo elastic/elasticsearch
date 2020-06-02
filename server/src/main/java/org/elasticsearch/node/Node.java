@@ -69,7 +69,7 @@ import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -108,6 +108,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -125,6 +126,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -339,8 +341,8 @@ public class Node implements Closeable {
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
             resourcesToClose.add(resourceWatcherService);
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
-            DeprecationLogger.setThreadContext(threadPool.getThreadContext());
-            resourcesToClose.add(() -> DeprecationLogger.removeThreadContext(threadPool.getThreadContext()));
+            HeaderWarning.setThreadContext(threadPool.getThreadContext());
+            resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.getPluginSettings());
             final List<String> additionalSettingsFilter = new ArrayList<>(pluginsService.getPluginSettingsFilter());
@@ -388,8 +390,18 @@ public class Node implements Closeable {
             modules.add(indicesModule);
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
-            CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
+            List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
+                .stream()
+                .map(plugin -> plugin.getCircuitBreaker(settings))
+                .collect(Collectors.toList());
+            final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
+                pluginCircuitBreakers,
                 settingsModule.getClusterSettings());
+            pluginsService.filterPlugins(CircuitBreakerPlugin.class)
+                .forEach(plugin -> {
+                    CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
+                    plugin.setCircuitBreaker(breaker);
+                });
             resourcesToClose.add(circuitBreakerService);
             modules.add(new GatewayModule());
 
@@ -1015,10 +1027,12 @@ public class Node implements Closeable {
      * Creates a new {@link CircuitBreakerService} based on the settings provided.
      * @see #BREAKER_TYPE_KEY
      */
-    public static CircuitBreakerService createCircuitBreakerService(Settings settings, ClusterSettings clusterSettings) {
+    private static CircuitBreakerService createCircuitBreakerService(Settings settings,
+                                                                     List<BreakerSettings> breakerSettings,
+                                                                     ClusterSettings clusterSettings) {
         String type = BREAKER_TYPE_KEY.get(settings);
         if (type.equals("hierarchy")) {
-            return new HierarchyCircuitBreakerService(settings, clusterSettings);
+            return new HierarchyCircuitBreakerService(settings, breakerSettings, clusterSettings);
         } else if (type.equals("none")) {
             return new NoneCircuitBreakerService();
         } else {

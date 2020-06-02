@@ -51,19 +51,19 @@ or a request body parameter. If both parameters are specified, only the query
 parameter is used.
 
 `master_timeout`::
-(Optional{multi-param}, <<time-units, time units>>)
+(Optional, <<time-units, time units>>)
 Specifies the period of time to wait for a connection to the master node. If no
 response is received before the timeout expires, the request fails and returns
 an error. Defaults to `30s`.
 
 `timeout`::
-(Optional{multi-param-ref}, <<time-units, time units>>)
+(Optional, <<time-units, time units>>)
 Specifies the period of time to wait for a response. If no response is received
 before the timeout expires, the request fails and returns an error. Defaults to
 `30s`.
 
 `verify`::
-(Optional{multi-param-ref}, boolean)
+(Optional, boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.
@@ -76,13 +76,13 @@ You can manually perform this verification using the
 ==== {api-request-body-title}
 
 `master_timeout`::
-(Optional{multi-param-ref}, <<time-units, time units>>)
+(Optional, <<time-units, time units>>)
 Specifies the period of time to wait for
 a connection to the master node. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
 
 `timeout`::
-(Optional{multi-param-ref}, <<time-units, time units>>)
+(Optional, <<time-units, time units>>)
 Specifies the period of time to wait for
 a response. If no response is received before the timeout expires, the request
 fails and returns an error. Defaults to `30s`.
@@ -245,7 +245,7 @@ place of a host, path, query, or fragment in the URL.
 --
 
 `verify`::
-(Optional{multi-param-ref}, boolean)
+(Optional, boolean)
 If `true`, the request verifies the repository is functional on all master and
 data nodes in the cluster. If `false`, this verification is skipped. Defaults to
 `true`.

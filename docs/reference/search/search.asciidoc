@@ -77,13 +77,13 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 `explain`::
-(Optional{multi-param}, boolean) If `true`, returns detailed information about score
+(Optional, boolean) If `true`, returns detailed information about score
 computation as part of a hit. Defaults to `false`.
 
 `from`::
 +
 --
-(Optional{multi-param-ref}, integer)
+(Optional, integer)
 Starting document offset. Needs to be non-negative and defaults to `0`.
 
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -161,14 +161,14 @@ the index should be maintained for scrolled search.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `seq_no_primary_term`::
-(Optional{multi-param-ref}, boolean)
+(Optional, boolean)
 If `true`, returns sequence number and primary term of the last modification of
 each hit. See <<optimistic-concurrency-control>>.
 
 `size`::
 +
 --
-(Optional{multi-param-ref}, integer)
+(Optional, integer)
 Defines the number of hits to return. Defaults to `10`.
 
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -215,13 +215,13 @@ response.
 returned.
 
 `terminate_after`::
-(Optional{multi-param-ref}, integer)
+(Optional, integer)
 The maximum number of documents to collect for each shard, upon reaching which
 the query execution will terminate early. Defaults to `0`, which does not
 terminate query execution early.
 
 `timeout`::
-(Optional{multi-param-ref}, <<time-units, time units>>)
+(Optional, <<time-units, time units>>)
 Specifies the period of time to wait for a response. If no response is received
 before the timeout expires, the request fails and returns an error. Defaults to
 no timeout.
@@ -242,7 +242,7 @@ include the total number of hits matching the query.
 by their respective types in the response. Defaults to `true`.
 
 `version`::
-(Optional{multi-param-ref}, boolean)
+(Optional, boolean)
 If `true`, returns document version as part of a hit. Defaults to `false`.
 
 
@@ -251,14 +251,14 @@ If `true`, returns document version as part of a hit. Defaults to `false`.
 
 [[request-body-search-explain]]
 `explain`::
-(Optional{multi-param-ref}, boolean)
+(Optional, boolean)
 If `true`, returns detailed information about score computation as part of a
 hit. Defaults to `false`.
 
 `from`::
 +
 --
-(Optional{multi-param-ref}, integer)
+(Optional, integer)
 Starting document offset. Needs to be non-negative and defaults to `0`.
 
 By default, you cannot page through more than 10,000 documents using the `from`
@@ -283,11 +283,11 @@ As an alternative to deep paging, we recommend using
 
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::
-(Optional{multi-param-ref}, boolean) If `true`, returns sequence number and primary term of the
+(Optional, boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
 `size`:: 
-(Optional{multi-param-ref}, integer)
+(Optional, integer)
 The number of hits to return. Needs to be non-negative and defaults to `10`.
 +
 --
@@ -307,20 +307,20 @@ As an alternative to deep paging, we recommend using
 --
 
 `terminate_after`::
-(Optional{multi-param-ref}, integer)
+(Optional, integer)
 The maximum number of documents to collect for each shard, upon reaching which
 the query execution will terminate early. Defaults to `0`, which does not
 terminate query execution early.
 
 `timeout`::
-(Optional{multi-param-ref}, <<time-units, time units>>)
+(Optional, <<time-units, time units>>)
 Specifies the period of time to wait for a response. If no response is received
 before the timeout expires, the request fails and returns an error. Defaults to
 no timeout.
 
 [[request-body-search-version]]
 `version`::
-(Optional{multi-param-ref}, boolean)
+(Optional, boolean)
 If `true`, returns document version as part of a hit. Defaults to `false`.
 
 

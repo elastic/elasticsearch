@@ -92,7 +92,7 @@ PUT /example_points
     }
 }
 
-POST /example_points/_doc?refresh
+PUT /example_points/_doc/1?refresh
 {
     "name": "Wind & Wetter, Berlin, Germany",
     "location": [13.400544, 52.530286]

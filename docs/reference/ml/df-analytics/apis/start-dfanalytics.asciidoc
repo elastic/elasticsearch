@@ -53,14 +53,14 @@ destination index in advance with custom settings and mappings.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [[ml-start-dfanalytics-query-params]]
 ==== {api-query-parms-title}
 
 `timeout`::
 (Optional, <<time-units,time units>>) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=timeout-start]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-start]
 
 [[ml-start-dfanalytics-example]]
 ==== {api-examples-title}

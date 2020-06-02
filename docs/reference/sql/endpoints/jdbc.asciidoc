@@ -51,7 +51,7 @@ Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://[[http|https]://]*[host[:port]]*/[prefix]*<[?[option=value]&]*
+jdbc:es://[[http|https]://]?[host[:port]]?/[prefix]?[\?[option=value]&]*
 ----
 `jdbc:es://`:: Prefix. Mandatory.
 

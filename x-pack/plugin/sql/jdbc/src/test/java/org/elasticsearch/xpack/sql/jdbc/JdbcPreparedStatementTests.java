@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.INTEGER;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 
 public class JdbcPreparedStatementTests extends ESTestCase {
 
@@ -401,10 +402,15 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         JdbcPreparedStatement jps = createJdbcPreparedStatement();
 
         Time time = new Time(4675000);
+        jps.setTime(1, time);
+        assertEquals(time, value(jps));
+        assertEquals(TIME, jdbcType(jps));
+        assertTrue(value(jps) instanceof java.util.Date);
+
         Calendar nonDefaultCal = randomCalendar();
         jps.setTime(1, time, nonDefaultCal);
         assertEquals(4675000, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(DATETIME, jdbcType(jps));
+        assertEquals(TIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, time, Types.VARCHAR);

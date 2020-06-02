@@ -78,7 +78,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         ExecutableCondition condition = InternalAlwaysCondition.INSTANCE;
-        String index = HistoryStoreField.getHistoryIndexNameForTime(now);
+        String index = HistoryStoreField.getHistoryIndexNameForTime(now, null);
         client().prepareIndex().setIndex(index).setId(wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.TRIGGER_EVENT.getPreferredName())
@@ -309,7 +309,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         }
         LocalDateTime localDateTime = LocalDateTime.of(2015, 11, 5, 0, 0, 0, 0);
         ZonedDateTime triggeredTime =  ZonedDateTime.of(localDateTime,ZoneOffset.UTC);
-        final String watchRecordIndex = HistoryStoreField.getHistoryIndexNameForTime(triggeredTime);
+        final String watchRecordIndex = HistoryStoreField.getHistoryIndexNameForTime(triggeredTime, null);
 
         logger.info("Stopping watcher");
         stopWatcher();

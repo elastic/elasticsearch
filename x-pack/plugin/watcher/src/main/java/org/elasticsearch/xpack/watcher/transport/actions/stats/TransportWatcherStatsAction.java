@@ -66,7 +66,7 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
     @Override
     protected WatcherStatsResponse.Node nodeOperation(WatcherStatsRequest.Node request) {
         WatcherStatsResponse.Node statsResponse = new WatcherStatsResponse.Node(clusterService.localNode());
-        statsResponse.setWatcherState(lifeCycleService.getState());
+        statsResponse.setWatcherState(lifeCycleService.getState().get());
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());
         statsResponse.setThreadPoolMaxSize(executionService.executionThreadPoolMaxSize());
         if (request.includeCurrentWatches()) {

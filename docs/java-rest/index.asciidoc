@@ -1,7 +1,7 @@
 [[java-rest]]
 = Java REST Client
 
-include::../Versions.asciidoc[]
+include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
 include::overview.asciidoc[]
 

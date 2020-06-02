@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'

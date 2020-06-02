@@ -1,7 +1,7 @@
 [[painless]]
 = Painless Scripting Language
 
-include::../Versions.asciidoc[]
+include::{elasticsearch-root}/docs/Versions.asciidoc[]
 
 include::painless-guide.asciidoc[]
 

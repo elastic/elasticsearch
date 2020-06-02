@@ -23,7 +23,7 @@ switch (testPreserveFileTimestamps) {
         + testPreserveFileTimestamps + "]")
 }
 
-task buildBZip2Tar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
+tasks.register("buildBZip2Tar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
   tar.archiveExtension = 'tar.bz2'
   tar.compression = Compression.BZIP2
   tar.preserveFileTimestamps = preserveFileTimestamps
@@ -33,7 +33,7 @@ task buildBZip2Tar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar 
   }
 }
 
-task buildGZipTar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
+tasks.register("buildGZipTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
   tar.archiveExtension = 'tar.gz'
   tar.compression = Compression.GZIP
   tar.preserveFileTimestamps = preserveFileTimestamps
@@ -43,7 +43,7 @@ task buildGZipTar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar t
   }
 }
 
-task buildTar(type: SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
+tasks.register("buildTar", SymbolicLinkPreservingTar) { SymbolicLinkPreservingTar tar ->
   tar.archiveExtension = 'tar'
   tar.preserveFileTimestamps = preserveFileTimestamps
   from fileTree(source)

@@ -5,7 +5,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 archivesBaseName = 'x-pack-core'

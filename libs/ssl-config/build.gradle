@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "nebula.maven-base-publish"
+apply plugin: "elasticsearch.publish"
 
 dependencies {
   compile project(':libs:elasticsearch-core')

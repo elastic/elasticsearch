@@ -63,7 +63,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.azure.container', azureContainer
-    systemProperty 'test.azure.base_path', azureBasePath + "/searchable_snapshots_tests"
+    systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests"
   }
 }
 
@@ -98,5 +98,9 @@ testClusters.integTest {
   } else {
     println "Using an external service to test " + project.name
   }
+}
+
+task azureThirdPartyTest {
+  dependsOn integTest
 }
 

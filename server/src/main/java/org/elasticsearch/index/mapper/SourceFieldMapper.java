@@ -41,7 +41,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -301,9 +300,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
-        List<String> conflicts = new ArrayList<>();
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        SourceFieldMapper sourceMergeWith = (SourceFieldMapper) other;
         if (this.enabled != sourceMergeWith.enabled) {
             conflicts.add("Cannot update enabled setting for [_source]");
         }
@@ -313,8 +311,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (Arrays.equals(excludes(), sourceMergeWith.excludes()) == false) {
             conflicts.add("Cannot update excludes setting for [_source]");
         }
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);
-        }
     }
+
 }

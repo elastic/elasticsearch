@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParame
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -212,16 +213,18 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)mergeWith;
+    protected final void mergeOptions(FieldMapper other, List<String> conflicts) {
+        AbstractShapeGeometryFieldMapper gsfm = (AbstractShapeGeometryFieldMapper)other;
         if (gsfm.coerce.explicit()) {
             this.coerce = gsfm.coerce;
         }
         if (gsfm.orientation.explicit()) {
             this.orientation = gsfm.orientation;
         }
+        mergeGeoOptions(gsfm, conflicts);
     }
+
+    protected abstract void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts);
 
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {

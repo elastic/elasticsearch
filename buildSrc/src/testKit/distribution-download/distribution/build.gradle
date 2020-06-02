@@ -3,10 +3,10 @@ if (distroConfig != null) {
   // setup the test distribution as an artifact of this project
   String distroType = System.getProperty('tests.distro.type')
 
-  Task buildDistro
+  def buildDistro
   File buildFile
   if (['rpm', 'deb'].contains(distroType)) {
-    buildDistro = project.tasks.create("build" + distroType.capitalize(), Copy) {
+    buildDistro = project.tasks.register("build" + distroType.capitalize(), Copy) {
       from 'files'
       into 'build/files'
       include 'fake_elasticsearch.tar.gz'
@@ -21,7 +21,7 @@ if (distroConfig != null) {
       extension = "zip"
     }
     // copy file as is
-    buildDistro = project.tasks.create("buildArchive", Copy) {
+    buildDistro = project.tasks.register("buildArchive", Copy) {
       from 'files'
       include "fake_elasticsearch.${extension}"
       into 'build/files'

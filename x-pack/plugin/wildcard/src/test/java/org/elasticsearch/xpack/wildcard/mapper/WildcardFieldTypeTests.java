@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.wildcard.mapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-public class WildcardFieldTypeTests extends FieldTypeTestCase {
+public class WildcardFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new WildcardFieldMapper.WildcardFieldType();
-    }  
+    }
 }

@@ -4,9 +4,10 @@
 <titleabbrev>Stemmer override</titleabbrev>
 ++++
 
-Stems specified tokens based on custom mapping rules. The `stemmer_override`
-filter then assigns these tokens a `keyword` attribute of `true`. These keyword
-tokens are not stemmed by later stemmer filters, such as
+Stems specified tokens based on mapping rules in the form of 
+`token1[,..., tokenN] => override`. The `stemmer_override` filter then assigns
+these tokens a `keyword` attribute of `true`. These keyword tokens are not
+stemmed by later stemmer filters, such as
 <<analysis-stemmer-tokenfilter,`stemmer`>> or
 <<analysis-porterstem-tokenfilter,`porter_stem`>>.
 

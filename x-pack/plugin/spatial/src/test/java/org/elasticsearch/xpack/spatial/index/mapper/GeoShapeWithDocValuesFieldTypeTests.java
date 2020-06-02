@@ -8,23 +8,26 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.junit.Before;
 
-public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType();
-    }
+public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase<GeoShapeWithDocValuesFieldType> {
 
     @Before
-    public void setupProperties() {
-        addModifier(new FieldTypeTestCase.Modifier("orientation", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                ((GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
+    public void addModifiers() {
+        addModifier(t -> {
+            GeoShapeWithDocValuesFieldType copy = t.clone();
+            if (copy.orientation() == ShapeBuilder.Orientation.RIGHT) {
+                copy.setOrientation(ShapeBuilder.Orientation.LEFT);
+            } else {
+                copy.setOrientation(ShapeBuilder.Orientation.RIGHT);
             }
+            return copy;
         });
+    }
+
+    @Override
+    protected GeoShapeWithDocValuesFieldType createDefaultFieldType() {
+        return new GeoShapeWithDocValuesFieldType();
     }
 }

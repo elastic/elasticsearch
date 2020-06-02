@@ -56,14 +56,9 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final String name;
-        private String timestampFieldName;
 
         public Request(String name) {
             this.name = name;
-        }
-
-        public void setTimestampFieldName(String timestampFieldName) {
-            this.timestampFieldName = timestampFieldName;
         }
 
         @Override
@@ -72,23 +67,18 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (Strings.hasText(name) == false) {
                 validationException = ValidateActions.addValidationError("name is missing", validationException);
             }
-            if (Strings.hasText(timestampFieldName) == false) {
-                validationException = ValidateActions.addValidationError("timestamp field name is missing", validationException);
-            }
             return validationException;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
-            this.timestampFieldName = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
-            out.writeString(timestampFieldName);
         }
 
         @Override
@@ -96,13 +86,12 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name) &&
-                timestampFieldName.equals(request.timestampFieldName);
+            return name.equals(request.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, timestampFieldName);
+            return Objects.hash(name);
         }
     }
 
@@ -133,7 +122,6 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
                                        ActionListener<AcknowledgedResponse> listener) throws Exception {
             CreateDataStreamClusterStateUpdateRequest updateRequest =  new CreateDataStreamClusterStateUpdateRequest(
                 request.name,
-                request.timestampFieldName,
                 request.masterNodeTimeout(),
                 request.timeout()
             );

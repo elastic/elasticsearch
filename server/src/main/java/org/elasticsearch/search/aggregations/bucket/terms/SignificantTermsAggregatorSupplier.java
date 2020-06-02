@@ -41,5 +41,8 @@ interface SignificantTermsAggregatorSupplier extends AggregatorSupplier {
                      Aggregator parent,
                      SignificanceHeuristic significanceHeuristic,
                      SignificantTermsAggregatorFactory sigTermsFactory,
+                     boolean collectsFromSingleBucket,
                      Map<String, Object> metadata) throws IOException;
+
+    boolean needsToCollectFromSingleBucket();
 }

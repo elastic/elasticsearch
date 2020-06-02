@@ -25,12 +25,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
 
-public class RecoveryTranslogOperationsRequest extends TransportRequest {
+public class RecoveryTranslogOperationsRequest extends RecoveryTransportRequest {
 
     private final long recoveryId;
     private final ShardId shardId;
@@ -43,6 +42,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     RecoveryTranslogOperationsRequest(
             final long recoveryId,
+            final long requestSeqNo,
             final ShardId shardId,
             final List<Translog.Operation> operations,
             final int totalTranslogOps,
@@ -50,6 +50,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             final long maxSeqNoOfUpdatesOrDeletesOnPrimary,
             final RetentionLeases retentionLeases,
             final long mappingVersionOnPrimary) {
+        super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
@@ -127,5 +128,5 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             out.writeVLong(mappingVersionOnPrimary);
         }
     }
-    
+
     }

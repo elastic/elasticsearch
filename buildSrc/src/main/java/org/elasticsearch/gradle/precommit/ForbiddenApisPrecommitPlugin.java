@@ -33,7 +33,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -43,11 +43,19 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPluginManager().apply(ForbiddenApisPlugin.class);
 
-        TaskProvider<ExportElasticsearchBuildResourcesTask> buildResources = project.getTasks()
-            .named("buildResources", ExportElasticsearchBuildResourcesTask.class);
+        TaskProvider<ExportElasticsearchBuildResourcesTask> resourcesTask = project.getTasks()
+            .register("forbiddenApisResources", ExportElasticsearchBuildResourcesTask.class);
+        Path resourcesDir = project.getBuildDir().toPath().resolve("forbidden-apis-config");
+        resourcesTask.configure(t -> {
+            t.setOutputDir(resourcesDir.toFile());
+            t.copy("forbidden/jdk-signatures.txt");
+            t.copy("forbidden/es-all-signatures.txt");
+            t.copy("forbidden/es-test-signatures.txt");
+            t.copy("forbidden/http-signatures.txt");
+            t.copy("forbidden/es-server-signatures.txt");
+        });
         project.getTasks().withType(CheckForbiddenApis.class).configureEach(t -> {
-            ExportElasticsearchBuildResourcesTask buildResourcesTask = buildResources.get();
-            t.dependsOn(buildResources);
+            t.dependsOn(resourcesTask);
 
             assert t.getName().startsWith(ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME);
             String sourceSetName;
@@ -71,10 +79,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             }
             t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"));
             t.setSignaturesFiles(
-                project.files(
-                    buildResourcesTask.copy("forbidden/jdk-signatures.txt"),
-                    buildResourcesTask.copy("forbidden/es-all-signatures.txt")
-                )
+                project.files(resourcesDir.resolve("forbidden/jdk-signatures.txt"), resourcesDir.resolve("forbidden/es-all-signatures.txt"))
             );
             t.setSuppressAnnotations(Set.of("**.SuppressForbidden"));
             if (t.getName().endsWith("Test")) {
@@ -82,23 +87,23 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     t.getSignaturesFiles()
                         .plus(
                             project.files(
-                                buildResourcesTask.copy("forbidden/es-test-signatures.txt"),
-                                buildResourcesTask.copy("forbidden/http-signatures.txt")
+                                resourcesDir.resolve("forbidden/es-test-signatures.txt"),
+                                resourcesDir.resolve("forbidden/http-signatures.txt")
                             )
                         )
                 );
             } else {
                 t.setSignaturesFiles(
-                    t.getSignaturesFiles().plus(project.files(buildResourcesTask.copy("forbidden/es-server-signatures.txt")))
+                    t.getSignaturesFiles().plus(project.files(resourcesDir.resolve("forbidden/es-server-signatures.txt")))
                 );
             }
             ExtraPropertiesExtension ext = t.getExtensions().getExtraProperties();
             ext.set("replaceSignatureFiles", new Closure<Void>(t) {
                 @Override
                 public Void call(Object... names) {
-                    List<File> resources = new ArrayList<>(names.length);
+                    List<Path> resources = new ArrayList<>(names.length);
                     for (Object name : names) {
-                        resources.add(buildResourcesTask.copy("forbidden/" + name + ".txt"));
+                        resources.add(resourcesDir.resolve("forbidden/" + name + ".txt"));
                     }
                     t.setSignaturesFiles(project.files(resources));
                     return null;
@@ -108,9 +113,9 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             ext.set("addSignatureFiles", new Closure<Void>(t) {
                 @Override
                 public Void call(Object... names) {
-                    List<File> resources = new ArrayList<>(names.length);
+                    List<Path> resources = new ArrayList<>(names.length);
                     for (Object name : names) {
-                        resources.add(buildResourcesTask.copy("forbidden/" + name + ".txt"));
+                        resources.add(resourcesDir.resolve("forbidden/" + name + ".txt"));
                     }
                     t.setSignaturesFiles(t.getSignaturesFiles().plus(project.files(resources)));
                     return null;

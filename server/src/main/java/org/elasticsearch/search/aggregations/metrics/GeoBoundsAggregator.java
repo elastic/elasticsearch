@@ -50,9 +50,9 @@ final class GeoBoundsAggregator extends MetricsAggregator {
     DoubleArray negRights;
 
     GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
-            ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException {
+            ValuesSource valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.GeoPoint) valuesSource;
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();

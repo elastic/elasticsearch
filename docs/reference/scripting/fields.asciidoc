@@ -26,8 +26,10 @@ Depending on how many documents you have, this could mean millions or billions
 of executions: these scripts need to be fast!
 
 Field values can be accessed from a script using
-<<modules-scripting-doc-vals,doc-values>>, or
-<<modules-scripting-stored,stored fields or `_source` field>>, which are explained below.
+<<modules-scripting-doc-vals,doc-values>>,
+<<modules-scripting-source, the `_source` field>>, or
+<<modules-scripting-stored, stored fields>>,
+each of which is explained below.
 
 [[scripting-score]]
 [float]
@@ -137,32 +139,27 @@ access `text` fields from scripts.
 ===================================================
 
 [float]
-[[modules-scripting-stored]]
-=== Stored fields and `_source`
+[[modules-scripting-source]]
+=== The document `_source`
 
-_Stored fields_ -- fields explicitly marked as
-<<mapping-store,`"store": true`>> -- can be accessed using the
-`_fields['field_name'].value` or `_fields['field_name']` syntax.
-
-The document <<mapping-source-field,`_source`>>, which is really just a
-special stored field,  can be accessed using the `_source.field_name` syntax.
-The `_source` is loaded as a map-of-maps, so properties within object fields
-can be accessed as, for example, `_source.name.first`.
+The document <<mapping-source-field,`_source`>> can be accessed using the
+`_source.field_name` syntax. The `_source` is loaded as a map-of-maps, so
+properties within object fields can be accessed as, for example,
+`_source.name.first`.
 
 [IMPORTANT]
-.Prefer doc-values to stored fields
+.Prefer doc-values to _source
 =========================================================
 
-Stored fields (which includes the stored `_source` field) are much slower than
-doc-values.  They are  optimised for returning several fields per result,
-while doc values are optimised for accessing the value of a specific field in
-many documents.
+Accessing the `_source` field is much slower than using doc-values. The
+_source field is optimised for returning several fields per result, while doc
+values are optimised for accessing the value of a specific field in many
+documents.
 
-
-It makes sense to use `_source` or stored fields when generating a
-<<request-body-search-script-fields,script field>> for the top ten hits from a search
-result but, for other search and aggregation use cases, always prefer using
-doc values.
+It makes sense to use `_source` when generating a
+<<request-body-search-script-fields,script field>> for the top ten hits from a
+search result but, for other search and aggregation use cases, always prefer
+using doc values.
 =========================================================
 
 
@@ -174,14 +171,54 @@ PUT my_index
 {
   "mappings": {
     "properties": {
-      "title": { <1>
+      "first_name": {
         "type": "text"
       },
-      "first_name": {
+      "last_name": {
+        "type": "text"
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1?refresh
+{
+  "first_name": "Barry",
+  "last_name": "White"
+}
+
+GET my_index/_search
+{
+  "script_fields": {
+    "full_name": {
+      "script": {
+        "lang": "painless",
+        "source": "params._source.first_name + ' ' + params._source.last_name"
+      }
+    }
+  }
+}
+-------------------------------
+
+[float]
+[[modules-scripting-stored]]
+=== Stored fields
+
+_Stored fields_ -- fields explicitly marked as
+<<mapping-store,`"store": true`>> in the mapping -- can be accessed using the
+`_fields['field_name'].value` or `_fields['field_name']` syntax:
+
+[source,console]
+-------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "full_name": {
         "type": "text",
         "store": true
       },
-      "last_name": {
+      "title": {
         "type": "text",
         "store": true
       }
@@ -191,32 +228,22 @@ PUT my_index
 
 PUT my_index/_doc/1?refresh
 {
-  "title": "Mr",
-  "first_name": "Barry",
-  "last_name": "White"
+  "full_name": "Alice Ball",
+  "title": "Professor"
 }
 
 GET my_index/_search
 {
   "script_fields": {
-    "source": {
+    "name_with_title": {
       "script": {
         "lang": "painless",
-        "source": "params._source.title + ' ' + params._source.first_name + ' ' + params._source.last_name" <2>
-      }
-    },
-    "stored_fields": {
-      "script": {
-        "lang": "painless",
-        "source": "params._fields['first_name'].value + ' ' + params._fields['last_name'].value"
+        "source": "params._fields['title'].value + ' ' + params._fields['full_name'].value"
       }
     }
   }
 }
 -------------------------------
-
-<1> The `title` field is not stored and so cannot be used with the `_fields[]` syntax.
-<2> The `title` field can still be accessed from the `_source`.
 
 [TIP]
 .Stored vs `_source`

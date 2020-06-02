@@ -80,7 +80,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), GeoHashGridAggregationBuilder.NAME);
+            .getAggregator(config, GeoHashGridAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoGridAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoGridAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");

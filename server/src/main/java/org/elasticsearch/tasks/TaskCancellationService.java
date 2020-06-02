@@ -19,8 +19,6 @@
 
 package org.elasticsearch.tasks;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -52,12 +50,15 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.Set;
+import java.util.function.BiConsumer;
 
 public class TaskCancellationService implements Closeable {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
@@ -103,8 +104,8 @@ public class TaskCancellationService implements Closeable {
                 logger.trace("task [{}] is cancelled", taskId);
                 groupedListener.onResponse(null);
             });
-            sendHeartbeatTask.register(childrenNodes);
-            final Releasable unregisterTaskHeartbeats = Releasables.releaseOnce(() -> sendHeartbeatTask.unregister(childrenNodes));
+            sendHeartbeatTask.register(taskId, childrenNodes);
+            final Releasable unregisterTaskHeartbeats = Releasables.releaseOnce(() -> sendHeartbeatTask.unregister(taskId, childrenNodes));
             try {
                 StepListener<Void> banOnNodesListener = new StepListener<>();
                 setBanOnNodes(reason, waitForCompletion, task, childrenNodes, banOnNodesListener);
@@ -285,7 +286,7 @@ public class TaskCancellationService implements Closeable {
         }
     }
 
-    void sendHeartbeatRequest(NodeAndClusterAlias node) {
+    void sendHeartbeatRequest(NodeAndClusterAlias node, HeartbeatRequest request) {
         final Transport.Connection connection;
         try {
             connection = getConnection(node);
@@ -293,7 +294,6 @@ public class TaskCancellationService implements Closeable {
             return;
         }
         if (connection.getVersion().onOrAfter(Version.V_8_0_0) && connection.getNode().getVersion().onOrAfter(Version.V_8_0_0)) {
-            final HeartbeatRequest request = new HeartbeatRequest(localNodeId());
             transportService.sendRequest(connection, HEARTBEAT_ACTION_NAME, request, TransportRequestOptions.EMPTY,
                 new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
@@ -305,38 +305,41 @@ public class TaskCancellationService implements Closeable {
         }
     }
 
-    private static class HeartbeatRequest extends TransportRequest {
-        final String nodeId;
+    static final class HeartbeatRequest extends TransportRequest {
+        final Collection<TaskId> taskIds;
 
-        HeartbeatRequest(String nodeId) {
-            this.nodeId = Objects.requireNonNull(nodeId);
+        HeartbeatRequest(Set<TaskId> taskIds) {
+            this.taskIds = Objects.requireNonNull(taskIds);
         }
 
         HeartbeatRequest(StreamInput in) throws IOException {
             super(in);
-            this.nodeId = in.readString();
+            this.taskIds = in.readList(TaskId::readFromStream);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(nodeId);
+            out.writeCollection(taskIds);
         }
     }
 
     private class HeartbeatRequestHandler implements TransportRequestHandler<HeartbeatRequest> {
         @Override
         public void messageReceived(HeartbeatRequest request, TransportChannel channel, Task task) throws Exception {
-            taskManager.updateBanMarkerTimestamp(request.nodeId);
+            for (TaskId taskId : request.taskIds) {
+                taskManager.updateBanMarkerTimestamp(taskId);
+            }
         }
     }
 
     static final class SendHeartbeatTask extends AbstractAsyncTask {
-        private final ObjectIntMap<NodeAndClusterAlias> targets = new ObjectIntHashMap<>();
-        private final Consumer<NodeAndClusterAlias> sendFunction;
+        private final Map<NodeAndClusterAlias, List<TaskId>> targets = new HashMap<>();
+        private final BiConsumer<NodeAndClusterAlias, HeartbeatRequest> sendFunction;
         private final ThreadPool threadPool;
 
-        SendHeartbeatTask(Logger logger, ThreadPool threadPool, Consumer<NodeAndClusterAlias> sendFunction, TimeValue interval) {
+        SendHeartbeatTask(Logger logger, ThreadPool threadPool,
+                          BiConsumer<NodeAndClusterAlias, HeartbeatRequest> sendFunction, TimeValue interval) {
             super(logger, threadPool, interval, true);
             this.sendFunction = sendFunction;
             this.threadPool = threadPool;
@@ -347,18 +350,22 @@ public class TaskCancellationService implements Closeable {
             return targets.isEmpty() == false;
         }
 
-        synchronized void register(Collection<NodeAndClusterAlias> nodes) {
+        synchronized void register(TaskId taskId, Collection<NodeAndClusterAlias> nodes) {
             for (NodeAndClusterAlias node : nodes) {
-                targets.addTo(node, 1);
+                targets.computeIfAbsent(node, k -> new ArrayList<>()).add(taskId);
             }
             if (isScheduled() == false) {
                 rescheduleIfNecessary();
             }
         }
 
-        synchronized void unregister(Collection<NodeAndClusterAlias> nodes) {
+        synchronized void unregister(TaskId taskId, Collection<NodeAndClusterAlias> nodes) {
             for (NodeAndClusterAlias node : nodes) {
-                if (targets.addTo(node, -1) == 0) {
+                final List<TaskId> taskIds = targets.get(node);
+                assert taskIds != null;
+                final boolean removed = taskIds.remove(taskId);
+                assert removed;
+                if (taskIds.isEmpty()) {
                     targets.remove(node);
                 }
             }
@@ -369,15 +376,18 @@ public class TaskCancellationService implements Closeable {
 
         @Override
         protected void runInternal() {
-            final List<NodeAndClusterAlias> nodes;
+            final Map<NodeAndClusterAlias, HeartbeatRequest> toSend = new HashMap<>();
             synchronized (this) {
-                nodes = StreamSupport.stream(targets.keys().spliterator(), false).map(cursor -> cursor.value).collect(Collectors.toList());
+                for (Map.Entry<NodeAndClusterAlias, List<TaskId>> e : targets.entrySet()) {
+                    final Set<TaskId> taskIds = new HashSet<>(e.getValue());
+                    toSend.put(e.getKey(), new HeartbeatRequest(taskIds));
+                }
             }
             final ThreadContext threadContext = threadPool.getThreadContext();
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
-                for (NodeAndClusterAlias node : nodes) {
-                    sendFunction.accept(node);
+                for (Map.Entry<NodeAndClusterAlias, HeartbeatRequest> e : toSend.entrySet()) {
+                    sendFunction.accept(e.getKey(), e.getValue());
                 }
             }
         }

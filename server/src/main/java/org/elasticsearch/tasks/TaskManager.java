@@ -449,11 +449,10 @@ public class TaskManager implements ClusterStateApplier, Closeable {
         }
     }
 
-    void updateBanMarkerTimestamp(String nodeId) {
-        for (Map.Entry<TaskId, BanReason> entry : bannedParents.entrySet()) {
-            if (entry.getKey().getNodeId().equals(nodeId)) {
-                entry.getValue().lastUpdatedInMillis = threadPool.relativeTimeInMillis();
-            }
+    void updateBanMarkerTimestamp(TaskId taskId) {
+        final BanReason banReason = bannedParents.get(taskId);
+        if (banReason != null) {
+            banReason.lastUpdatedInMillis = threadPool.relativeTimeInMillis();
         }
     }
 

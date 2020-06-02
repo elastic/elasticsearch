@@ -26,27 +26,38 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeAndClusterAlias;
 
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class TaskCancellationServiceTests extends ESTestCase {
 
     public void testSendHeartbeatRequest() {
+        TaskId task1 = new TaskId(randomAlphaOfLength(4), randomNonNegativeLong());
+        TaskId task2 = new TaskId(randomAlphaOfLength(4), randomNonNegativeLong());
+        NodeAndClusterAlias node1 = new NodeAndClusterAlias(
+            new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT), "remote");
+        NodeAndClusterAlias node2 = new NodeAndClusterAlias(
+            new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT), null);
         DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
-        Set<NodeAndClusterAlias> receivedHeartbeats = new HashSet<>();
+        Map<NodeAndClusterAlias, Collection<TaskId>> receivedHeartbeats = new HashMap<>();
+        BiConsumer<NodeAndClusterAlias, TaskCancellationService.HeartbeatRequest> sendFunction =
+            (node, req) -> assertNull(receivedHeartbeats.put(node, req.taskIds));
+
         TaskCancellationService.SendHeartbeatTask sendingTask = new TaskCancellationService.SendHeartbeatTask(
-            logger, taskQueue.getThreadPool(), receivedHeartbeats::add, TimeValue.timeValueMillis(between(1, 1000)));
+            logger, taskQueue.getThreadPool(), sendFunction, TimeValue.timeValueMillis(between(1, 1000)));
         assertFalse(taskQueue.hasRunnableTasks());
         assertFalse(taskQueue.hasDeferredTasks());
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT);
-        sendingTask.register(Collections.singletonList(new NodeAndClusterAlias(node1, null)));
+
+        sendingTask.register(task1, Collections.singletonList(node1));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
         taskQueue.advanceTime();
@@ -54,38 +65,39 @@ public class TaskCancellationServiceTests extends ESTestCase {
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
         assertTrue(taskQueue.hasDeferredTasks());
-        assertThat(receivedHeartbeats, containsInAnyOrder(new NodeAndClusterAlias(node1, null)));
+        assertThat(receivedHeartbeats, hasEntry(node1, Set.of(task1)));
         receivedHeartbeats.clear();
 
         if (randomBoolean()) {
             taskQueue.advanceTime();
-            sendingTask.register(Collections.singletonList(new NodeAndClusterAlias(node2, "remote")));
+            sendingTask.register(task2, Set.of(node1, node2));
         } else {
-            sendingTask.register(Collections.singletonList(new NodeAndClusterAlias(node2, "remote")));
+            sendingTask.register(task2, Set.of(node1, node2));
             taskQueue.advanceTime();
         }
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
-        assertThat(receivedHeartbeats, containsInAnyOrder(new NodeAndClusterAlias(node1, null), new NodeAndClusterAlias(node2, "remote")));
+        assertThat(receivedHeartbeats, hasEntry(node1, Set.of(task1, task2)));
+        assertThat(receivedHeartbeats, hasEntry(node2, Set.of(task2)));
         receivedHeartbeats.clear();
 
         if (randomBoolean()) {
-            sendingTask.unregister(Collections.singletonList(new NodeAndClusterAlias(node2, "remote")));
+            sendingTask.unregister(task2, Set.of(node1, node2));
             taskQueue.advanceTime();
         } else {
             taskQueue.advanceTime();
-            sendingTask.unregister(Collections.singletonList(new NodeAndClusterAlias(node2, "remote")));
+            sendingTask.unregister(task2, Set.of(node1, node2));
         }
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
-        assertThat(receivedHeartbeats, containsInAnyOrder(new NodeAndClusterAlias(node1, null)));
+        assertThat(receivedHeartbeats, hasEntry(node1, Set.of(task1)));
         receivedHeartbeats.clear();
 
         if (randomBoolean()) {
             taskQueue.advanceTime();
         }
-        sendingTask.unregister(Collections.singletonList(new NodeAndClusterAlias(node1, null)));
+        sendingTask.unregister(task1, Set.of(node1));
         taskQueue.runAllTasks();
-        assertThat(receivedHeartbeats, empty());
+        assertThat(receivedHeartbeats.entrySet(), empty());
     }
 }

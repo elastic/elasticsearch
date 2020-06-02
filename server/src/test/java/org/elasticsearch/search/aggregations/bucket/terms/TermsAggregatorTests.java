@@ -185,7 +185,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertFalse(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
 
         // Infers depth_first because the maxOrd is 0 which is less than the size
         aggregationBuilder
@@ -194,7 +194,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertTrue(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
 
         aggregationBuilder
             .collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
@@ -202,7 +202,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertTrue(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
 
         aggregationBuilder
             .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
@@ -210,14 +210,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
-        assertFalse(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
 
         aggregationBuilder
             .order(BucketOrder.aggregation("card", true));
         aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertTrue(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
 
         indexReader.close();
         directory.close();
@@ -1329,12 +1329,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
-    }
-
-    private NumberFieldMapper.NumberFieldType longField(String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        type.setName(name);
-        return type;
     }
 
     private void assertNestedTopHitsScore(InternalMultiBucketAggregation<?, ?> terms, boolean withScore) {

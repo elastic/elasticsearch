@@ -92,7 +92,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             DiversifiedAggregationBuilder.NAME);
         if (supplier instanceof DiversifiedAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected " + DiversifiedAggregatorSupplier.class.toString() +

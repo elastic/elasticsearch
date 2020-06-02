@@ -403,11 +403,11 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
-                    deprecationLogger.deprecatedAndMaybeLog("excessive_completion_contexts",
+                    deprecationLogger.deprecate("excessive_completion_contexts",
                         "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
-                        " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
-                        "The maximum allowed number of completion contexts in a mapping will be limited to " +
-                        "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
+                            " in the mapping for index [" + context.indexSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME) + "]. " +
+                            "The maximum allowed number of completion contexts in a mapping will be limited to " +
+                            "[" + COMPLETION_CONTEXTS_LIMIT + "] starting in version [8.0].");
                 }
             }
         }

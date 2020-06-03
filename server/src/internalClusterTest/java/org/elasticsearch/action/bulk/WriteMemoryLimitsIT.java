@@ -64,6 +64,11 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
         return 1;
     }
 
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+    }
+
     public void testRejectionDueToRequestOverMemoryLimit() {
         final String index = "test";
         assertAcked(prepareCreate(index));

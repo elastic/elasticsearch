@@ -110,8 +110,8 @@ public class ShrinkAction implements LifecycleAction {
         CheckShrinkReadyStep checkShrinkReadyStep = new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey);
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, SHRUNKEN_INDEX_PREFIX);
         ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX);
-        CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, dataStreamCheckBranchingKey, SHRUNKEN_INDEX_PREFIX,
-            ShrunkenIndexCheckStep.NAME);
+        CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, dataStreamCheckBranchingKey,
+            SHRUNKEN_INDEX_PREFIX, ShrunkenIndexCheckStep.NAME);
         // by the time we get to this step we have 2 indices, the source and the shrunken one. we now need to choose an index
         // swapping strategy such that the shrunken index takes the place of the source index (which is also deleted).
         // if the source index is part of a data stream it's a matter of replacing it with the shrunken index one in the data stream and

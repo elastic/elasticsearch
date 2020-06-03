@@ -22,12 +22,14 @@ package org.elasticsearch.gradle.test;
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
+import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
@@ -47,19 +49,16 @@ public class TestWithSslPlugin implements Plugin<Project> {
             });
 
         project.getPlugins().withType(StandaloneRestTestPlugin.class).configureEach(restTestPlugin -> {
-            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-            SourceSet testSourceSet = sourceSets.getByName("test");
+            SourceSet testSourceSet = Util.getJavaTestSourceSet(project).get();
             testSourceSet.getResources().srcDir(new File(keyStoreDir, "test/ssl"));
             testSourceSet.compiledBy(exportKeyStore);
 
-            project.getTasks()
-                .withType(org.elasticsearch.gradle.testclusters.TestClustersAware.class)
-                .configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
+            project.getTasks().withType(TestClustersAware.class).configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
 
             // Tell the tests we're running with ssl enabled
             project.getTasks()
-                .withType(RestIntegTestTask.class)
-                .configureEach(integTest -> integTest.runner.systemProperty("tests.ssl.enabled", "true"));
+                .withType(RestTestRunnerTask.class)
+                .configureEach(runner -> runner.systemProperty("tests.ssl.enabled", "true"));
         });
 
         project.getPlugins().withType(TestClustersPlugin.class).configureEach(clustersPlugin -> {

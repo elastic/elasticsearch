@@ -147,7 +147,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         /*
          * Guess the interval to use based on the roughly estimated
          * duration. It'll be accurate or it'll produce more buckets
-         * than we need but it is quick. 
+         * than we need but it is quick.
          */
         if (normalizedDuration != 0) {
             for (int j = roundingInfo.innerIntervals.length-1; j >= 0; j--) {

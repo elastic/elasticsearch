@@ -138,7 +138,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.NONE); // The default, but we'll set it anyway just to be explicit
         TestAction testAction = new TestAction();
-        testAction.shardOperationOnPrimary(request, indexShard,
+        testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
                 result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));
@@ -168,7 +168,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestRequest request = new TestRequest();
         request.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         TestAction testAction = new TestAction();
-        testAction.shardOperationOnPrimary(request, indexShard,
+        testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
                 result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));
@@ -200,7 +200,7 @@ public class TransportWriteActionTests extends ESTestCase {
         request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
 
         TestAction testAction = new TestAction();
-        testAction.shardOperationOnPrimary(request, indexShard,
+        testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
                 result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));
@@ -245,7 +245,7 @@ public class TransportWriteActionTests extends ESTestCase {
     public void testDocumentFailureInShardOperationOnPrimary() throws Exception {
         TestRequest request = new TestRequest();
         TestAction testAction = new TestAction(true, true);
-        testAction.shardOperationOnPrimary(request, indexShard,
+        testAction.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                 CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
                 result.runPostReplicationActions(ActionListener.map(listener, ignore -> result.finalResponseIfSuccessful));

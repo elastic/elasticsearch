@@ -67,7 +67,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             CardinalityAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof CardinalityAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected CardinalityAggregatorSupplier, found [" +

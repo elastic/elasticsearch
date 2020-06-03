@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -192,13 +191,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new AbstractLatLonPointIndexFieldData.Builder();
+            return new AbstractLatLonPointIndexFieldData.Builder(CoreValuesSourceType.GEOPOINT);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.GEOPOINT;
-        }
     }
 
     protected static class ParsedGeoPoint extends GeoPoint implements ParsedPoint {

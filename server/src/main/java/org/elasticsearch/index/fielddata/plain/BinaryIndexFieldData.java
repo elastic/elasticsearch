@@ -34,12 +34,19 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
+        private final ValuesSourceType valuesSourceType;
+
+        public Builder(ValuesSourceType valuesSourceType) {
+            this.valuesSourceType = valuesSourceType;
+        }
+
         @Override
         public BinaryIndexFieldData build(
             IndexSettings indexSettings,
@@ -49,20 +56,27 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new BinaryIndexFieldData(indexSettings.getIndex(), fieldName);
+            return new BinaryIndexFieldData(indexSettings.getIndex(), fieldName, valuesSourceType);
         }
     }
     protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
-    public BinaryIndexFieldData(Index index, String fieldName) {
+    public BinaryIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
         this.index = index;
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
     }
 
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override

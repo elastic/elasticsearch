@@ -89,7 +89,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES);
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP);
     }
 
     @Override
@@ -414,12 +417,6 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
-    }
-
-    private NumberFieldMapper.NumberFieldType longField(String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        type.setName(name);
-        return type;
     }
 
     private void addMixedTextDocs(TextFieldType textFieldType, IndexWriter w) throws IOException {

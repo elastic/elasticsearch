@@ -31,8 +31,21 @@ import java.io.IOException;
 import java.util.Map;
 
 public interface HistogramAggregatorSupplier extends AggregatorSupplier {
-    Aggregator build(String name, AggregatorFactories factories, double interval, double offset,
-                     BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                     @Nullable ValuesSource valuesSource, DocValueFormat formatter,
-                     SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        double interval,
+        double offset,
+        BucketOrder order,
+        boolean keyed,
+        long minDocCount,
+        double minBound,
+        double maxBound,
+        @Nullable ValuesSource valuesSource,
+        DocValueFormat formatter,
+        SearchContext context,
+        Aggregator parent,
+        boolean collectsFromSingleBucket,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

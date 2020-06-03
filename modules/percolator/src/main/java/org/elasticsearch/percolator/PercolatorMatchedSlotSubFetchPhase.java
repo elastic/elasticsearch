@@ -32,7 +32,6 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -56,12 +55,11 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        innerHitsExecute(context.query(), context.searcher(), context.mapperService(), hits);
+        innerHitsExecute(context.query(), context.searcher(), hits);
     }
 
     static void innerHitsExecute(Query mainQuery,
                                  IndexSearcher indexSearcher,
-                                 MapperService mapperService,
                                  SearchHit[] hits) throws IOException {
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
         if (percolateQueries.isEmpty()) {
@@ -102,8 +100,8 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                 }
 
                 IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
-                hit.setField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())),
-                    mapperService.isMetadataField(fieldName));
+                // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
+                hit.setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
             }
         }
     }

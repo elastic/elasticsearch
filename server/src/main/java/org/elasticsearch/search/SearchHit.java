@@ -95,7 +95,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private BytesReference source;
 
     private Map<String, DocumentField> documentFields;
-    private Map<String, DocumentField> metaFields;
+    private final Map<String, DocumentField> metaFields;
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -450,22 +450,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         }
     }
 
-    public boolean isMetadataField(String fieldName) {
-        return metaFields.containsKey(fieldName);
-    }
-
     /*
     * Adds a new DocumentField to the map in case both parameters are not null.
     * */
-    public void setField(String fieldName, DocumentField field, boolean isMetaField) {
+    public void setDocumentField(String fieldName, DocumentField field) {
         if (fieldName == null || field == null) return;
-        if (isMetaField) {
-            if (metaFields.size() == 0) this.metaFields = new HashMap<>();
-            this.metaFields.put(fieldName, field);
-        } else {
-            if (documentFields.size() == 0) this.documentFields = new HashMap<>();
-            this.documentFields.put(fieldName, field);
-        }
+        if (documentFields.size() == 0) this.documentFields = new HashMap<>();
+        this.documentFields.put(fieldName, field);
     }
 
     /**

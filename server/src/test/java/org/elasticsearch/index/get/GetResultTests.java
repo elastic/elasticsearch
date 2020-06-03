@@ -29,6 +29,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -38,6 +44,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -242,8 +249,14 @@ public class GetResultTests extends ESTestCase {
         int numFields = isMetaFields? randomIntBetween(1, 3) : randomIntBetween(2, 10);
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
+        // As we are using this to construct a GetResult object that already contains
+        // index, type, id, version, seqNo, and source fields, we need to exclude them from random fields
+        Predicate<String> excludeMetaFieldFilter = field ->
+            field.equals(TypeFieldMapper.NAME) || field.equals(IndexFieldMapper.NAME) ||
+            field.equals(IdFieldMapper.NAME) || field.equals(VersionFieldMapper.NAME) ||
+            field.equals(SourceFieldMapper.NAME) || field.equals(SeqNoFieldMapper.NAME) ;
         while (fields.size() < numFields) {
-            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType, isMetaFields);
+            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType, isMetaFields, excludeMetaFieldFilter);
             DocumentField getField = tuple.v1();
             DocumentField expectedGetField = tuple.v2();
             if (fields.putIfAbsent(getField.getName(), getField) == null) {

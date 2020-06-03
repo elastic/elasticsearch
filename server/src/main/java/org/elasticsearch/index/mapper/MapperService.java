@@ -634,7 +634,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * @return Whether a field is a metadata field for older indexes
+     * @return Whether a field is a metadata field
+     * Deserialization of SearchHit objects sent from pre 7.8 nodes and GetResults objects sent from pre 7.3 nodes,
+     * uses this method to divide fields into meta and document fields.
      * TODO: remove in v 9.0
      * @deprecated  Use an instance method isMetadataField instead
      */
@@ -643,7 +645,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (IndicesModule.getBuiltInMetadataFields().contains(fieldName)) {
             return true;
         }
-        // adding _size field as meta-field for bwc
+        // if a node had Size Plugin installed, _size field should also be considered a meta-field
         return fieldName.equals("_size");
     }
 

@@ -203,20 +203,20 @@ public class FetchPhase implements SearchPhase {
                                       int subDocId,
                                       Map<String, Set<String>> storedToRequestedFields,
                                       LeafReaderContext subReaderContext) {
-        Map<String, DocumentField> docFields = emptyMap();
-        Map<String, DocumentField> metaFields = emptyMap();
         if (fieldsVisitor == null) {
-            return new SearchHit(docId, null, docFields, metaFields);
+            return new SearchHit(docId, null, null, null);
         }
-
         loadStoredFields(context.shardTarget(), subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
+        SearchHit searchHit;
         if (fieldsVisitor.fields().isEmpty() == false) {
-            docFields = new HashMap<>();
-            metaFields = new HashMap<>();
+            Map<String, DocumentField> docFields = new HashMap<>();
+            Map<String, DocumentField> metaFields = new HashMap<>();
             fillDocAndMetaFields(context, fieldsVisitor, storedToRequestedFields, docFields, metaFields);
+            searchHit = new SearchHit(docId, fieldsVisitor.id(), docFields, metaFields);
+        } else {
+            searchHit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
         }
-        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.id(), docFields, metaFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);

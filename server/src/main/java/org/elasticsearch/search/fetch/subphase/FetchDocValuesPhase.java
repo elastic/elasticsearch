@@ -124,8 +124,9 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                     DocumentField hitField = hit.field(field);
                     if (hitField == null) {
                         hitField = new DocumentField(field, new ArrayList<>(2));
-                        // docValues field is put under "fields" even if they are meta-data fields
-                        hit.setField(field, hitField, false);
+                        // even if we request a doc values of a meta-field (e.g. _routing),
+                        // docValues fields will still be document fields, and put under "fields" section of a hit.
+                        hit.setDocumentField(field, hitField);
                     }
                     final List<Object> values = hitField.getValues();
 

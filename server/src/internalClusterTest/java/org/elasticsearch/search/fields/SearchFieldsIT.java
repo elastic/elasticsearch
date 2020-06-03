@@ -659,7 +659,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("field1"), nullValue());
-        assertThat(searchResponse.getHits().getAt(0).isMetadataField("_routing"), equalTo(true));
         assertThat(searchResponse.getHits().getAt(0).field("_routing").getValue().toString(), equalTo("1"));
     }
 
@@ -1186,7 +1185,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
 
         assertThat(fields.get("field1"), nullValue());
-        assertThat(response.getHits().getAt(0).isMetadataField("_routing"), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
     }
 }

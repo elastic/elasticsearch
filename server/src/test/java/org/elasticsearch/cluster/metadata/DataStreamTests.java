@@ -98,4 +98,45 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
         }
     }
+
+    public void testReplaceBackingIndex() {
+        int numBackingIndices = randomIntBetween(2, 32);
+        int indexToReplace = randomIntBetween(1, numBackingIndices - 1);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int i = 1; i <= numBackingIndices; i++) {
+            indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
+        }
+        DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
+
+        Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
+        DataStream updated = original.replaceBackingIndex(indices.get(indexToReplace - 1), newBackingIndex);
+        assertThat(updated.getName(), equalTo(original.getName()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
+        assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
+        assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
+        assertThat(updated.getIndices().get(indexToReplace - 1), equalTo(newBackingIndex));
+
+        for (int i = 0; i < (numBackingIndices - 1); i++) {
+            if (i != indexToReplace - 1) {
+                assertThat(updated.getIndices().get(i), equalTo(original.getIndices().get(i)));
+            }
+        }
+    }
+
+    public void testReplaceBackingIndexThrowsExceptionIfIndexNotPartOfDataStream() {
+        int numBackingIndices = randomIntBetween(2, 32);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int i = 1; i <= numBackingIndices; i++) {
+            indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
+        }
+        DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
+
+        Index standaloneIndex = new Index("index-foo", UUIDs.randomBase64UUID(random()));
+        Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
+        expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(standaloneIndex, newBackingIndex));
+    }
 }

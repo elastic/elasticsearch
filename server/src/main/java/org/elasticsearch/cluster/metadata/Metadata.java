@@ -1466,7 +1466,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         List<String> conflicts = new ArrayList<>();
                         for (Map.Entry<String, IndexAbstraction> entry : potentialConflicts.entrySet()) {
                             if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX ||
-                                indexNames.contains(entry.getKey()) == false) {
+                                indexNames.stream().noneMatch(name -> name.endsWith(entry.getKey()))) {
                                 conflicts.add(entry.getKey());
                             }
                         }

@@ -53,6 +53,7 @@ public class StringProcessor implements Processor {
         LENGTH((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s).length()),
         RTRIM((String s) -> StringFunctionUtils.trimTrailingWhitespaces(s)),
         LTRIM((String s) -> StringFunctionUtils.trimLeadingWhitespaces(s)),
+        TRIM(String::trim),
         SPACE((Number n) -> {
             int i = n.intValue();
             if (i < 0) {

@@ -54,7 +54,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -283,11 +282,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.NUMERIC;
-        }
-
-        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -504,6 +498,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public String getFieldName() {
             return scaledFieldData.getFieldName();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return scaledFieldData.getValuesSourceType();
         }
 
         @Override

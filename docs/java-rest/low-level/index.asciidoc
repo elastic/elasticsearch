@@ -24,11 +24,11 @@ The low-level client's features include:
 
 --
 
-:doc-tests: {docdir}/../../client/rest/src/test/java/org/elasticsearch/client/documentation
+:doc-tests: {elasticsearch-root}/client/rest/src/test/java/org/elasticsearch/client/documentation
 include::usage.asciidoc[]
 include::configuration.asciidoc[]
 
-:doc-tests: {docdir}/../../client/sniffer/src/test/java/org/elasticsearch/client/sniff/documentation
+:doc-tests: {elasticsearch-root}/client/sniffer/src/test/java/org/elasticsearch/client/sniff/documentation
 include::sniffer.asciidoc[]
 
 include::../license.asciidoc[]

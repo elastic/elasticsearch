@@ -243,6 +243,15 @@ Creates or updates an index template.
 [source,console]
 --------------------------------------------------
 PUT /_index_template/template_1
+{
+  "index_patterns" : ["te*"],
+  "priority" : 1,
+  "template": {
+    "settings" : {
+      "number_of_shards" : 2
+    }
+  }
+}
 --------------------------------------------------
 
 [[put-index-template-api-request]]

@@ -706,7 +706,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
                             assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
-                            doExecute(task, bulkRequest, actionListener);
+                            doDispatchedExecute(task, bulkRequest, actionListener);
                         } else {
                             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                                 @Override
@@ -716,7 +716,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                                 @Override
                                 protected void doRun() throws Exception {
-                                    doExecute(task, bulkRequest, actionListener);
+                                    doDispatchedExecute(task, bulkRequest, actionListener);
                                 }
 
                                 @Override

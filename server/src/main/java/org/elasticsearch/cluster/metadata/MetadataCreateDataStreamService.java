@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectPath;
@@ -138,6 +139,7 @@ public class MetadataCreateDataStreamService {
         String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
             new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
+                .dataStreamName(request.name)
                 .settings(Settings.builder().put("index.hidden", true).build());
         currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);

@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -46,6 +47,11 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             @Override
             public String getFieldName() {
                 return in.getFieldName();
+            }
+
+            @Override
+            public ValuesSourceType getValuesSourceType() {
+                return in.getValuesSourceType();
             }
 
             @Override

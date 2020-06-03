@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
@@ -138,13 +140,8 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      * results. We keep this just to report to the profiler.
      */
     private int rebucketCount = 0;
-
-    private final Timer valueCountTimer = new Timer();
-    private final Timer nextValueTimer = new Timer();
-    private final Timer roundTimer = new Timer();
-    private final Timer ordLookupTimer = new Timer();
-    private final Timer newOrdTimer = new Timer();
-    private final Timer oldOrdTimer = new Timer();
+    private int segmentsWithSingleValuedOrds = 0;
+    private int segmentsWithMultiValuedOrds = 0;
 
     AutoDateHistogramAggregator(
         String name,
@@ -203,117 +200,126 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         SortedNumericDocValues values = valuesSource.longValues(ctx);
-        return new LeafBucketCollectorBase(sub, values) {
+        NumericDocValues singleValues = DocValues.unwrapSingleton(values);
+        if (singleValues != null) {
+            segmentsWithSingleValuedOrds++;
+            return new Collector(sub, values) {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (false == singleValues.advanceExact(doc)) {
+                        return;
+                    }
+                    IndexedRounding rounding = roundings.get(owningBucketOrd);
+                    long rounded = roundings.get(owningBucketOrd).prepared.round(singleValues.longValue());
+                    collectValue(sub, owningBucketOrd, doc, rounded, rounding);
+                }
+            };
+        }
+        segmentsWithMultiValuedOrds++;
+        return new Collector(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    valueCountTimer.start();
-                    int valuesCount = values.docValueCount();
-                    valueCountTimer.stop();
+                    return;
+                }
+                int valuesCount = values.docValueCount();
 
-                    long previousRounded = Long.MIN_VALUE;
-                    IndexedRounding rounding = roundings.get(owningBucketOrd);
-                    for (int i = 0; i < valuesCount; ++i) {
-                        nextValueTimer.start();
-                        long value = values.nextValue();
-                        nextValueTimer.stop();
-                        roundTimer.start();
-                        long rounded = rounding.prepared.round(value);
-                        roundTimer.stop();
-                        assert rounded >= previousRounded;
-                        if (rounded == previousRounded) {
-                            continue;
-                        }
-                        rounding = collectValue(sub, owningBucketOrd, doc, rounded, rounding);
-                        previousRounded = rounded;
+                long previousRounded = Long.MIN_VALUE;
+                IndexedRounding rounding = roundings.get(owningBucketOrd);
+                for (int i = 0; i < valuesCount; ++i) {
+                    long rounded = rounding.prepared.round(values.nextValue());
+                    if (rounded == previousRounded) {
+                        continue;
                     }
+                    rounding = collectValue(sub, owningBucketOrd, doc, rounded, rounding);
+                    previousRounded = rounded;
                 }
-            }
-
-            private IndexedRounding collectValue(
-                LeafBucketCollector sub,
-                long owningBucketOrd,
-                int doc,
-                long rounded,
-                IndexedRounding rounding
-            ) throws IOException {
-                ordLookupTimer.start();
-                long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
-                ordLookupTimer.stop();
-                if (bucketOrd < 0) { // already seen
-                    oldOrdTimer.start();
-                    bucketOrd = -1 - bucketOrd;
-                    collectExistingBucket(sub, doc, bucketOrd);
-                    oldOrdTimer.stop();
-                    return rounding;
-                }
-                newOrdTimer.start();
-                collectBucket(sub, doc, bucketOrd);
-                liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
-                int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
-                IndexedRounding r = increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, rounding);
-                newOrdTimer.stop();
-                return r;
-            }
-
-            /**
-             * Check if we need increase the rounding of {@code owningBucketOrd} using
-             * estimated bucket counts and the interval between the min and max buckets.
-             * {@link #rebucket()} if the new estimated number of wasted buckets is too high.
-             */
-            private IndexedRounding increaseRoundingIfNeeded(
-                long owningBucketOrd,
-                int oldEstimatedBucketCount,
-                long newKey,
-                IndexedRounding oldRounding
-            ) {
-                if (false == oldRounding.canIncrease) {
-                    return oldRounding;
-                }
-                if (mins.size() < owningBucketOrd + 1) {
-                    long oldSize = mins.size();
-                    mins = context.bigArrays().grow(mins, owningBucketOrd + 1);
-                    mins.fill(oldSize, mins.size(), Long.MAX_VALUE);
-                }
-                if (maxes.size() < owningBucketOrd + 1) {
-                    long oldSize = maxes.size();
-                    maxes = context.bigArrays().grow(maxes, owningBucketOrd + 1);
-                    maxes.fill(oldSize, maxes.size(), Long.MIN_VALUE);
-                }
-
-                long min = Math.min(mins.get(owningBucketOrd), newKey);
-                mins.set(owningBucketOrd, min);
-                long max = Math.max(maxes.get(owningBucketOrd), newKey);
-                maxes.set(owningBucketOrd, max);
-                if (oldEstimatedBucketCount <= targetBuckets * roundings.infos[oldRounding.index].getMaximumInnerInterval()
-                        && max - min <= targetBuckets * roundings.infos[oldRounding.index].getMaximumRoughEstimateDurationMillis()) {
-                    return oldRounding;
-                }
-                long oldRoughDuration = roundings.infos[oldRounding.index].roughEstimateDurationMillis;
-                int newRounding = oldRounding.index;
-                int newEstimatedBucketCount;
-                do {
-                    newRounding++;
-                    double ratio = (double) oldRoughDuration / (double) roundings.infos[newRounding].getRoughEstimateDurationMillis();
-                    newEstimatedBucketCount = (int) Math.ceil(oldEstimatedBucketCount * ratio);
-                } while (newRounding < roundings.infos.length - 1 && (
-                    newEstimatedBucketCount > targetBuckets * roundings.infos[newRounding].getMaximumInnerInterval()
-                        || max - min > targetBuckets * roundings.infos[newRounding].getMaximumRoughEstimateDurationMillis()));
-                IndexedRounding newIndexedRounding = roundings.set(owningBucketOrd, newRounding);
-                mins.set(owningBucketOrd, newIndexedRounding.prepared.round(mins.get(owningBucketOrd)));
-                maxes.set(owningBucketOrd, newIndexedRounding.prepared.round(maxes.get(owningBucketOrd)));
-                wastedBucketsOverestimate += oldEstimatedBucketCount - newEstimatedBucketCount;
-                if (wastedBucketsOverestimate > nextRebucketAt) {
-                    rebucket();
-                    // Bump the threshold for the next rebucketing
-                    wastedBucketsOverestimate = 0;
-                    nextRebucketAt *= 2;
-                } else {
-                    liveBucketCountUnderestimate.set(owningBucketOrd, newEstimatedBucketCount);
-                }
-                return newIndexedRounding;
             }
         };
+    }
+
+    protected abstract class Collector extends LeafBucketCollectorBase {
+        public Collector(LeafBucketCollector sub, Object values) {
+            super(sub, values);
+        }
+
+        protected IndexedRounding collectValue(
+            LeafBucketCollector sub,
+            long owningBucketOrd,
+            int doc,
+            long rounded,
+            IndexedRounding rounding
+        ) throws IOException {
+            long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
+            if (bucketOrd < 0) { // already seen
+                bucketOrd = -1 - bucketOrd;
+                collectExistingBucket(sub, doc, bucketOrd);
+                return rounding;
+            }
+            collectBucket(sub, doc, bucketOrd);
+            liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
+            int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
+            IndexedRounding r = increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, rounding);
+            return r;
+        }
+
+        /**
+         * Check if we need increase the rounding of {@code owningBucketOrd} using
+         * estimated bucket counts and the interval between the min and max buckets.
+         * {@link #rebucket()} if the new estimated number of wasted buckets is too high.
+         */
+        private IndexedRounding increaseRoundingIfNeeded(
+            long owningBucketOrd,
+            int oldEstimatedBucketCount,
+            long newKey,
+            IndexedRounding oldRounding
+        ) {
+            if (false == oldRounding.canIncrease) {
+                return oldRounding;
+            }
+            if (mins.size() < owningBucketOrd + 1) {
+                long oldSize = mins.size();
+                mins = context.bigArrays().grow(mins, owningBucketOrd + 1);
+                mins.fill(oldSize, mins.size(), Long.MAX_VALUE);
+            }
+            if (maxes.size() < owningBucketOrd + 1) {
+                long oldSize = maxes.size();
+                maxes = context.bigArrays().grow(maxes, owningBucketOrd + 1);
+                maxes.fill(oldSize, maxes.size(), Long.MIN_VALUE);
+            }
+
+            long min = Math.min(mins.get(owningBucketOrd), newKey);
+            mins.set(owningBucketOrd, min);
+            long max = Math.max(maxes.get(owningBucketOrd), newKey);
+            maxes.set(owningBucketOrd, max);
+            if (oldEstimatedBucketCount <= targetBuckets * roundings.infos[oldRounding.index].getMaximumInnerInterval()
+                    && max - min <= targetBuckets * roundings.infos[oldRounding.index].getMaximumRoughEstimateDurationMillis()) {
+                return oldRounding;
+            }
+            long oldRoughDuration = roundings.infos[oldRounding.index].roughEstimateDurationMillis;
+            int newRounding = oldRounding.index;
+            int newEstimatedBucketCount;
+            do {
+                newRounding++;
+                double ratio = (double) oldRoughDuration / (double) roundings.infos[newRounding].getRoughEstimateDurationMillis();
+                newEstimatedBucketCount = (int) Math.ceil(oldEstimatedBucketCount * ratio);
+            } while (newRounding < roundings.infos.length - 1 && (
+                newEstimatedBucketCount > targetBuckets * roundings.infos[newRounding].getMaximumInnerInterval()
+                    || max - min > targetBuckets * roundings.infos[newRounding].getMaximumRoughEstimateDurationMillis()));
+            IndexedRounding newIndexedRounding = roundings.set(owningBucketOrd, newRounding);
+            mins.set(owningBucketOrd, newIndexedRounding.prepared.round(mins.get(owningBucketOrd)));
+            maxes.set(owningBucketOrd, newIndexedRounding.prepared.round(maxes.get(owningBucketOrd)));
+            wastedBucketsOverestimate += oldEstimatedBucketCount - newEstimatedBucketCount;
+            if (wastedBucketsOverestimate > nextRebucketAt) {
+                rebucket();
+                // Bump the threshold for the next rebucketing
+                wastedBucketsOverestimate = 0;
+                nextRebucketAt *= 2;
+            } else {
+                liveBucketCountUnderestimate.set(owningBucketOrd, newEstimatedBucketCount);
+            }
+            return newIndexedRounding;
+        }
     }
 
     private void rebucket() {
@@ -388,18 +394,8 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         add.accept("wasted_buckets_overestimate", wastedBucketsOverestimate);
         add.accept("next_rebucket_at", nextRebucketAt);
         add.accept("rebucket_count", rebucketCount);
-        add.accept("value_count_time", valueCountTimer.getApproximateTiming());
-        add.accept("value_count_count", valueCountTimer.getCount());
-        add.accept("next_value_time", nextValueTimer.getApproximateTiming());
-        add.accept("next_value_count", nextValueTimer.getCount());
-        add.accept("round_time", roundTimer.getApproximateTiming());
-        add.accept("round_count", roundTimer.getCount());
-        add.accept("ord_lookup_time", ordLookupTimer.getApproximateTiming());
-        add.accept("ord_lookup_count", ordLookupTimer.getCount());
-        add.accept("new_ord_time", newOrdTimer.getApproximateTiming());
-        add.accept("new_ord_count", newOrdTimer.getCount());
-        add.accept("old_ord_time", oldOrdTimer.getApproximateTiming());
-        add.accept("old_ord_count", oldOrdTimer.getCount());
+        add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
+        add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
     }
 
     @Override

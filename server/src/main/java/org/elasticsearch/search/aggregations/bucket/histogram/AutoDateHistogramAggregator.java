@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramA
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -138,6 +139,13 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      */
     private int rebucketCount = 0;
 
+    private final Timer valueCountTimer = new Timer();
+    private final Timer nextValueTimer = new Timer();
+    private final Timer roundTimer = new Timer();
+    private final Timer ordLookupTimer = new Timer();
+    private final Timer newOrdTimer = new Timer();
+    private final Timer oldOrdTimer = new Timer();
+
     AutoDateHistogramAggregator(
         String name,
         AggregatorFactories factories,
@@ -199,13 +207,19 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
+                    valueCountTimer.start();
                     int valuesCount = values.docValueCount();
+                    valueCountTimer.stop();
 
                     long previousRounded = Long.MIN_VALUE;
                     IndexedRounding rounding = roundings.get(owningBucketOrd);
                     for (int i = 0; i < valuesCount; ++i) {
+                        nextValueTimer.start();
                         long value = values.nextValue();
+                        nextValueTimer.stop();
+                        roundTimer.start();
                         long rounded = rounding.prepared.round(value);
+                        roundTimer.stop();
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
@@ -223,16 +237,23 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 long rounded,
                 IndexedRounding rounding
             ) throws IOException {
+                ordLookupTimer.start();
                 long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
+                ordLookupTimer.stop();
                 if (bucketOrd < 0) { // already seen
+                    oldOrdTimer.start();
                     bucketOrd = -1 - bucketOrd;
                     collectExistingBucket(sub, doc, bucketOrd);
+                    oldOrdTimer.stop();
                     return rounding;
                 }
+                newOrdTimer.start();
                 collectBucket(sub, doc, bucketOrd);
                 liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
                 int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
-                return increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, rounding);
+                IndexedRounding r = increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, rounding);
+                newOrdTimer.stop();
+                return r;
             }
 
             /**
@@ -367,6 +388,18 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         add.accept("wasted_buckets_overestimate", wastedBucketsOverestimate);
         add.accept("next_rebucket_at", nextRebucketAt);
         add.accept("rebucket_count", rebucketCount);
+        add.accept("value_count_time", valueCountTimer.getApproximateTiming());
+        add.accept("value_count_count", valueCountTimer.getCount());
+        add.accept("next_value_time", nextValueTimer.getApproximateTiming());
+        add.accept("next_value_count", nextValueTimer.getCount());
+        add.accept("round_time", roundTimer.getApproximateTiming());
+        add.accept("round_count", roundTimer.getCount());
+        add.accept("ord_lookup_time", ordLookupTimer.getApproximateTiming());
+        add.accept("ord_lookup_count", ordLookupTimer.getCount());
+        add.accept("new_ord_time", newOrdTimer.getApproximateTiming());
+        add.accept("new_ord_count", newOrdTimer.getCount());
+        add.accept("old_ord_time", oldOrdTimer.getApproximateTiming());
+        add.accept("old_ord_count", oldOrdTimer.getCount());
     }
 
     @Override

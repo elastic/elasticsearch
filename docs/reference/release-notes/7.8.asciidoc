@@ -14,7 +14,5 @@ Search::
   {pull}54854[#54854]
 
 Features/Indices APIs::
-*  Add auto create action that the bulk action redirects to when new indices
-   need to be auto created. This means that action name `indices:admin/create`
-   can no longer be used as privilege to allow auto creation of indices and
-   instead `create_index` built in privilege should be used. {pull}55858[#55858]
+*  The privilege named `indices:admin/create` will no longer allow the auto 
+   creation of indices.  Use `create_index` instead. {pull}55858[#55858]

@@ -92,6 +92,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         if (docCounts.increment(bucketOrd, 1) == 1) {
+            // We calculate the final number of buckets only during the reduce phase. But we still need to
+            // trigger bucket consumer from time to time in order to give it a chance to check available memory and break
+            // the execution if we are running out. To achieve that we are passing 0 as a bucket count.
             multiBucketConsumer.accept(0);
         }
         subCollector.collect(doc, bucketOrd);

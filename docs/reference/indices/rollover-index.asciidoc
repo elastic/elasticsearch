@@ -231,15 +231,7 @@ The API returns the following response:
 PUT _index_template/template
 {
   "index_patterns": ["my-data-stream*"],
-  "template": {
-    "mappings": {
-      "properties": {
-        "date": {
-          "type": "date"
-        }
-      }
-    }
-  }
+
 }
 -----------------------------------
 // TEST
@@ -250,6 +242,15 @@ PUT _index_template/template
 PUT _index_template/template
 {
   "index_patterns": ["my-data-stream*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "date": {
+          "type": "date"
+        }
+      }
+    }
+  },
   "data_stream": {
     "timestamp_field": "@timestamp"
   }

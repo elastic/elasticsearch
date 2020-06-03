@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -25,8 +26,15 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 1L));
 
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
         Settings lifecycleNameSetting = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
-        Template template = new Template(lifecycleNameSetting, null, null);
+        Template template = new Template(lifecycleNameSetting, new CompressedXContent(mapping), null);
         createComposableTemplate(client(), "logs-template", "logs-foo*", template);
 
         String dataStream = "logs-foo";

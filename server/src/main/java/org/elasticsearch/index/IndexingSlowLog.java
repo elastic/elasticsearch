@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
@@ -90,7 +91,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     IndexingSlowLog(IndexSettings indexSettings) {
         this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
-        Loggers.setLevel(this.indexLogger, SlowLogLevel.TRACE.name());
+        Loggers.setLevel(this.indexLogger, Level.TRACE);
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);

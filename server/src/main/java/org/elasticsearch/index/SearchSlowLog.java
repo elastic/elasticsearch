@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -86,8 +87,8 @@ public final class SearchSlowLog implements SearchOperationListener {
     public SearchSlowLog(IndexSettings indexSettings) {
         this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
         this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
-        Loggers.setLevel(this.fetchLogger, SlowLogLevel.TRACE.name());
-        Loggers.setLevel(this.queryLogger, SlowLogLevel.TRACE.name());
+        Loggers.setLevel(this.fetchLogger, Level.TRACE);
+        Loggers.setLevel(this.queryLogger, Level.TRACE);
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
             this::setQueryWarnThreshold);

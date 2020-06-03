@@ -336,7 +336,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper oldMapper = this.mapper;
         DocumentMapper newMapper;
         if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping());
+            newMapper = oldMapper.merge(mapper.mapping(), reason);
         } else {
             newMapper = mapper;
         }

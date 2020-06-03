@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -124,10 +125,10 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
         docMapper = parser.parse("type", docMapper.mappingSource());
         if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
+            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
         } else {
             try {
-                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
+                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
                 fail();
             } catch (IllegalArgumentException e) {
                 for (String conflict : conflicts) {

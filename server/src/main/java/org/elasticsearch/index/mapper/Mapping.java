@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -86,8 +87,8 @@ public final class Mapping implements ToXContentFragment {
         return (T) metadataMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(Mapping) */
-    public Mapping merge(Mapping mergeWith) {
+    /** @see DocumentMapper#merge(Mapping, MergeReason) */
+    public Mapping merge(Mapping mergeWith, MergeReason reason) {
         RootObjectMapper mergedRoot = root.merge(mergeWith.root);
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetadataMappers = new HashMap<>(metadataMappersMap);
         for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {

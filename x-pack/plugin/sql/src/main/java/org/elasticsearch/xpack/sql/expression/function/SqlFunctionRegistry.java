@@ -106,6 +106,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
@@ -243,6 +244,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(Space.class, Space::new, "SPACE"),
                 def(StartsWith.class, StartsWith::new, "STARTS_WITH"),
                 def(Substring.class, Substring::new, "SUBSTRING"),
+                def(Trim.class, Trim::new, "TRIM"),
                 def(UCase.class, UCase::new, "UCASE")
             },
         // DataType conversion

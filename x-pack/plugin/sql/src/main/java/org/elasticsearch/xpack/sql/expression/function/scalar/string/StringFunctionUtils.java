@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import static org.elasticsearch.common.Strings.hasLength;
 
-abstract class StringFunctionUtils {
+final class StringFunctionUtils {
+
+    private StringFunctionUtils() {}
 
     /**
      * Extract a substring from the given string, using start index and length of the extracted substring.
@@ -41,7 +43,7 @@ abstract class StringFunctionUtils {
      * @return the resulting String
      */
     static String trimTrailingWhitespaces(String s) {
-        if (!hasLength(s)) {
+        if (hasLength(s) == false) {
             return s;
         }
 
@@ -60,7 +62,7 @@ abstract class StringFunctionUtils {
      * @return the resulting String
      */
     static String trimLeadingWhitespaces(String s) {
-        if (!hasLength(s)) {
+        if (hasLength(s) == false) {
             return s;
         }
 

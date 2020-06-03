@@ -1,8 +1,7 @@
+[chapter]
 [[data-streams]]
 = Data Streams
 
-[partintro]
---
 A data stream formalizes the notion of a stream of data for time based data sources.
 Data streams group indices from the same time-based data source together as an
 opaque container. A data stream keeps track of an ordered list of indices which are also known
@@ -104,5 +103,3 @@ The following APIs are available for managing data streams:
 * To get information about data streams, use the <<indices-get-data-stream, get data stream API>>.
 * To delete data streams, use the <<indices-delete-data-stream, delete data stream API>>.
 * To manually create a data stream, use the <<indices-create-data-stream, create data stream API>>.
-
---

@@ -62,20 +62,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 `index_filter`::
 (Optional,  <<query-dsl,query object>> Allows to filter indices if the provided
 query rewrites to `match_none` on every shard.
-+
---
-[IMPORTANT]
-====
-The filtering is done on a best-effort basis, it uses index statistics and mappings
-to rewrite queries to `match_none` instead of fully executing the request.
-For instance a `range` query over a `date` field can rewrite to `match_none`
-if all documents within a shard (including deleted documents) are outside
-of the provided range.
-However, not all queries can rewrite to `match_none` so this API may return
-an index even if the provided filter matches no document.
-====
---
-
 
 [[search-field-caps-api-response-body]]
 ==== {api-response-body-title}

@@ -3943,7 +3943,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .prepareRestoreSnapshot(repoName, snapName)
                 .setWaitForCompletion(true)
                 .setIndices(dottedHiddenIndex)
-                .execute().actionGet();
+                .get();
             assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
             assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(),
                 equalTo(restoreSnapshotResponse.getRestoreInfo().totalShards()));
@@ -3952,10 +3952,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertThat(clusterState.getMetadata().hasIndex(normalIndex), equalTo(false));
             assertThat(clusterState.getMetadata().hasIndex(hiddenIndex), equalTo(false));
             assertThat(clusterState.getMetadata().hasIndex(dottedHiddenIndex), equalTo(true));
-            cluster().wipeIndices(dottedHiddenIndex);
         }
     }
-
 
     private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {
         for (SnapshotInfo snapshotInfo : response.getSnapshots("test-repo")) {

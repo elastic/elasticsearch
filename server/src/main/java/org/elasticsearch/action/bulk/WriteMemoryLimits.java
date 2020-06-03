@@ -23,28 +23,27 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryLimits {
 
+    // A heuristic for the bytes overhead of a single write operation
+    public static final int WRITE_REQUEST_BYTES_OVERHEAD = 4096;
     public static final String WRITE_BYTES_MARKED = "write_bytes_marked";
 
     private final AtomicLong primaryCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong replicaBytes = new AtomicLong(0);
 
     public void markOperationStarted(long bytes) {
-        primaryCoordinatingBytes.addAndGet(bytes);
+        primaryCoordinatingBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
     }
 
     public void markOperationFinished(long bytes) {
-        decrementPendingBytes(bytes);
+        primaryCoordinatingBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
 
     public void markReplicaOperationStarted(long bytes) {
-        replicaBytes.getAndAdd(bytes);
+        replicaBytes.getAndAdd(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
     }
 
     public void markReplicaOperationFinished(long bytes) {
-        decrementPendingBytes(bytes);
+        replicaBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
 
-    private void decrementPendingBytes(long operationSizeInBytes) {
-        replicaBytes.getAndAdd(-operationSizeInBytes);
-    }
 }

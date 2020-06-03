@@ -258,22 +258,19 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         return validationException;
     }
 
-    // A heuristic for the bytes overhead of a single indexing operation
-    int WRITE_REQUEST_BYTES_OVERHEAD = 4096;
-
     static long writeSizeInBytes(Stream<DocWriteRequest<?>> requestStream) {
         return requestStream.mapToLong(request -> {
             if (request instanceof IndexRequest) {
                 if (((IndexRequest) request).source() != null) {
-                    return ((IndexRequest) request).source().length() + WRITE_REQUEST_BYTES_OVERHEAD;
+                    return ((IndexRequest) request).source().length();
                 }
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
                 if (doc != null && doc.source() != null) {
-                    return ((UpdateRequest) request).doc().source().length() + WRITE_REQUEST_BYTES_OVERHEAD;
+                    return ((UpdateRequest) request).doc().source().length();
                 }
             }
-            return WRITE_REQUEST_BYTES_OVERHEAD;
+            return 0;
         }).sum();
     }
 }

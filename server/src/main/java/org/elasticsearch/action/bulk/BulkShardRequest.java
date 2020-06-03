@@ -31,10 +31,12 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
-    private BulkItemRequest[] items;
+    private final AtomicBoolean bytesAccounted;
+    private final BulkItemRequest[] items;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -44,11 +46,17 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 items[i] = new BulkItemRequest(in);
             }
         }
+        this.bytesAccounted = new AtomicBoolean(false);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+        this(shardId, refreshPolicy, items, false);
+    }
+
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean bytesAccounted) {
         super(shardId);
         this.items = items;
+        this.bytesAccounted = new AtomicBoolean(bytesAccounted);
         setRefreshPolicy(refreshPolicy);
     }
 
@@ -153,5 +161,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
                 ((ReplicationRequest<?>) item.request()).onRetry();
             }
         }
+    }
+
+    public boolean isBytesAccounted() {
+        return bytesAccounted.get();
+    }
+
+    public void markBytesAccounted() {
+        assert bytesAccounted.get() == false;
+        bytesAccounted.set(true);
     }
 }

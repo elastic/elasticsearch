@@ -51,6 +51,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -138,6 +139,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }), listener, threadPool
         );
+    }
+
+    @Override
+    protected long primaryOperationSize(BulkShardRequest request) {
+        return DocWriteRequest.writeSizeInBytes(Stream.of(request.items()).map(BulkItemRequest::request));
     }
 
     public static void performOnPrimary(
@@ -416,6 +422,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             replica.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
             return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
+    }
+
+    @Override
+    protected long replicaOperationSize(BulkShardRequest request) {
+        return DocWriteRequest.writeSizeInBytes(Stream.of(request.items()).map(BulkItemRequest::request));
     }
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {

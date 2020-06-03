@@ -89,7 +89,7 @@ public abstract class TransportWriteAction<
     }
 
     protected long primaryOperationSize(Request request) {
-        return 4096;
+        return 0;
     }
 
     @Override
@@ -101,7 +101,7 @@ public abstract class TransportWriteAction<
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
-        return 4096;
+        return 0;
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */

@@ -5,20 +5,20 @@
 --
 A data stream formalizes the notion of a stream of data for time based data sources.
 Data streams group indices from the same time-based data source together as an
-opaque container. A data stream keeps track of an ordered list of indices. Also known
+opaque container. A data stream keeps track of an ordered list of indices which are also known
 as backing indices.
 
 The backing indices of a data steam are hidden indices. The last backing index is the
-write index. The other backing indices handle read requests. A data steam only accepts
+write index. The other backing indices handle read requests. A data stream only accepts
 index requests with `op_type` set to `create`. If specific documents need to be updated
 or deleted then these operations should happen via the backing index these documents
 reside in.
 
 Data streams rely on composable templates in order to get created. A composable template
-with a `data_stream` definition must exists for the namespace the data stream gets
-created in. A data stream is created automatically when indexing into namespace with
+with a `data_stream` definition must exist for the namespace in which the data stream
+is to be created. A data stream is created automatically when indexing into a namespace with
 a composable template with a `data_stream` definition. A data stream can also
-be created via the Create Data Stream API, but this also requires the existence of
+be created via the <<indices-create-data-stream,Create Data Stream API>>, but this also requires the existence of
 composable data stream.
 
 As part of setting up a data stream, the field that contains the primary timestamp
@@ -99,10 +99,10 @@ DELETE /_index_template/logs_template
 [[data-streams-apis]]
 == Data stream APIs
 
-The following APIs are for managing data stream APIs:
+The following APIs are available for managing data streams:
 
-* To get meta information about data streams use <<indices-get-data-stream, the get data stream api>>.
-* To delete data streams use <<indices-delete-data-stream, the delete data stream api>>.
-* To manually create a data stream use <<indices-create-data-stream, the create data stream api>>.
+* To get information about data streams, use the <<indices-get-data-stream, get data stream API>>.
+* To delete data streams, use the <<indices-delete-data-stream, delete data stream API>>.
+* To manually create a data stream, use the <<indices-create-data-stream, create data stream API>>.
 
 --

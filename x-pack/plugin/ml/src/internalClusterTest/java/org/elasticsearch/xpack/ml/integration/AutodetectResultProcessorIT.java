@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -88,13 +89,18 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -166,7 +172,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AcknowledgedResponse response = client().execute(DeleteJobAction.INSTANCE, request).actionGet();
         assertTrue(response.isAcknowledged());
         // Verify that deleting job also deletes associated model snapshots annotations
-        assertThat(getAnnotations(), empty());
+        assertThat(
+            getAnnotations().stream().map(Annotation::getAnnotation).collect(toList()),
+            everyItem(not(startsWith("Job model snapshot"))));
     }
 
     public void testProcessResults() throws Exception {
@@ -181,6 +189,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultsBuilder.addCategoryDefinition(categoryDefinition);
         ModelPlot modelPlot = createModelPlot();
         resultsBuilder.addModelPlot(modelPlot);
+        Annotation annotation = createAnnotation();
+        resultsBuilder.addAnnotation(annotation);
         ModelSizeStats modelSizeStats = createModelSizeStats();
         resultsBuilder.addModelSizeStats(modelSizeStats);
         ModelSnapshot modelSnapshot = createModelSnapshot();
@@ -222,17 +232,20 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         assertEquals(modelSnapshot, persistedModelSnapshot.results().get(0));
         assertEquals(Collections.singletonList(modelSnapshot), capturedUpdateModelSnapshotOnJobRequests);
 
-        // Verify that creating model snapshot also creates associated annotation
-        List<Annotation> annotations = getAnnotations();
-        assertThat(annotations, hasSize(1));
-        assertThat(
-            annotations.get(0).getAnnotation(),
-            is(equalTo(
-                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage())));
-
         Optional<Quantiles> persistedQuantiles = getQuantiles();
         assertTrue(persistedQuantiles.isPresent());
         assertEquals(quantiles, persistedQuantiles.get());
+
+        // Verify that there are two annotations:
+        //   1. one related to creating model snapshot
+        //   2. one for {@link Annotation} result
+        List<Annotation> annotations = getAnnotations();
+        assertThat("Annotations were: " + annotations.toString(), annotations, hasSize(2));
+        assertThat(
+            annotations.stream().map(Annotation::getAnnotation).collect(toList()),
+            containsInAnyOrder(
+                new ParameterizedMessage("Job model snapshot with id [{}] stored", modelSnapshot.getSnapshotId()).getFormattedMessage(),
+                annotation.getAnnotation()));
     }
 
     public void testProcessResults_ModelSnapshot() throws Exception {
@@ -464,6 +477,10 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return new ModelPlotTests().createTestInstance(JOB_ID);
     }
 
+    private static Annotation createAnnotation() {
+        return AnnotationTests.randomAnnotation(JOB_ID);
+    }
+
     private static ModelSizeStats createModelSizeStats() {
         ModelSizeStats.Builder builder = new ModelSizeStats.Builder(JOB_ID);
         builder.setTimestamp(randomDate());
@@ -498,47 +515,53 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         private final List<AutodetectResult> results = new ArrayList<>();
 
         ResultsBuilder addBucket(Bucket bucket) {
-            results.add(new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null, null, null));
+            results.add(
+                new AutodetectResult(Objects.requireNonNull(bucket), null, null, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addRecords(List<AnomalyRecord> records) {
-            results.add(new AutodetectResult(null, records, null, null, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, records, null, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addInfluencers(List<Influencer> influencers) {
-            results.add(new AutodetectResult(null, null, influencers, null, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, influencers, null, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addCategoryDefinition(CategoryDefinition categoryDefinition) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, categoryDefinition, null));
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, categoryDefinition, null));
             return this;
         }
 
         ResultsBuilder addModelPlot(ModelPlot modelPlot) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, null, null, modelPlot, null, null, null, null, null));
+            return this;
+        }
+
+        ResultsBuilder addAnnotation(Annotation annotation) {
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, annotation, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addModelSizeStats(ModelSizeStats modelSizeStats) {
-            results.add(new AutodetectResult(null, null, null, null, null, modelSizeStats, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, null, modelSizeStats, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addModelSnapshot(ModelSnapshot modelSnapshot) {
-            results.add(new AutodetectResult(null, null, null, null, modelSnapshot, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, null, modelSnapshot, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addQuantiles(Quantiles quantiles) {
-            results.add(new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null));
+            results.add(new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null, null));
             return this;
         }
 
         ResultsBuilder addFlushAcknowledgement(FlushAcknowledgement flushAcknowledgement) {
-            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, flushAcknowledgement));
+            results.add(new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, flushAcknowledgement));
             return this;
         }
 

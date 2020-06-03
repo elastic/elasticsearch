@@ -302,7 +302,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             SignificantTermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected SignificantTermsAggregatorSupplier, found [" +

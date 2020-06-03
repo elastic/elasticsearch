@@ -54,6 +54,11 @@ public class Annotation implements ToXContentObject, Writeable {
         }
     }
 
+    /**
+     * Result type is needed due to the fact that {@link Annotation} can be returned from C++ as an ML result.
+     */
+    public static final ParseField RESULTS_FIELD = new ParseField("annotation");
+
     public static final ParseField ANNOTATION = new ParseField("annotation");
     public static final ParseField CREATE_TIME = new ParseField("create_time");
     public static final ParseField CREATE_USERNAME = new ParseField("create_username");
@@ -81,7 +86,8 @@ public class Annotation implements ToXContentObject, Writeable {
     /**
      * Strict parser for cases when {@link Annotation} is returned from C++ as an ML result.
      */
-    private static final ObjectParser<Builder, Void> STRICT_PARSER = new ObjectParser<>(ANNOTATION.getPreferredName(), false, Builder::new);
+    private static final ObjectParser<Builder, Void> STRICT_PARSER =
+        new ObjectParser<>(RESULTS_FIELD.getPreferredName(), false, Builder::new);
 
     static {
         STRICT_PARSER.declareString(Builder::setAnnotation, ANNOTATION);
@@ -182,7 +188,7 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         modifiedUsername = in.readOptionalString();
         type = Type.fromString(in.readString());
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             event = in.readBoolean() ? in.readEnum(Event.class) : null;
             detectorIndex = in.readOptionalInt();
             partitionFieldName = in.readOptionalString();
@@ -224,7 +230,7 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             if (event != null) {
                 out.writeBoolean(true);
                 out.writeEnum(event);

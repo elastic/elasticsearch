@@ -76,6 +76,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -159,7 +160,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
-
 
     /**
      * Allows subclasses to provide alternate names for the provided field type, which
@@ -422,7 +422,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         a.postCollection();
         @SuppressWarnings("unchecked")
         A result = (A) a.buildTopLevel();
-        InternalAggregationTestCase.assertMultiBucketConsumer(result, bucketConsumer);
         return result;
     }
 
@@ -493,7 +492,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             a.postCollection();
             InternalAggregation agg = a.buildTopLevel();
             aggs.add(agg);
-            InternalAggregationTestCase.assertMultiBucketConsumer(agg, shardBucketConsumer);
         }
         if (aggs.isEmpty()) {
             return (A) root.buildEmptyAggregation();
@@ -715,7 +713,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
-                    ValuesSourceType vst = fieldType.getValuesSourceType();
+                    ValuesSourceType vst = fieldToVST(fieldType);
                     // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
                     AssertionError failure = null;
                     try {
@@ -739,6 +737,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
+        return fieldType.fielddataBuilder("")
+                                .build(createIndexSettings(), fieldType, null, null, null).getValuesSourceType();
+    }
+
     /**
      * Helper method to write a single document with a single value specific to the requested fieldType.
      *
@@ -748,7 +751,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
 
         String typeName = fieldType.typeName();
-        ValuesSourceType vst = fieldType.getValuesSourceType();
+        ValuesSourceType vst = fieldToVST(fieldType);
         Document doc = new Document();
         String json;
 
@@ -886,6 +889,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected NumberFieldMapper.NumberFieldType doubleField(String name) {
         NumberFieldMapper.NumberFieldType result = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+        result.setName(name);
+        return result;
+    }
+
+    /**
+     * Make a {@linkplain GeoPointFieldMapper.GeoPointFieldType} for a {@code geo_point}.
+     */
+    protected GeoPointFieldMapper.GeoPointFieldType geoPointField(String name) {
+        GeoPointFieldMapper.GeoPointFieldType result = new GeoPointFieldMapper.GeoPointFieldType();
+        result.setHasDocValues(true);
         result.setName(name);
         return result;
     }

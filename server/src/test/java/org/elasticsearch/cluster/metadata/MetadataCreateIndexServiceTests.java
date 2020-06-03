@@ -38,9 +38,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
-import org.elasticsearch.cluster.shards.ShardCounts;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -57,6 +56,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +75,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -94,21 +93,18 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.aggregateIndexSettings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
-import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
+import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.hasValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -465,17 +461,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testValidateIndexName() throws Exception {
-        ThreadPool testThreadPool = new TestThreadPool(getTestName());
-        try {
+        withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
-                ClusterServiceUtils.createClusterService(testThreadPool),
+                clusterService,
                 null,
                 null,
                 null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService), null,
                 null,
-                null,
-                testThreadPool,
+                threadPool,
                 null,
                 Collections.emptyList(),
                 false
@@ -493,9 +488,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             validateIndexName(checkerService, "..", "must not be '.' or '..'");
 
             validateIndexName(checkerService, "foo:bar", "must not contain ':'");
-        } finally {
-            testThreadPool.shutdown();
-        }
+        }));
     }
 
     private void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
@@ -534,36 +527,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
-    public void testShardLimit() {
-        int nodesInCluster = randomIntBetween(2,90);
-        ShardCounts counts = forDataNodeCount(nodesInCluster);
-        Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-            .build();
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            clusterSettings);
-
-        Settings indexSettings = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
-            .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
-            .build();
-
-        final ValidationException e = expectThrows(
-            ValidationException.class,
-            () -> MetadataCreateIndexService.checkShardLimit(indexSettings, state));
-        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        final String expectedMessage = String.format(
-            Locale.ROOT,
-            "this action would add [%d] total shards, but this cluster currently has [%d]/[%d] maximum shards open",
-            totalShards,
-            currentShards,
-            maxShards);
-        assertThat(e, hasToString(containsString(expectedMessage)));
-    }
-
     public void testValidateDotIndex() {
         List<SystemIndexDescriptor> systemIndexDescriptors = new ArrayList<>();
         systemIndexDescriptors.add(new SystemIndexDescriptor(".test", "test"));
@@ -571,17 +534,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test*", "test-1"));
         systemIndexDescriptors.add(new SystemIndexDescriptor(".pattern-test-overlapping", "test-2"));
 
-        ThreadPool testThreadPool = new TestThreadPool(getTestName());
-        try {
+        withTemporaryClusterService(((clusterService, threadPool) -> {
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
-                ClusterServiceUtils.createClusterService(testThreadPool),
+                clusterService,
                 null,
                 null,
                 null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService), null,
                 null,
-                null,
-                testThreadPool,
+                threadPool,
                 null,
                 systemIndexDescriptors,
                 false
@@ -610,10 +572,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test-overlapping], description: [test-2]"));
-
-        } finally {
-            testThreadPool.shutdown();
-        }
+        }));
     }
 
     public void testParseMappingsAppliesDataFromTemplateAndRequest() throws Exception {
@@ -648,7 +607,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.settings(Settings.builder().put("request_setting", "value2").build());
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(), Map.of(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
         assertThat(aggregatedIndexSettings.get("request_setting"), equalTo("value2"));
@@ -685,7 +644,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
             Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(), Map.of(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
         assertThat(aggregatedIndexSettings.get("key1"), equalTo("requestValue"));
@@ -699,14 +658,15 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     public void testDefaultSettings() {
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Map.of(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() {
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Map.of(),
-            null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService());
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
     }
@@ -730,7 +690,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ));
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request,
             MetadataIndexTemplateService.resolveSettings(templates), Map.of(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
             Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
@@ -757,7 +717,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 Settings.builder().put("index.blocks.write", true).build());
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(), Map.of(),
-            clusterState.metadata().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            clusterState.metadata().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService());
 
         assertThat(aggregatedIndexSettings.get("templateSetting"), is(nullValue()));
         assertThat(aggregatedIndexSettings.get("requestSetting"), is("requestValue"));
@@ -942,7 +903,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
             aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Map.of(),
-                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
         });
         assertThat(error.getMessage(), equalTo("Creating indices with soft-deletes disabled is no longer supported. "
             + "Please do not specify a value for setting [index.soft_deletes.enabled]."));
@@ -963,7 +924,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request.settings(settings.build());
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Map.of(),
-                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS));
+                null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService()));
         assertThat(error.getMessage(), equalTo("Translog retention settings [index.translog.retention.age] " +
             "and [index.translog.retention.size] are no longer supported. Please do not specify values for these settings"));
     }
@@ -979,7 +940,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         settings.put(SETTING_INDEX_VERSION_CREATED.getKey(), VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0));
         request.settings(settings.build());
         aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Map.of(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
     }
@@ -1318,4 +1279,17 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }
     }
 
+    private ShardLimitValidator randomShardLimitService() {
+        return createTestShardLimitService(randomIntBetween(10,10000));
+    }
+
+    private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+            consumer.accept(clusterService, threadPool);
+        } finally {
+            threadPool.shutdown();
+        }
+    }
 }

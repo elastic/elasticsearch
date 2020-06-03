@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -79,16 +80,23 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     private final NumericType numericType;
     protected final Index index;
     protected final String fieldName;
+    protected final ValuesSourceType valuesSourceType;
 
     public SortedNumericIndexFieldData(Index index, String fieldName, NumericType numericType) {
         this.index = index;
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
+        this.valuesSourceType = numericType.getValuesSourceType();
     }
 
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override
@@ -115,7 +123,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         }
         return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
     }
-    
+
     @Override
     protected XFieldComparatorSource dateNanosComparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
         if (numericType == NumericType.DATE) {

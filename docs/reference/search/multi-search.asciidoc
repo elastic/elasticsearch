@@ -50,14 +50,14 @@ this endpoint the `Content-Type` header should be set to `application/x-ndjson`.
 [[search-multi-search-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To search all indices, use `_all` or omit this parameter.
 
 [[search-multi-search-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 
 `ccs_minimize_roundtrips`::
 (Optional, boolean)
@@ -65,7 +65,7 @@ If `true`, network roundtrips between the coordinating node and remote clusters
 are minimized for {ccs} requests. Defaults to `true`. See
 <<ccs-network-delays>>.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
@@ -74,7 +74,7 @@ Defaults to `open`.
 If `true`, concrete, expanded or aliased indices are ignored when frozen.
 Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_searches`::
 (Optional, integer)
@@ -170,7 +170,7 @@ If `true`, the request does *not* return an error if a wildcard expression or
 This parameter also applies to <<indices-aliases,index aliases>> that point to a
 missing or closed index.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 

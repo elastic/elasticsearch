@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.job.results;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -41,6 +43,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         ModelSnapshot modelSnapshot;
         ModelSizeStats.Builder modelSizeStats;
         ModelPlot modelPlot;
+        Annotation annotation;
         Forecast forecast;
         ForecastRequestStats forecastRequestStats;
         CategoryDefinition categoryDefinition;
@@ -93,6 +96,11 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             modelPlot = null;
         }
         if (randomBoolean()) {
+            annotation = AnnotationTests.randomAnnotation(jobId);
+        } else {
+            annotation = null;
+        }
+        if (randomBoolean()) {
             forecast = new Forecast(jobId, randomAlphaOfLength(20), randomDate(),
                 randomNonNegativeLong(), randomInt());
         } else {
@@ -116,8 +124,8 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             flushAcknowledgement = null;
         }
         return new AutodetectResult(bucket, records, influencers, quantiles, modelSnapshot,
-                modelSizeStats == null ? null : modelSizeStats.build(), modelPlot, forecast, forecastRequestStats, categoryDefinition,
-                flushAcknowledgement);
+                modelSizeStats == null ? null : modelSizeStats.build(), modelPlot, annotation, forecast, forecastRequestStats,
+                categoryDefinition, flushAcknowledgement);
     }
 
     @Override

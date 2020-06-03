@@ -11,10 +11,10 @@ Authorization::
 * Remove synthetic role names of API keys as they confuse users {pull}56005[#56005]
 
 Features/ILM+SLM::
-* ILM add cluster update timeout on step retry {pull}54878[#54878]
+* ILM: Add cluster update timeout on step retry {pull}54878[#54878]
 
 SQL::
-* SQL: change error message for comparison against fields in filtering {pull}57126[#57126] (issue: {issue}57005[#57005])
+* Change error message for comparison against fields in filtering {pull}57126[#57126] (issue: {issue}57005[#57005])
 
 [[bug-7.7.1]]
 [float]
@@ -28,7 +28,7 @@ CCR::
 * Retry follow task when remote connection queue full {pull}55314[#55314]
 
 Cluster Coordination::
-* fix the problem of recovering twice when perform a full cluster restart(#55564) {pull}55780[#55780] (issue: {issue}55564[#55564])
+* Fix the problem of recovering twice when perform a full cluster restart(#55564) {pull}55780[#55780] (issue: {issue}55564[#55564])
 
 Discovery-Plugins::
 * Hide c.a.a.p.i.BasicProfileConfigFileLoader noise {pull}56346[#56346] (issues: {issue}20313[#20313], {issue}56333[#56333])
@@ -96,12 +96,12 @@ Recovery::
 * Fix trimUnsafeCommits for indices created before 6.2 {pull}57187[#57187] (issue: {issue}57091[#57091])
 
 SQL::
-* SQL: Fix unecessary evaluation for CASE/IIF {pull}57159[#57159] (issue: {issue}49672[#49672])
-* SQL: JDBC: fix access to the Manifest for non-entry JAR URLs {pull}56797[#56797] (issue: {issue}56759[#56759])
-* SQL: Fix JDBC url pattern in docs and error message {pull}56612[#56612] (issue: {issue}56476[#56476])
-* SQL: Fix serialization of JDBC prep statement date/time params {pull}56492[#56492] (issue: {issue}56084[#56084])
-* SQL: Fix issue with date range queries and timezone {pull}56115[#56115] (issue: {issue}56049[#56049])
-* SQL: SubSelect unresolved bugfix {pull}55956[#55956]
+* Fix unecessary evaluation for CASE/IIF {pull}57159[#57159] (issue: {issue}49672[#49672])
+* JDBC: fix access to the Manifest for non-entry JAR URLs {pull}56797[#56797] (issue: {issue}56759[#56759])
+* Fix JDBC url pattern in docs and error message {pull}56612[#56612] (issue: {issue}56476[#56476])
+* Fix serialization of JDBC prep statement date/time params {pull}56492[#56492] (issue: {issue}56084[#56084])
+* Fix issue with date range queries and timezone {pull}56115[#56115] (issue: {issue}56049[#56049])
+* SubSelect unresolved bugfix {pull}55956[#55956]
 
 Search::
 * Don't run sort optimization on size=0 {pull}57044[#57044] (issue: {issue}56923[#56923])
@@ -117,13 +117,6 @@ Snapshot/Restore::
 * Fix NPE in Partial Snapshot Without Global State {pull}55776[#55776] (issue: {issue}50234[#50234])
 * Fix Path Style Access Setting Priority {pull}55439[#55439] (issue: {issue}55407[#55407])
 
-[[regression-7.7.1]]
-[float]
-=== Regressions
-
-Infra/Scripting::
-* Change access pattern for GeoXXXValueSources {pull}54648[#54648]
-
 [[upgrade-7.7.1]]
 [float]
 === Upgrades
@@ -135,7 +128,7 @@ Infra/Packaging::
 * Upgrade bundled jdk to 14.0.1 {pull}57233[#57233]
 
 SQL::
-* SQL: update the JLine dependency to 3.14.1 {pull}57111[#57111] (issue: {issue}57076[#57076])
+* Update the JLine dependency to 3.14.1 {pull}57111[#57111] (issue: {issue}57076[#57076])
 
 [[release-notes-7.7.0]]
 == {es} version 7.7.0

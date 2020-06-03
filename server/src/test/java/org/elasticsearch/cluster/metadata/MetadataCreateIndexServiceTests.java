@@ -58,6 +58,7 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -472,7 +473,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                Collections.emptyList(),
+                new SystemIndices(Collections.emptyMap()),
                 false
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
@@ -545,29 +546,29 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 null,
-                systemIndexDescriptors,
+                new SystemIndices(Collections.singletonMap("foo", systemIndexDescriptors)),
                 false
             );
             // Check deprecations
-            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test2", false);
             assertWarnings("index name [.test2] starts with a dot '.', in the next major version, index " +
                 "names starting with a dot are reserved for hidden indices and system indices");
 
             // Check non-system hidden indices don't trigger a warning
-            checkerService.validateDotIndex(".test2", ClusterState.EMPTY_STATE, true);
+            checkerService.validateDotIndex(".test2", true);
 
             // Check NO deprecation warnings if we give the index name
-            checkerService.validateDotIndex(".test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateDotIndex(".test3", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".test", false);
+            checkerService.validateDotIndex(".test3", false);
 
             // Check that patterns with wildcards work
-            checkerService.validateDotIndex(".pattern-test", ClusterState.EMPTY_STATE, false);
-            checkerService.validateDotIndex(".pattern-test-with-suffix", ClusterState.EMPTY_STATE, false);
-            checkerService.validateDotIndex(".pattern-test-other-suffix", ClusterState.EMPTY_STATE, false);
+            checkerService.validateDotIndex(".pattern-test", false);
+            checkerService.validateDotIndex(".pattern-test-with-suffix", false);
+            checkerService.validateDotIndex(".pattern-test-other-suffix", false);
 
             // Check that an exception is thrown if more than one descriptor matches the index name
             AssertionError exception = expectThrows(AssertionError.class,
-                () -> checkerService.validateDotIndex(".pattern-test-overlapping", ClusterState.EMPTY_STATE, false));
+                () -> checkerService.validateDotIndex(".pattern-test-overlapping", false));
             assertThat(exception.getMessage(),
                 containsString("index name [.pattern-test-overlapping] is claimed as a system index by multiple system index patterns:"));
             assertThat(exception.getMessage(), containsString("pattern: [.pattern-test*], description: [test-1]"));

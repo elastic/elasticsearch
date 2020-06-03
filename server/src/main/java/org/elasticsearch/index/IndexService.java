@@ -145,8 +145,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private final IndexNameExpressionResolver expressionResolver;
-    private Supplier<Sort> indexSortSupplier;
-    private ValuesSourceRegistry valuesSourceRegistry;
+    private final Supplier<Sort> indexSortSupplier;
+    private final ValuesSourceRegistry valuesSourceRegistry;
+    private final boolean isSystem;
 
     public IndexService(
             IndexSettings indexSettings,
@@ -174,7 +175,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             BooleanSupplier idFieldDataEnabled,
             BooleanSupplier allowExpensiveQueries,
             IndexNameExpressionResolver expressionResolver,
-            ValuesSourceRegistry valuesSourceRegistry) {
+            ValuesSourceRegistry valuesSourceRegistry,
+            boolean isSystem) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -233,6 +235,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.isSystem = isSystem;
         updateFsyncTaskIfNecessary();
     }
 
@@ -309,6 +312,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public Supplier<Sort> getIndexSortSupplier() {
         return indexSortSupplier;
+    }
+
+    public boolean isSystem() {
+        return isSystem;
     }
 
     public synchronized void close(final String reason, boolean delete) throws IOException {
@@ -474,7 +481,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
-                    circuitBreakerService);
+                    circuitBreakerService,
+                    isSystem);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);

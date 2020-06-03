@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -97,12 +98,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final RemoteClusterService remoteClusterService;
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
+    private final IndicesService indicesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportSearchAction(ThreadPool threadPool, TransportService transportService, SearchService searchService,
                                  SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
-                                 ClusterService clusterService, ActionFilters actionFilters,
+                                 ClusterService clusterService, ActionFilters actionFilters, IndicesService indicesService,
                                  IndexNameExpressionResolver indexNameExpressionResolver) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.threadPool = threadPool;
@@ -112,6 +114,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;
+        this.indicesService = indicesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
@@ -514,7 +517,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
         boolean preFilterSearchShards = shouldPreFilterSearchShards(clusterState, searchRequest, indices, shardIterators.size());
-        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState,
+        searchAsyncAction(task, searchRequest, indices, shardIterators, timeProvider, connectionLookup, clusterState,
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
 
@@ -579,6 +582,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction(SearchTask task, SearchRequest searchRequest,
+                                                        Index[] indices,
                                                         GroupShardsIterator<SearchShardIterator> shardIterators,
                                                         SearchTimeProvider timeProvider,
                                                         BiFunction<String, String, Transport.Connection> connectionLookup,
@@ -589,7 +593,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                         ActionListener<SearchResponse> listener,
                                                         boolean preFilter,
                                                         SearchResponse.Clusters clusters) {
-        Executor executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        final Executor executor = isOnlySystemIndices(indices) ?
+            threadPool.executor(ThreadPool.Names.SYSTEM_READ) : threadPool.executor(ThreadPool.Names.SEARCH);
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
                 aliasFilter, concreteIndexBoosts, indexRoutings, executor, searchRequest, listener, shardIterators,
@@ -597,6 +602,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
                     task,
                     searchRequest,
+                    indices,
                     iter,
                     timeProvider,
                     connectionLookup,
@@ -632,6 +638,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             return searchAsyncAction;
         }
+    }
+
+    private boolean isOnlySystemIndices(Index[] indices) {
+        for (Index index : indices) {
+            if (indicesService.isSystemIndex(index) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {

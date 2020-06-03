@@ -167,8 +167,8 @@ public class IndexModuleTests extends ESTestCase {
 
     public void testWrapperIsBound() throws IOException {
         final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
-        IndexModule module = new IndexModule(
-                indexSettings, emptyAnalysisRegistry, engineFactory, Collections.emptyMap(), () -> true, new IndexNameExpressionResolver());
+        IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, engineFactory, Collections.emptyMap(), () -> true,
+            new IndexNameExpressionResolver(), randomBoolean());
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
@@ -189,7 +189,7 @@ public class IndexModuleTests extends ESTestCase {
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = singletonMap(
             "foo_store", new FooFunction());
         final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories,
-            () -> true, new IndexNameExpressionResolver());
+            () -> true, new IndexNameExpressionResolver(), randomBoolean());
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -487,7 +487,7 @@ public class IndexModuleTests extends ESTestCase {
 
     private static IndexModule createIndexModule(IndexSettings indexSettings, AnalysisRegistry emptyAnalysisRegistry) {
         return new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap(), () -> true,
-            new IndexNameExpressionResolver());
+            new IndexNameExpressionResolver(), randomBoolean());
     }
 
     class CustomQueryCache implements QueryCache {

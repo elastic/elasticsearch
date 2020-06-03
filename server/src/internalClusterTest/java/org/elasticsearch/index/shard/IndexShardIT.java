@@ -652,7 +652,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Arrays.asList(listeners),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                cbs);
+                cbs,
+                false);
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {

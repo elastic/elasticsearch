@@ -230,8 +230,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
-    private ValuesSourceRegistry valuesSourceRegistry;
-
+    private final ValuesSourceRegistry valuesSourceRegistry;
+    private final SystemIndices systemIndices;
 
     @Override
     protected void doStart() {
@@ -245,7 +245,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService, BigArrays bigArrays,
                           ScriptService scriptService, ClusterService clusterService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
-                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry) {
+                          Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry,
+                          SystemIndices systemIndices) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -326,6 +327,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
+        this.systemIndices = systemIndices;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -639,7 +641,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexCreationContext);
 
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, isSystemIndex(indexMetadata));
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
         }
@@ -665,6 +667,14 @@ public class IndicesService extends AbstractLifecycleComponent
                 this::isIdFieldDataEnabled,
                 valuesSourceRegistry
         );
+    }
+
+    private boolean isSystemIndex(IndexMetadata indexMetadata) {
+        return isSystemIndex(indexMetadata.getIndex());
+    }
+
+    public boolean isSystemIndex(Index index) {
+        return systemIndices.isSystemIndex(index);
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
@@ -710,7 +720,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized MapperService createIndexMapperService(IndexMetadata indexMetadata) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetadata, this.settings, indexScopedSettings);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings),
-                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver);
+                directoryFactories, () -> allowExpensiveQueries, indexNameExpressionResolver, isSystemIndex(indexMetadata));
         pluginsService.onIndexModule(indexModule);
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }

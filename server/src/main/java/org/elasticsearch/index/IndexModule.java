@@ -134,6 +134,7 @@ public final class IndexModule {
     private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
+    private final boolean isSystem;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -150,7 +151,8 @@ public final class IndexModule {
             final EngineFactory engineFactory,
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
             final BooleanSupplier allowExpensiveQueries,
-            final IndexNameExpressionResolver expressionResolver) {
+            final IndexNameExpressionResolver expressionResolver,
+            final boolean isSystem) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -159,6 +161,7 @@ public final class IndexModule {
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
+        this.isSystem = isSystem;
     }
 
     /**
@@ -432,7 +435,7 @@ public final class IndexModule {
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
                 indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver,
-                valuesSourceRegistry);
+                valuesSourceRegistry, isSystem);
             success = true;
             return indexService;
         } finally {

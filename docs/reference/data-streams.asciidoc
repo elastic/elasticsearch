@@ -50,10 +50,16 @@ PUT /_index_template/logs_template
 Start indexing data into the namespace of this composable template:
 
 [source,console]
---------------------------------------------------
+----
 POST /logs-foobar/_doc
---------------------------------------------------
+{
+  "@timestamp": "2050-11-15T14:12:12",
+  ...
+}
+----
 // TEST[continued]
+// TEST[s/,//]
+// TEST[s/\.\.\.//]
 
 Response:
 
@@ -66,7 +72,6 @@ Response:
         "successful" : 1
     },
     "_index" : "logs-foobar-000001",
-    "_type" : "_doc",
     "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,
@@ -74,7 +79,7 @@ Response:
     "result": "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/
+// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/]
 
 Or create a data stream via the create data stream api:
 

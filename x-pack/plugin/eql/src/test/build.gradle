@@ -1,3 +1,0 @@
-dependencies {
-  compile 'io.ous:jtoml:2.0.0'
-}

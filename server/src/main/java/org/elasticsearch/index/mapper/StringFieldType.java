@@ -58,16 +58,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
-        failIfNotIndexed();
-        BytesRef[] bytesRefs = new BytesRef[values.size()];
-        for (int i = 0; i < bytesRefs.length; i++) {
-            bytesRefs[i] = indexedValueForSearch(values.get(i));
-        }
-        return new TermInSetQuery(name(), bytesRefs);
-    }
-
-    @Override
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
             boolean transpositions, QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
@@ -122,8 +112,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
             sb.append(normalized);
         }
         return sb.toBytesRef().utf8ToString();
-    }    
-    
+    }
+
     @Override
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         failIfNotIndexed();

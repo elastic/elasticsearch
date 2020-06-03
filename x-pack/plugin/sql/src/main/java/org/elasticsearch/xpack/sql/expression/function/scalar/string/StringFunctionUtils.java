@@ -44,7 +44,7 @@ final class StringFunctionUtils {
      * @return the resulting String
      */
     static String trimTrailingWhitespaces(String s) {
-        if (s == null || s.isEmpty()) {
+        if (hasLength(s) == false) {
             return s;
         }
 
@@ -68,7 +68,7 @@ final class StringFunctionUtils {
      * @return the resulting String
      */
     static String trimLeadingWhitespaces(String s) {
-        if (s == null || s.isEmpty()) {
+        if (hasLength(s) == false) {
             return s;
         }
 

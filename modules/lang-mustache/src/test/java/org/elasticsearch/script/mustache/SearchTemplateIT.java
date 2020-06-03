@@ -35,7 +35,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -172,7 +171,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         GetStoredScriptResponse getResponse = client().admin().cluster()
                 .prepareGetStoredScript("testTemplate").get();
         assertEquals(1, getResponse.getStoredScripts().size());
-        assertNotNull(getResponse.getSource());
+        assertNotNull(getResponse.getStoredScript("testTemplate"));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
@@ -195,8 +194,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         assertAcked(client().admin().cluster().prepareDeleteStoredScript("testTemplate"));
 
         final GetStoredScriptResponse response = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
-        assertEquals(0, response.getStoredScripts().size());
-        expectThrows(NoSuchElementException.class, () -> response.getSource());
+        assertNull(response.getStoredScript("testTemplate"));
     }
 
     public void testIndexedTemplate() throws Exception {
@@ -294,7 +292,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             );
 
             GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("git01").get();
-            assertNotNull(getResponse.getSource());
+            assertNotNull(getResponse.getStoredScript("git01"));
 
             Map<String, Object> templateParams = new HashMap<>();
             templateParams.put("P_Keyword1", "dev");

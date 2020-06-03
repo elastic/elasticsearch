@@ -102,8 +102,18 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
     }
 
     /**
+     * Helper method to return a single stored script
+     *
+     * @param id the id of the script
+     * @return the script source or null if not found
+     */
+    public StoredScriptSource getStoredScript(String id) {
+        return storedScripts.get(id);
+    }
+
+    /**
      * @deprecated - Needed for backwards compatibility.
-     * Use {@link #getStoredScripts()} instead
+     * Use {@link #getStoredScript(String)} ()} instead
      *
      * @return if a stored script and if not found <code>null</code>
      */

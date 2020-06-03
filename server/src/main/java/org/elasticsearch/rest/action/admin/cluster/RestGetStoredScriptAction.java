@@ -74,8 +74,8 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
             protected RestStatus getStatus(final GetStoredScriptResponse response)
             {
                 Map<String, StoredScriptSource> storedScripts = response.getStoredScripts();
-                final boolean templateExists = storedScripts != null && !storedScripts.isEmpty();
-                return (templateExists || implicitAll) ? RestStatus.OK : RestStatus.NOT_FOUND;
+                final boolean scriptExists = storedScripts != null && !storedScripts.isEmpty();
+                return (scriptExists || implicitAll) ? RestStatus.OK : RestStatus.NOT_FOUND;
             }
         });
     }

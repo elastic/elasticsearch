@@ -104,7 +104,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -718,7 +717,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         if (testScript) {
             logger.info("--> check that script is restored");
             GetStoredScriptResponse getStoredScriptResponse = client().admin().cluster().prepareGetStoredScript("foobar").get();
-            assertNotNull(getStoredScriptResponse.getSource());
+            assertNotNull(getStoredScriptResponse.getStoredScript("foobar"));
         }
 
         createIndex("test-idx");
@@ -768,7 +767,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertIndexTemplateMissing(getIndexTemplatesResponse, "test-template");
         assertFalse(client().admin().cluster().prepareGetPipeline("barbaz").get().isFound());
         final GetStoredScriptResponse getStoredScriptResponse = client().admin().cluster().prepareGetStoredScript("foobar").get();
-        expectThrows(NoSuchElementException.class, () -> getStoredScriptResponse.getSource());
+        assertNull(getStoredScriptResponse.getStoredScript("foobar"));
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
     }
 

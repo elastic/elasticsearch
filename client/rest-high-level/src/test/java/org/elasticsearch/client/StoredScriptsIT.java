@@ -56,7 +56,7 @@ public class StoredScriptsIT extends ESRestHighLevelClientTestCase {
         GetStoredScriptResponse getResponse = execute(getRequest, highLevelClient()::getScript,
             highLevelClient()::getScriptAsync);
 
-        assertThat(getResponse.getSource(), equalTo(scriptSource));
+        assertThat(getResponse.getStoredScript("calculate-score"), equalTo(scriptSource));
     }
 
     public void testDeleteStoredScript() throws Exception {

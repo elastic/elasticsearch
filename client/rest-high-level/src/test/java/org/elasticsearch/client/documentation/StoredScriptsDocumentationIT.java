@@ -94,7 +94,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-stored-script-execute
 
             // tag::get-stored-script-response
-            StoredScriptSource storedScriptSource = getResponse.getSource(); // <1>
+            StoredScriptSource storedScriptSource = getResponse.getStoredScript("calculate-score"); // <1>
 
             String lang = storedScriptSource.getLang(); // <2>
             String source = storedScriptSource.getSource(); // <3>

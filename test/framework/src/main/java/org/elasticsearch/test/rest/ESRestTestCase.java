@@ -1183,6 +1183,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".slm-history":
             case ".async-search":
             case "saml-service-provider":
+            case "logs-default-template":
+            case "metrics-default-template":
                 return true;
             default:
                 return false;

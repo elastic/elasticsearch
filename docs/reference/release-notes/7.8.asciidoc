@@ -12,3 +12,9 @@ Search::
   a numeric field and a `GeoPoint` if they are counting a `geo_point` fields.
   They used to always receive the `String` representation of those values.
   {pull}54854[#54854]
+
+Features/Indices APIs::
+*  Add auto create action that the bulk action redirects to when new indices
+   need to be auto created. This means that action name `indices:admin/create`
+   can no longer be used as privilege to allow auto creation of indices and
+   instead `create_index` built in privilege should be used. {pull}55858[#55858]

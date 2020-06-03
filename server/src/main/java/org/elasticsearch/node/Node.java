@@ -527,7 +527,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, threadPool, xContentRegistry);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             RepositoriesStatsCollector repositoriesStatsCollector = new RepositoriesStatsCollector(settings,
-                clusterService, repositoryService::repositoriesStats, threadPool);
+                clusterService.getClusterSettings(), repositoryService::repositoriesStats, threadPool);
             repositoriesServiceReference.set(repositoryService);
             SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
                     clusterModule.getIndexNameExpressionResolver(), repositoryService, transportService, actionModule.getActionFilters());

@@ -486,7 +486,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
-            RepositoriesStatsCollector.ENABLED,
             RepositoriesStatsCollector.INTERVAL);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

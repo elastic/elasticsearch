@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,27 +38,22 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RepositoriesStatsCollectorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
-    private ClusterService clusterService;
-    
+    private ClusterSettings clusterSettings;
+
     final Map<String, RepositoryStats> repoStats = Map.of("repo1", RepositoryStats.EMPTY_STATS);
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getTestName());
-        clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            Set.of(RepositoriesStatsCollector.ENABLED, RepositoriesStatsCollector.INTERVAL));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(RepositoriesStatsCollector.INTERVAL));
     }
 
     @After
@@ -75,7 +69,7 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
 
         TestExporter testExporter = new TestExporter();
         RepositoriesStatsCollector repositoriesStatsCollector =
-            new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
+            new RepositoriesStatsCollector(settings, clusterSettings, () -> repoStats, threadPool, testExporter);
 
         repositoriesStatsCollector.start();
 
@@ -104,7 +98,7 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
 
         TestExporter testExporter = new TestExporter();
         RepositoriesStatsCollector repositoriesStatsCollector =
-            new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
+            new RepositoriesStatsCollector(settings, clusterSettings, () -> repoStats, threadPool, testExporter);
 
         repositoriesStatsCollector.start();
 
@@ -113,7 +107,7 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
         assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
         assertThat(testExporter.callCount(), is(2));
 
-        repositoriesStatsCollector.setEnabled(false);
+        repositoriesStatsCollector.setInterval(TimeValue.MINUS_ONE);
 
         assertThat(testExporter, isNotCalled(TimeValue.timeValueSeconds(1)));
 
@@ -129,7 +123,7 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
 
         TestExporter testExporter = new TestExporter();
         RepositoriesStatsCollector repositoriesStatsCollector =
-            new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
+            new RepositoriesStatsCollector(settings, clusterSettings, () -> repoStats, threadPool, testExporter);
 
         repositoriesStatsCollector.start();
 
@@ -150,13 +144,12 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
 
     public void testStatsAreNotCollectedWhenDisabled() {
         Settings settings = Settings.builder()
-            .put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1))
-            .put(RepositoriesStatsCollector.ENABLED.getKey(), false)
+            .put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.MINUS_ONE)
             .build();
 
         TestExporter testExporter = new TestExporter();
         RepositoriesStatsCollector repositoriesStatsCollector =
-            new RepositoriesStatsCollector(settings, clusterService, () -> repoStats, threadPool, testExporter);
+            new RepositoriesStatsCollector(settings, clusterSettings, () -> repoStats, threadPool, testExporter);
 
         repositoriesStatsCollector.start();
 
@@ -167,6 +160,28 @@ public class RepositoriesStatsCollectorTests extends ESTestCase {
         assertThat(testExporter, isNotCalled(TimeValue.timeValueSeconds(1)));
 
         assertThat(testExporter.callCount(), is(0));
+    }
+
+    public void testUpdateIntervalIsIgnoredAfterStop() {
+        Settings settings = Settings.builder()
+            .put(RepositoriesStatsCollector.INTERVAL.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+
+        TestExporter testExporter = new TestExporter();
+        RepositoriesStatsCollector repositoriesStatsCollector =
+            new RepositoriesStatsCollector(settings, clusterSettings, () -> repoStats, threadPool, testExporter);
+
+        repositoriesStatsCollector.start();
+
+        assertThat(testExporter, isCalled(TimeValue.timeValueSeconds(1)));
+
+        repositoriesStatsCollector.stop();
+
+        repositoriesStatsCollector.setInterval(TimeValue.timeValueMillis(100));
+
+        assertThat(testExporter, isNotCalled(TimeValue.timeValueMillis(200)));
+
+        assertThat(testExporter.callCount(), is(1));
     }
 
     Matcher<TestExporter> isNotCalled(TimeValue timeout) {

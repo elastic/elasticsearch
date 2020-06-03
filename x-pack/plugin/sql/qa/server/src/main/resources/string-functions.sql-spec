@@ -154,6 +154,12 @@ SELECT SUBSTRING('Elasticsearch', 1, 15) sub;
 substringInline3
 SELECT SUBSTRING('Elasticsearch', 10, 10) sub;
 
+trimFilter
+SELECT TRIM(CONCAT(CONCAT('   ', first_name), '   ')) trimmed FROM "test_emp" WHERE TRIM(CONCAT(CONCAT('   ', first_name), '   ')) = 'Bob';
+
+trimInline
+SELECT TRIM('   Elastic   ') trimmed1, TRIM('             ') trimmed2;
+
 ucaseFilter
 SELECT UCASE(gender) uppercased, COUNT(*) count FROM "test_emp" WHERE UCASE(gender) = 'F' GROUP BY UCASE(gender);
 
@@ -187,6 +193,17 @@ SELECT RTRIM(first_name) rt FROM "test_emp" GROUP BY RTRIM(first_name) HAVING CO
 
 ltrimGroupByAndOrderBy
 SELECT LTRIM(first_name) lt FROM "test_emp" GROUP BY LTRIM(first_name) HAVING COUNT(*)>1;
+
+trimOrderBy
+SELECT TRIM(CONCAT(CONCAT('    ', first_name), '    ')) trimmed FROM "test_emp" ORDER BY 1;
+
+trimGroupBy
+SELECT TRIM(CONCAT(CONCAT('    ', first_name), '    ')) trimmed FROM "test_emp" GROUP BY TRIM(CONCAT(CONCAT('    ', first_name), '    ')) ORDER BY 1;
+
+// Having on MAX/MIN(<string>) not supported: https://github.com/elastic/elasticsearch/issues/37938
+trimGroupByAndHaving-Ignore
+SELECT MAX(CONCAT(CONCAT('   ', first_name), '    ')) max trimmed FROM "test_emp" GROUP BY gender HAVING MAX(CONCAT(CONCAT('   ', gender), '    ')) = 'Zvonko' ORDER BY 1;
+
 
 spaceGroupByWithCharLength
 SELECT CAST(CHAR_LENGTH(SPACE(languages)) AS INT) cls FROM "test_emp" GROUP BY CHAR_LENGTH(SPACE(languages)) ORDER BY CHAR_LENGTH(SPACE(languages)) ASC;

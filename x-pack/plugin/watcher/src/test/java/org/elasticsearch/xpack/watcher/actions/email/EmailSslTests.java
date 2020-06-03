@@ -149,8 +149,8 @@ public class EmailSslTests extends ESTestCase {
      * over the account level "smtp.ssl.trust" setting) but smtp.ssl.trust was ignored for a period of time (see #52153)
      * so this is the least breaking way to resolve that.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
     public void testNotificationSslSettingsOverrideSmtpSslTrust() throws Exception {
-        assumeFalse("BouncyCastle FIPS provider throws an org.bouncycastle.tls.TLSFatalAlert instead of an SSLException", inFipsJvm());
         List<MimeMessage> messages = new ArrayList<>();
         server.addListener(messages::add);
         try {

@@ -275,10 +275,14 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
-        Releasable releasable = checkPrimaryLimits(request);
+        Releasable releasable = checkOperationLimits(request);
         ActionListener<Response> listener =
             ActionListener.runAfter(new ChannelActionListener<>(channel, actionName, request), releasable::close);
         execute(task, request, listener);
+    }
+
+    protected Releasable checkOperationLimits(final Request request) {
+        return () -> {};
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.common.lease.Releasable;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryLimits {
@@ -27,8 +29,20 @@ public class WriteMemoryLimits {
     public static final int WRITE_REQUEST_BYTES_OVERHEAD = 4096;
     public static final String WRITE_BYTES_MARKED = "write_bytes_marked";
 
+    private final AtomicLong coordinatingBytes = new AtomicLong(0);
     private final AtomicLong primaryCoordinatingBytes = new AtomicLong(0);
+    private final AtomicLong primaryBytes = new AtomicLong(0);
     private final AtomicLong replicaBytes = new AtomicLong(0);
+
+    public Releasable markCoordinatingOperationStarted(long bytes) {
+        coordinatingBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
+        return () -> coordinatingBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
+    }
+
+    public Releasable markPrimaryOperationStarted(long bytes) {
+        primaryBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
+        return () -> primaryBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
+    }
 
     public void markOperationStarted(long bytes) {
         primaryCoordinatingBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
@@ -38,12 +52,12 @@ public class WriteMemoryLimits {
         primaryCoordinatingBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
 
-    public void markReplicaOperationStarted(long bytes) {
+    public Releasable markReplicaOperationStarted(long bytes) {
         replicaBytes.getAndAdd(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
+        return () -> replicaBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
 
     public void markReplicaOperationFinished(long bytes) {
         replicaBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
-
 }

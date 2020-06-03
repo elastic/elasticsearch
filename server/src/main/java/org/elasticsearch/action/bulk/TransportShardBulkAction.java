@@ -112,6 +112,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
+    protected boolean coordinatingBytesNeedAccounted(BulkShardRequest request) {
+        if (request.isCoordinatingBytesAccounted()) {
+            return false;
+        } else {
+            request.markCoordinatingBytesAccounted();
+            return true;
+        }
+    }
+
+    @Override
     protected void dispatchedShardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());

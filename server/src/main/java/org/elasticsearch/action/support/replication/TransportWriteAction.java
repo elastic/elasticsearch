@@ -75,17 +75,22 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected Releasable checkPrimaryLimits(Request request) {
-        super.checkPrimaryLimits(request);
-        long operationSizeInBytes = primaryOperationSize(request);
-        Object writeBytesMarked = threadPool.getThreadContext().getTransient(WriteMemoryLimits.WRITE_BYTES_MARKED);
-        if (Boolean.TRUE.equals(writeBytesMarked)) {
-            return () -> {};
+    protected Releasable checkOperationLimits(Request request) {
+        if (coordinatingBytesNeedAccounted(request)) {
+            long operationSizeInBytes = primaryOperationSize(request);
+            return writeMemoryLimits.markCoordinatingOperationStarted(operationSizeInBytes);
         } else {
-            threadPool.getThreadContext().putTransient(WriteMemoryLimits.WRITE_BYTES_MARKED, true);
-            writeMemoryLimits.markOperationStarted(operationSizeInBytes);
-            return () -> writeMemoryLimits.markOperationFinished(operationSizeInBytes);
+            return () -> {};
         }
+    }
+
+    protected boolean coordinatingBytesNeedAccounted(Request request) {
+        return false;
+    }
+
+    @Override
+    protected Releasable checkPrimaryLimits(Request request) {
+        return writeMemoryLimits.markPrimaryOperationStarted(primaryOperationSize(request));
     }
 
     protected long primaryOperationSize(Request request) {
@@ -94,10 +99,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        super.checkReplicaLimits(request);
-        long operationSizeInBytes = replicaOperationSize(request);
-        writeMemoryLimits.markReplicaOperationStarted(operationSizeInBytes);
-        return () -> writeMemoryLimits.markReplicaOperationFinished(operationSizeInBytes);
+        return writeMemoryLimits.markReplicaOperationStarted(replicaOperationSize(request));
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {

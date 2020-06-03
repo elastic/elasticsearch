@@ -46,6 +46,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.stream.Stream;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
@@ -92,6 +93,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger));
     }
 
+    @Override
+    protected long primaryOperationSize(ResyncReplicationRequest request) {
+        return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
     public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
@@ -103,6 +109,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             Translog.Location location = performOnReplica(request, replica);
             return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
+    }
+
+    @Override
+    protected long replicaOperationSize(ResyncReplicationRequest request) {
+        return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
     }
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {

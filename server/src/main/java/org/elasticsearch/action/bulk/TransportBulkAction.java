@@ -159,13 +159,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         long indexingBytes = DocWriteRequest.writeSizeInBytes(bulkRequest.requests.stream());
-        writeMemoryLimits.markOperationStarted(indexingBytes);
-        final Releasable releasable = () -> writeMemoryLimits.markOperationFinished(indexingBytes);
+        final Releasable releasable = writeMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runAfter(listener, releasable::close);
         threadPool.executor(ThreadPool.Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
-                threadPool.getThreadContext().putTransient(WriteMemoryLimits.WRITE_BYTES_MARKED, true);
                 doDispatchedExecute(task, bulkRequest, releasingListener);
             }
         });
@@ -534,6 +532,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
+                bulkShardRequest.markCoordinatingBytesAccounted();
                 client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {

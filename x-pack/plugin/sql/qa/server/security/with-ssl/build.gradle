@@ -2,15 +2,6 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-ssl'
 
-// Tell the tests we're running with ssl enabled
-integTest.runner {
-  systemProperty 'tests.ssl.enabled', 'true'
-}
-
-forbiddenPatterns {
-  exclude '**/*.cert'
-}
-
 integTest.runner {
   onlyIf {
     // Do not attempt to form a cluster in a FIPS JVM, as doing so with a JKS keystore will fail.
@@ -25,11 +16,4 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
-
-  // ceremony to set up ssl
-  setting 'xpack.security.transport.ssl.keystore.path', 'test-node.jks'
-  setting 'xpack.security.http.ssl.keystore.path', 'test-node.jks'
-  keystore 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
-  keystore 'xpack.security.http.ssl.keystore.secure_password', 'keypass'
-
 }

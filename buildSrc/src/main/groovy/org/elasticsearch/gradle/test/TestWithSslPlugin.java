@@ -20,6 +20,7 @@
 package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
+import org.elasticsearch.gradle.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -56,26 +57,36 @@ public class TestWithSslPlugin implements Plugin<Project> {
             project.getTasks()
                 .withType(org.elasticsearch.gradle.testclusters.TestClustersAware.class)
                 .configureEach(clusterAware -> clusterAware.dependsOn(exportKeyStore));
+
+            // Tell the tests we're running with ssl enabled
+            project.getTasks()
+                .withType(RestIntegTestTask.class)
+                .configureEach(integTest -> integTest.runner.systemProperty("tests.ssl.enabled", "true"));
         });
+
         project.getPlugins().withType(TestClustersPlugin.class).configureEach(clustersPlugin -> {
-            // the target directory of key keystores and certificates
             File keystoreDir = new File(project.getBuildDir(), "keystore/test/ssl");
-
-            // The node's keystore
             File nodeKeystore = new File(keystoreDir, "test-node.jks");
-
-            // The client's keystore
             File clientKeyStore = new File(keystoreDir, "test-client.jks");
-
             NamedDomainObjectContainer<ElasticsearchCluster> clusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             clusters.all(c -> {
-                // copy keystores into config/
+                // ceremony to set up ssl
+                c.setting("xpack.security.transport.ssl.keystore.path", "test-node.jks");
+                c.setting("xpack.security.http.ssl.keystore.path", "test-node.jks");
+                c.keystore("xpack.security.transport.ssl.keystore.secure_password", "keypass");
+                c.keystore("xpack.security.http.ssl.keystore.secure_password", "keypass");
+
+                // copy keystores & certs into config/
                 c.extraConfigFile(nodeKeystore.getName(), nodeKeystore);
                 c.extraConfigFile(clientKeyStore.getName(), clientKeyStore);
 
             });
         });
+
+        project.getTasks()
+            .withType(ForbiddenPatternsTask.class)
+            .configureEach(forbiddenPatternTask -> forbiddenPatternTask.exclude("**/*.cert"));
     }
 }

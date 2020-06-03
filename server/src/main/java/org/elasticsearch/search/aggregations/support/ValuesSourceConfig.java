@@ -253,6 +253,7 @@ public class ValuesSourceConfig {
     private final Object missing;
     private final ZoneId timeZone;
     private final LongSupplier nowSupplier;
+    private ValuesSource valuesSource;
 
 
     public ValuesSourceConfig(
@@ -279,6 +280,31 @@ public class ValuesSourceConfig {
         this.format = format == null ? DocValueFormat.RAW : format;
         this.nowSupplier = nowSupplier;
 
+        if (!valid()) {
+            // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
+            throw new IllegalStateException(
+                "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+        }
+
+        final ValuesSource vs;
+        if (this.unmapped) {
+            vs = valueSourceType().getEmpty();
+        } else {
+            if (fieldContext() == null) {
+                // Script case
+                vs = valueSourceType().getScript(script(), scriptValueType());
+            } else {
+                // Field or Value Script case
+                vs = valueSourceType().getField(fieldContext(), script());
+            }
+        }
+
+        if (missing() != null) {
+            valuesSource = valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
+        } else {
+            valuesSource =  vs;
+        }
+
     }
 
     public ValuesSourceType valueSourceType() {
@@ -294,7 +320,7 @@ public class ValuesSourceConfig {
     }
 
     public boolean unmapped() {
-        return unmapped;
+        return unmapped && missing == null;
     }
 
     public boolean valid() {
@@ -317,41 +343,8 @@ public class ValuesSourceConfig {
         return format;
     }
 
-    /**
-     * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
-     * @return - A {@link ValuesSource} ready to be read from by an aggregator
-     */
     @Nullable
-    public ValuesSource toValuesSource() {
-        if (!valid()) {
-            // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
-            throw new IllegalStateException(
-                "value source config is invalid; must have either a field context or a script or marked as unwrapped");
-        }
-
-        final ValuesSource vs;
-        if (unmapped()) {
-            if (missing() == null) {
-                /* Null values source signals to the AggregationBuilder to use the createUnmapped method, which aggregator factories can
-                 * override to provide an aggregator optimized to return empty values
-                 */
-                vs = null;
-            } else {
-                vs = valueSourceType().getEmpty();
-            }
-        } else {
-            if (fieldContext() == null) {
-                // Script case
-                vs = valueSourceType().getScript(script(), scriptValueType());
-            } else {
-                // Field or Value Script case
-                vs = valueSourceType().getField(fieldContext(), script());
-            }
-        }
-
-        if (missing() == null) {
-            return vs;
-        }
-        return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
+    public ValuesSource getValuesSource() {
+        return valuesSource;
     }
 }

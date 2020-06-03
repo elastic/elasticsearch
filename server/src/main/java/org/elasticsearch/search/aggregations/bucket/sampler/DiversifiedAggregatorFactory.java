@@ -86,11 +86,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
 
         AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             DiversifiedAggregationBuilder.NAME);
@@ -98,8 +97,8 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
             throw new AggregationExecutionException("Registry miss-match - expected " + DiversifiedAggregatorSupplier.class.toString() +
                 ", found [" + supplier.getClass().toString() + "]");
         }
-        return ((DiversifiedAggregatorSupplier) supplier).build(name, shardSize, factories, searchContext, parent, metadata, valuesSource,
-            maxDocsPerValue, executionHint);
+        return ((DiversifiedAggregatorSupplier) supplier).build(name, shardSize, factories, searchContext, parent, metadata,
+            config.getValuesSource(), maxDocsPerValue, executionHint);
     }
 
     @Override

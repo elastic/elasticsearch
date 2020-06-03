@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -54,11 +53,10 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
 
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             GeoCentroidAggregationBuilder.NAME);
@@ -66,7 +64,7 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoCentroidAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, valuesSource, metadata);
+        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, config.getValuesSource(), metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {

@@ -66,7 +66,7 @@ See <<request-body-search-collapse>>.
 
 [role="exclude",id="search-request-from-size"]
 === From and size parameters for request body search API
-See <<request-body-search-from-size>>.
+See <<paginate-search-results>>.
 
 [role="exclude",id="search-request-highlighting"]
 === Highlight parameter for request body search API
@@ -615,6 +615,19 @@ See <<ccs-gateway-seed-nodes>> and <<ccs-min-roundtrips>>.
 See <<indices-create-data-stream>>, <<indices-get-data-stream>>, and
 <<indices-delete-data-stream>>.
 
+[role="exclude",id="modules-indices"]
+=== Indices module
+
+See:
+
+* <<circuit-breaker>>
+* <<indexing-buffer>>
+* <<modules-fielddata>>
+* <<query-cache>>
+* <<recovery>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
 [role="exclude",id="cat-transform"]
 === cat transform API
 
@@ -710,6 +723,74 @@ See <<ilm-actions>>.
 
 See <<ilm-index-lifecycle>>.
 
+[role="exclude",id="search-uri-request"]
+=== URI search
+
+See <<search-search>>.
+
+[role="exclude",id="modules-gateway-dangling-indices"]
+=== Dangling indices
+
+See <<dangling-indices>>.
+
+[role="exclude",id="shards-allocation"]
+=== Cluster-level shard allocation
+
+See <<cluster-shard-allocation-settings>>.
+
+[role="exclude",id="disk-allocator"]
+=== Disk-based shard allocation
+
+See <<disk-based-shard-allocation>>.
+
+[role="exclude",id="allocation-awareness"]
+=== Shard allocation awareness
+
+See <<shard-allocation-awareness>>.
+
+[role="exclude",id="allocation-filtering"]
+=== Cluster-level shard allocation filtering
+
+See <<cluster-shard-allocation-filtering>>.
+
+[role="exclude",id="misc-cluster"]
+=== Miscellaneous cluster settings
+
+See <<misc-cluster-settings>>.
+
+[role="exclude",id="modules"]
+=== Modules
+
+This page has been removed.
+
+See <<settings,Configuring Elasticsearch>> for settings information:
+
+* <<circuit-breaker>>
+* <<modules-cluster>>
+* <<modules-discovery-settings>>
+* <<modules-fielddata>>
+* <<modules-http>>
+* <<recovery>>
+* <<indexing-buffer>>
+* <<modules-gateway>>
+* <<modules-network>>
+* <<query-cache>>
+* <<search-settings>>
+* <<shard-request-cache>>
+
+For other information, see:
+
+* <<modules-transport>>
+* <<modules-threadpool>>
+* <<modules-node>>
+* <<modules-plugins>>
+* <<modules-remote-clusters>>
+
+[role="exclude",id="modules-discovery-adding-removing-nodes"]
+=== Adding and removing nodes
+
+See <<add-elasticsearch-nodes>>.
+
 [role="exclude",id="_timing"]
 === Timing
 
@@ -798,6 +879,21 @@ See <<query-filter-context>>.
 
 We have stopped adding new customers to our {esms}.
 
-If you are interested in similar capabilities,
-https://support.elastic.co/customers/s/login/[Elastic Support portal][contact
-Elastic Support] to discuss available options.
+If you are interested in similar capabilities, contact
+https://support.elastic.co[Elastic Support] to discuss available options.
+
+////
+[role="exclude",id="search-request-body"]
+=== Request body search
+
+This page has been removed.
+
+For search API reference documentation, see <<search-search>>.
+
+For search examples, see <<run-a-search>>.
+
+[role="exclude",id="request-body-search-from-size"]
+==== From / size
+
+See <<paginate-search-results>>.
+////

@@ -77,7 +77,7 @@ you created or updated the {dfeed}, those credentials are used instead.
 
 `<feed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-start-datafeed-request-body]]
 ==== {api-request-body-title}

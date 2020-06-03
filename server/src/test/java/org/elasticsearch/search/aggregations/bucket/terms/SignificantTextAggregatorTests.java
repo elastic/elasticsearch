@@ -34,14 +34,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTextAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -65,6 +68,31 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             Function.identity()));
     }
 
+    @Override
+    protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
+        return new SignificantTextAggregationBuilder("foo", fieldName);
+    }
+
+    @Override
+    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
+        // TODO it is likely accidental that SigText supports anything other than Bytes, and then only text fields
+        return Arrays.asList(CoreValuesSourceType.NUMERIC,
+            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.RANGE,
+            CoreValuesSourceType.GEOPOINT,
+            CoreValuesSourceType.BOOLEAN,
+            CoreValuesSourceType.DATE,
+            CoreValuesSourceType.IP);
+    }
+
+    @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return Arrays.asList(
+            BinaryFieldMapper.CONTENT_TYPE, // binary fields are not supported because they do not have analyzers
+            GeoPointFieldMapper.CONTENT_TYPE // geopoint fields cannot use term queries
+        );
+    }
+
     /**
      * Uses the significant text aggregation to find the keywords in text fields
      */
@@ -84,7 +112,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 sigAgg.sourceFieldNames(Arrays.asList(new String [] {"json_only_field"}));
             }
             SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler")
-                    .subAggregation(sigAgg);
+                .subAggregation(sigAgg);
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());

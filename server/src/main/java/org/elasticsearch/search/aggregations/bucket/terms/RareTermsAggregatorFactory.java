@@ -160,7 +160,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             RareTermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof RareTermsAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected RareTermsAggregatorSupplier, found [" +

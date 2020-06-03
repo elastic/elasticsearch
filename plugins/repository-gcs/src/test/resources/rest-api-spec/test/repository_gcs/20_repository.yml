@@ -1,6 +1,9 @@
 # Integration tests for repository-gcs
 ---
 setup:
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/57115"
 
   # Register repository
   - do:

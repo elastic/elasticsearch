@@ -160,12 +160,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         long indexingBytes = DocWriteRequest.writeSizeInBytes(bulkRequest.requests.stream());
         writeMemoryLimits.markOperationStarted(indexingBytes);
-        threadPool.getThreadContext().putTransient(WriteMemoryLimits.WRITE_BYTES_MARKED, true);
         final Releasable releasable = () -> writeMemoryLimits.markOperationFinished(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runAfter(listener, releasable::close);
         threadPool.executor(ThreadPool.Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
+                threadPool.getThreadContext().putTransient(WriteMemoryLimits.WRITE_BYTES_MARKED, true);
                 doDispatchedExecute(task, bulkRequest, releasingListener);
             }
         });

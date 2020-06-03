@@ -721,18 +721,50 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private <T extends TransportRequest> void sendLocalRequest(long requestId, final String action, final TransportRequest request,
-                                                               TransportRequestOptions options) {
+    private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
         final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
         try {
             onRequestSent(localNode, requestId, action, request, options);
             onRequestReceived(requestId, action);
-            final RequestHandlerRegistry<T> reg = (RequestHandlerRegistry<T>) getRequestHandler(action);
+            final RequestHandlerRegistry reg = getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
-            reg.dispatchMessage((T) request, channel);
+            final String executor = reg.getExecutor();
+            if (ThreadPool.Names.SAME.equals(executor)) {
+                //noinspection unchecked
+                reg.processMessageReceived(request, channel);
+            } else {
+                threadPool.executor(executor).execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        //noinspection unchecked
+                        reg.processMessageReceived(request, channel);
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return reg.isForceExecution();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            logger.warn(() -> new ParameterizedMessage(
+                                    "failed to notify channel of error message for action [{}]", action), inner);
+                        }
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "processing of [" + requestId + "][" + action + "]: " + request;
+                    }
+                });
+            }
+
         } catch (Exception e) {
             try {
                 channel.sendResponse(e);
@@ -813,7 +845,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public <Request extends TransportRequest> void registerRequestHandler(String action, String executor,
                                                                           Writeable.Reader<Request> requestReader,
                                                                           TransportRequestHandler<Request> handler) {
-        registerRequestHandler(action, executor, false, true, requestReader, handler);
+        validateActionName(action);
+        handler = interceptor.interceptHandler(action, executor, false, handler);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            action, requestReader, taskManager, handler, executor, false, true);
+        transport.registerRequestHandler(reg);
     }
 
     /**
@@ -834,7 +870,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         validateActionName(action);
         handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
-            action, requestReader, threadPool, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
+            action, requestReader, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         transport.registerRequestHandler(reg);
     }
 

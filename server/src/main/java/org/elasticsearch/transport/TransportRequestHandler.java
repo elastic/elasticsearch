@@ -19,14 +19,9 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.tasks.Task;
 
 public interface TransportRequestHandler<T extends TransportRequest> {
 
     void messageReceived(T request, TransportChannel channel, Task task) throws Exception;
-
-    default Releasable preDispatchValidation(T request) throws Exception {
-        return () -> {};
-    };
 }

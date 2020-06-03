@@ -23,19 +23,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
-    private final ThreadPool threadPool;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
     private final boolean canTripCircuitBreaker;
@@ -43,12 +39,11 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final TaskManager taskManager;
     private final Writeable.Reader<Request> requestReader;
 
-    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, ThreadPool threadPool, TaskManager taskManager,
+    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, TaskManager taskManager,
                                   TransportRequestHandler<Request> handler, String executor, boolean forceExecution,
                                   boolean canTripCircuitBreaker) {
         this.action = action;
         this.requestReader = requestReader;
-        this.threadPool = threadPool;
         this.handler = handler;
         this.forceExecution = forceExecution;
         this.canTripCircuitBreaker = canTripCircuitBreaker;
@@ -65,30 +60,19 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
-        processMessageReceived(request, channel, new AtomicReference<>(() -> {}));
-    }
-
-    private void processMessageReceived(Request request, TransportChannel channel, AtomicReference<Releasable> releasable)
-        throws Exception {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
-        boolean success = false;
-        // TODO: Review releasable logic
-        Releasable[] releasables = new Releasable[2];
-        releasables[0] = () -> taskManager.unregister(task);
+        Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
             if (channel instanceof TcpTransportChannel && task instanceof CancellableTask) {
                 final TcpChannel tcpChannel = ((TcpTransportChannel) channel).getChannel();
                 final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
-                releasables[0] = Releasables.wrap(releasables[0], stopTracking);
-                releasables[1] = releasable.get();
+                unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
-            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, releasables);
+            final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);
             handler.messageReceived(request, taskTransportChannel, task);
-            success = true;
+            unregisterTask = null;
         } finally {
-            if (success == false) {
-                Releasables.close(releasables);
-            }
+            Releasables.close(unregisterTask);
         }
     }
 
@@ -108,38 +92,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return handler;
     }
 
-    public void dispatchMessage(Request request, TransportChannel channel) {
-        final AtomicReference<Releasable> releasable = new AtomicReference<>();
-        try {
-            releasable.set(handler.preDispatchValidation(request));
-            threadPool.executor(executor).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    Releasables.close(releasable.get());
-                    TransportChannel.sendErrorResponse(channel, action, request, e);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    processMessageReceived(request, channel, releasable);
-                }
-
-                @Override
-                public boolean isForceExecution() {
-                    return forceExecution;
-                }
-
-                @Override
-                public String toString() {
-                    return "processing of [" + action + "]: " + request;
-                }
-            });
-        } catch (Exception e) {
-            Releasables.close(releasable.get());
-            TransportChannel.sendErrorResponse(channel, action, request, e);
-        }
-    }
-
     @Override
     public String toString() {
         return handler.toString();
@@ -147,7 +99,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(RequestHandlerRegistry<R> registry,
                                                                                         TransportRequestHandler<R> handler) {
-        return new RequestHandlerRegistry<>(registry.action, registry.requestReader, registry.threadPool, registry.taskManager, handler,
+        return new RequestHandlerRegistry<>(registry.action, registry.requestReader, registry.taskManager, handler,
             registry.executor, registry.forceExecution, registry.canTripCircuitBreaker);
     }
 }

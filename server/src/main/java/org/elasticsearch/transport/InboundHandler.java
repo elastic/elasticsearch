@@ -173,7 +173,7 @@ public class InboundHandler {
                         throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
                             + action + "], available [" + stream.available() + "]; resetting");
                     }
-                    reg.dispatchMessage(request, transportChannel);
+                    threadPool.executor(reg.getExecutor()).execute(new RequestHandler<>(reg, request, transportChannel));
                 }
             } catch (Exception e) {
                 sendErrorResponse(action, transportChannel, e);
@@ -245,5 +245,32 @@ public class InboundHandler {
 
     static void assertRemoteVersion(StreamInput in, Version version) {
         assert version.equals(in.getVersion()) : "Stream version [" + in.getVersion() + "] does not match version [" + version + "]";
+    }
+
+    private static class RequestHandler<T extends TransportRequest> extends AbstractRunnable {
+        private final RequestHandlerRegistry<T> reg;
+        private final T request;
+        private final TransportChannel transportChannel;
+
+        RequestHandler(RequestHandlerRegistry<T> reg, T request, TransportChannel transportChannel) {
+            this.reg = reg;
+            this.request = request;
+            this.transportChannel = transportChannel;
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            reg.processMessageReceived(request, transportChannel);
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return reg.isForceExecution();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            sendErrorResponse(reg.getAction(), transportChannel, e);
+        }
     }
 }

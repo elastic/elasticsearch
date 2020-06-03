@@ -21,18 +21,17 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 
 import java.io.IOException;
 
 public class TaskTransportChannel implements TransportChannel {
 
     private final TransportChannel channel;
-    private final Releasable[] releasables;
+    private final Releasable onTaskFinished;
 
-    TaskTransportChannel(TransportChannel channel, Releasable[] releasables) {
+    TaskTransportChannel(TransportChannel channel, Releasable onTaskFinished) {
         this.channel = channel;
-        this.releasables = releasables;
+        this.onTaskFinished = onTaskFinished;
     }
 
     @Override
@@ -48,7 +47,7 @@ public class TaskTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            release();
+            onTaskFinished.close();
         } finally {
             channel.sendResponse(response);
         }
@@ -57,7 +56,7 @@ public class TaskTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            release();
+            onTaskFinished.close();
         } finally {
             channel.sendResponse(exception);
         }
@@ -70,9 +69,5 @@ public class TaskTransportChannel implements TransportChannel {
 
     public TransportChannel getChannel() {
         return channel;
-    }
-
-    private void release() {
-        Releasables.close(releasables);
     }
 }

@@ -276,8 +276,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             private RecoverySourceHandler createRecoverySourceHandler(StartRecoveryRequest request, IndexShard shard) {
                 RecoverySourceHandler handler;
                 final RemoteRecoveryTargetHandler recoveryTarget =
-                    new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
-                        request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
+                        new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
+                                indicesService.getClusterService(), request.targetNode(), recoverySettings,
+                                throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
                 handler = new RecoverySourceHandler(shard, recoveryTarget, shard.getThreadPool(), request,
                     Math.toIntExact(recoverySettings.getChunkSize().getBytes()), recoverySettings.getMaxConcurrentFileChunks());
                 return handler;

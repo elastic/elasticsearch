@@ -48,7 +48,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<category_id>`::
 (Optional, long) Identifier for the category. If you do not specify this
-parameter, the API returns information about all categories in the {anomaly-job}.
+parameter, the API returns information about all categories in the {anomaly-job},
+or all categories in the {anomaly-job} for the specified partition if
+`partition_field_value` is supplied. Since `category_id` is unique at the job
+level, even when per-partition categorization is enabled, it is _not_
+necessary to also specify `partition_field_value` when getting a single
+category definition.
 
 [[ml-get-category-request-body]]
 ==== {api-request-body-title}
@@ -58,13 +63,18 @@ parameter, the API returns information about all categories in the {anomaly-job}
 `page`.`size`::
 (Optional, integer) Specifies the maximum number of categories to obtain.
 
+`partition_field_value`::
+(Optional, string) Only return categories for the specified partition.
+
 [[ml-get-category-results]]
 ==== {api-response-body-title}
 
 The API returns an array of category objects, which have the following properties:
 
 `category_id`::
-(unsigned integer) A unique identifier for the category.
+(unsigned integer) A unique identifier for the category. `category_id` is unique
+at the job level, even when per-partition categorization is enabled.
+
 
 `examples`::
 (array) A list of examples of actual values that matched the category.
@@ -84,6 +94,18 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 (unsigned integer) The maximum length of the fields that matched the category.
 The value is increased by 10% to enable matching for similar fields that have
 not been analyzed.
+
+// This doesn't use the shared description because there are
+// categorization-specific aspects to its use in this context
+`partition_field_name`::
+(string) The field used to segment the categorization, if per-partition
+categorization was enabled. This field is not present when per-partition
+categorization is disabled.
+
+`partition_field_value`::
+(string) The value of `partition_field_name` for this category, if per-partition
+categorization was enabled. This field is not present when per-partition
+categorization is disabled.
 
 `regex`::
 (string) A regular expression that is used to search for values that match the

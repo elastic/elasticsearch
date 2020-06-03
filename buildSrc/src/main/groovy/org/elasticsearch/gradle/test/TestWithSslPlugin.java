@@ -84,6 +84,6 @@ public class TestWithSslPlugin implements Plugin<Project> {
 
         project.getTasks()
             .withType(ForbiddenPatternsTask.class)
-            .configureEach(forbiddenPatternTask -> forbiddenPatternTask.exclude("**/*.cert"));
+            .configureEach(forbiddenPatternTask -> forbiddenPatternTask.exclude("**/*.crt"));
     }
 }

@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -534,7 +533,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(start);
             out.writeInt(operationSize);
             out.seek(end);
-            final ReleasableBytesReference bytes = out.bytes();
+            final BytesReference bytes = out.bytes();
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
                 if (operation.primaryTerm() > current.getPrimaryTerm()) {
@@ -1574,8 +1573,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 out.seek(start);
                 out.writeInt(operationSize);
                 out.seek(end);
-                ReleasableBytesReference bytes = out.bytes();
-                bytes.writeTo(outStream);
+                out.bytes().writeTo(outStream);
             }
         } finally {
             Releasables.close(out);
@@ -1617,13 +1615,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Roll the current translog generation into a new generation. This does not commit the
-     * translog.
+     * Roll the current translog generation into a new generation if it's not empty. This does not commit the translog.
      *
      * @throws IOException if an I/O exception occurred during any file operations
      */
     public void rollGeneration() throws IOException {
         syncBeforeRollGeneration();
+        if (current.totalOperations() == 0 && primaryTermSupplier.getAsLong() == current.getPrimaryTerm()) {
+            return;
+        }
         try (Releasable ignored = writeLock.acquire()) {
             ensureOpen();
             try {

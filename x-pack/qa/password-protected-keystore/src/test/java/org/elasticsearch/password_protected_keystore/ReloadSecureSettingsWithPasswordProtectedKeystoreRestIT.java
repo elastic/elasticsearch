@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -43,7 +44,7 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
     }
 
     @SuppressWarnings("unchecked")
-    public void testReloadSecureSettingsWithInCorrectPassword() throws Exception {
+    public void testReloadSecureSettingsWithIncorrectPassword() throws Exception {
         final Request request = new Request("POST", "_nodes/reload_secure_settings");
         request.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + randomAlphaOfLength(7) + "\"}");
         final Response response = client().performRequest(request);
@@ -56,7 +57,9 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             assertThat(entry.getValue(), instanceOf(Map.class));
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), instanceOf(Map.class));
-            assertThat(ObjectPath.eval("reload_exception.reason", node), equalTo("Provided keystore password was incorrect"));
+            assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
+                equalTo("Provided keystore password was incorrect"),
+                equalTo("Keystore has been corrupted or tampered with")));
             assertThat(ObjectPath.eval("reload_exception.type", node), equalTo("security_exception"));
         }
     }
@@ -74,7 +77,9 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             assertThat(entry.getValue(), instanceOf(Map.class));
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), instanceOf(Map.class));
-            assertThat(ObjectPath.eval("reload_exception.reason", node), equalTo("Provided keystore password was incorrect"));
+            assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
+                equalTo("Provided keystore password was incorrect"),
+                equalTo("Keystore has been corrupted or tampered with")));
             assertThat(ObjectPath.eval("reload_exception.type", node), equalTo("security_exception"));
         }
     }

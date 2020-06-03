@@ -188,7 +188,7 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         modifiedUsername = in.readOptionalString();
         type = Type.fromString(in.readString());
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             event = in.readBoolean() ? in.readEnum(Event.class) : null;
             detectorIndex = in.readOptionalInt();
             partitionFieldName = in.readOptionalString();
@@ -230,7 +230,7 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             if (event != null) {
                 out.writeBoolean(true);
                 out.writeEnum(event);

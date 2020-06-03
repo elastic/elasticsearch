@@ -70,9 +70,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
 
         /**
-         * @return the total number of buckets that have been used so far
+         * @return the final number of buckets that will be used
+         * If this is not the final phase, then an instance of the next phase is created and it is asked for this answer.
          */
-        abstract int numBuckets();
+        abstract int finalNumBuckets();
 
         /**
          * If this CollectionPhase is the final phase then this method will build and return the i'th bucket
@@ -92,11 +93,13 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         private DoubleArray cachedValues;
         private int numCachedDocs;
         private int cacheLimit;
+        private MergeBucketsPhase mergeBucketsPhase;
 
         CacheValuesPhase(int cacheLimit){
             this.cachedValues = bigArrays.newDoubleArray(1);
             this.numCachedDocs = 0;
             this.cacheLimit = cacheLimit;
+            this.mergeBucketsPhase = null;
         }
 
         @Override
@@ -120,20 +123,28 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             }
         }
 
-        int numBuckets(){
-            return numCachedDocs;
+        int finalNumBuckets(){
+            return getMergeBucketPhase().finalNumBuckets();
         }
 
         @Override
         InternalVariableWidthHistogram.Bucket buildBucket(int bucketOrd, InternalAggregations subAggregations) throws IOException{
-            CollectionPhase mergeBuckets = new MergeBucketsPhase(cachedValues, numCachedDocs);
-            InternalVariableWidthHistogram.Bucket bucket = mergeBuckets.buildBucket(bucketOrd, subAggregations);
-            Releasables.close(mergeBuckets);
+            InternalVariableWidthHistogram.Bucket bucket = getMergeBucketPhase().buildBucket(bucketOrd, subAggregations);
             return bucket;
+        }
+
+        MergeBucketsPhase getMergeBucketPhase(){
+            if(mergeBucketsPhase == null){
+                mergeBucketsPhase = new MergeBucketsPhase(cachedValues, numCachedDocs);
+            }
+            return mergeBucketsPhase;
         }
 
         @Override
         public void close() {
+            if(mergeBucketsPhase != null){
+                Releasables.close(mergeBucketsPhase);
+            }
             Releasables.close(cachedValues);
         }
     }
@@ -216,7 +227,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
              * See BucketsAggregator::mergeBuckets to learn more about the merge map
              */
             public long[] generateMergeMap(){
-                sort(numClusters - 1, 0);
+                sort(0, indexes.length);
                 return indexes;
             }
         }
@@ -250,7 +261,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 double val = cachedValues.get(mergeMap[i]);
 
                 // Put the i'th smallest doc into the bucket at bucketOrd
-                mergeMap[i] = bucketOrd;
+                mergeMap[i] = (int)(mergeMap[i]/docsPerBucket);
                 if(bucketOrd == numClusters){
                     createAndAppendNewCluster(val);
                 } else {
@@ -391,8 +402,8 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             return binarySearcher.search(0, numClusters - 1, value);
         }
 
-
-        int numBuckets(){
+        @Override
+        int finalNumBuckets(){
             return numClusters;
         }
 
@@ -525,7 +536,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        int numClusters = collector.numBuckets();
+        int numClusters = collector.finalNumBuckets();
 
         consumeBucketsAndMaybeBreak(numClusters);
 

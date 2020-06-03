@@ -5,7 +5,7 @@
       reason: not backported yet
 
   - do:
-      indices.resolve_index_abstraction:
+      indices.resolve_index:
         name: data*
         body:
           timestamp_field: "@timestamp"

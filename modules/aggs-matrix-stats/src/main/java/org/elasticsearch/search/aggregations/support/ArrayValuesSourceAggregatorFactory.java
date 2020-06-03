@@ -50,7 +50,7 @@ public abstract class ArrayValuesSourceAggregatorFactory
         HashMap<String, ValuesSource> valuesSources = new HashMap<>();
 
         for (Map.Entry<String, ValuesSourceConfig> config : configs.entrySet()) {
-            ValuesSource vs = config.getValue().toValuesSource();
+            ValuesSource vs = config.getValue().getValuesSource();
             if (vs != null) {
                 valuesSources.put(config.getKey(), vs);
             }

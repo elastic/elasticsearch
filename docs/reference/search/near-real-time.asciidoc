@@ -6,13 +6,13 @@ Lucene, the Java libraries on which {es} is based, introduced the concept of per
 
 Lucene allows new segments to be written and opened, making the documents they contain visible to search ​without performing a full commit. This is a much lighter process than a commit to disk, and can be done frequently without degrading performance.
 
-In {es}, this lightweight process of writing and opening a new segment is called a _refresh_. By default, every shard is refreshed automatically once per second. This is why we say that {es} has _near_ real-time search: document changes are not visible to search immediately, but will become visible within 1 second.
+In {es}, this lightweight process of writing and opening a new segment is called a _refresh_. A refresh makes all operations performed on an index since the last refresh available for search. By default, every shard is refreshed automatically once per second. This is why we say that {es} has _near_ real-time search: document changes are not visible to search immediately, but will become visible within 1 second.
 
 [[near-real-time-configure-refresh]]
 [discrete]
 === Configuring the refresh interval
-This behavior can be confusing. For example, if you index a document and immediately search for it, you might not find it. To alter that behavior, you can set <<docs-refresh,?refresh>> to control when changes made by the <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
-<<docs-bulk,Bulk>> APIs are visible to search. However, setting `refresh=true` for these requests creates less efficient indexes constructs (tiny segments) that must later be merged into more efficient index constructs (larger segments).
+Because the refresh interval is 1 second, if you index a document and immediately search for it, you might not find it. To alter that behavior, you can set <<docs-refresh,?refresh>> to control when changes made by the <<docs-index_,Index>>, <<docs-update,Update>>, <<docs-delete,Delete>>, and
+<<docs-bulk,Bulk>> APIs are visible to search. However, setting `refresh=true` for these requests creates less efficient index constructs (tiny segments) that must later be merged into more efficient index constructs (larger segments).
 
 include::{es-repo-dir}/docs/refresh.asciidoc[tag=refresh-default]
 

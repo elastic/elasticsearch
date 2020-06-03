@@ -33,7 +33,7 @@ visible at some point after the request returns.
 ==== Choosing which setting to use
 // tag::refresh-default[]
 Unless you have a good reason to wait for the change to become visible, always
-use `refresh=false` (the default setting). Omitting the `refresh` parameter from the URL is the simplest and fastest choice.
+use `refresh=false` (the default setting). The simplest and fastest choice is to omit the `refresh` parameter from the URL.
 
 If you absolutely must have the changes made by a request visible synchronously
 with the request, you must choose between putting more load on

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -310,5 +311,35 @@ public class ClusterHealthIT extends ESIntegTestCase {
         for (ActionFuture<ClusterHealthResponse> responseFuture : responseFutures) {
             assertSame(responseFuture.get().getStatus(), ClusterHealthStatus.GREEN);
         }
+    }
+
+    public void testWaitForEventsTimesOutIfMasterBusy() {
+        final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
+        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                throw new AssertionError(source, e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (keepSubmittingTasks.get()) {
+                    clusterService.submitStateUpdateTask("looping task", this);
+                }
+            }
+        });
+
+        final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setTimeout(TimeValue.timeValueSeconds(1)).get(TimeValue.timeValueSeconds(30));
+        assertTrue(clusterHealthResponse.isTimedOut());
+
+        keepSubmittingTasks.set(false);
     }
 }

@@ -38,7 +38,7 @@ PUT /twitter/_settings
     "index.search.slowlog.threshold.fetch.warn": "1s",
     "index.search.slowlog.threshold.fetch.info": "800ms",
     "index.search.slowlog.threshold.fetch.debug": "500ms",
-    "index.search.slowlog.threshold.fetch.trace": "200ms",
+    "index.search.slowlog.threshold.fetch.trace": "200ms"
 }
 --------------------------------------------------
 // TEST[setup:twitter]

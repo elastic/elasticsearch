@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class WriteMemoryLimitsIT extends ESIntegTestCase {
 

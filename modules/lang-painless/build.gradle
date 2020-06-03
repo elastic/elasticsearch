@@ -49,7 +49,7 @@ dependencyLicenses {
 restResources {
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
-                'scripts_painless_execute', 'put_script', 'delete_script'
+                'script_painless_execute', 'put_script', 'delete_script'
   }
 }
 

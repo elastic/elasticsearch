@@ -217,7 +217,7 @@ DELETE _script/calculate-score
 [float]
 [[modules-scripting-search-templates]]
 === Search templates
-You can also use the `_scripts` API to store **search templates**. Search
+You can also use the `_script` API to store **search templates**. Search
 templates save specific <<search-search,search requests>> with placeholder
 values, called template parameters.
 

@@ -39,9 +39,9 @@ public class TestWithSslPlugin implements Plugin<Project> {
         File keyStoreDir = new File(project.getBuildDir(), "keystore");
         TaskProvider<ExportElasticsearchBuildResourcesTask> exportKeyStore = project.getTasks()
             .register("copyTestCertificates", ExportElasticsearchBuildResourcesTask.class, (t) -> {
-                t.copy("test/ssl/test-client.cert");
+                t.copy("test/ssl/test-client.crt");
                 t.copy("test/ssl/test-client.jks");
-                t.copy("test/ssl/test-node.cert");
+                t.copy("test/ssl/test-node.crt");
                 t.copy("test/ssl/test-node.jks");
                 t.setOutputDir(keyStoreDir);
             });

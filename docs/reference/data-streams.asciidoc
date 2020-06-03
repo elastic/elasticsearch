@@ -78,7 +78,7 @@ Response:
 
 Or create a data stream via the create data stream api:
 
-[source,console-result]
+[source,console]
 --------------------------------------------------
 PUT /_data_stream/logs-barbaz
 --------------------------------------------------

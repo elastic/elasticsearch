@@ -4,149 +4,493 @@
 <titleabbrev>Pattern capture</titleabbrev>
 ++++
 
-The `pattern_capture` token filter, unlike the `pattern` tokenizer,
-emits a token for every capture group in the regular expression.
-Patterns are not anchored to the beginning and end of the string, so
-each pattern can match multiple times, and matches are allowed to
-overlap.
+Uses the
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#cg[capture
+groups] of one or more provided regular expressions to split tokens.
+
+The `pattern_capture` filter outputs a token for each substring matching a
+capture group. Regular expressions cannot be anchored to the beginning or end of
+a token. Each capture group can match multiple times, and matches can overlap.
+By default, the filter also includes the original token in the output.
+
+For example, you can use the `pattern_capture` filter with the regular
+expression `(https?://([a-z.]+))` to split
+`https://www.example.com/index` to the following tokens:
+
+[source,text]
+----
+[ 
+  https://www.example.com/index,
+  https://www.example.com,
+  www.example.com
+]
+----
+
+WARNING: Substring tokens produced by the `pattern_capture` filter are output
+in the same position as the original token with the same character offsets. This
+can affect <<request-body-search-highlighting,search highlighting>> and other
+features that rely on token positions and offsets.
+
+The `pattern_capture` filter uses
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
+regular expression syntax]. However, the filter does not support anchor
+operators, such as `^` (beginning of line) or `$` (end of line).
 
 [WARNING]
-.Beware of Pathological Regular Expressions
-========================================
+====
+A poorly-written regular expression may run slowly or return a
+StackOverflowError, causing the node running the expression to exit suddenly.
 
-The pattern capture token filter uses
-http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+Read more about
+http://www.regular-expressions.info/catastrophic.html[pathological regular
+expressions and how to avoid them].
+====
 
-A badly written regular expression could run very slowly or even throw a
-StackOverflowError and cause the node it is running on to exit suddenly.
+This filter uses Lucene's
+{lucene-analysis-docs}/pattern/PatternCaptureGroupTokenFilter.html[PatternCaptureGroupTokenFilter].
 
-Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+[[analysis-pattern-capture-tokenfilter-analyze-ex]]
+==== Example
 
-========================================
+The following <<indices-analyze,analyze API>> request uses the `pattern_capture`
+filter to split `abc123def456` into substring tokens. The filter outputs
+a token for each substring that matches the following capture groups:
 
-For instance a pattern like :
+* `([a-z]+)`, which captures substrings of adjacent letters
+* `(\\d+)`, which captures substrings of adjacent numerals
 
-[source,text]
---------------------------------------------------
-"(([a-z]+)(\d*))"
---------------------------------------------------
-
-when matched against:
-
-[source,text]
---------------------------------------------------
-"abc123def456"
---------------------------------------------------
-
-would produce the tokens: [ `abc123`, `abc`, `123`, `def456`, `def`,
-`456` ]
-
-If `preserve_original` is set to `true` (the default) then it would also
-emit the original token: `abc123def456`.
-
-This is particularly useful for indexing text like camel-case code, eg
-`stripHTML` where a user may search for `"strip html"` or `"striphtml"`:
+Each capture group is provided as a separate regular expression in the
+`patterns` parameter. The filter also outputs the original `abc123def456` token.
 
 [source,console]
---------------------------------------------------
-PUT test
+----
+GET /_analyze
 {
-   "settings" : {
-      "analysis" : {
-         "filter" : {
-            "code" : {
-               "type" : "pattern_capture",
-               "preserve_original" : true,
-               "patterns" : [
-                  "(\\p{Ll}+|\\p{Lu}\\p{Ll}+|\\p{Lu}+)",
-                  "(\\d+)"
-               ]
-            }
-         },
-         "analyzer" : {
-            "code" : {
-               "tokenizer" : "pattern",
-               "filter" : [ "code", "lowercase" ]
-            }
-         }
-      }
-   }
+  "tokenizer": "whitespace",
+  "filter": [
+    {
+      "type": "pattern_capture",
+      "patterns": [
+        "([a-z]+)",
+        "(\\d+)"
+      ]
+    }
+  ],
+  "text": "abc123def456"
 }
---------------------------------------------------
+----
 
-When used to analyze the text
-
-[source,java]
---------------------------------------------------
-import static org.apache.commons.lang.StringEscapeUtils.escapeHtml
---------------------------------------------------
-
-this emits the tokens: [ `import`, `static`, `org`, `apache`, `commons`,
-`lang`, `stringescapeutils`, `string`, `escape`, `utils`, `escapehtml`,
-`escape`, `html` ]
-
-Another example is analyzing email addresses:
-
-[source,console]
---------------------------------------------------
-PUT test
-{
-   "settings" : {
-      "analysis" : {
-         "filter" : {
-            "email" : {
-               "type" : "pattern_capture",
-               "preserve_original" : true,
-               "patterns" : [
-                  "([^@]+)",
-                  "(\\p{L}+)",
-                  "(\\d+)",
-                  "@(.+)"
-               ]
-            }
-         },
-         "analyzer" : {
-            "email" : {
-               "tokenizer" : "uax_url_email",
-               "filter" : [ "email", "lowercase",  "unique" ]
-            }
-         }
-      }
-   }
-}
---------------------------------------------------
-
-When the above analyzer is used on an email address like:
+The filter produces the following tokens.
 
 [source,text]
---------------------------------------------------
-john-smith_123@foo-bar.com
---------------------------------------------------
+----
+[ abc123def456, abc, 123, def, 456 ]
+----
 
-it would produce the following tokens:
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "abc123def456",
+      "start_offset": 0,
+      "end_offset": 12,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "abc",
+      "start_offset": 0,
+      "end_offset": 12,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "123",
+      "start_offset": 0,
+      "end_offset": 12,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "def",
+      "start_offset": 0,
+      "end_offset": 12,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "456",
+      "start_offset": 0,
+      "end_offset": 12,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----
 
-    john-smith_123@foo-bar.com, john-smith_123,
-    john, smith, 123, foo-bar.com, foo, bar, com
+////
 
-Multiple patterns are required to allow overlapping captures, but also
-means that patterns are less dense and easier to understand.
+[[analysis-pattern-capture-tokenfilter-configure-parms]]
+==== Configurable parameters
 
-*Note:* All tokens are emitted in the same position, and with the same
-character offsets. This means, for example, that a `match` query for
-`john-smith_123@foo-bar.com` that uses this analyzer will return documents
-containing any of these tokens, even when using the `and` operator.
-Also, when combined with highlighting, the whole original token will 
-be highlighted, not just the matching subset. For instance, querying 
-the above email address for `"smith"` would highlight:
+`patterns`::
+(Required, array of strings)
+Array of regular expressions, written in
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
+regular expression syntax]. The filter outputs a token for each substring
+matching a capture group in these regular expressions.
++
+TIP: We recommend using multiple, smaller regular expressions instead of a
+single, monolithic expression. Smaller expressions tend to be less dense and
+easier to understand.
+
+`preserve_original`::
+(Optional, boolean)
+If `true`, the filter includes the original input version of each token in the
+output. Defaults to `true`.
+
+[[analysis-pattern-capture-tokenfilter-customize]]
+==== Customize and add to an analyzer
+
+To customize the `pattern_capture` filter, duplicate it to create the basis
+for a new custom token filter. You can modify the filter using its configurable
+parameters.
+
+[[analysis-pattern-capture-tokenfilter-camelcase-ex]]
+.*Example: Analyzing camel-case code*
+[%collapsible]
+====
+The following <<indices-create-index,create index API>> request
+configures a new <<analysis-custom-analyzer,custom analyzer>> using a custom
+`pattern_capture` filter, `my_camel_case_pattern_capture_filter`.
+
+The analyzer's <<analysis-pattern-tokenizer,`pattern` tokenizer>> splits text
+into tokens at non-words, such as spaces or punctuation. The
+`my_camel_case_pattern_capture_filter` filter then splits these tokens at
+letter case changes, which is useful for analyzing camel-case code. For example,
+you can use this filter to convert the token `stripHTML` to the tokens 
+`[ stripHTML, strip, HTML ]`. The filter also outputs the original tokens 
+provided by the tokenizer.
+
+
+[source,console]
+----
+PUT /my_camel_case_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "pattern",
+          "filter": [
+            "my_camel_case_pattern_capture_filter"
+          ]
+        }
+      },
+      "filter": {
+        "my_camel_case_pattern_capture_filter": {
+          "type": "pattern_capture",
+          "patterns": [
+            "(\\p{Ll}+|\\p{Lu}\\p{Ll}+|\\p{Lu}+)",
+            "(\\d+)"
+          ]
+        }
+      }
+    }
+  }
+}
+----
+
+The following <<indices-analyze,analyze API>> request uses the custom
+`my_camel_case_pattern_capture_filter` to analyze the code
+`import static org.apache.commons.lang.StringEscapeUtils.escapeHtml`.
+
+[source,console]
+----
+GET /my_camel_case_index/_analyze
+{
+  "tokenizer": "pattern",
+  "filter": [ "my_camel_case_pattern_capture_filter" ],
+  "text": "import static org.apache.commons.lang.StringEscapeUtils.escapeHtml"
+}
+----
+// TEST[continued]
+
+The filter produces the following tokens.
+
+[source,text]
+----
+[ import, static, org, apache, commons, lang, StringEscapeUtils, String, Escape,
+Utils, escapeHtml, escape, Html ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "import",
+      "start_offset": 0,
+      "end_offset": 6,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "static",
+      "start_offset": 7,
+      "end_offset": 13,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "org",
+      "start_offset": 14,
+      "end_offset": 17,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "apache",
+      "start_offset": 18,
+      "end_offset": 24,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "commons",
+      "start_offset": 25,
+      "end_offset": 32,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "lang",
+      "start_offset": 33,
+      "end_offset": 37,
+      "type": "word",
+      "position": 5
+    },
+    {
+      "token": "StringEscapeUtils",
+      "start_offset": 38,
+      "end_offset": 55,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "String",
+      "start_offset": 38,
+      "end_offset": 55,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "Escape",
+      "start_offset": 38,
+      "end_offset": 55,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "Utils",
+      "start_offset": 38,
+      "end_offset": 55,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "escapeHtml",
+      "start_offset": 56,
+      "end_offset": 66,
+      "type": "word",
+      "position": 7
+    },
+    {
+      "token": "escape",
+      "start_offset": 56,
+      "end_offset": 66,
+      "type": "word",
+      "position": 7
+    },
+    {
+      "token": "Html",
+      "start_offset": 56,
+      "end_offset": 66,
+      "type": "word",
+      "position": 7
+    }
+  ]
+}
+----
+////
+====
+
+[[analysis-pattern-capture-tokenfilter-email-ex]]
+.*Example: Analyzing email addresses*
+[%collapsible]
+====
+The following <<indices-create-index,create index API>> request
+configures a new <<analysis-custom-analyzer,custom analyzer>> using a custom
+`pattern_capture` filter, `my_email_pattern_capture_filter`.
+
+The `my_email_pattern_capture_filter` filter uses multiple regular expression
+patterns to split tokens based on common email address punctuation, creating
+substring tokens for each component of an email address.
+
+[source,console]
+----
+PUT /my_email_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "keyword",
+          "filter": [
+            "my_email_pattern_capture_filter",
+            "lowercase",
+            "unique"
+          ]
+        }
+      },
+      "filter": {
+        "my_email_pattern_capture_filter": {
+          "type": "pattern_capture",
+          "patterns": [
+            "([^@]+)",
+            "(\\p{L}+)",
+            "(\\d+)",
+            "@(.+)"
+          ]
+        }
+      }
+    }
+  }
+}
+----
+
+The following <<indices-analyze,analyze API>> request uses the custom
+`my_email_pattern_capture_filter` to analyze the email address
+`john-smith_123@example.com`.
+
+[source,console]
+----
+GET /my_email_index/_analyze
+{
+  "tokenizer": "keyword",
+  "filter": [ "my_email_pattern_capture_filter" ],
+  "text": "john-smith_123@example.com"
+}
+----
+// TEST[continued]
+
+The filter produces the following tokens.
+
+[source,text]
+----
+[ john-smith_123@example.com, john-smith_123, john, smith, 123, example.com,
+example, example.com, com ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "john-smith_123@example.com",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "john-smith_123",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "john",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "smith",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "123",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "example.com",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "example",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "example.com",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "com",
+      "start_offset": 0,
+      "end_offset": 26,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----
+////
+
+The filter outputs each substring token in the same position as the original
+token and with the same character offsets. This means a
+<<query-dsl-match-query,`match`>> query for `john-smith_123@example.com` matches
+documents containing any of the capture tokens, even if the query uses an `AND`
+operator.
+
+This can affect features like <<request-body-search-highlighting,highlighting>>,
+which rely on token position and offsets. If a search uses highlighting request
+and matches one of these substring tokens, the search response highlights the
+original token, not the matching substring token.
+
+For example, a `match` query for `smith` would highlight:
 
 [source,html]
---------------------------------------------------
-  <em>john-smith_123@foo-bar.com</em>
---------------------------------------------------
+----
+<em>john-smith_123@example.com</em>
+----
 
-not:
+Not:
 
 [source,html]
---------------------------------------------------
-  john-<em>smith</em>_123@foo-bar.com
---------------------------------------------------
+----
+john-<em>smith</em>_123@example.com
+----
+====

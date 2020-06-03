@@ -12,14 +12,14 @@ dependencies {
 }
 testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 
-String ephmeralOpPort
+String ephemeralOpPort
 String ephemeralProxyPort
 task setupPorts {
   // Don't attempt to get ephemeral ports when Docker is not available
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false }
   dependsOn idpFixtureProject.postProcessFixture
   doLast {
-    ephmeralOpPort = idpFixtureProject.postProcessFixture.ext."test.fixtures.oidc-provider.tcp.8080"
+    ephemeralOpPort = idpFixtureProject.postProcessFixture.ext."test.fixtures.oidc-provider.tcp.8080"
     ephemeralProxyPort = idpFixtureProject.postProcessFixture.ext."test.fixtures.http-proxy.tcp.8888"
   }
 }
@@ -39,9 +39,9 @@ testClusters.integTest {
   // OpenID Connect Realm 1 configured for authorization grant flow
   setting 'xpack.security.authc.realms.oidc.c2id.order', '2'
   setting 'xpack.security.authc.realms.oidc.c2id.op.issuer', 'http://localhost:8080'
-  setting 'xpack.security.authc.realms.oidc.c2id.op.authorization_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id-login" }
-  setting 'xpack.security.authc.realms.oidc.c2id.op.token_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id/token" }
-  setting 'xpack.security.authc.realms.oidc.c2id.op.userinfo_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id/userinfo" }
+  setting 'xpack.security.authc.realms.oidc.c2id.op.authorization_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id-login" }
+  setting 'xpack.security.authc.realms.oidc.c2id.op.token_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/token" }
+  setting 'xpack.security.authc.realms.oidc.c2id.op.userinfo_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/userinfo" }
   setting 'xpack.security.authc.realms.oidc.c2id.op.jwkset_path', 'op-jwks.json'
   setting 'xpack.security.authc.realms.oidc.c2id.rp.redirect_uri', 'https://my.fantastic.rp/cb'
   setting 'xpack.security.authc.realms.oidc.c2id.rp.client_id', 'https://my.elasticsearch.org/rp'
@@ -54,9 +54,9 @@ testClusters.integTest {
   // OpenID Connect Realm 2 configured for implicit flow
   setting 'xpack.security.authc.realms.oidc.c2id-implicit.order', '3'
   setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.issuer', 'http://localhost:8080'
-  setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.authorization_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id-login" }
-  setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.token_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id/token" }
-  setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.userinfo_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id/userinfo" }
+  setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.authorization_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id-login" }
+  setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.token_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/token" }
+  setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.userinfo_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/userinfo" }
   setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.jwkset_path', 'op-jwks.json'
   setting 'xpack.security.authc.realms.oidc.c2id-implicit.rp.redirect_uri', 'https://my.fantastic.rp/cb'
   setting 'xpack.security.authc.realms.oidc.c2id-implicit.rp.client_id', 'elasticsearch-rp'
@@ -69,9 +69,9 @@ testClusters.integTest {
   // OpenID Connect Realm 3 configured to use a proxy
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.order', '4'
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.issuer', 'http://localhost:8080'
-  setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.authorization_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id-login" }
-  setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.token_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id/token" }
-  setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.userinfo_endpoint', { "http://127.0.0.1:${ephmeralOpPort}/c2id/userinfo" }
+  setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.authorization_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id-login" }
+  setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.token_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/token" }
+  setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.userinfo_endpoint', { "http://127.0.0.1:${ephemeralOpPort}/c2id/userinfo" }
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.op.jwkset_path', 'op-jwks.json'
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.rp.redirect_uri', 'https://my.fantastic.rp/cb'
   setting 'xpack.security.authc.realms.oidc.c2id-proxy.rp.client_id', 'https://my.elasticsearch.org/rp'

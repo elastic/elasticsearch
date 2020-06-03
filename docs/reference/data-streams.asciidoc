@@ -33,6 +33,7 @@ This new index will then become the new write index.
 --
 
 [float]
+[[getting-started-with-data-streams]]
 == Getting started with data streams
 
 Create a composable template with a data stream definition:
@@ -97,6 +98,7 @@ DELETE /_index_template/logs_template
 ////
 
 [float]
+[[data-streams-apis]]
 == Data stream APIs
 
 The following APIs are for managing data stream APIs:

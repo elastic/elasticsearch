@@ -280,6 +280,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }
 
+    public static Object dateParse(String dateField, String pattern, String tzId) {
+        return Parser.DATE.parse(dateField, pattern, ZoneId.of(tzId));
+    }
+
     public static Integer datePart(String dateField, Object dateTime, String tzId) {
         return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
     }

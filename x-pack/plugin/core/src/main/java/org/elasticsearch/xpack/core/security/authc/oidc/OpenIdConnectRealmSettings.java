@@ -169,7 +169,7 @@ public class OpenIdConnectRealmSettings {
             @Override
             public Iterator<Setting<?>> settings() {
                 final String namespace = HTTP_PROXY_HOST.getNamespace(HTTP_PROXY_HOST.getConcreteSetting(key));
-                final List<Setting<?>> settings = List.of(HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace),
+                final List<Setting<?>> settings = Arrays.asList(HTTP_PROXY_PORT.getConcreteSettingForNamespace(namespace),
                     HTTP_PROXY_SCHEME.getConcreteSettingForNamespace(namespace));
                 return settings.iterator();
             }

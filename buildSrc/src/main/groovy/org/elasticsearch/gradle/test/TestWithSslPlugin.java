@@ -48,7 +48,6 @@ public class TestWithSslPlugin implements Plugin<Project> {
             });
 
         project.getPlugins().withType(StandaloneRestTestPlugin.class).configureEach(restTestPlugin -> {
-            project.getTasks().named(JavaPlugin.PROCESS_TEST_RESOURCES_TASK_NAME);
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             SourceSet testSourceSet = sourceSets.getByName("test");
             testSourceSet.getResources().srcDir(new File(keyStoreDir, "test/ssl"));
@@ -81,7 +80,6 @@ public class TestWithSslPlugin implements Plugin<Project> {
                 // copy keystores & certs into config/
                 c.extraConfigFile(nodeKeystore.getName(), nodeKeystore);
                 c.extraConfigFile(clientKeyStore.getName(), clientKeyStore);
-
             });
         });
 

@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -80,6 +81,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,7 +93,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
     @Override
     protected TextFieldMapper.Builder newBuilder() {
         return new TextFieldMapper.Builder("text")
-            .indexAnalyzer(new NamedAnalyzer("a", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
     @Before
@@ -109,15 +112,18 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             a.fielddataFrequencyFilter(1, 10, 10);
             a.fielddataFrequencyFilter(1, 10, 11);
         });
-        addBooleanModifier("index_phrases", false, TextFieldMapper.Builder::indexPhrases);
+        addModifier("index_phrases", false, (a, b) -> {
+            a.indexPhrases(true);
+            b.indexPhrases(false);
+        });
         addModifier("index_prefixes", false, (a, b) -> {
             a.indexPrefixes(2, 4);
         });
     }
 
     @Override
-    protected boolean supportsDocValues() {
-        return false;
+    protected Set<String> unsupportedProperties() {
+        return Set.of("doc_values");
     }
 
     IndexService indexService;
@@ -673,9 +679,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
-            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, ft.indexOptions());
+            assertEquals(prefix.name(), "field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, prefix.fieldType.indexOptions());
         }
 
         {
@@ -690,8 +695,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
         }
@@ -708,8 +713,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
         }
@@ -726,8 +731,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertTrue(ft.storeTermVectorOffsets());
         }
@@ -744,8 +749,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectorOffsets());
         }
@@ -774,8 +779,9 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
             assertEquals(prefix.name(), "object.field._index_prefix");
-            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, prefix.indexOptions());
-            assertFalse(prefix.storeTermVectorOffsets());
+            FieldMapper mapper = (FieldMapper) indexService.mapperService().documentMapper().mappers().getMapper("object.field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
+            assertFalse(mapper.fieldType.storeTermVectorOffsets());
         }
 
         {
@@ -800,8 +806,10 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
             assertEquals(prefix.name(), "body.with_prefix._index_prefix");
-            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, prefix.indexOptions());
-            assertFalse(prefix.storeTermVectorOffsets());
+            FieldMapper mapper
+                = (FieldMapper) indexService.mapperService().documentMapper().mappers().getMapper("body.with_prefix._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
+            assertFalse(mapper.fieldType.storeTermVectorOffsets());
         }
     }
 

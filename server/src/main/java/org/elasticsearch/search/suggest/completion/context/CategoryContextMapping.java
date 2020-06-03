@@ -28,7 +28,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -144,7 +143,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                         field instanceof SortedSetDocValuesField ||
                         field instanceof StoredField) {
                     // Ignore doc values and stored fields
-                } else if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
+                } else if (field.binaryValue() != null) {
                     values.add(field.binaryValue().utf8ToString());
                 } else if (field.fieldType() instanceof StringFieldType) {
                     values.add(field.stringValue());

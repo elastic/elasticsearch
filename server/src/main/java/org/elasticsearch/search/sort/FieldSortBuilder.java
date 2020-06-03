@@ -20,7 +20,6 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
@@ -52,9 +51,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -375,7 +374,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // unmapped
             return false;
         }
-        if (fieldType.indexOptions() == IndexOptions.NONE) {
+        if (fieldType.isSearchable() == false) {
             return false;
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
@@ -494,7 +493,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.fieldMapper(sortField.getField());
-        if (reader == null || (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE)) {
+        if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
             return null;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {

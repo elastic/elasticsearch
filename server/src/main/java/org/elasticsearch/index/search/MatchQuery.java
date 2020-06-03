@@ -318,7 +318,8 @@ public class MatchQuery {
     }
 
     private boolean hasPositions(MappedFieldType fieldType) {
-        return fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+        return context.getMapperService().getLuceneFieldType(fieldType.name())
+            .indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
     }
 
     class MatchQueryBuilder extends QueryBuilder {

@@ -62,8 +62,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -110,8 +109,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -156,8 +154,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -203,8 +200,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -242,8 +238,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(Math.PI);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -291,8 +286,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(5)
                 .minDocCount(2);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -328,8 +322,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(5)
                 .offset(4);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -386,8 +379,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(interval)
                 .offset(offset);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -430,8 +422,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
+            MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);

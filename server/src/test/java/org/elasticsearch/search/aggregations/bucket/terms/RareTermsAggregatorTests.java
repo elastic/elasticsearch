@@ -255,14 +255,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedDocValuesField("string", new BytesRef("a")));
                 document.add(new NumericDocValuesField("long", 0L));
                 indexWriter.addDocument(document);
-                MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType();
-                fieldType1.setName("another_string");
-                fieldType1.setHasDocValues(true);
-
-                MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType2.setName("another_long");
-                fieldType2.setHasDocValues(true);
-
+                MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("another_string");
+                MappedFieldType fieldType2
+                    = new NumberFieldMapper.NumberFieldType("another_long", NumberFieldMapper.NumberType.LONG);
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -300,8 +295,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     doc.add(new BinaryDocValuesField("field", encodedRange));
                     indexWriter.addDocument(doc);
                 }
-                MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-                fieldType.setName("field");
+                MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType("field", rangeType);
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
@@ -388,9 +382,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                 )
                         );
 
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-                    fieldType.setName("keyword");
-                    fieldType.setHasDocValues(true);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
 
                     InternalGlobal result = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), globalBuilder, fieldType);
                     InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
@@ -428,9 +420,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         .field("nested_value")
                         .maxDocCount(1)
                     );
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                fieldType.setHasDocValues(true);
-                fieldType.setName("nested_value");
+                MappedFieldType fieldType
+                    = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
                 try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     InternalNested result = searchAndReduce(newIndexSearcher(indexReader),
                         // match root document only
@@ -467,9 +458,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                                     .storedField("_none_")
                             )
                         );
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                    fieldType.setHasDocValues(true);
-                    fieldType.setName("nested_value");
+                    MappedFieldType fieldType
+                        = new NumberFieldMapper.NumberFieldType("nested_value", NumberFieldMapper.NumberType.LONG);
                     try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
 
                         if (withScore) {
@@ -589,13 +579,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType();
-                keywordFieldType.setName(KEYWORD_FIELD);
-                keywordFieldType.setHasDocValues(true);
-
-                MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                longFieldType.setName(LONG_FIELD);
-                longFieldType.setHasDocValues(true);
+                MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD);
+                MappedFieldType longFieldType
+                    = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
 
                 InternalMappedRareTerms rareTerms;
                 if (reduced) {

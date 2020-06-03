@@ -55,8 +55,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(5);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -86,8 +85,8 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(5);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            fieldType.setName("field");
+            MappedFieldType fieldType
+                = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -120,9 +119,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
         String fieldName = "date_field";
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(fieldName);
-        DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-        fieldType.setName(fieldName);
-        fieldType.setHasDocValues(true);
+        DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(fieldName);
 
         try (Directory dir = newDirectory();
              RandomIndexWriter indexWriter = new RandomIndexWriter(random(), dir)) {
@@ -161,8 +158,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(Math.PI);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -193,8 +189,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .field("field")
                     .interval(10)
                     .minDocCount(2);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -222,8 +217,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .field("field")
                     .interval(5)
                     .missing(2d);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -304,9 +298,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
-            MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-            fieldType.setName("field");
-            fieldType.setHasDocValues(true);
+            MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
@@ -331,8 +323,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .field("field")
                     .interval(5)
                     .offset(Math.PI);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -365,8 +356,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(interval)
                 .offset(offset);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -399,8 +389,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                     .field("field")
                     .interval(5)
                     .extendedBounds(-12, 13);
-            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-            fieldType.setName("field");
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);

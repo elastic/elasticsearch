@@ -98,9 +98,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
                         .field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-                        NumberFieldMapper.NumberType.LONG);
-                fieldType.setName(VALUE_FIELD_NAME);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
@@ -162,9 +160,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
                         .field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-                        NumberFieldMapper.NumberType.LONG);
-                fieldType.setName(VALUE_FIELD_NAME);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
@@ -187,9 +183,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         int numParentDocs = randomIntBetween(1, 20);
         int expectedParentDocs = 0;
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-            NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(VALUE_FIELD_NAME);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {

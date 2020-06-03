@@ -73,14 +73,14 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
         return new ParsedCartesianPoint();
     }
 
-    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<CartesianPoint, Builder> {
+    public static class TypeParser extends AbstractPointGeometryFieldMapper.TypeParser<Builder> {
         @Override
         protected Builder newBuilder(String name, Map<String, Object> params) {
             return new PointFieldMapper.Builder(name);
         }
 
         @Override
-        protected CartesianPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+        protected ParsedPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
             ParsedCartesianPoint point = new ParsedCartesianPoint();
             CartesianPoint.parsePoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {

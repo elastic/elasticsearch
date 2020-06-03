@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -262,12 +263,13 @@ public class ClusterHealthIT extends ESIntegTestCase {
         clusterHealthThread.join();
     }
 
-    public void testWaitForEventsRetriesIfOtherConditionsNotMet() throws Exception {
+    public void testWaitForEventsRetriesIfOtherConditionsNotMet() {
         final ActionFuture<ClusterHealthResponse> healthResponseFuture
             = client().admin().cluster().prepareHealth("index").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute();
 
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
         clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -276,6 +278,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(String source, Exception e) {
+                    completionFuture.onFailure(e);
                     throw new AssertionError(source, e);
                 }
 
@@ -283,19 +286,25 @@ public class ClusterHealthIT extends ESIntegTestCase {
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     if (keepSubmittingTasks.get()) {
                         clusterService.submitStateUpdateTask("looping task", this);
+                    } else {
+                        completionFuture.onResponse(null);
                     }
                 }
             });
 
-        createIndex("index");
-        assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
+        try {
+            createIndex("index");
+            assertFalse(client().admin().cluster().prepareHealth("index").setWaitForGreenStatus().get().isTimedOut());
 
-        // at this point the original health response should not have returned: there was never a point where the index was green AND
-        // the master had processed all pending tasks above LANGUID priority.
-        assertFalse(healthResponseFuture.isDone());
-
-        keepSubmittingTasks.set(false);
-        assertFalse(healthResponseFuture.get().isTimedOut());
+            // at this point the original health response should not have returned: there was never a point where the index was green AND
+            // the master had processed all pending tasks above LANGUID priority.
+            assertFalse(healthResponseFuture.isDone());
+            keepSubmittingTasks.set(false);
+            assertFalse(healthResponseFuture.actionGet(TimeValue.timeValueSeconds(30)).isTimedOut());
+        } finally {
+            keepSubmittingTasks.set(false);
+            completionFuture.actionGet(TimeValue.timeValueSeconds(30));
+        }
     }
 
     public void testHealthOnMasterFailover() throws Exception {
@@ -316,6 +325,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
     public void testWaitForEventsTimesOutIfMasterBusy() {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
         clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -324,6 +334,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
+                completionFuture.onFailure(e);
                 throw new AssertionError(source, e);
             }
 
@@ -331,15 +342,21 @@ public class ClusterHealthIT extends ESIntegTestCase {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
                     clusterService.submitStateUpdateTask("looping task", this);
+                } else {
+                    completionFuture.onResponse(null);
                 }
             }
         });
 
-        final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .setTimeout(TimeValue.timeValueSeconds(1)).get(TimeValue.timeValueSeconds(30));
-        assertTrue(clusterHealthResponse.isTimedOut());
-
-        keepSubmittingTasks.set(false);
+        try {
+            final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(TimeValue.timeValueSeconds(1))
+                .get(TimeValue.timeValueSeconds(30));
+            assertTrue(clusterHealthResponse.isTimedOut());
+        } finally {
+            keepSubmittingTasks.set(false);
+            completionFuture.actionGet(TimeValue.timeValueSeconds(30));
+        }
     }
 }

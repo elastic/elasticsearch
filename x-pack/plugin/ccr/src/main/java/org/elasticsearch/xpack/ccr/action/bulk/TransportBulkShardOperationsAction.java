@@ -70,6 +70,11 @@ public class TransportBulkShardOperationsAction
             request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
     }
 
+    @Override
+    protected long primaryOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
@@ -168,6 +173,11 @@ public class TransportBulkShardOperationsAction
             }
             return shardOperationOnReplica(request, replica, logger);
         });
+    }
+
+    @Override
+    protected long replicaOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).sum();
     }
 
     // public for testing purposes only

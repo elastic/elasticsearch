@@ -19,7 +19,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -35,8 +34,6 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class WriteMemoryLimitsIT extends ESIntegTestCase {

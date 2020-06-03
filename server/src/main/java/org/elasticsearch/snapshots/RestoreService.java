@@ -68,6 +68,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -149,13 +150,16 @@ public class RestoreService implements ClusterStateApplier {
 
     private final MetadataIndexUpgradeService metadataIndexUpgradeService;
 
+    private final ShardLimitValidator shardLimitValidator;
+
     private final ClusterSettings clusterSettings;
 
     private final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor;
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetadataCreateIndexService createIndexService,
-                          MetadataIndexUpgradeService metadataIndexUpgradeService, ClusterSettings clusterSettings) {
+                          MetadataIndexUpgradeService metadataIndexUpgradeService, ClusterSettings clusterSettings,
+                          ShardLimitValidator shardLimitValidator) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
@@ -164,6 +168,7 @@ public class RestoreService implements ClusterStateApplier {
         clusterService.addStateApplier(this);
         this.clusterSettings = clusterSettings;
         this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
+        this.shardLimitValidator = shardLimitValidator;
     }
 
     /**
@@ -288,7 +293,7 @@ public class RestoreService implements ClusterStateApplier {
                                     indexMdBuilder.settings(Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
-                                    MetadataCreateIndexService.checkShardLimit(snapshotIndexMetadata.getSettings(), currentState);
+                                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
                                     if (!request.includeAliases() && !snapshotIndexMetadata.getAliases().isEmpty()) {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();

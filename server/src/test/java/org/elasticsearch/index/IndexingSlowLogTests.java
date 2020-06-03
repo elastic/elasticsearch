@@ -159,12 +159,12 @@ public class IndexingSlowLogTests extends ESTestCase {
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         {
-            // level set WARN, should not log
+            // threshold set on WARN only, should not log
             Mockito.when(result.getTook()).thenReturn(11L);
             log1.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
 
-            // level set TRACE, should log
+            // threshold set on TRACE only, should not log
             log2.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNotNull(appender.getLastEventAndReset());
         }

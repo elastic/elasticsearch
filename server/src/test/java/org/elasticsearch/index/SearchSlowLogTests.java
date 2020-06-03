@@ -195,13 +195,13 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchSlowLog log2 = new SearchSlowLog(settings2);
 
         {
-            // level set on WARN only, should not log
+            // threshold set on WARN only, should not log
             log1.onQueryPhase(ctx1, 11L);
             assertNull(appender.getLastEventAndReset());
             log1.onFetchPhase(ctx1, 11L);
             assertNull(appender.getLastEventAndReset());
 
-            // level set on TRACE only, should log
+            // threshold set on TRACE only, should log
             log2.onQueryPhase(ctx2, 11L);
             assertNotNull(appender.getLastEventAndReset());
             log2.onFetchPhase(ctx2, 11L);

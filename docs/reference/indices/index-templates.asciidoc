@@ -308,7 +308,7 @@ This is the template to be applied, may optionally include a `mappings`,
 (Optional, array of strings)
 An ordered list of component template names. Component templates are merged in the order
 specified, meaning that the last component template specified has the highest precedence. See 
-<<imultiple-component-templates,Composing multiple component templates>> for an example.
+<<multiple-component-templates,Composing multiple component templates>> for an example.
 
 `priority`::
 (Optional, integer)

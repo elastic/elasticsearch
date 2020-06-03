@@ -392,7 +392,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Iterate all of the buckets. Implementations take into account
          * the {@link BucketCountThresholds}. In particular,
          * if the {@link BucketCountThresholds#getMinDocCount()} is 0 then
-         * they'll make sure to iterate a bucket even if it was never 
+         * they'll make sure to iterate a bucket even if it was never
          * {{@link #collectGlobalOrd(int, long, LeafBucketCollector) collected}.
          * If {@link BucketCountThresholds#getMinDocCount()} is not 0 then
          * they'll skip all global ords that weren't collected.
@@ -500,7 +500,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
             }
         }
-            
+
 
         @Override
         public void close() {
@@ -543,9 +543,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         }
                         updateBucket(spare, globalOrd, bucketOrd, docCount);
                         spare = ordered.insertWithOverflow(spare);
-                        if (spare == null) {
-                            consumeBucketsAndMaybeBreak(1);
-                        }
                     }
                 }
             });
@@ -651,7 +648,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.bucketOrd = bucketOrd;
             spare.docCount = docCount;
         }
-        
+
         @Override
         PriorityQueue<OrdBucket> buildPriorityQueue(int size) {
             return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);

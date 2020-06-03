@@ -174,9 +174,6 @@ public class NumericTermsAggregator extends TermsAggregator {
                     }
                     updateBucket(spare, ordsEnum, docCount);
                     spare = ordered.insertWithOverflow(spare);
-                    if (spare == null) {
-                        consumeBucketsAndMaybeBreak(1);
-                    }
                 }
 
                 // Get the top buckets

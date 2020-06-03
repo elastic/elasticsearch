@@ -63,7 +63,7 @@ public class SpatialPluginTests extends ESTestCase {
                     License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
                     ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
                         () -> supplier.build(null, null, null, 0, null,
-                            0,0,  null, null, null));
+                            0,0,  null, null, false, null));
                     assertThat(exception.getMessage(),
                         equalTo("current license is non-compliant for [" + builderName + " aggregation on geo_shape fields]"));
                 }

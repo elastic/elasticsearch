@@ -173,9 +173,6 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 }
                 updateBucket(spare, bucketOrd, docCount);
                 spare = ordered.insertWithOverflow(spare);
-                if (spare == null) {
-                    consumeBucketsAndMaybeBreak(1);
-                }
             }
 
             B[] topBuckets = buildBuckets(ordered.size());

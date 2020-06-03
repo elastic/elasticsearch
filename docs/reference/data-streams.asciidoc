@@ -4,7 +4,7 @@
 [partintro]
 --
 A data stream formalizes the notion of a stream of data for time based data sources.
-Data streams groups indices from the same time-based data source together as an
+Data streams group indices from the same time-based data source together as an
 opaque container. A data stream keeps track of an ordered list of indices. Also known
 as backing indices.
 

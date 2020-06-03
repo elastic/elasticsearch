@@ -97,7 +97,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                     context, ValueType.STRING, "bytes", null, null, null, null, CoreValuesSourceType.BYTES, null);
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             assertNotNull(valuesSource);
-            assertTrue(config.unmapped());
+            assertFalse(config.hasValues());
 
             config = ValuesSourceConfig.resolve(
                     context, ValueType.STRING, "bytes", null, "abc", null, null, CoreValuesSourceType.BYTES, null);
@@ -174,7 +174,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                     context, ValueType.NUMBER, "long", null, null, null, null, CoreValuesSourceType.BYTES, null);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             assertNotNull(valuesSource);
-            assertTrue(config.unmapped());
+            assertFalse(config.hasValues());
 
             config = ValuesSourceConfig.resolve(
                     context, ValueType.NUMBER, "long", null, 42, null, null, CoreValuesSourceType.BYTES, null);
@@ -251,7 +251,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                     context, ValueType.BOOLEAN, "bool", null, null, null, null, CoreValuesSourceType.BYTES, null);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             assertNotNull(valuesSource);
-            assertTrue(config.unmapped());
+            assertFalse(config.hasValues());
 
             config = ValuesSourceConfig.resolve(
                     context, ValueType.BOOLEAN, "bool", null, true, null, null, CoreValuesSourceType.BYTES, null);

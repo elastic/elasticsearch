@@ -319,8 +319,11 @@ public class ValuesSourceConfig {
         return script;
     }
 
-    public boolean unmapped() {
-        return unmapped && missing == null;
+    /**
+     * Returns true if the values source configured by this object can yield values
+     */
+    public boolean hasValues() {
+        return fieldContext != null || script != null || missing != null;
     }
 
     public boolean valid() {

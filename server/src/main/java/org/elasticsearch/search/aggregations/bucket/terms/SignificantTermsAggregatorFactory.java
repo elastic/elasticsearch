@@ -169,7 +169,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       Map<String, Object> metadata) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
-        if (config.unmapped() == false) {
+        if (config.hasValues()) {
             if (config.fieldContext().fieldType().isSearchable() == false) {
                 throw new IllegalArgumentException("SignificantText aggregation requires fields to be searchable, but ["
                     + config.fieldContext().fieldType().name() + "] is not");

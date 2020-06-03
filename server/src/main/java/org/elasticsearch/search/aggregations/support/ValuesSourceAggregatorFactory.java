@@ -42,7 +42,7 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
                                      Map<String, Object> metadata) throws IOException {
-        if (config.unmapped()) {
+        if (config.hasValues() == false) {
             return createUnmapped(searchContext, parent, metadata);
         }
         return doCreateInternal(searchContext, parent, collectsFromSingleBucket, metadata);

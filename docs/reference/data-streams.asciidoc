@@ -30,8 +30,6 @@ The rollover API is responsible for updating <<rollover-data-stream-ex,a data st
 It will create a new index and update the data stream to include it the list of indices.
 This new index will then become the new write index.
 
---
-
 [float]
 [[getting-started-with-data-streams]]
 == Getting started with data streams
@@ -106,3 +104,5 @@ The following APIs are for managing data stream APIs:
 * To get meta information about data streams use <<indices-get-data-stream, the get data stream api>>.
 * To delete data streams use <<indices-delete-data-stream, the delete data stream api>>.
 * To manually create a data stream use <<indices-create-data-stream, the create data stream api>>.
+
+--

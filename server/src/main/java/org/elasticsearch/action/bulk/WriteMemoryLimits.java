@@ -27,10 +27,8 @@ public class WriteMemoryLimits {
 
     // A heuristic for the bytes overhead of a single write operation
     public static final int WRITE_REQUEST_BYTES_OVERHEAD = 4096;
-    public static final String WRITE_BYTES_MARKED = "write_bytes_marked";
 
     private final AtomicLong coordinatingBytes = new AtomicLong(0);
-    private final AtomicLong primaryCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong primaryBytes = new AtomicLong(0);
     private final AtomicLong replicaBytes = new AtomicLong(0);
 
@@ -39,17 +37,17 @@ public class WriteMemoryLimits {
         return () -> coordinatingBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
 
+    public long getCoordinatingBytes() {
+        return coordinatingBytes.get();
+    }
+
     public Releasable markPrimaryOperationStarted(long bytes) {
         primaryBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
         return () -> primaryBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
 
-    public void markOperationStarted(long bytes) {
-        primaryCoordinatingBytes.addAndGet(WRITE_REQUEST_BYTES_OVERHEAD + bytes);
-    }
-
-    public void markOperationFinished(long bytes) {
-        primaryCoordinatingBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
+    public long getPrimaryBytes() {
+        return primaryBytes.get();
     }
 
     public Releasable markReplicaOperationStarted(long bytes) {
@@ -57,7 +55,7 @@ public class WriteMemoryLimits {
         return () -> replicaBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
     }
 
-    public void markReplicaOperationFinished(long bytes) {
-        replicaBytes.getAndAdd(-(WRITE_REQUEST_BYTES_OVERHEAD + bytes));
+    public long getReplicaBytes() {
+        return replicaBytes.get();
     }
 }

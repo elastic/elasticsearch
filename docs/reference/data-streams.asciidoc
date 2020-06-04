@@ -2,38 +2,44 @@
 [[data-streams]]
 = Data Streams
 
-A data stream formalizes the notion of a stream of data for time based data sources.
-Data streams group indices from the same time-based data source together as an
-opaque container. A data stream keeps track of an ordered list of indices which are also known
-as backing indices.
+You can use data streams to index time-based data that's continuously generated.
+A data stream groups indices from the same time-based data source.
+A data stream tracks its indices, known as _backing indices_, using an ordered
+list.
 
-The backing indices of a data steam are hidden indices. The last backing index is the
-write index. The other backing indices handle read requests. A data stream only accepts
-index requests with `op_type` set to `create`. If specific documents need to be updated
-or deleted then these operations should happen via the backing index these documents
-reside in.
+A data stream's backing indices are <<index-hidden,hidden>>.
+The most recently created backing index is the
+write index. The other backing indices handle read requests. A data stream only
+accepts <<docs-index_,index requests>> with `op_type` set to `create`. To update
+or delete specific documents in a data stream, submit a <<docs-delete,delete>>
+or <<docs-update,update>> API request to the backing index containing the
+document.
 
-Data streams rely on composable templates in order to get created. A composable template
-with a `data_stream` definition must exist for the namespace in which the data stream
-is to be created. A data stream is created automatically when indexing into a namespace with
-a composable template with a `data_stream` definition. A data stream can also
-be created via the <<indices-create-data-stream,Create Data Stream API>>, but this also requires the existence of
-composable data stream.
+To create a data stream, set up a <<indices-templates,composable index
+template>> containing:
 
-As part of setting up a data stream, the field that contains the primary timestamp
-in the time-based data source should be configured with the data stream. This can be
-specified in the `timestamp_field` parameter in the `data_stream` snippet of a
-composable template.
+* Any desired index patterns in the `index_patterns` property. Indices that
+  match these patterns are in the data stream's _namespace_.
+* A `data_stream` definition that contains the `timestamp_field` property.
+  The `timestamp_field` should be the primary timestamp field 
+   for the data source.
 
-The rollover API is responsible for updating <<rollover-data-stream-ex,a data stream when rolling over>>.
-It will create a new index and update the data stream to include it the list of indices.
-This new index will then become the new write index.
+When you index within a data stream's namespace, {es} automatically creates the
+data stream using this template. You can also manually create a data stream using the
+<<indices-create-data-stream,create data stream API>>. However, a composable
+template for the stream is still required.
 
-[float]
-[[getting-started-with-data-streams]]
-== Getting started with data streams
+You can use the <<indices-rollover-index,rollover API>> to roll a data stream
+over to a new index when the current write index meets specified criteria, such
+as a maximum age or size. A rollover creates a new backing index and updates the
+data stream's list of backing indices. This new index then becomes the stream's
+new write index. See <<rollover-data-stream-ex>>.
 
-Create a composable template with a data stream definition:
+[discrete]
+[[create-data-stream]]
+== Create a data stream
+
+Create a composable template with a `data_stream` definition:
 
 [source,console]
 -----------------------------------
@@ -45,7 +51,6 @@ PUT /_index_template/logs_template
   }
 }
 -----------------------------------
-// TEST
 
 Start indexing data into the namespace of this composable template:
 
@@ -81,7 +86,7 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/]
 
-Or create a data stream via the create data stream api:
+Or create a data stream using the create data stream API:
 
 [source,console]
 --------------------------------------------------
@@ -99,7 +104,7 @@ DELETE /_index_template/logs_template
 // TEST[continued]
 ////
 
-[float]
+[discrete]
 [[data-streams-apis]]
 == Data stream APIs
 

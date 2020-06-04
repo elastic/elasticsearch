@@ -26,11 +26,16 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -44,8 +49,11 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,7 +62,7 @@ import java.util.Set;
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
  * source shard to the target shard.
  */
-public class PeerRecoverySourceService extends AbstractLifecycleComponent implements IndexEventListener {
+public class PeerRecoverySourceService extends AbstractLifecycleComponent implements IndexEventListener, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceService.class);
 
@@ -68,6 +76,17 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoverySettings recoverySettings;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+
+    /**
+     * Map of {@link DiscoveryNode} to a collection of {@link RemoteRecoveryTargetHandler} that might be in the process of waiting for a
+     * retry on a failed transport request. A {@link RemoteRecoveryTargetHandler} will add itself to this map via {@link #trackRetry} when
+     * starting to wait for a retry and will remove itself from it via {@link #removeRetryTracking} once all their in-flight
+     * {@link org.elasticsearch.action.support.RetryableAction} instances have completed.
+     * The logic in {@link #clusterChanged} will cancel all {@link RemoteRecoveryTargetHandler} for {@link DiscoveryNode}s that were
+     * removed from the cluster state.
+     */
+    private final Map<DiscoveryNode, Collection<RemoteRecoveryTargetHandler>> retryingRecoveries =
+            ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
@@ -88,11 +107,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     @Override
     protected void doStart() {
+        clusterService().addListener(this);
     }
 
     @Override
     protected void doStop() {
         ongoingRecoveries.awaitEmpty();
+        clusterService().removeListener(this);
     }
 
     @Override
@@ -105,6 +126,48 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         if (indexShard != null) {
             ongoingRecoveries.cancel(indexShard, "shard is closed");
         }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.nodesRemoved()) {
+            for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
+                final Collection<RemoteRecoveryTargetHandler> retrying = retryingRecoveries.remove(removedNode);
+                if (retrying != null) {
+                    for (RemoteRecoveryTargetHandler handler : retrying) {
+                        handler.cancel();
+                    }
+                }
+            }
+        }
+    }
+
+    public ClusterService clusterService() {
+        return indicesService.clusterService();
+    }
+
+    // see #retryingRecoveries
+    public void trackRetry(RemoteRecoveryTargetHandler handler) {
+        retryingRecoveries.compute(
+                handler.targetNode, (k, handlers) -> {
+                    if (handlers == null) {
+                        handlers = Collections.newSetFromMap(new IdentityHashMap<>());
+                    }
+                    handlers.add(handler);
+                    return handlers;
+                });
+    }
+
+    // see #retryingRecoveries
+    public void removeRetryTracking(RemoteRecoveryTargetHandler handler) {
+        retryingRecoveries.computeIfPresent(handler.targetNode, (k, handlers) -> {
+            if (handlers.size() == 1 && handlers.contains(handler)) {
+                return null;
+            } else {
+                handlers.remove(handler);
+                return handlers;
+            }
+        });
     }
 
     private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
@@ -277,7 +340,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 RecoverySourceHandler handler;
                 final RemoteRecoveryTargetHandler recoveryTarget =
                         new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
-                                indicesService.getClusterService(), request.targetNode(), recoverySettings,
+                                PeerRecoverySourceService.this, request.targetNode(), recoverySettings,
                                 throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
                 handler = new RecoverySourceHandler(shard, recoveryTarget, shard.getThreadPool(), request,
                     Math.toIntExact(recoverySettings.getChunkSize().getBytes()), recoverySettings.getMaxConcurrentFileChunks());

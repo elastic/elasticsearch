@@ -29,7 +29,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -65,10 +64,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     private final TransportService transportService;
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
+    private final PeerRecoverySourceService peerRecoverySourceService;
     private final long recoveryId;
     private final ShardId shardId;
-    private final DiscoveryNode targetNode;
+    final DiscoveryNode targetNode;
     private final RecoverySettings recoverySettings;
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
 
@@ -82,10 +81,11 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private final boolean retriesSupported;
     private volatile boolean isCancelled = false;
 
-    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService, ClusterService clusterService,
-                                       DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+    public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
+                                       PeerRecoverySourceService peerRecoverySourceService, DiscoveryNode targetNode,
+                                       RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
         this.transportService = transportService;
-        this.clusterService = clusterService;
+        this.peerRecoverySourceService = peerRecoverySourceService;
         this.threadPool = transportService.getThreadPool();
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -252,7 +252,15 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                                                                       TransportRequestOptions options, ActionListener<T> actionListener,
                                                                       Writeable.Reader<T> reader) {
         final Object key = new Object();
-        final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
+        final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> {
+            // synchronizing on the action map here to only remove the retry tracking exactly once when the last key is removed
+            synchronized (onGoingRetryableActions) {
+                onGoingRetryableActions.remove(key);
+                if (onGoingRetryableActions.isEmpty()) {
+                    peerRecoverySourceService.removeRetryTracking(RemoteRecoveryTargetHandler.this);
+                }
+            }
+        });
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
         final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
         final RetryableAction<T> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener,
@@ -266,7 +274,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return retriesSupported && clusterService.state().nodes().nodeExists(targetNode) && retryableException(e);
+                final boolean retry = retriesSupported && peerRecoverySourceService.clusterService().state().nodes().nodeExists(targetNode)
+                        && retryableException(e);
+                if (retry) {
+                    peerRecoverySourceService.trackRetry(RemoteRecoveryTargetHandler.this);
+                }
+                return retry;
             }
         };
         onGoingRetryableActions.put(key, retryableAction);

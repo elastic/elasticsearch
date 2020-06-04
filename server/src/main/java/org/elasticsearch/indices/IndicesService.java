@@ -331,7 +331,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
 
-    public ClusterService getClusterService() {
+    public ClusterService clusterService() {
         return clusterService;
     }
 

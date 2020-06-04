@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -201,7 +202,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 // Store newSnapshot here to be processed in clusterStateProcessed
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
-                    request.indicesOptions(), request.indices()));
+                    request.indicesOptions(), true, request.indices()));
+
+                List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(),
+                    request.indices());
+
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
                 final List<IndexId> indexIds = repositoryData.resolveNewIndices(indices);
@@ -230,14 +235,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // TODO: We should just throw here instead of creating a FAILED and hence useless snapshot in the repository
                         newEntry = new SnapshotsInProgress.Entry(
                                 new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), false,
-                                State.FAILED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                                State.FAILED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
                                 failureMessage.toString(), userMeta, version);
                     }
                 }
                 if (newEntry == null) {
                     newEntry = new SnapshotsInProgress.Entry(
                             new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
-                            State.STARTED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                            State.STARTED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
                             null, userMeta, version);
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
@@ -334,6 +339,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     builder.put(indexMetadata, false);
                 }
             }
+
+            Map<String, DataStream> dataStreams = new HashMap<>(metadata.dataStreams());
+            dataStreams.keySet().removeIf(ds -> snapshot.dataStreams().contains(ds) == false);
+            builder.dataStreams(dataStreams);
             metadata = builder.build();
         }
         return metadata;

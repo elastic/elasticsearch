@@ -43,8 +43,8 @@ GET /_analyze
   "filter": [
     {
       "type": "pattern_replace",
-      "pattern": "(?<dog>dog)",
-      "replacement": "watch$dog"
+      "pattern": "(dog)",
+      "replacement": "watch$1"
     }
   ],
   "text": "foxes jump lazy dogs"

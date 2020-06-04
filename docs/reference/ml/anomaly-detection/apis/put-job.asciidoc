@@ -250,6 +250,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 `terms`:::
 experimental[] (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
+
+`annotations_enabled`:::
+(boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
 ====
 //End model_plot_config
 

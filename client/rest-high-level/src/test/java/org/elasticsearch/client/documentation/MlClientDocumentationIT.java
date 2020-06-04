@@ -590,7 +590,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <6>
                 .setGroups(Arrays.asList("job-group-1")) // <7>
                 .setResultsRetentionDays(10L) // <8>
-                .setModelPlotConfig(new ModelPlotConfig(true, null)) // <9>
+                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <9>
                 .setModelSnapshotRetentionDays(7L) // <10>
                 .setCustomSettings(customSettings) // <11>
                 .setRenormalizationWindowDays(3L) // <12>

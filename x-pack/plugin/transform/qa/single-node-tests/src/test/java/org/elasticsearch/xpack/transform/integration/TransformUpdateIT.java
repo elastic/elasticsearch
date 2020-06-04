@@ -152,13 +152,13 @@ public class TransformUpdateIT extends TransformRestTestCase {
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",
             getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
         );
 
         final Request createTransformRequest_2 = createRequestWithAuth(
             "PUT",
             getTransformEndpoint() + transformIdCloned,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
         );
 
         String config = "{ \"dest\": {\"index\":\""
@@ -185,7 +185,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
 
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
+        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
         Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
@@ -195,10 +195,10 @@ public class TransformUpdateIT extends TransformRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
         // delete the user _and_ the role to access the data
-        deleteUser(TEST_ADMIN_USER_NAME_1);
+        deleteUser(TEST_ADMIN_USER_NAME_2);
         deleteDataAccessRole(DATA_ACCESS_ROLE);
 
-        // getting the transform with the just deleted admin user should fail
+        // getting the transform with the just deleted admin 2 user should fail
         try {
             client().performRequest(getRequest);
             fail("request should have failed");
@@ -206,14 +206,14 @@ public class TransformUpdateIT extends TransformRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         }
 
-        // get the transform with admin 2
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
+        // get the transform with admin 1
+        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
         transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
-        // start using admin 2, but as the header is still admin 1
+        // start using admin 1, but as the header is still admin 2
         // BUG: this should fail, because the transform can not access the source index any longer
-        startAndWaitForTransform(transformId, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
+        startAndWaitForTransform(transformId, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
 
         assertBusy(() -> {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
@@ -224,18 +224,18 @@ public class TransformUpdateIT extends TransformRestTestCase {
         final Request updateRequest = createRequestWithAuth(
             "POST",
             getTransformEndpoint() + transformIdCloned + "/_update",
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
         updateRequest.setJsonEntity("{}");
         assertOK(client().performRequest(updateRequest));
 
         // get should still work
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
+        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
         transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
         // start with updated configuration should succeed
-        startAndWaitForTransform(transformIdCloned, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
+        startAndWaitForTransform(transformIdCloned, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
 
         assertBusy(() -> {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformIdCloned);

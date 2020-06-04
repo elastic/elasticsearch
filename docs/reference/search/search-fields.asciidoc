@@ -5,9 +5,92 @@
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
 provided when indexing the document. If you only need certain fields in the
-search response, you can use
-<<request-body-search-source-filtering,source filtering>> to restrict what
-parts of the source are returned.
+search response, you can use the
+<<request-body-search-source-filtering,`_source`>> parameter to restrict what
+parts of the source are returned. This is called _source filtering_.
+
+.*Example*
+[%collapsible]
+====
+The following search API request sets the `_source` request body parameter to
+`false`. The document source is not included in the response.
+
+[source,console]
+----
+GET /_search
+{
+  "_source": false,
+  "query": {
+    "term": {
+      "user.id": "8a4f500d"
+    }
+  }
+}
+----
+
+To return only a subset of source fields, specify a wildcard (`*`) pattern in
+the `_source` parameter. The following search API request returns the source for
+only the `obj` field and its properties.
+
+[source,console]
+----
+GET /_search
+{
+  "_source": "obj.*",
+  "query": {
+    "term": {
+      "user.id": "8a4f500d"
+    }
+  }
+}
+----
+
+You can also specify an array of wildcard patterns in the `_source` field. The
+following search API request returns the source for only the `obj1` and
+`obj2` fields and their properties.
+
+[source,console]
+----
+GET /_search
+{
+  "_source": [ "obj1.*", "obj2.*" ],
+  "query": {
+    "term": {
+      "user.id": "8a4f500d"
+    }
+  }
+}
+----
+
+For finer control, you can specify an object containing arrays of `includes` and
+`excludes` patterns in the `_source` parameter.
+
+If the `includes` property is specified, only source fields that match one of
+its patterns are returned. You can exclude fields from this subset using the
+`excludes` property.
+
+If the `includes` property is not specified, the entire document source is
+returned, excluding any fields that match a pattern in the `excludes` property.
+
+The following search API request returns the source for only the `obj1` and
+`obj2` fields and their properties, excluding any child `description` fields.
+
+[source,console]
+----
+GET /_search
+{
+  "_source": {
+    "includes": [ "obj1.*", "obj2.*" ],
+    "excludes": [ "*.description" ]
+  },
+  "query": {
+    "term": {
+      "user.id": "8a4f500d"
+    }
+  }
+}
+----
+====
 
 Returning fields using only the document source has some limitations:
 

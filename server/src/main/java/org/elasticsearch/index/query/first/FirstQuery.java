@@ -120,11 +120,7 @@ public class FirstQuery extends Query {
         }
 
         @Override
-        public void extractTerms(Set<Term> terms) {
-            for (Weight w: queryWeights) {
-                w.extractTerms(terms);
-            }
-        }
+        public void extractTerms(Set<Term> terms) {}
 
         @Override
         public Matches matches(LeafReaderContext context, int doc) throws IOException {

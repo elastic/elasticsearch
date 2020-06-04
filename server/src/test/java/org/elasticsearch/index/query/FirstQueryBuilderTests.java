@@ -109,4 +109,24 @@ public class FirstQueryBuilderTests extends AbstractQueryTestCase<FirstQueryBuil
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> firstQueryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
+
+    public void testFirstQueryBuilderValidation() {
+        {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new FirstQueryBuilder(List.of()));
+            assertEquals("[queries] cannot be null or empty!", ex.getMessage());
+        }
+        {
+            FirstQueryBuilder.setMaxClauseCount(6);
+            TermQueryBuilder tqb1 = new TermQueryBuilder("field1", "elephant");
+            TermQueryBuilder tqb2 = new TermQueryBuilder("field2", "elephant");
+            TermQueryBuilder tqb3 = new TermQueryBuilder("field3", "elephant");
+            TermQueryBuilder tqb4 = new TermQueryBuilder("field4", "elephant");
+            TermQueryBuilder tqb5 = new TermQueryBuilder("field5", "elephant");
+            TermQueryBuilder tqb6 = new TermQueryBuilder("field6", "elephant");
+            TermQueryBuilder tqb7 = new TermQueryBuilder("field7", "elephant");
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> new FirstQueryBuilder(List.of(tqb1, tqb2, tqb3, tqb4, tqb5, tqb6, tqb7)));
+            assertEquals("Too many query clauses! Should be less or equal [6]!", ex.getMessage());
+        }
+    }
 }

@@ -7,7 +7,7 @@ Used to enable or disable TLS/SSL. The default is `false`.
 endif::server[]
 
 +{ssl-prefix}.ssl.supported_protocols+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 ifdef::server[]
 +{ssl-prefix}.ssl.client_authentication+::
@@ -26,11 +26,11 @@ endif::server[]
 ifdef::verifies[]
 +{ssl-prefix}.ssl.verification_mode+::
 Controls the verification of certificates.
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 endif::verifies[]
 
 +{ssl-prefix}.ssl.cipher_suites+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 
 [#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
 ===== {component} TLS/SSL key and trusted certificate settings
@@ -50,19 +50,19 @@ endif::server[]
 When using PEM encoded files, use the following settings:
 
 +{ssl-prefix}.ssl.key+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 
 +{ssl-prefix}.ssl.key_passphrase+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
 +{ssl-prefix}.ssl.secure_key_passphrase+ (<<secure-settings,Secure>>)::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 +{ssl-prefix}.ssl.certificate+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 
 +{ssl-prefix}.ssl.certificate_authorities+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 
 ===== Java keystore files
 
@@ -70,28 +70,28 @@ When using Java keystore files (JKS), which contain the private key, certificate
 and certificates that should be trusted, use the following settings:
 
 +{ssl-prefix}.ssl.keystore.path+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.password+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 +{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 +{ssl-prefix}.ssl.keystore.key_password+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.password+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 [#{ssl-context}-pkcs12-files]
 ===== PKCS#12 files
@@ -102,35 +102,35 @@ that contain the private key, certificate and certificates that should be truste
 PKCS#12 files are configured in the same way as Java keystore files:
 
 +{ssl-prefix}.ssl.keystore.path+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.type+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 +{ssl-prefix}.ssl.keystore.password+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 +{ssl-prefix}.ssl.keystore.secure_password+ (<<secure-settings,Secure>>)::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 +{ssl-prefix}.ssl.keystore.key_password+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+ (<<secure-settings,Secure>>)::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.type+::
 Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 //TBD:Should this use the ssl-truststore-type-pkcs11 or ssl-truststore-type definition and default values?
 
 +{ssl-prefix}.ssl.truststore.password+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 [#{ssl-context}-pkcs11-tokens]
 ===== PKCS#11 tokens
@@ -146,7 +146,7 @@ Set this to `PKCS11` to indicate that the PKCS#11 token should be used as a keys
 //TBD: Is the default value `jks`?
 
 +{ssl-prefix}.truststore.type+::
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
 
 [NOTE]
 When configuring the PKCS#11 token that your JVM is configured to use as

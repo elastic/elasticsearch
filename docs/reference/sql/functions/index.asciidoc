@@ -129,6 +129,7 @@
 ** <<sql-functions-string-rtrim>>
 ** <<sql-functions-string-space>>
 ** <<sql-functions-string-substring>>
+** <<sql-functions-string-trim>>
 ** <<sql-functions-string-ucase>>
 * <<sql-functions-type-conversion>>
 ** <<sql-functions-type-conversion-cast>>

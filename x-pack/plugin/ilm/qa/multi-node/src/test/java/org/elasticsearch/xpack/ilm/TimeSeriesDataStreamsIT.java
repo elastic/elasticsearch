@@ -12,19 +12,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.ilm.ReplaceDataStreamBackingIndexStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.ShrunkenIndexCheckStep;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
+
+    private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
 
     public void testRolloverAction() throws Exception {
         String policyName = "logs-policy";
@@ -59,6 +66,17 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String backingIndexName = "logs-foo-000001";
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
+        assertBusy(() ->
+                assertThat("shrunk index must wait for the original index to be deleted in the " + ShrunkenIndexCheckStep.NAME + " step",
+                    getStepKeyForIndex(client(), shrunkenIndex).getName(), is(ShrunkenIndexCheckStep.NAME)),
+            30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat("original index must wait in the " + ReplaceDataStreamBackingIndexStep.NAME + " until it is not " +
+                "the write index anymore so it can be replaced by the shrunken index",
+            (Integer) explainIndex(client(), backingIndexName).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30, TimeUnit.SECONDS);
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
         assertThat(indexExists(backingIndexName), is(false));
     }

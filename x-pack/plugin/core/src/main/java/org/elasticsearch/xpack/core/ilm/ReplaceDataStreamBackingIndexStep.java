@@ -26,6 +26,8 @@ import java.util.Objects;
  * <p>
  * The `foo-stream-000001` index will continue to exist but will not be part of the data stream anymore.
  * <p>
+ * As the last generation is the write index of the data stream, replacing the last generation index is not allowed.
+ * <p>
  * This is useful in scenarios following a restore from snapshot operation where the restored index will take the place of the source
  * index in the ILM lifecycle or in the case where we shrink an index and the shrunk index will take the place of the original index.
  */
@@ -64,6 +66,14 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         if (dataStream == null) {
             String errorMessage = String.format(Locale.ROOT, "index [%s] is not part of a data stream. stopping execution of lifecycle " +
                 "[%s] until the index is added to a data stream", originalIndex, policyName);
+            logger.debug(errorMessage);
+            throw new IllegalStateException(errorMessage);
+        }
+
+        assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
+        if (dataStream.getWriteIndex().getIndex().getName().equals(originalIndex)) {
+            String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s]. stopping execution of " +
+                "lifecycle [%s] as a data stream's write index cannot be replaced", originalIndex, dataStream.getName(), policyName);
             logger.debug(errorMessage);
             throw new IllegalStateException(errorMessage);
         }

@@ -48,7 +48,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.indices = indices;
         this.generation = generation;
         assert indices.size() > 0;
-        assert indices.get(indices.size() - 1).getName().endsWith(getBackingIndexName(name, generation));
+        assert indices.get(indices.size() - 1).getName().equals(getBackingIndexName(name, generation));
     }
 
     public DataStream(String name, String timeStampField, List<Index> indices) {
@@ -103,7 +103,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     /**
      * Replaces the specified backing index with a new index and returns a new {@code DataStream} instance with
      * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
-     * is not a backing index for this data stream.
+     * is not a backing index for this data stream or if it is the {@code DataStream}'s write index.
      *
      * @param existingBackingIndex the backing index to be replaced
      * @param newBackingIndex      the new index that will be part of the {@code DataStream}
@@ -116,6 +116,10 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         if (backingIndexPosition == -1) {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] ",
                 existingBackingIndex.getName(), name));
+        }
+        if (generation == (backingIndexPosition + 1)) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot replace backing index [%s] of data stream [%s] because " +
+                "it is the write index", existingBackingIndex.getName(), name));
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
         return new DataStream(name, timeStampField, backingIndices, generation);

@@ -204,8 +204,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
                     request.indicesOptions(), true, request.indices()));
 
-                List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(),
-                    request.indices());
+                Map<String, DataStream> allDataStreams = currentState.metadata().dataStreams();
+                List<DataStream> dataStreams;
+                if(request.includeGlobalState()){
+                    dataStreams = new ArrayList<>(allDataStreams.values());
+                } else {
+                    dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(),
+                        request.indices()).stream().map(allDataStreams::get).collect(Collectors.toList());
+                }
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
@@ -340,8 +346,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
 
+            List<String> includedDataStreams = snapshot.dataStreams().stream().map(DataStream::getName).collect(Collectors.toList());
+
             Map<String, DataStream> dataStreams = new HashMap<>(metadata.dataStreams());
-            dataStreams.keySet().removeIf(ds -> snapshot.dataStreams().contains(ds) == false);
+            dataStreams.keySet().retainAll(includedDataStreams);
             builder.dataStreams(dataStreams);
             metadata = builder.build();
         }

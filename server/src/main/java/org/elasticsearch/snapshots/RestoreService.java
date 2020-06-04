@@ -198,8 +198,9 @@ public class RestoreService implements ClusterStateApplier {
                 validateSnapshotRestorable(repositoryName, snapshotInfo);
 
                 // Resolve the indices from the snapshot that need to be restored
-                Metadata globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
-                Map<String, DataStream> dataStreams = new HashMap<>(globalMetadata.dataStreams());
+                Map<String, DataStream> dataStreams = snapshotInfo.dataStreams().stream()
+                    .collect(Collectors.toMap(DataStream::getName, Function.identity()));
+                
                 List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
                 List<String> requestedDataStreams = filterIndices(new ArrayList<>(dataStreams.keySet()),
                     requestIndices.toArray(String[]::new), request.indicesOptions());
@@ -215,7 +216,7 @@ public class RestoreService implements ClusterStateApplier {
 
                 final Metadata.Builder metadataBuilder;
                 if (request.includeGlobalState()) {
-                    metadataBuilder = Metadata.builder(globalMetadata);
+                    metadataBuilder = Metadata.builder(repository.getSnapshotGlobalMetadata(snapshotId));
                 } else {
                     metadataBuilder = Metadata.builder();
                 }

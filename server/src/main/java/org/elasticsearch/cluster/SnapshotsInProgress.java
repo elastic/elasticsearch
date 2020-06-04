@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -50,13 +51,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.snapshots.SnapshotInfo.DATA_STREAMS_IN_SNAPSHOT;
+
 /**
  * Meta data about snapshots that are currently executing
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     private static final Version VERSION_IN_SNAPSHOT_VERSION = Version.V_7_7_0;
-    private static final Version DATA_STREAMS_IN_SNAPSHOT = Version.V_8_0_0;
 
     public static final String TYPE = "snapshots";
 
@@ -91,7 +93,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final boolean partial;
         private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
         private final List<IndexId> indices;
-        private final List<String> dataStreams;
+        private final List<DataStream> dataStreams;
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
@@ -101,7 +103,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Nullable private final String failure;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     List<String> dataStreams, long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
+                     List<DataStream> dataStreams, long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
                      String failure, Map<String, Object> userMetadata, Version version) {
             this.state = state;
             this.snapshot = snapshot;
@@ -205,7 +207,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return startTime;
         }
 
-        public List<String> dataStreams() {
+        public List<DataStream> dataStreams() {
             return dataStreams;
         }
 
@@ -539,9 +541,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 // generations.
                 version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
             }
-            List<String> dataStreams = Collections.emptyList();
-            if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)){
-                dataStreams = Arrays.asList(in.readStringArray());
+            List<DataStream> dataStreams = new ArrayList<>();
+            if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
+                int count = in.readVInt();
+                for (int j = 0; j < count; j++) {
+                    dataStreams.add(new DataStream(in));
+                }
             }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
@@ -587,7 +592,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 out.writeBoolean(SnapshotsService.useShardGenerations(entry.version));
             }
             if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-                out.writeStringArray(entry.dataStreams.toArray(new String[0]));
+                out.writeVInt(entry.dataStreams.size());
+                for (DataStream dataStream : entry.dataStreams) {
+                    dataStream.writeTo(out);
+                }
             }
         }
     }

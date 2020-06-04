@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
+import org.elasticsearch.cluster.metadata.DataStreamTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -29,6 +30,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -66,8 +68,8 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTests.randomUserMetadata()));
+            new SnapshotInfo(snapshotId, indices, Collections.singletonList(DataStreamTests.randomInstance()), startTime, reason, endTime,
+                totalShards, shardFailures, globalState, SnapshotInfoTests.randomUserMetadata()));
     }
 
     @Override

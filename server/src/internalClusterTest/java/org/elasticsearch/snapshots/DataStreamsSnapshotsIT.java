@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -37,10 +38,11 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
-public class DataStreamsIT extends AbstractSnapshotIntegTestCase {
+public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
-    public void testDataStreamSnapshot() throws Exception {
+    public void testSnapshotAndRestore() throws Exception {
         Client client = client();
 
         Path location = randomRepoPath();
@@ -112,7 +114,7 @@ public class DataStreamsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(source, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
     }
 
-    public void testDataStreamSnapshotWildcard() throws Exception {
+    public void testWildcards() throws Exception {
         Client client = client();
 
         Path location = randomRepoPath();
@@ -141,9 +143,71 @@ public class DataStreamsIT extends AbstractSnapshotIntegTestCase {
             .setRenameReplacement("ds2")
             .get();
 
+        assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
+
         GetDataStreamsAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamsAction.Request("ds2")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
         assertEquals("ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
+    }
+
+    public void testDataStreamNotStoredWhenIndexRequested() throws Exception {
+        Client client = client();
+
+        Path location = randomRepoPath();
+
+        createRepository("repo", "fs", location);
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
+        request.setTimestampFieldName("@timestamp");
+        AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
+        assertTrue(response.isAcknowledged());
+
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+            .prepareCreateSnapshot("repo", "snap2")
+            .setWaitForCompletion(true)
+            .setIndices("ds-000001")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+        assertEquals(Collections.emptyList(), createSnapshotResponse.getSnapshotInfo().dataStreams());
+    }
+
+    public void testDataStreamNotRestoredWhenIndexRequested() throws Exception {
+        Client client = client();
+
+        Path location = randomRepoPath();
+
+        createRepository("repo", "fs", location);
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
+        request.setTimestampFieldName("@timestamp");
+        AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
+        assertTrue(response.isAcknowledged());
+
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+            .prepareCreateSnapshot("repo", "snap2")
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+        assertEquals(1, createSnapshotResponse.getSnapshotInfo().dataStreams().size());
+
+        assertTrue(client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).get().isAcknowledged());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
+            .prepareRestoreSnapshot("repo", "snap2")
+            .setWaitForCompletion(true)
+            .setIndices("ds-*")
+            .get();
+
+        assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
+
+        GetDataStreamsAction.Request getRequest = new GetDataStreamsAction.Request("ds");
+        expectThrows(ExecutionException.class, ResourceNotFoundException.class,
+            () -> client.admin().indices().getDataStreams(getRequest).get());
     }
 }

@@ -20,7 +20,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -48,7 +48,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             PARSER.declareFloat(Request::setRequestsPerSecond, REQUESTS_PER_SECOND);
             PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
                 TIMEOUT);
-            PARSER.declareString(Request::setJobId, Fields.JOB_ID);
+            PARSER.declareString(Request::setJobId, Job.ID);
         }
 
         private Float requestsPerSecond;
@@ -71,7 +71,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 this.requestsPerSecond = null;
                 this.timeout = null;
             }
-            if (in.getVersion().onOrAfter(Version.CURRENT)) { // TODO BWC for V_7_9_0
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO BWC for V_7_9_0
                 jobId = in.readString();
             }
         }
@@ -135,7 +135,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 out.writeOptionalFloat(requestsPerSecond);
                 out.writeOptionalTimeValue(timeout);
             }
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {  // TODO BWC for V_7_9_0
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO BWC for V_7_9_0
                 out.writeString(jobId);
             }
         }

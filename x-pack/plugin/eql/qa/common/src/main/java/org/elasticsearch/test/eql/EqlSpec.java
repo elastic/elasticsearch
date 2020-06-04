@@ -16,8 +16,8 @@ public class EqlSpec {
     private String note;
     private String[] tags;
     private String query;
-    private Boolean caseSensitiveOnly;
-    private Boolean caseInsensitiveOnly;
+    private boolean caseSensitiveOnly = false;
+    private boolean caseInsensitiveOnly = false;
     private long[] expectedEventIds;
 
     public String description() {
@@ -60,20 +60,20 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
-    public void caseSensitiveOnly(Boolean caseSensitiveOnly) {
+    public void caseSensitiveOnly(boolean caseSensitiveOnly) {
         this.caseSensitiveOnly = caseSensitiveOnly;
     }
 
-    public void caseInsensitiveOnly(Boolean caseInsensitiveOnly) {
+    public void caseInsensitiveOnly(boolean caseInsensitiveOnly) {
         this.caseInsensitiveOnly = caseInsensitiveOnly;
     }
 
     public boolean supportsCaseSensitive() {
-        return this.caseInsensitiveOnly == null || this.caseInsensitiveOnly == false;
+        return this.caseInsensitiveOnly == false;
     }
 
     public boolean supportsCaseInsensitive() {
-        return this.caseSensitiveOnly == null || this.caseSensitiveOnly == false;
+        return this.caseSensitiveOnly == false;
     }
 
     @Override
@@ -83,12 +83,12 @@ public class EqlSpec {
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
 
-        if (caseInsensitiveOnly != null) {
-            str = appendWithComma(str, "case_insensitive", caseInsensitiveOnly.toString());
+        if (caseInsensitiveOnly) {
+            str = appendWithComma(str, "case_insensitive", Boolean.toString(caseInsensitiveOnly));
         }
 
-        if (caseSensitiveOnly != null) {
-            str = appendWithComma(str, "case_sensitive", caseSensitiveOnly.toString());
+        if (caseSensitiveOnly) {
+            str = appendWithComma(str, "case_sensitive", Boolean.toString(caseSensitiveOnly));
         }
 
         if (tags != null) {

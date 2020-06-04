@@ -30,7 +30,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,12 +44,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -61,6 +58,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +66,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.Spliterators;
+import java.util.TreeMap;
 import java.util.stream.StreamSupport;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
@@ -406,9 +405,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final IndexNameExpressionResolver indexNameExpressionResolver;
 
         @Inject
-        public TransportAction(TransportService transportService, Settings settings, ClusterService clusterService, ThreadPool threadPool,
-                               NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               IndicesService indicesService) {
+        public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
             super(NAME, transportService, actionFilters, ResolveIndexAction.Request::new);
             this.threadPool = threadPool;
             this.clusterService = clusterService;
@@ -423,22 +421,27 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 request.indices());
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             final Metadata metadata = clusterState.metadata();
-            List<ResolvedIndex> indices = Collections.synchronizedList(new ArrayList<>());
-            List<ResolvedAlias> aliases = Collections.synchronizedList(new ArrayList<>());
-            List<ResolvedDataStream> dataStreams = Collections.synchronizedList(new ArrayList<>());
+            List<ResolvedIndex> indices = new ArrayList<>();
+            List<ResolvedAlias> aliases = new ArrayList<>();
+            List<ResolvedDataStream> dataStreams = new ArrayList<>();
             if (localIndices != null) {
                 List<String> resolvedIndexAbstractions = resolveIndexAbstractions(localIndices.indices(), request.indicesOptions, metadata);
                 SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
                 for (String s : resolvedIndexAbstractions) {
-                    addIndexAbstraction(s, lookup, indices, aliases, dataStreams);
+                    enrichIndexAbstraction(s, lookup, indices, aliases, dataStreams);
                 }
+                indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
+                aliases.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
+                dataStreams.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
             }
 
             if (remoteClusterIndices.size() > 0) {
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
+                final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
+                        mergeResults(remoteResponses, indices, aliases, dataStreams);
                         listener.onResponse(new Response(indices, aliases, dataStreams));
                     }
                 };
@@ -450,20 +453,29 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
                     remoteClusterClient.admin().indices().resolveIndex(remoteRequest, ActionListener.wrap(response -> {
-                        for (ResolvedIndex index : response.indices) {
-                            indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));
-                        }
-                        for (ResolvedAlias alias : response.aliases) {
-                            aliases.add(alias.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName())));
-                        }
-                        for (ResolvedDataStream dataStream : response.dataStreams) {
-                            dataStreams.add(dataStream.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName())));
-                        }
+                        remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
                     }, failure -> terminalHandler.run()));
                 }
             } else {
                 listener.onResponse(new Response(indices, aliases, dataStreams));
+            }
+        }
+
+        private static void mergeResults(Map<String, Response> remoteResponses, List<ResolvedIndex> indices, List<ResolvedAlias> aliases,
+                                         List<ResolvedDataStream> dataStreams) {
+            for (Map.Entry<String, Response> responseEntry: remoteResponses.entrySet()) {
+                String clusterAlias = responseEntry.getKey();
+                Response response = responseEntry.getValue();
+                for (ResolvedIndex index : response.indices) {
+                    indices.add(index.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index.getName())));
+                }
+                for (ResolvedAlias alias : response.aliases) {
+                    aliases.add(alias.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, alias.getName())));
+                }
+                for (ResolvedDataStream dataStream : response.dataStreams) {
+                    dataStreams.add(dataStream.copy(RemoteClusterAware.buildRemoteIndexName(clusterAlias, dataStream.getName())));
+                }
             }
         }
 
@@ -586,9 +598,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
         }
 
-        private static void addIndexAbstraction(String indexAbstraction, SortedMap<String, IndexAbstraction> lookup,
-                                                List<ResolvedIndex> indices, List<ResolvedAlias> aliases,
-                                                List<ResolvedDataStream> dataStreams) {
+        private static void enrichIndexAbstraction(String indexAbstraction, SortedMap<String, IndexAbstraction> lookup,
+                                                   List<ResolvedIndex> indices, List<ResolvedAlias> aliases,
+                                                   List<ResolvedDataStream> dataStreams) {
             IndexAbstraction ia = lookup.get(indexAbstraction);
             if (ia != null) {
                 switch (ia.getType()) {

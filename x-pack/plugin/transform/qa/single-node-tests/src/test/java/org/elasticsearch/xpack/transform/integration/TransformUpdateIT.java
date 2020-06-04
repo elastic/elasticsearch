@@ -196,7 +196,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
         // delete the user _and_ the role to access the data
         deleteUser(TEST_ADMIN_USER_NAME_2);
-        deleteDataAccessRole(DATA_ACCESS_ROLE);
+        deleteDataAccessRole(DATA_ACCESS_ROLE_2);
 
         // getting the transform with the just deleted admin 2 user should fail
         try {

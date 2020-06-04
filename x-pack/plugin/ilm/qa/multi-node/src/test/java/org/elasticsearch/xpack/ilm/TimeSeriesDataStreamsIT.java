@@ -72,7 +72,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             30, TimeUnit.SECONDS);
         assertBusy(() -> assertThat("original index must wait in the " + ReplaceDataStreamBackingIndexStep.NAME + " until it is not " +
                 "the write index anymore so it can be replaced by the shrunken index",
-            (Integer) explainIndex(client(), backingIndexName).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)), 30, TimeUnit.SECONDS);
+            (Integer) explainIndex(client(), backingIndexName).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+            30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);

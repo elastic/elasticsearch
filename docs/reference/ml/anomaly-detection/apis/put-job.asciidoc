@@ -193,15 +193,15 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
 +
 .Properties of `per_partition_categorization`
 [%collapsible%open]
-====
-`enabled`:::
+=====
+`enabled`::::
 (boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
 
-`stop_on_warn`:::
+`stop_on_warn`::::
 (boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
-====
+=====
 //End analysis_config.per_partition_categorization
 
 `summary_count_field_name`:::

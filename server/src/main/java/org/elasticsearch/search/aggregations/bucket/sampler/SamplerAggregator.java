@@ -76,8 +76,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
             ) throws IOException {
 
                 return new DiversifiedMapSamplerAggregator(name, shardSize, factories, context, parent, metadata,
-                        valuesSourceConfig,
-                        maxDocsPerValue);
+                        valuesSourceConfig, maxDocsPerValue);
             }
 
             @Override
@@ -89,12 +88,19 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
         BYTES_HASH(new ParseField("bytes_hash")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+            Aggregator create(
+                String name,
+                AggregatorFactories factories,
+                int shardSize,
+                int maxDocsPerValue,
+                ValuesSourceConfig valuesSourceConfig,
+                SearchContext context,
+                Aggregator parent,
+                Map<String, Object> metadata
+            ) throws IOException {
 
                 return new DiversifiedBytesHashSamplerAggregator(name, shardSize, factories, context, parent, metadata,
-                        valuesSource,
-                        maxDocsPerValue);
+                        valuesSourceConfig, maxDocsPerValue);
             }
 
             @Override
@@ -106,10 +112,18 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+            Aggregator create(
+                String name,
+                AggregatorFactories factories,
+                int shardSize,
+                int maxDocsPerValue,
+                ValuesSourceConfig valuesSourceConfig,
+                SearchContext context,
+                Aggregator parent,
+                Map<String, Object> metadata
+            ) throws IOException {
                 return new DiversifiedOrdinalsSamplerAggregator(name, shardSize, factories, context, parent, metadata,
-                        (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, maxDocsPerValue);
+                         valuesSourceConfig, maxDocsPerValue);
             }
 
             @Override

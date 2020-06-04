@@ -13,6 +13,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -110,10 +111,11 @@ public class UnusedStateRemover implements MlDataRemover {
         // and remove cluster service as a member all together.
         jobIds.addAll(MlMetadata.getMlMetadata(clusterService.state()).getJobs().keySet());
 
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
-        while (jobsIterator.hasNext()) {
-            Deque<Job.Builder> jobs = jobsIterator.next();
-            jobs.stream().map(Job.Builder::getId).forEach(jobIds::add);
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, AnomalyDetectorsIndex.configIndexName(),
+            QueryBuilders.termQuery(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
+        while (iterator.hasNext()) {
+            Deque<String> docIds = iterator.next();
+            docIds.stream().map(Job::extractJobIdFromDocumentId).filter(Objects::nonNull).forEach(jobIds::add);
         }
         return jobIds;
     }

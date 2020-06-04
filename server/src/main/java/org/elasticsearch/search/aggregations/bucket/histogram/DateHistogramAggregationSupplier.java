@@ -37,7 +37,7 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
                      Rounding rounding,
-                     Rounding shardRounding,
+                     Rounding.Prepared preparedRounding,
                      BucketOrder order,
                      boolean keyed,
                      long minDocCount,
@@ -46,5 +46,6 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
                      DocValueFormat formatter,
                      SearchContext aggregationContext,
                      Aggregator parent,
+                     boolean collectsFromSingleBucket,
                      Map<String, Object> metadata) throws IOException;
 }

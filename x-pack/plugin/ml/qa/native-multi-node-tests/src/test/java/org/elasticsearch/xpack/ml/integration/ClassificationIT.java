@@ -376,7 +376,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [30] distinct values but there were at least [31]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56240")
     public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {
         initialize("cardinality_too_high_with_query");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);

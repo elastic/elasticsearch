@@ -431,7 +431,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
      * is effectively closed and potentially replicated if the cluster supports replication of closed indices at the
      * time the index was closed.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56265")
     public void testCloseIndexDuringRollingUpgrade() throws Exception {
         final Version minimumNodeVersion = minimumNodeVersion();
         final String indexName =
@@ -731,11 +730,5 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
         ensureGreen(indexName);
         indexDocs(indexName, randomInt(100), randomInt(100));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 }

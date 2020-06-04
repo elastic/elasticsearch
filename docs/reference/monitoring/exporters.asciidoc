@@ -74,8 +74,7 @@ feature is triggered, it makes all indices (including monitoring indices)
 read-only until the issue is fixed and a user manually makes the index writeable
 again. While an active monitoring index is read-only, it will naturally fail to
 write (index) new data and will continuously log errors that indicate the write
-failure. For more information, see
-{ref}/disk-allocator.html[Disk-based Shard Allocation].
+failure. For more information, see <<disk-based-shard-allocation>>.
 
 [float]
 [[es-monitoring-default-exporter]]

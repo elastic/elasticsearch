@@ -243,7 +243,7 @@ anything defined here.
 `index.name.time_format`::
 
 A mechanism for changing the default date suffix for the, by default, daily Monitoring indices.
-The default value is `YYYY.MM.DD`, which is why the indices are created daily.
+The default value is `yyyy.MM.dd`, which is why the indices are created daily.
 
 `use_ingest`::
 

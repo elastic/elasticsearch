@@ -25,6 +25,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class OsStatsTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
@@ -81,4 +83,13 @@ public class OsStatsTests extends ESTestCase {
         }
     }
 
+    public void testGetUsedMemoryWithZeroTotal() {
+        OsStats.Mem mem = new OsStats.Mem(0, randomNonNegativeLong());
+        assertThat(mem.getUsed().getBytes(), equalTo(0L));
+    }
+
+    public void testGetUsedSwapWithZeroTotal() {
+        OsStats.Swap swap = new OsStats.Swap(0, randomNonNegativeLong());
+        assertThat(swap.getUsed().getBytes(), equalTo(0L));
+    }
 }

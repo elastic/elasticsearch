@@ -234,7 +234,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private static class FromSingle extends AutoDateHistogramAggregator {
         private int roundingIdx;
         private Rounding.Prepared preparedRounding;
-        private LongKeyedBucketOrds bucketOrds;
+        private LongKeyedBucketOrds.FromSingle bucketOrds;
         private long min = Long.MAX_VALUE;
         private long max = Long.MIN_VALUE;
 
@@ -264,7 +264,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             );
 
             preparedRounding = prepareRounding(0);
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), true);
+            bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
         }
 
         @Override
@@ -316,7 +316,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         try (LongKeyedBucketOrds oldOrds = bucketOrds) {
                             preparedRounding = prepareRounding(++roundingIdx);
                             long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
-                            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), true);
+                            bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
                             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(0);
                             while (ordsEnum.next()) {
                                 long oldKey = ordsEnum.value();
@@ -396,7 +396,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         /**
          * Map from {@code owningBucketOrd, roundedDate} to {@code bucketOrdinal}.
          */
-        private LongKeyedBucketOrds bucketOrds;
+        private LongKeyedBucketOrds.FromMany bucketOrds;
         /**
          * The index of the rounding that each {@code owningBucketOrd} is
          * currently using.
@@ -475,7 +475,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             preparedRoundings = new Rounding.Prepared[roundingInfos.length];
             // Prepare the first rounding because we know we'll need it.
             preparedRoundings[0] = roundingPreparer.apply(roundingInfos[0].rounding);
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), false);
+            bucketOrds = new LongKeyedBucketOrds.FromMany(context.bigArrays());
             liveBucketCountUnderestimate = context.bigArrays().newIntArray(1, true);
         }
 
@@ -575,7 +575,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             rebucketCount++;
             try (LongKeyedBucketOrds oldOrds = bucketOrds) {
                 long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
-                bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), false);
+                bucketOrds = new LongKeyedBucketOrds.FromMany(context.bigArrays());
                 for (long owningBucketOrd = 0; owningBucketOrd <= oldOrds.maxOwningBucketOrd(); owningBucketOrd++) {
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(owningBucketOrd);
                     Rounding.Prepared preparedRounding = preparedRoundings[roundingIndexFor(owningBucketOrd)];

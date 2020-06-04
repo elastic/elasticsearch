@@ -107,10 +107,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Implementation that only works if it is collecting from a single bucket.
      */
-    private static class FromSingle extends LongKeyedBucketOrds {
+    public static class FromSingle extends LongKeyedBucketOrds {
         private final LongHash ords;
 
-        FromSingle(BigArrays bigArrays) {
+        public FromSingle(BigArrays bigArrays) {
             ords = new LongHash(1, bigArrays);
         }
 
@@ -174,7 +174,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Implementation that works properly when collecting from many buckets.
      */
-    private static class FromMany extends LongKeyedBucketOrds {
+    public static class FromMany extends LongKeyedBucketOrds {
         // TODO we can almost certainly do better here by building something fit for purpose rather than trying to lego together stuff
         private static class Buckets implements Releasable {
             private final LongHash valueToThisBucketOrd;
@@ -194,7 +194,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         private ObjectArray<Buckets> owningOrdToBuckets;
         private long lastGlobalOrd = -1;
 
-        FromMany(BigArrays bigArrays) {
+        public FromMany(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
             owningOrdToBuckets = bigArrays.newObjectArray(1);
         }

@@ -234,6 +234,16 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private static class FromSingle extends AutoDateHistogramAggregator {
         private int roundingIdx;
         private Rounding.Prepared preparedRounding;
+        /**
+         * Map from value to bucket ordinals.
+         * <p>
+         * It is important that this is the exact subtype of
+         * {@link LongKeyedBucketOrds} so that the JVM can make a monomorphic
+         * call to {@link LongKeyedBucketOrds#add(long, long)} in the tight
+         * inner loop of {@link LeafBucketCollector#collect(int, long)}. You'd
+         * think that it wouldn't matter, but its seriously 7%-15% performance
+         * difference for the aggregation. Yikes.
+         */
         private LongKeyedBucketOrds.FromSingle bucketOrds;
         private long min = Long.MAX_VALUE;
         private long max = Long.MIN_VALUE;
@@ -394,7 +404,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          */
         private final Rounding.Prepared[] preparedRoundings;
         /**
-         * Map from {@code owningBucketOrd, roundedDate} to {@code bucketOrdinal}.
+         * Map from value to bucket ordinals.
+         * <p>
+         * It is important that this is the exact subtype of
+         * {@link LongKeyedBucketOrds} so that the JVM can make a monomorphic
+         * call to {@link LongKeyedBucketOrds#add(long, long)} in the tight
+         * inner loop of {@link LeafBucketCollector#collect(int, long)}.
          */
         private LongKeyedBucketOrds.FromMany bucketOrds;
         /**

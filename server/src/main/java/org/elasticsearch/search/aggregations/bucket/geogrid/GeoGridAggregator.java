@@ -109,8 +109,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         InternalGeoGridBucket[][] topBucketsPerOrd = new InternalGeoGridBucket[owningBucketOrds.length][];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]), shardSize);
-            consumeBucketsAndMaybeBreak(size);
-    
+
             BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
             InternalGeoGridBucket spare = null;
             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
@@ -118,7 +117,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
                 if (spare == null) {
                     spare = newEmptyBucket();
                 }
-    
+
                 // need a special function to keep the source bucket
                 // up-to-date so it can get the appropriate key
                 spare.hashAsLong = ordsEnum.value();
@@ -126,7 +125,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
                 spare.bucketOrd = ordsEnum.ord();
                 spare = ordered.insertWithOverflow(spare);
             }
-    
+
             topBucketsPerOrd[ordIdx] = new InternalGeoGridBucket[ordered.size()];
             for (int i = ordered.size() - 1; i >= 0; --i) {
                 topBucketsPerOrd[ordIdx][i] = ordered.pop();

@@ -12,3 +12,7 @@ Search::
   a numeric field and a `GeoPoint` if they are counting a `geo_point` fields.
   They used to always receive the `String` representation of those values.
   {pull}54854[#54854]
+
+Features/Indices APIs::
+*  The privilege named `indices:admin/create` will no longer allow the auto 
+   creation of indices.  Use `create_index` instead. {pull}55858[#55858]

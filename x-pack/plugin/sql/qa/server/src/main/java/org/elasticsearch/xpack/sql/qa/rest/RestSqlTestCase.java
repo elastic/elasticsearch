@@ -439,8 +439,8 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     public void testHardLimitForSortOnAggregate() throws Exception {
         index("{\"a\": 1, \"b\": 2}");
         expectBadRequest(
-            () -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000"),
-            containsString("The maximum LIMIT for aggregate sorting is [10000], received [12000]")
+            () -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000"),
+            containsString("The maximum LIMIT for aggregate sorting is [65535], received [120000]")
         );
     }
 

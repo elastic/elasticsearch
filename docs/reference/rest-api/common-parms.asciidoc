@@ -846,14 +846,28 @@ end::source[]
 
 tag::source_excludes[]
 `_source_excludes`::
-(Optional, string) A list of fields to exclude from the returned `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to exclude from
+the response.
++
+If the `_source` parameter is not `false` and the `_source_includes` query
+parameter is not specified, the entire source document is returned, excluding
+fields specified in this parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_excludes[]
 
 tag::source_includes[]
 `_source_includes`::
-(Optional, string) A list of fields to extract and return from the `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to
+include in the response.
++
+If  the `_source` parameter is not `false` and this parameter is specified, only
+these source fields are returned. You can exclude fields from this subset using
+the `_source_excludes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_includes[]
 
 tag::source-transforms[]

@@ -141,7 +141,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
     @SuppressWarnings("unchecked")
     public void testUpdateTransferRights() throws Exception {
         String transformId = "transform1";
-        // Note: Due to a bug the transform does not fail to start after deleting the user and therefore invalidating
+        // Note: Due to a bug the transform does not fail to start after deleting the user and role, therefore invalidating
         // the credentials stored with the config. As a workaround we use a 2nd transform that uses the same config
         // once the bug is fixed, delete this 2nd transform
         String transformIdCloned = "transform2";

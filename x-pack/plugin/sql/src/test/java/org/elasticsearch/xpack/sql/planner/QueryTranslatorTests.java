@@ -56,6 +56,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.LTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Trim;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.UnaryStringFunction;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
@@ -739,6 +743,52 @@ public class QueryTranslatorTests extends ESTestCase {
                 + "params.v1, params.v2))",
             sq.script().toString());
         assertEquals("[{v=keyword}, {v=xyz}, {v=true}]", sq.script().params().toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTrim_WhereClause_Painless() {
+        Class<? extends UnaryStringFunction> trimFunction = randomFrom(Trim.class, LTrim.class, RTrim.class);
+        String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
+        LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed FROM test WHERE " + trimFunctionName + "(keyword) = 'foo'");
+
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = translate(condition);
+        assertTrue(qt.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) qt.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils." +
+                trimFunctionName.toLowerCase(Locale.ROOT) + "(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=keyword}, {v=foo}]", sc.script().params().toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTrim_GroupBy_Painless() {
+        Class<? extends UnaryStringFunction> trimFunction = randomFrom(Trim.class, LTrim.class, RTrim.class);
+        String trimFunctionName = trimFunction.getSimpleName().toUpperCase(Locale.ROOT);
+        LogicalPlan p = plan("SELECT " + trimFunctionName + "(keyword) trimmed, count(*) FROM test GROUP BY " +
+            trimFunctionName + "(keyword)");
+
+        assertEquals(Aggregate.class, p.getClass());
+        Aggregate agg = (Aggregate) p;
+        assertEquals(1, agg.groupings().size());
+        assertEquals(2, agg.aggregates().size());
+        assertEquals(trimFunction, agg.groupings().get(0).getClass());
+        assertEquals(trimFunction, ((Alias) agg.aggregates().get(0)).child().getClass());
+        assertEquals(Count.class,((Alias) agg.aggregates().get(1)).child().getClass());
+
+        UnaryStringFunction trim = (UnaryStringFunction) agg.groupings().get(0);
+        assertEquals(1, trim.children().size());
+
+        GroupingContext groupingContext = QueryFolder.FoldAggregate.groupBy(agg.groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils." + trimFunctionName.toLowerCase(Locale.ROOT) +
+                "(InternalQlScriptUtils.docValue(doc,params.v0))",
+            scriptTemplate.toString());
+        assertEquals("[{v=keyword}]", scriptTemplate.params().toString());
     }
 
     public void testTranslateNotExpression_WhereClause_Painless() {

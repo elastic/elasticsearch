@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -42,17 +41,7 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(MaxAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            new MinMaxAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSourceConfig config,
-                                        ValuesSource valuesSource,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-                    return new MaxAggregator(name, config, (Numeric) valuesSource, context, parent, metadata);
-                }
-            });
+            (MetricAggregatorSupplier) MaxAggregator::new);
     }
 
     MaxAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
@@ -74,13 +63,13 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             MaxAggregationBuilder.NAME);
 
-        if (aggregatorSupplier instanceof MinMaxAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected MinMaxAggregatorSupplier, found [" +
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MinMaxAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, valuesSource, searchContext, parent, metadata);
     }
 }

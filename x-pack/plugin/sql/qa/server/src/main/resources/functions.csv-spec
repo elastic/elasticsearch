@@ -173,23 +173,22 @@ modified:s  | count:l
 Al          | 1
 ;
 
-//this one doesn't return anything. The problem is "IS NOT NULL". GH issue created to generally investigate the NULLs usage: https://github.com/elastic/elasticsearch/issues/32079
-//selectSubstringWithWhereNotNullAndCountGroupBy
-//SELECT SUBSTRING("first_name",5,20) modified, COUNT(*) count FROM "test_emp" WHERE SUBSTRING("first_name",5,20) IS NOT NULL GROUP BY SUBSTRING("first_name",5,20) ORDER BY SUBSTRING("first_name",5,20) LIMIT 10;
+selectSubstringWithWhereNotNullAndCountGroupBy
+SELECT SUBSTRING("first_name",5,20) modified, COUNT(*) count FROM "test_emp" WHERE SUBSTRING("first_name",5,20) IS NOT NULL GROUP BY SUBSTRING("first_name",5,20) ORDER BY SUBSTRING("first_name",5,20) LIMIT 10;
 
-//   modified:s  |     count:l
-//---------------+---------------
-//               |15
-//adram          |1
-//af             |1
-//aja            |1
-//al             |1
-//andro          |2
-//antios         |1
-//ard            |1
-//areta          |1
-//arsan          |1
-//;
+   modified:s  |     count:l
+---------------+---------------
+               |13
+ adram         |1
+ af            |1
+ aja           |1
+ al            |1
+ andro         |1
+ ard           |1
+ areta         |1
+ arsan         |1
+ ath           |1
+;
 
 selectSubstringWithWhereAndGroupBy
 SELECT SUBSTRING("first_name",5,20) modified, COUNT(*) count FROM "test_emp" GROUP BY SUBSTRING("first_name",5,20) ORDER BY SUBSTRING("first_name",5,20) LIMIT 10;

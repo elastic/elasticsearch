@@ -19,6 +19,8 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -64,6 +66,7 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57650")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {

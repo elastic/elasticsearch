@@ -726,8 +726,8 @@ setup:
 ---
 "string profiler":
   - skip:
-      version: " - 7.8.99"
-      reason: debug information added in 7.9.0
+      version: " - 7.99.99"
+      reason: debug information added in 8.0.0 (to be backported to 7.9.0)
   - do:
       bulk:
         index: test_1

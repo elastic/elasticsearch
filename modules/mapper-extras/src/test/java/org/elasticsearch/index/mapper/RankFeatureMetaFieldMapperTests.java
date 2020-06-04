@@ -58,6 +58,10 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
         assertNotNull(mapper.metadataMapper(RankFeatureMetaFieldMapper.class));
     }
 
+    /**
+     * Check that meta-fields are picked from plugins (in this case MapperExtrasPlugin),
+     * and parsing of a document fails if the document contains these meta-fields.
+     */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));

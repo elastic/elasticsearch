@@ -193,7 +193,6 @@ public class InternalComposite
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
                 InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                 buckets.clear();
-                reduceContext.consumeBucketsAndMaybeBreak(1);
                 result.add(reduceBucket);
                 if (result.size() >= size) {
                     break;
@@ -207,7 +206,6 @@ public class InternalComposite
         }
         if (buckets.size() > 0) {
             InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-            reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
 
@@ -220,6 +218,7 @@ public class InternalComposite
             reducedFormats = lastBucket.formats;
             lastKey = lastBucket.getRawKey();
         }
+        reduceContext.consumeBucketsAndMaybeBreak(result.size());
         return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls,
             earlyTerminated, metadata);
     }

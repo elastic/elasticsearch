@@ -3764,9 +3764,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            index(normalIndex, Integer.toString(i), "foo", "bar" + i);
-            index(hiddenIndex, Integer.toString(i), "foo", "baz" + i);
-            index(dottedHiddenIndex, Integer.toString(i), "foo", "baz" + i);
+            index(normalIndex, "_doc", Integer.toString(i), "foo", "bar" + i);
+            index(hiddenIndex, "_doc",  Integer.toString(i), "foo", "baz" + i);
+            index(dottedHiddenIndex, "_doc",  Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
         assertHitCount(client.prepareSearch(normalIndex).setSize(0).get(), 100L);

@@ -103,12 +103,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readStringArray();
+            this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(names);
+            indicesOptions.writeIndicesOptions(out);
         }
 
         @Override

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import static org.elasticsearch.common.Strings.hasLength;
-import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 
 final class StringFunctionUtils {
 
@@ -48,16 +47,11 @@ final class StringFunctionUtils {
             return s;
         }
 
-        int endIdx = -1;
-        for (int i = s.length() - 1; (i >= 0) && (endIdx < 0); i--) {
-            if (Character.isWhitespace(s.charAt(i)) == false) {
-                endIdx = i;
-            }
+        int i = s.length() - 1;
+        while (i >= 0 && Character.isWhitespace(s.charAt(i))) {
+            i--;
         }
-        if (endIdx < 0) {
-            return EMPTY;
-        }
-        return s.substring(0, endIdx + 1);
+        return s.substring(0, i + 1);
     }
 
     /**
@@ -72,15 +66,10 @@ final class StringFunctionUtils {
             return s;
         }
 
-        int startIdx = -1;
-        for (int i = 0; (i < s.length()) && (startIdx < 0); i++) {
-            if (Character.isWhitespace(s.charAt(i)) == false) {
-                startIdx = i;
-            }
+        int i = 0;
+        while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
+            i++;
         }
-        if (startIdx < 0) {
-            return EMPTY;
-        }
-        return s.substring(startIdx);
+        return s.substring(i);
     }
 }

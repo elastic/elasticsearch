@@ -277,6 +277,7 @@ public final class ReservedFieldNames {
 
             ModelPlotConfig.ENABLED_FIELD.getPreferredName(),
             ModelPlotConfig.TERMS_FIELD.getPreferredName(),
+            ModelPlotConfig.ANNOTATIONS_ENABLED_FIELD.getPreferredName(),
 
             DatafeedConfig.ID.getPreferredName(),
             DatafeedConfig.QUERY_DELAY.getPreferredName(),

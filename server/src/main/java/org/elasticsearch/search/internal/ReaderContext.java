@@ -23,6 +23,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
@@ -45,6 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ReaderContext implements Releasable {
     private final SearchContextId id;
+    private final IndexService indexService;
     private final IndexShard indexShard;
     protected final Engine.SearcherSupplier searcherSupplier;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -62,11 +64,13 @@ public class ReaderContext implements Releasable {
     private Map<String, Object> context;
 
     public ReaderContext(long id,
+                         IndexService indexService,
                          IndexShard indexShard,
                          Engine.SearcherSupplier searcherSupplier,
                          long keepAliveInMillis,
                          boolean singleSession) {
         this.id = new SearchContextId(UUIDs.base64UUID(), id);
+        this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
@@ -103,6 +107,9 @@ public class ReaderContext implements Releasable {
         return id;
     }
 
+    public IndexService indexService() {
+        return indexService;
+    }
 
     public IndexShard indexShard() {
         return indexShard;

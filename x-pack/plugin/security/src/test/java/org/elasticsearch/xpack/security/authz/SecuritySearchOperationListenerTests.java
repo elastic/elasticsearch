@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -51,15 +52,18 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
+    private IndexService indexService;
     private IndexShard shard;
 
     @Before
     public void setupShard() {
-        shard = createIndex("index").getShard(0);
+        indexService = createIndex("index");
+        shard = indexService.getShard(0);
     }
 
     public void testUnlicensed() {
-        try (ReaderContext readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
+        try (ReaderContext readerContext =
+                 new ReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(false);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -77,7 +81,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     }
 
     public void testOnNewContextSetsAuthentication() throws Exception {
-        try (ReaderContext readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
+        try (ReaderContext readerContext =
+                 new ReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false)) {
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
             when(licenseState.isSecurityEnabled()).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -101,11 +106,11 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
     public void testValidateSearchContext() throws Exception {
         final ReaderContext readerContext;
         if (randomBoolean()) {
-            readerContext = new ReaderContext(0L, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false);
+            readerContext = new ReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), Long.MAX_VALUE, false);
         } else {
             ShardSearchRequest request = mock(ShardSearchRequest.class);
             when(request.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
-            readerContext = new LegacyReaderContext(0L, shard, shard.acquireSearcherSupplier(), request, Long.MAX_VALUE);
+            readerContext = new LegacyReaderContext(0L, indexService, shard, shard.acquireSearcherSupplier(), request, Long.MAX_VALUE);
         }
         try {
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY,

@@ -159,12 +159,13 @@ public class IndexingSlowLogTests extends ESTestCase {
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         {
-            // threshold set on WARN only, should not log
             Mockito.when(result.getTook()).thenReturn(11L);
+
+            // threshold set on WARN(40nanos) where 11nanos does not breach, should not log
             log1.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
 
-            // threshold set on TRACE only, should not log
+            // threshold set on TRACE(10nanos) and 11nanos breaches it, should log
             log2.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNotNull(appender.getLastEventAndReset());
         }

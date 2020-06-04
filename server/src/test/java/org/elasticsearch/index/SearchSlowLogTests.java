@@ -201,7 +201,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             log1.onFetchPhase(ctx1, 11L);
             assertNull(appender.getLastEventAndReset());
 
-            // threshold set on TRACE only, should log
+            // threshold set on TRACE, should log
             log2.onQueryPhase(ctx2, 11L);
             assertNotNull(appender.getLastEventAndReset());
             log2.onFetchPhase(ctx2, 11L);

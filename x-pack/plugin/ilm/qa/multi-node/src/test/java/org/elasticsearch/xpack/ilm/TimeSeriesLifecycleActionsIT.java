@@ -72,6 +72,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1165,14 +1166,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         client().performRequest(refreshOriginalIndex);
 
         // Manual rollover
-        Request rolloverRequest = new Request("POST", "/" + alias + "/_rollover");
-        rolloverRequest.setJsonEntity("{\n" +
-            "  \"conditions\": {\n" +
-            "    \"max_docs\": \"1\"\n" +
-            "  }\n" +
-            "}"
-        );
-        client().performRequest(rolloverRequest);
+        rolloverMaxOneDocCondition(client(), alias);
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
 
         // Index another document into the original index so the ILM rollover policy condition is met
@@ -1322,14 +1316,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         // manual rollover the index so the "update-rollover-lifecycle-date" ILM step can continue and finish successfully as the index
         // will have rollover information now
-        Request rolloverRequest = new Request("POST", "/" + alias + "/_rollover");
-        rolloverRequest.setJsonEntity("{\n" +
-            "  \"conditions\": {\n" +
-            "    \"max_docs\": \"1\"\n" +
-            "  }\n" +
-            "}"
-        );
-        client().performRequest(rolloverRequest);
+        rolloverMaxOneDocCondition(client(), alias);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 

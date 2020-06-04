@@ -124,4 +124,14 @@ public final class TimeSeriesRestDriver {
         client.performRequest(createIndexTemplateRequest);
     }
 
+    public static void rolloverMaxOneDocCondition(RestClient client, String indexAbstractionName) throws IOException {
+        Request rolloverRequest = new Request("POST", "/" + indexAbstractionName + "/_rollover");
+        rolloverRequest.setJsonEntity("{\n" +
+            "  \"conditions\": {\n" +
+            "    \"max_docs\": \"1\"\n" +
+            "  }\n" +
+            "}"
+        );
+        client.performRequest(rolloverRequest);
+    }
 }

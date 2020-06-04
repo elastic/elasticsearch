@@ -6,7 +6,6 @@
           "name": "logs-default-policy"
         },
         "codec": "best_compression",
-        "refresh_interval": "5s",
         "query": {
           "default_field": ["message"]
         },

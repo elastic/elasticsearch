@@ -180,6 +180,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 .Properties of `model_plot_config`
 [%collapsible%open]
 ====
+`annotations_enabled`:::
+(boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
+
 `enabled`:::
 (boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
@@ -187,10 +191,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 `terms`:::
 experimental[] (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
-
-`annotations_enabled`:::
-(boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
 ====
 //End model_plot_config
 

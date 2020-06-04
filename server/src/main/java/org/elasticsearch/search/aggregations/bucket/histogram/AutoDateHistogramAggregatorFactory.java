@@ -69,7 +69,8 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             AutoDateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof AutoDateHistogramAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected AutoDateHistogramAggregationSupplier, found [" +

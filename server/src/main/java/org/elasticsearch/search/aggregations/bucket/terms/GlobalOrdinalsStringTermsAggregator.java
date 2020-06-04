@@ -33,7 +33,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -73,6 +72,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     private final long valueCount;
     private final GlobalOrdLookupFunction lookupGlobalOrd;
     protected final CollectionStrategy collectionStrategy;
+    protected int segmentsWithSingleValuedOrds = 0;
+    protected int segmentsWithMultiValuedOrds = 0;
 
     public interface GlobalOrdLookupFunction {
         BytesRef apply(long ord) throws IOException;
@@ -102,7 +103,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             valuesSource.globalOrdinalsValues(context.searcher().getIndexReader().leaves().get(0)) : DocValues.emptySortedSet();
         this.valueCount = values.getValueCount();
         this.lookupGlobalOrd = values::lookupOrd;
-        this.acceptedGlobalOrdinals = includeExclude == null ? l -> true : includeExclude.acceptedGlobalOrdinals(values)::get;
+        this.acceptedGlobalOrdinals = includeExclude == null ? ALWAYS_TRUE : includeExclude.acceptedGlobalOrdinals(values)::get;
         this.collectionStrategy = remapGlobalOrds ? new RemapGlobalOrds() : new DenseGlobalOrds();
     }
 
@@ -110,24 +111,60 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         return collectionStrategy.describe();
     }
 
-    private SortedSetDocValues getGlobalOrds(LeafReaderContext ctx) throws IOException {
-        return acceptedGlobalOrdinals == null ?
-            valuesSource.globalOrdinalsValues(ctx) : new FilteredOrdinals(valuesSource.globalOrdinalsValues(ctx), acceptedGlobalOrdinals);
-    }
-
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        SortedSetDocValues globalOrds = getGlobalOrds(ctx);
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
         collectionStrategy.globalOrdsReady(globalOrds);
         SortedDocValues singleValues = DocValues.unwrapSingleton(globalOrds);
         if (singleValues != null) {
+            segmentsWithSingleValuedOrds++;
+            if (acceptedGlobalOrdinals == ALWAYS_TRUE) {
+                /*
+                 * Optimize when there isn't a filter because that is very
+                 * common and marginally faster.
+                 */
+                return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
+                    @Override
+                    public void collect(int doc, long owningBucketOrd) throws IOException {
+                        assert owningBucketOrd == 0;
+                        if (false == singleValues.advanceExact(doc)) {
+                            return;
+                        }
+                        int globalOrd = singleValues.ordValue();
+                        collectionStrategy.collectGlobalOrd(doc, globalOrd, sub);
+                    }
+                });
+            }
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     assert owningBucketOrd == 0;
-                    if (singleValues.advanceExact(doc)) {
-                        int ord = singleValues.ordValue();
-                        collectionStrategy.collectGlobalOrd(doc, ord, sub);
+                    if (false == singleValues.advanceExact(doc)) {
+                        return;
+                    }
+                    int globalOrd = singleValues.ordValue();
+                    if (false == acceptedGlobalOrdinals.test(globalOrd)) {
+                        return;
+                    }
+                    collectionStrategy.collectGlobalOrd(doc, globalOrd, sub);
+                }
+            });
+        }
+        segmentsWithMultiValuedOrds++;
+        if (acceptedGlobalOrdinals == ALWAYS_TRUE) {
+            /*
+             * Optimize when there isn't a filter because that is very
+             * common and marginally faster.
+             */
+            return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    assert owningBucketOrd == 0;
+                    if (false == globalOrds.advanceExact(doc)) {
+                        return;
+                    }
+                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                        collectionStrategy.collectGlobalOrd(doc, globalOrd, sub);
                     }
                 }
             });
@@ -136,10 +173,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 assert owningBucketOrd == 0;
-                if (globalOrds.advanceExact(doc)) {
-                    for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
-                        collectionStrategy.collectGlobalOrd(doc, globalOrd, sub);
+                if (false == globalOrds.advanceExact(doc)) {
+                    return;
+                }
+                for (long globalOrd = globalOrds.nextOrd(); globalOrd != NO_MORE_ORDS; globalOrd = globalOrds.nextOrd()) {
+                    if (false == acceptedGlobalOrdinals.test(globalOrd)) {
+                        continue;
                     }
+                    collectionStrategy.collectGlobalOrd(doc, globalOrd, sub);
                 }
             }
         });
@@ -160,6 +201,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         super.collectDebugInfo(add);
         add.accept("collection_strategy", collectionStrategy.describe());
         add.accept("result_strategy", resultStrategy.describe());
+        add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
+        add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
+        add.accept("has_filter", acceptedGlobalOrdinals != ALWAYS_TRUE);
     }
 
     /**
@@ -253,26 +297,31 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             final SortedDocValues singleValues = DocValues.unwrapSingleton(segmentOrds);
             mapping = valuesSource.globalOrdinalsMapping(ctx);
+            // Dense mode doesn't support include/exclude so we don't have to check it here.
             if (singleValues != null) {
+                segmentsWithSingleValuedOrds++;
                 return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, segmentOrds) {
                     @Override
                     public void collect(int doc, long owningBucketOrd) throws IOException {
                         assert owningBucketOrd == 0;
-                        if (singleValues.advanceExact(doc)) {
-                            final int ord = singleValues.ordValue();
-                            segmentDocCounts.increment(ord + 1, 1);
+                        if (false == singleValues.advanceExact(doc)) {
+                            return;
                         }
+                        int ord = singleValues.ordValue();
+                        segmentDocCounts.increment(ord + 1, 1);
                     }
                 });
             }
+            segmentsWithMultiValuedOrds++;
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, segmentOrds) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     assert owningBucketOrd == 0;
-                    if (segmentOrds.advanceExact(doc)) {
-                        for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
-                            segmentDocCounts.increment(segmentOrd + 1, 1);
-                        }
+                    if (false == segmentOrds.advanceExact(doc)) {
+                        return;
+                    }
+                    for (long segmentOrd = segmentOrds.nextOrd(); segmentOrd != NO_MORE_ORDS; segmentOrd = segmentOrds.nextOrd()) {
+                        segmentDocCounts.increment(segmentOrd + 1, 1);
                     }
                 }
             });
@@ -303,52 +352,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 long globalOrd = mapping.applyAsLong(ord);
                 incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(globalOrd), inc);
             }
-        }
-    }
-
-    private static final class FilteredOrdinals extends AbstractSortedSetDocValues {
-
-        private final SortedSetDocValues inner;
-        private final LongPredicate accepted;
-
-        private FilteredOrdinals(SortedSetDocValues inner, LongPredicate accepted) {
-            this.inner = inner;
-            this.accepted = accepted;
-        }
-
-        @Override
-        public long getValueCount() {
-            return inner.getValueCount();
-        }
-
-        @Override
-        public BytesRef lookupOrd(long ord) throws IOException {
-            return inner.lookupOrd(ord);
-        }
-
-        @Override
-        public long nextOrd() throws IOException {
-            for (long ord = inner.nextOrd(); ord != NO_MORE_ORDS; ord = inner.nextOrd()) {
-                if (accepted.test(ord)) {
-                    return ord;
-                }
-            }
-            return NO_MORE_ORDS;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            if (inner.advanceExact(target)) {
-                for (long ord = inner.nextOrd(); ord != NO_MORE_ORDS; ord = inner.nextOrd()) {
-                    if (accepted.test(ord)) {
-                        // reset the iterator
-                        boolean advanced = inner.advanceExact(target);
-                        assert advanced;
-                        return true;
-                    }
-                }
-            }
-            return false;
         }
     }
 
@@ -389,7 +392,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Iterate all of the buckets. Implementations take into account
          * the {@link BucketCountThresholds}. In particular,
          * if the {@link BucketCountThresholds#getMinDocCount()} is 0 then
-         * they'll make sure to iterate a bucket even if it was never 
+         * they'll make sure to iterate a bucket even if it was never
          * {{@link #collectGlobalOrd(int, long, LeafBucketCollector) collected}.
          * If {@link BucketCountThresholds#getMinDocCount()} is not 0 then
          * they'll skip all global ords that weren't collected.
@@ -497,7 +500,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
             }
         }
-            
+
 
         @Override
         public void close() {
@@ -540,9 +543,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         }
                         updateBucket(spare, globalOrd, bucketOrd, docCount);
                         spare = ordered.insertWithOverflow(spare);
-                        if (spare == null) {
-                            consumeBucketsAndMaybeBreak(1);
-                        }
                     }
                 }
             });
@@ -551,11 +551,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             B[] topBuckets = buildBuckets(ordered.size());
             for (int i = ordered.size() - 1; i >= 0; --i) {
                 topBuckets[i] = convertTempBucketToRealBucket(ordered.pop());
+                otherDocCount[0] -= topBuckets[i].getDocCount();
             }
             buildSubAggs(topBuckets);
 
             return new InternalAggregation[] {
-                buildResult(topBuckets)
+                buildResult(topBuckets, otherDocCount[0])
             };
         }
 
@@ -608,7 +609,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         /**
          * Turn the buckets into an aggregation result.
          */
-        abstract R buildResult(B[] topBuckets);
+        abstract R buildResult(B[] topBuckets, long otherDocCount);
 
         /**
          * Build an "empty" result. Only called if there isn't any data on this
@@ -621,8 +622,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * Builds results for the standard {@code terms} aggregation.
      */
     class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket, OrdBucket> {
-        private long otherDocCount;
-
         @Override
         String describe() {
             return "terms";
@@ -648,9 +647,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.globalOrd = globalOrd;
             spare.bucketOrd = bucketOrd;
             spare.docCount = docCount;
-            otherDocCount += docCount;
         }
-        
+
         @Override
         PriorityQueue<OrdBucket> buildPriorityQueue(int size) {
             return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
@@ -660,7 +658,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             BytesRef term = BytesRef.deepCopyOf(lookupGlobalOrd.apply(temp.globalOrd));
             StringTerms.Bucket result = new StringTerms.Bucket(term, temp.docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = temp.bucketOrd;
-            otherDocCount -= temp.docCount;
             result.docCountError = 0;
             return result;
         }
@@ -671,7 +668,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        StringTerms buildResult(StringTerms.Bucket[] topBuckets) {
+        StringTerms buildResult(StringTerms.Bucket[] topBuckets, long otherDocCount) {
             return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(topBuckets), 0);
@@ -707,7 +704,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         String describe() {
-            return "terms";
+            return "significant_terms";
         }
 
         @Override
@@ -763,7 +760,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        SignificantStringTerms buildResult(SignificantStringTerms.Bucket[] topBuckets) {
+        SignificantStringTerms buildResult(SignificantStringTerms.Bucket[] topBuckets, long otherDocCount) {
             return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 metadata(), format, subsetSize, termsAggFactory.getSupersetNumDocs(), significanceHeuristic, Arrays.asList(topBuckets));
         }
@@ -800,4 +797,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             System.arraycopy(from.bytes, from.offset, to.bytes, 0, from.length);
         }
     }
+
+    /**
+     * Predicate used for {@link #acceptedGlobalOrdinals} if there is no filter.
+     */
+    private static final LongPredicate ALWAYS_TRUE = l -> true;
 }

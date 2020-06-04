@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -993,5 +994,12 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             assertNull(old);
         });
         return map;
+    }
+
+    @Override
+    public void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
+        /*
+         * No-op.
+         */
     }
 }

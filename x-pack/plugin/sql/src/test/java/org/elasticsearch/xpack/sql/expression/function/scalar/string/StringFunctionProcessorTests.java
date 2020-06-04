@@ -134,10 +134,10 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
         StringProcessor proc = new StringProcessor(StringOperation.LENGTH);
         assertNull(proc.process(null));
         assertEquals(7, proc.process("foo bar"));
-        assertEquals(0, proc.process(""));
-        assertEquals(0, proc.process("    "));
-        assertEquals(7, proc.process("foo bar   "));
-        assertEquals(10, proc.process("   foo bar   "));
+        assertEquals(0, proc.process(withRandomWhitespaces(" \t  \r\n \n ", true, true)));
+        assertEquals(0, proc.process(withRandomWhitespaces("    ", true, true)));
+        assertEquals(7, proc.process(withRandomWhitespaces("foo bar", false, true)));
+        assertEquals(10, proc.process(withRandomWhitespaces("   foo bar   ", false, true)));
         assertEquals(1, proc.process('f'));
 
         stringCharInputValidation(proc);

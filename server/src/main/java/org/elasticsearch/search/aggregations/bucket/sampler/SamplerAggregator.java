@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -63,11 +64,19 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
         MAP(new ParseField("map")) {
 
             @Override
-            Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+            Aggregator create(
+                String name,
+                AggregatorFactories factories,
+                int shardSize,
+                int maxDocsPerValue,
+                ValuesSourceConfig valuesSourceConfig,
+                SearchContext context,
+                Aggregator parent,
+                Map<String, Object> metadata
+            ) throws IOException {
 
                 return new DiversifiedMapSamplerAggregator(name, shardSize, factories, context, parent, metadata,
-                        valuesSource,
+                        valuesSourceConfig,
                         maxDocsPerValue);
             }
 
@@ -125,8 +134,16 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
             this.parseField = parseField;
         }
 
-        abstract Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue,
-                ValuesSource valuesSource, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException;
+        abstract Aggregator create(
+            String name,
+            AggregatorFactories factories,
+            int shardSize,
+            int maxDocsPerValue,
+            ValuesSourceConfig valuesSourceConfig,
+            SearchContext context,
+            Aggregator parent,
+            Map<String, Object> metadata
+        ) throws IOException;
 
         abstract boolean needsGlobalOrdinals();
 

@@ -45,15 +45,15 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
         builder.register(DiversifiedAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (DiversifiedAggregatorSupplier) (String name, int shardSize, AggregatorFactories factories, SearchContext context,
-                                             Aggregator parent, Map<String, Object> metadata, ValuesSource valuesSource,
+                                             Aggregator parent, Map<String, Object> metadata, ValuesSourceConfig valuesSourceConfig,
                                              int maxDocsPerValue, String executionHint) ->
-                new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, metadata, valuesSource,
+                new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, metadata, valuesSourceConfig,
                     maxDocsPerValue)
         );
 
         builder.register(DiversifiedAggregationBuilder.NAME, CoreValuesSourceType.BYTES,
             (DiversifiedAggregatorSupplier) (String name, int shardSize, AggregatorFactories factories, SearchContext context,
-                                             Aggregator parent, Map<String, Object> metadata, ValuesSource valuesSource,
+                                             Aggregator parent, Map<String, Object> metadata, ValuesSourceConfig valuesSourceConfig,
                                              int maxDocsPerValue, String executionHint) -> {
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -64,10 +64,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 if (execution == null) {
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
-                if ((execution.needsGlobalOrdinals()) && (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals))) {
+                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasGlobalOrdinals() == false)) {
                     execution = ExecutionMode.MAP;
                 }
-                return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, context, parent, metadata);
+                return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSourceConfig, context, parent, metadata);
         });
 
     }

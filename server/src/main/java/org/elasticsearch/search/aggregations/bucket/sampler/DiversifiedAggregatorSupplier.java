@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public interface DiversifiedAggregatorSupplier extends AggregatorSupplier {
         SearchContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        ValuesSource valuesSource,
+        ValuesSourceConfig valuesSourceConfig,
         int maxDocsPerValue,
         String executionHint) throws IOException;
 }

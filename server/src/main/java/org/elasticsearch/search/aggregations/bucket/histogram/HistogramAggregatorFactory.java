@@ -97,7 +97,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         }
         HistogramAggregatorSupplier histogramAggregatorSupplier = (HistogramAggregatorSupplier) aggregatorSupplier;
         return histogramAggregatorSupplier.build(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            config.getValuesSource(), config.format(), searchContext, parent, collectsFromSingleBucket, metadata);
+            config, searchContext, parent, collectsFromSingleBucket, metadata);
     }
 
     @Override
@@ -105,6 +105,6 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            null, config.format(), searchContext, parent, false, metadata);
+            config, searchContext, parent, false, metadata);
     }
 }

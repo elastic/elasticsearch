@@ -46,9 +46,16 @@ public class DiversifiedMapSamplerAggregator extends SamplerAggregator {
     private int maxDocsPerValue;
     private BytesRefHash bucketOrds;
 
-    DiversifiedMapSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
-            SearchContext context, Aggregator parent, Map<String, Object> metadata,
-            ValuesSource valuesSource, int maxDocsPerValue) throws IOException {
+    DiversifiedMapSamplerAggregator(
+        String name,
+        int shardSize,
+        AggregatorFactories factories,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        ValuesSource valuesSource,
+        int maxDocsPerValue
+    ) throws IOException {
         super(name, shardSize, factories, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;

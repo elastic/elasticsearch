@@ -86,6 +86,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             throw new AggregationExecutionException("Registry miss-match - expected DateHistogramAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
+        // TODO: Is there a reason not to get the prepared rounding in the supplier itself?
         Rounding.Prepared preparedRounding = config.getValuesSource()
             .roundingPreparer(queryShardContext.getIndexReader())
             .apply(shardRounding);
@@ -98,8 +99,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             keyed,
             minDocCount,
             extendedBounds,
-            config.getValuesSource(),
-            config.format(),
+            config,
             searchContext,
             parent,
             collectsFromSingleBucket,
@@ -112,6 +112,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds,
-            null, config.format(), searchContext, parent, false, metadata);
+            config, searchContext, parent, false, metadata);
     }
 }

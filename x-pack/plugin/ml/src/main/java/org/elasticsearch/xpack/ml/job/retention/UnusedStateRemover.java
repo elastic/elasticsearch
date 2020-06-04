@@ -13,7 +13,6 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerS
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
-import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedStateDocIdsIterator;
 import org.elasticsearch.xpack.ml.utils.persistence.DocIdBatchedDocumentIterator;
 

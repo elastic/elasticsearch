@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -16,12 +19,16 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
+import org.elasticsearch.xpack.ml.test.MockOriginSettingClient;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +37,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -41,8 +51,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         private int getRetentionDaysCallCount = 0;
 
-        ConcreteExpiredJobDataRemover(List<Job> jobs) {
-            super(jobs);
+        ConcreteExpiredJobDataRemover(String jobId, OriginSettingClient client) {
+            super(jobId, client);
         }
 
         @Override
@@ -68,6 +78,15 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         ) {
             listener.onResponse(Boolean.TRUE);
         }
+    }
+
+    private OriginSettingClient originSettingClient;
+    private Client client;
+
+    @Before
+    public void setUpTests() {
+        client = mock(Client.class);
+        originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
     }
 
     static SearchResponse createSearchResponse(List<? extends ToXContent> toXContents) throws IOException {
@@ -96,9 +115,12 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         return searchResponse;
     }
 
-    public void testRemoveGivenNoJobs() {
+    public void testRemoveGivenNoJobs() throws IOException {
+        SearchResponse response = createSearchResponse(Collections.emptyList());
+        mockSearchResponse(response);
+
         TestListener listener = new TestListener();
-        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(Collections.emptyList());
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover("*", originSettingClient);
         remover.remove(1.0f,listener, () -> false);
 
         listener.waitToCompletion();
@@ -106,24 +128,76 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         assertEquals(0, remover.getRetentionDaysCallCount);
     }
 
-    public void testRemoveGivenTimeOut() {
-
-        List<Job> jobs = Arrays.asList(
+    @SuppressWarnings("unchecked")
+    public void testRemoveGivenMultipleBatches() throws IOException {
+        // This is testing AbstractExpiredJobDataRemover.WrappedBatchedJobsIterator
+        int totalHits = 7;
+        List<SearchResponse> responses = new ArrayList<>();
+        responses.add(createSearchResponse(Arrays.asList(
                 JobTests.buildJobBuilder("job1").build(),
                 JobTests.buildJobBuilder("job2").build(),
                 JobTests.buildJobBuilder("job3").build()
-            );
+        ), totalHits));
 
-        final int timeoutAfter = randomIntBetween(0, jobs.size() - 1);
-        AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
+        responses.add(createSearchResponse(Arrays.asList(
+                JobTests.buildJobBuilder("job4").build(),
+                JobTests.buildJobBuilder("job5").build(),
+                JobTests.buildJobBuilder("job6").build()
+        ), totalHits));
+
+        responses.add(createSearchResponse(Collections.singletonList(
+                JobTests.buildJobBuilder("job7").build()
+        ), totalHits));
+
+
+        AtomicInteger searchCount = new AtomicInteger(0);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(responses.get(searchCount.getAndIncrement()));
+            return null;
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         TestListener listener = new TestListener();
-        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(jobs);
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover("*", originSettingClient);
+        remover.remove(1.0f,listener, () -> false);
+
+        listener.waitToCompletion();
+        assertThat(listener.success, is(true));
+        assertEquals(3, searchCount.get());
+        assertEquals(7, remover.getRetentionDaysCallCount);
+    }
+
+    public void testRemoveGivenTimeOut() throws IOException {
+
+        int totalHits = 3;
+        SearchResponse response = createSearchResponse(Arrays.asList(
+                JobTests.buildJobBuilder("job1").build(),
+                JobTests.buildJobBuilder("job2").build(),
+                JobTests.buildJobBuilder("job3").build()
+            ), totalHits);
+
+        final int timeoutAfter = randomIntBetween(0, totalHits - 1);
+        AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
+
+        mockSearchResponse(response);
+
+        TestListener listener = new TestListener();
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover("*", originSettingClient);
         remover.remove(1.0f,listener, () -> attemptsLeft.getAndDecrement() <= 0);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));
         assertEquals(timeoutAfter, remover.getRetentionDaysCallCount);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mockSearchResponse(SearchResponse searchResponse) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(searchResponse);
+            return null;
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
     }
 
     static class TestListener implements ActionListener<Boolean> {

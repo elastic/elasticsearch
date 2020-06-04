@@ -50,7 +50,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -68,14 +67,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
-    private final OriginSettingClient client;
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
 
-    public ExpiredResultsRemover(OriginSettingClient client, List<Job> jobs,
+    public ExpiredResultsRemover(OriginSettingClient client, String jobIdExpression,
                                  AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
-        super(jobs);
-        this.client = Objects.requireNonNull(client);
+        super(jobIdExpression, client);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
     }

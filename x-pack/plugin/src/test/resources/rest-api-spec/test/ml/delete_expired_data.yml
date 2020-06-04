@@ -56,6 +56,13 @@ setup:
         body:  >
            { "timeout": "10h", "requests_per_second": 100000.0 }
   - match: { deleted: true}
+---
+"Test delete expired data with path parameters":
+  - do:
+      ml.delete_expired_data:
+        timeout: "10h"
+        requests_per_second: 100000.0
+  - match: { deleted: true}
 
 ---
 "Test delete expired data with job id":

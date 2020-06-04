@@ -6,16 +6,21 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Removes job data that expired with respect to their retention period.
@@ -26,17 +31,24 @@ import java.util.function.Supplier;
  */
 abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
-    private final List<Job> jobs;
+    private final String jobIdExpression;
+    protected final OriginSettingClient client;
 
-    AbstractExpiredJobDataRemover(List<Job> jobs) {
-        this.jobs = jobs;
+    AbstractExpiredJobDataRemover(String jobIdExpression, OriginSettingClient client) {
+        this.jobIdExpression = jobIdExpression;
+        this.client = client;
+    }
+
+    private WrappedBatchedJobsIterator newJobIterator() {
+        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, jobIdExpression, AnomalyDetectorsIndex.configIndexName());
+        return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
     @Override
     public void remove(float requestsPerSecond,
                        ActionListener<Boolean> listener,
                        Supplier<Boolean> isTimedOutSupplier) {
-        removeData(new VolatileCursorIterator<>(jobs), requestsPerSecond, listener, isTimedOutSupplier);
+        removeData(newJobIterator(), requestsPerSecond, listener, isTimedOutSupplier);
     }
 
     private void removeData(Iterator<Job> jobIterator,
@@ -133,6 +145,52 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             CutoffDetails that = (CutoffDetails) other;
             return this.latestTimeMs == that.latestTimeMs &&
                 this.cutoffEpochMs == that.cutoffEpochMs;
+        }
+    }
+
+    /**
+     * A wrapper around {@link BatchedJobsIterator} that allows iterating jobs one
+     * at a time from the batches returned by {@code BatchedJobsIterator}
+     *
+     * This class abstracts away the logic of pulling one job at a time from
+     * multiple batches.
+     */
+    private static class WrappedBatchedJobsIterator implements Iterator<Job> {
+        private final BatchedJobsIterator batchedIterator;
+        private VolatileCursorIterator<Job> currentBatch;
+
+        WrappedBatchedJobsIterator(BatchedJobsIterator batchedIterator) {
+            this.batchedIterator = batchedIterator;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return (currentBatch != null && currentBatch.hasNext()) || batchedIterator.hasNext();
+        }
+
+        /**
+         * Before BatchedJobsIterator has run a search it reports hasNext == true
+         * but the first search may return no results. In that case null is return
+         * and clients have to handle null.
+         */
+        @Override
+        public Job next() {
+            if (currentBatch != null && currentBatch.hasNext()) {
+                return currentBatch.next();
+            }
+
+            // currentBatch is either null or all its elements have been iterated.
+            // get the next currentBatch
+            currentBatch = createBatchIteratorFromBatch(batchedIterator.next());
+
+            // BatchedJobsIterator.hasNext maybe true if searching the first time
+            // but no results are returned.
+            return currentBatch.hasNext() ? currentBatch.next() : null;
+        }
+
+        private VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
+            List<Job> jobs = builders.stream().map(Job.Builder::build).collect(Collectors.toList());
+            return new VolatileCursorIterator<>(jobs);
         }
     }
 }

@@ -23,7 +23,7 @@ examples.
 Similar to the `geo_shape` type, the `geo_shape` query uses
 http://www.geojson.org[GeoJSON] to represent shapes.
 
-Given the following index:
+Given the following index with locations as `geo_shape` fields:
 
 [source,console]
 --------------------------------------------------
@@ -76,6 +76,90 @@ GET /example/_search
     }
 }
 --------------------------------------------------
+
+The above query can, similarly, be queried on `geo_point` fields.
+
+[source,console]
+--------------------------------------------------
+PUT /example_points
+{
+    "mappings": {
+        "properties": {
+            "location": {
+                "type": "geo_point"
+            }
+        }
+    }
+}
+
+PUT /example_points/_doc/1?refresh
+{
+    "name": "Wind & Wetter, Berlin, Germany",
+    "location": [13.400544, 52.530286]
+}
+--------------------------------------------------
+// TEST[continued]
+
+Using the same query, the documents with matching `geo_point` fields are returned
+
+[source,console]
+--------------------------------------------------
+GET /example_points/_search
+{
+    "query":{
+        "bool": {
+            "must": {
+                "match_all": {}
+            },
+            "filter": {
+                "geo_shape": {
+                    "location": {
+                        "shape": {
+                            "type": "envelope",
+                            "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
+                        },
+                        "relation": "intersects"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TEST[continued]
+
+[source,console-result]
+--------------------------------------------------
+{
+  "took" : 17,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "example_points",
+        "_id" : "1",
+        "_score" : 1.0,
+        "_source" : {
+          "name": "Wind & Wetter, Berlin, Germany",
+          "location": [13.400544, 52.530286]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
 
 ==== Pre-Indexed Shape
 

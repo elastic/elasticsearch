@@ -240,7 +240,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             TermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof TermsAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected TermsAggregatorSupplier, found [" +
@@ -324,8 +324,21 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               boolean showTermDocCountError,
                               Map<String, Object> metadata) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
-                return new StringTermsAggregator(name, factories, valuesSource, order, format, bucketCountThresholds, filter,
-                        context, parent, subAggCollectMode, showTermDocCountError, metadata);
+                return new MapStringTermsAggregator(
+                    name,
+                    factories,
+                    a -> a.new StandardTermsResults(),
+                    valuesSource,
+                    order,
+                    format,
+                    bucketCountThresholds,
+                    filter,
+                    context,
+                    parent,
+                    subAggCollectMode,
+                    showTermDocCountError,
+                    metadata
+                );
             }
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
@@ -391,9 +404,22 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                          remapGlobalOrds = false;
                     }
                 }
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, ordinalsValuesSource, order,
-                        format, bucketCountThresholds, filter, context, parent, remapGlobalOrds, subAggCollectMode, showTermDocCountError,
-                        metadata);
+                return new GlobalOrdinalsStringTermsAggregator(
+                    name,
+                    factories,
+                    a -> a.new StandardTermsResults(),
+                    ordinalsValuesSource,
+                    order,
+                    format,
+                    bucketCountThresholds,
+                    filter,
+                    context,
+                    parent,
+                    remapGlobalOrds,
+                    subAggCollectMode,
+                    showTermDocCountError,
+                    metadata
+                );
             }
         };
 

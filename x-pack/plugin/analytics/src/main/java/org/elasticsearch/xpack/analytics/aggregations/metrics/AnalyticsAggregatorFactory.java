@@ -68,8 +68,14 @@ public class AnalyticsAggregatorFactory {
     public static void registerHistoBackedSumAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(SumAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) (name, valuesSource, format, context, parent, metadata) ->
-                new HistoBackedSumAggregator(name, (HistogramValuesSource.Histogram) valuesSource, format, context, parent, metadata)
+            (MetricAggregatorSupplier) (name, valuesSourceConfig, valuesSource, context, parent, metadata) -> new HistoBackedSumAggregator(
+                name,
+                (HistogramValuesSource.Histogram) valuesSource,
+                valuesSourceConfig.format(),
+                context,
+                parent,
+                metadata
+            )
         );
     }
 
@@ -84,8 +90,14 @@ public class AnalyticsAggregatorFactory {
     public static void registerHistoBackedAverageAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(AvgAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) (name, valuesSource, format, context, parent, metadata) ->
-                new HistoBackedAvgAggregator(name, (HistogramValuesSource.Histogram) valuesSource, format, context, parent, metadata)
+            (MetricAggregatorSupplier) (name, valuesSourceConfig, valuesSource, context, parent, metadata) -> new HistoBackedAvgAggregator(
+                name,
+                (HistogramValuesSource.Histogram) valuesSource,
+                valuesSourceConfig.format(),
+                context,
+                parent,
+                metadata
+            )
         );
     }
 }

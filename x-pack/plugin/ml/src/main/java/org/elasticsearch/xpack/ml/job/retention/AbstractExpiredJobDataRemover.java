@@ -39,11 +39,6 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         this.client = client;
     }
 
-    private WrappedBatchedJobsIterator newJobIterator() {
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, jobIdExpression, AnomalyDetectorsIndex.configIndexName());
-        return new WrappedBatchedJobsIterator(jobsIterator);
-    }
-
     @Override
     public void remove(float requestsPerSecond,
                        ActionListener<Boolean> listener,
@@ -51,7 +46,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         removeData(newJobIterator(), requestsPerSecond, listener, isTimedOutSupplier);
     }
 
-    private void removeData(Iterator<Job> jobIterator,
+    private void removeData(WrappedBatchedJobsIterator jobIterator,
                             float requestsPerSecond,
                             ActionListener<Boolean> listener,
                             Supplier<Boolean> isTimedOutSupplier) {
@@ -89,6 +84,11 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
                 },
                 listener::onFailure
         ));
+    }
+
+    private WrappedBatchedJobsIterator newJobIterator() {
+        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName(), jobIdExpression);
+        return new WrappedBatchedJobsIterator(jobsIterator);
     }
 
     abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener);

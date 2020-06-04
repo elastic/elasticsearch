@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
@@ -16,12 +19,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 
 /**
  * A {@link LifecycleAction} which shrinks the index.
@@ -32,6 +38,8 @@ public class ShrinkAction implements LifecycleAction {
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
+
+    private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
         new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0]));
@@ -103,7 +111,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(preShrinkBranchingKey, waitForNoFollowerStepKey, nextStepKey,
-            (index, clusterState) -> clusterState.getMetadata().index(index).getNumberOfShards() == numberOfShards);
+            getSkipShrinkStepPredicate(numberOfShards));
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, setSingleNodeKey, client, readOnlySettings);
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
@@ -131,6 +139,34 @@ public class ShrinkAction implements LifecycleAction {
         return Arrays.asList(conditionalSkipShrinkStep, waitForNoFollowersStep, readOnlyStep, setSingleNodeStep, checkShrinkReadyStep,
             shrink, allocated, copyMetadata, isDataStreamBranchingStep, aliasSwapAndDelete, waitOnShrinkTakeover,
             replaceDataStreamBackingIndex, deleteSourceIndexStep);
+    }
+
+    static BiPredicate<Index, ClusterState> getSkipShrinkStepPredicate(int targetNumberOfShards) {
+        return (index, clusterState) -> {
+            IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+            boolean skipShrink = indexMetadata.getNumberOfShards() == targetNumberOfShards;
+
+            if (skipShrink == false) {
+                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+                assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
+
+                if (indexAbstraction.getParentDataStream() != null) {
+                    IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+                    assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
+                    if (dataStream.getWriteIndex().getIndex().getName().equals(index.getName())) {
+                        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                        String errorMessage = String.format(Locale.ROOT,
+                            "index [%s] is the write index for data stream [%s]. stopping execution of lifecycle [%s] as a data stream's " +
+                                "write index cannot be shrunk. manually rolling over the index will resume the execution of the policy " +
+                                "as the index will not be the data stream's write index anymore",
+                            index.getName(), dataStream.getName(), policyName);
+                        logger.debug(errorMessage);
+                        throw new IllegalStateException(errorMessage);
+                    }
+                }
+            }
+            return skipShrink;
+        };
     }
 
     @Override

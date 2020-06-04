@@ -8,18 +8,22 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.ShrinkAction.getSkipShrinkStepPredicate;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
@@ -116,8 +120,50 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         .setStepTime(0L)
                         .build().asMap())
                 .numberOfShards(numShards).numberOfReplicas(0))).build();
-        ClusterState newState = step.performAction(state.metadata().index(indexName).getIndex(), state);
+        step.performAction(state.metadata().index(indexName).getIndex(), state);
         assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
+    }
+
+    public void testNoOpShrinkDoesntFailOnDataStreamWriteIndex() {
+        String dataStreamName = randomAlphaOfLength(10);
+        String indexName = dataStreamName + "-000001";
+        String policyName = "test-ilm-policy";
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(1).numberOfReplicas(1)
+            .build();
+
+        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
+            Metadata.builder()
+                .put(sourceIndexMetadata, true)
+                .put(new DataStream(dataStreamName, "timestamp", backingIndices))
+                .build()
+        ).build();
+
+        boolean skipShrink = getSkipShrinkStepPredicate(1).test(sourceIndexMetadata.getIndex(), clusterState);
+        assertThat("shrink is skipped even though it is applied to a data stream's write index because it would be a no-op",
+            skipShrink, is(true));
+    }
+
+    public void testShrinkFailsOnDataStreamWriteIndex() {
+        String dataStreamName = randomAlphaOfLength(10);
+        String indexName = dataStreamName + "-000001";
+        String policyName = "test-ilm-policy";
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(5).numberOfReplicas(1)
+            .build();
+
+        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex());
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
+            Metadata.builder()
+                .put(sourceIndexMetadata, true)
+                .put(new DataStream(dataStreamName, "timestamp", backingIndices))
+                .build()
+        ).build();
+
+        expectThrows(IllegalStateException.class, () -> getSkipShrinkStepPredicate(1).test(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testToSteps() {

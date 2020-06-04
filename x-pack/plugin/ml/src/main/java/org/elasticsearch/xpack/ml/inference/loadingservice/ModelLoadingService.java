@@ -152,13 +152,14 @@ public class ModelLoadingService implements ClusterStateListener {
             provider.getTrainedModelForInference(modelId, ActionListener.wrap(
                 configAndInferenceDef -> {
                     TrainedModelConfig trainedModelConfig = configAndInferenceDef.v1();
+                    InferenceDefinition inferenceDefinition = configAndInferenceDef.v2();
                     InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
-                        inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
+                        inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
                         trainedModelConfig.getInferenceConfig();
                     modelActionListener.onResponse(new LocalModel(
                         trainedModelConfig.getModelId(),
                         localNode,
-                        configAndInferenceDef.v2(),
+                        inferenceDefinition,
                         trainedModelConfig.getInput(),
                         trainedModelConfig.getDefaultFieldMap(),
                         inferenceConfig,

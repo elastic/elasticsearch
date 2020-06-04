@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Tree.class);
+    // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("tree");
 
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
@@ -67,24 +68,24 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         return LENIENT_PARSER.apply(parser, null).build();
     }
 
-    private String[] featureNames;
-    private final TreeNode[] nodes;
+    private final List<String> featureNames;
+    private final List<TreeNode> nodes;
     private final TargetType targetType;
     private final List<String> classificationLabels;
 
     Tree(List<String> featureNames, List<TreeNode> nodes, TargetType targetType, List<String> classificationLabels) {
-        this.featureNames = ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES).toArray(String[]::new);
+        this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
         if(ExceptionsHelper.requireNonNull(nodes, TREE_STRUCTURE).size() == 0) {
             throw new IllegalArgumentException("[tree_structure] must not be empty");
         }
-        this.nodes = nodes.toArray(TreeNode[]::new);
+        this.nodes = Collections.unmodifiableList(nodes);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
     }
 
     public Tree(StreamInput in) throws IOException {
-        this.featureNames = in.readStringArray();
-        this.nodes = in.readArray(TreeNode::new, TreeNode[]::new);
+        this.featureNames = Collections.unmodifiableList(in.readStringList());
+        this.nodes = Collections.unmodifiableList(in.readList(TreeNode::new));
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
             this.classificationLabels = Collections.unmodifiableList(in.readStringList());
@@ -96,22 +97,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public String getName() {
         return NAME.getPreferredName();
-    }
-
-    /**
-     * Trace the route predicting on the feature vector takes.
-     * @param features  The feature vector
-     * @return The list of traversed nodes ordered from root to leaf
-     */
-    public List<TreeNode> trace(double[] features) {
-        List<TreeNode> visited = new ArrayList<>();
-        TreeNode node = nodes[0];
-        visited.add(node);
-        while(node.isLeaf() == false) {
-            node = nodes[node.compare(features)];
-            visited.add(node);
-        }
-        return visited;
     }
 
     @Override
@@ -126,8 +111,8 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(featureNames);
-        out.writeArray(nodes);
+        out.writeStringCollection(featureNames);
+        out.writeCollection(nodes);
         targetType.writeTo(out);
         out.writeBoolean(classificationLabels != null);
         if (classificationLabels != null) {
@@ -158,15 +143,15 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Tree that = (Tree) o;
-        return Arrays.equals(featureNames, that.featureNames)
-            && Arrays.equals(nodes, that.nodes)
+        return Objects.equals(featureNames, that.featureNames)
+            && Objects.equals(nodes, that.nodes)
             && Objects.equals(targetType, that.targetType)
             && Objects.equals(classificationLabels, that.classificationLabels);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(featureNames), Arrays.hashCode(nodes), targetType, classificationLabels);
+        return Objects.hash(featureNames, nodes, targetType, classificationLabels);
     }
 
     public static Builder builder() {
@@ -176,7 +161,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public void validate() {
         int maxFeatureIndex = maxFeatureIndex();
-        if (maxFeatureIndex >= featureNames.length) {
+        if (maxFeatureIndex >= featureNames.size()) {
             throw ExceptionsHelper.badRequestException("feature index [{}] is out of bounds for the [{}] array",
                     maxFeatureIndex, FEATURE_NAMES.getPreferredName());
         }
@@ -189,7 +174,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public long estimatedNumOperations() {
         // Grabbing the features from the doc + the depth of the tree
-        return (long)Math.ceil(Math.log(nodes.length)) + featureNames.length;
+        return (long)Math.ceil(Math.log(nodes.size())) + featureNames.size();
     }
 
     /**
@@ -214,15 +199,15 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
             throw ExceptionsHelper.badRequestException(
                 "[target_type] should be [classification] if [classification_labels] are provided");
         }
-        if (this.targetType != TargetType.CLASSIFICATION && Arrays.stream(this.nodes).anyMatch(n -> n.getLeafValue().length > 1)) {
+        if (this.targetType != TargetType.CLASSIFICATION && this.nodes.stream().anyMatch(n -> n.getLeafValue().length > 1)) {
             throw ExceptionsHelper.badRequestException(
                 "[target_type] should be [classification] if leaf nodes have multiple values");
         }
     }
 
     private void detectCycle() {
-        Set<Integer> visited = new HashSet<>(nodes.length, 1.0f);
-        Queue<Integer> toVisit = new ArrayDeque<>(nodes.length);
+        Set<Integer> visited = new HashSet<>(nodes.size());
+        Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
         while(toVisit.isEmpty() == false) {
             Integer nodeIdx = toVisit.remove();
@@ -230,7 +215,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
                 throw ExceptionsHelper.badRequestException("[tree] contains cycle at node {}", nodeIdx);
             }
             visited.add(nodeIdx);
-            TreeNode treeNode = nodes[nodeIdx];
+            TreeNode treeNode = nodes.get(nodeIdx);
             if (treeNode.getLeftChild() >= 0) {
                 toVisit.add(treeNode.getLeftChild());
             }
@@ -242,8 +227,8 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     private void detectMissingNodes() {
         List<Integer> missingNodes = new ArrayList<>();
-        for (int i = 0; i < nodes.length; i++) {
-            TreeNode currentNode = nodes[i];
+        for (int i = 0; i < nodes.size(); i++) {
+            TreeNode currentNode = nodes.get(i);
             if (currentNode == null) {
                 continue;
             }
@@ -273,43 +258,22 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         }
     }
 
-    private static boolean nodeMissing(int nodeIdx, TreeNode[] nodes) {
-        return nodeIdx >= nodes.length;
-    }
-
-    private Double maxLeafValue() {
-        if (targetType != TargetType.CLASSIFICATION) {
-            return null;
-        }
-        double max = 0.0;
-        for (TreeNode node : this.nodes) {
-            if (node.isLeaf()) {
-                if (node.getLeafValue().length > 1) {
-                    return (double)node.getLeafValue().length;
-                } else {
-                    max = Math.max(node.getLeafValue()[0], max);
-                }
-            }
-        }
-        return max;
+    private static boolean nodeMissing(int nodeIdx, List<TreeNode> nodes) {
+        return nodeIdx >= nodes.size();
     }
 
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
         size += RamUsageEstimator.sizeOfCollection(classificationLabels);
-        size += RamUsageEstimator.sizeOf(featureNames);
-        size += RamUsageEstimator.shallowSizeOf(nodes);
-        for (TreeNode node : nodes) {
-            size += node.ramBytesUsed();
-        }
-        size += RamUsageEstimator.sizeOfCollection(Arrays.asList(nodes));
+        size += RamUsageEstimator.sizeOfCollection(featureNames);
+        size += RamUsageEstimator.sizeOfCollection(nodes);
         return size;
     }
 
     @Override
     public Collection<Accountable> getChildResources() {
-        List<Accountable> accountables = new ArrayList<>(nodes.length);
+        List<Accountable> accountables = new ArrayList<>(nodes.size());
         for (TreeNode node : nodes) {
             accountables.add(Accountables.namedAccountable("tree_node_" + node.getNodeIndex(), node));
         }
@@ -318,7 +282,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public Version getMinimalCompatibilityVersion() {
-        if (Arrays.stream(nodes).filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
+        if (nodes.stream().filter(TreeNode::isLeaf).anyMatch(t -> t.getLeafValue().length > 1)) {
             return Version.V_7_7_0;
         }
         return Version.V_7_6_0;

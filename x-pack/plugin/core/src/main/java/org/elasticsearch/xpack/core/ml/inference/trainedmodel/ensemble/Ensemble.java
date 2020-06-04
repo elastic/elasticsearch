@@ -36,6 +36,7 @@ import java.util.OptionalDouble;
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ensemble.class);
+    // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("ensemble");
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TRAINED_MODELS = new ParseField("trained_models");
@@ -78,7 +79,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return LENIENT_PARSER.apply(parser, null).build();
     }
 
-    private String[] featureNames;
+    private final List<String> featureNames;
     private final List<TrainedModel> models;
     private final OutputAggregator outputAggregator;
     private final TargetType targetType;
@@ -91,7 +92,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
              TargetType targetType,
              @Nullable List<String> classificationLabels,
              @Nullable double[] classificationWeights) {
-        this.featureNames = ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES).toArray(String[]::new);
+        this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
         this.models = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(models, TRAINED_MODELS));
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
@@ -102,7 +103,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     public Ensemble(StreamInput in) throws IOException {
-        this.featureNames = in.readStringArray();
+        this.featureNames = Collections.unmodifiableList(in.readStringList());
         this.models = Collections.unmodifiableList(in.readNamedWriteableList(TrainedModel.class));
         this.outputAggregator = in.readNamedWriteable(OutputAggregator.class);
         this.targetType = TargetType.fromStream(in);
@@ -130,7 +131,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(featureNames);
+        out.writeStringCollection(featureNames);
         out.writeNamedWriteableList(models);
         out.writeNamedWriteable(outputAggregator);
         targetType.writeTo(out);
@@ -152,7 +153,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (featureNames.length > 0) {
+        if (featureNames.isEmpty() == false) {
             builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
         }
         NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
@@ -177,7 +178,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Ensemble that = (Ensemble) o;
-        return Arrays.equals(featureNames, that.featureNames)
+        return Objects.equals(featureNames, that.featureNames)
             && Objects.equals(models, that.models)
             && Objects.equals(targetType, that.targetType)
             && Objects.equals(classificationLabels, that.classificationLabels)
@@ -187,7 +188,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(featureNames),
+        return Objects.hash(featureNames,
             models,
             outputAggregator,
             targetType,
@@ -238,14 +239,6 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         return (long)Math.ceil(avg.getAsDouble()) + 2 * (models.size() - 1);
     }
 
-    public List<TrainedModel> getModels() {
-        return models;
-    }
-
-    public TargetType getTargetType() {
-        return targetType;
-    }
-
     public static Builder builder() {
         return new Builder();
     }
@@ -253,7 +246,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
-        size += RamUsageEstimator.sizeOf(featureNames);
+        size += RamUsageEstimator.sizeOfCollection(featureNames);
         size += RamUsageEstimator.sizeOfCollection(classificationLabels);
         size += RamUsageEstimator.sizeOfCollection(models);
         if (classificationWeights != null) {

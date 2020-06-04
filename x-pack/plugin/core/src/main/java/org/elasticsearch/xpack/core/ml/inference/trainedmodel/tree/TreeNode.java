@@ -73,8 +73,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
 
     private final Operator operator;
     private final double threshold;
-    // Allowed to be adjusted for inference optimization
-    private int splitFeature;
+    private final int splitFeature;
     private final int nodeIndex;
     private final double splitGain;
     private final double[] leafValue;
@@ -82,6 +81,7 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
     private final int leftChild;
     private final int rightChild;
     private final long numberSamples;
+
 
     private TreeNode(Operator operator,
                      Double threshold,
@@ -129,11 +129,6 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
         }
     }
 
-    // Package private as Tree needs access
-    void setSplitFeature(int splitFeature) {
-        this.splitFeature = splitFeature;
-    }
-
     public Operator getOperator() {
         return operator;
     }
@@ -176,21 +171,6 @@ public class TreeNode implements ToXContentObject, Writeable, Accountable {
 
     public long getNumberSamples() {
         return numberSamples;
-    }
-
-    public int compare(double[] features) {
-        if (isLeaf()) {
-            throw new IllegalArgumentException("cannot call compare against a leaf node.");
-        }
-        double feature = features[splitFeature];
-        if (isMissing(feature)) {
-            return defaultLeft ? leftChild : rightChild;
-        }
-        return operator.test(feature, threshold) ? leftChild : rightChild;
-    }
-
-    private boolean isMissing(double feature) {
-        return Numbers.isValidDouble(feature) == false;
     }
 
     @Override

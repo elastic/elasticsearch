@@ -292,7 +292,7 @@ public interface IndexAbstraction {
             this.dataStream = dataStream;
             this.dataStreamIndices = List.copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
-            assert writeIndex.getIndex().getName().endsWith(getBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
+            assert writeIndex.getIndex().getName().equals(getBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
         }
 
         @Override

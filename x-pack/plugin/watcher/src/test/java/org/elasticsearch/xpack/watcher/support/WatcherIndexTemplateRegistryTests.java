@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -132,6 +134,31 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy"));
     }
 
+    public void testThatNonExistingTemplatesAreAddedEvenWithILMDisabled() {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        registry = new WatcherIndexTemplateRegistry(Settings.builder()
+            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
+            clusterService, threadPool, client, xContentRegistry);
+        ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
+        registry.clusterChanged(event);
+        ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
+        verify(client.admin().indices(), times(3)).putTemplate(argumentCaptor.capture(), anyObject());
+
+        // now delete one template from the cluster state and lets retry
+        Map<String, Integer> existingTemplates = new HashMap<>();
+        existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
+        existingTemplates.put(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
+        ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
+        registry.clusterChanged(newEvent);
+        ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
+        verify(client.admin().indices(), times(5)).putTemplate(captor.capture(), anyObject());
+        captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
+        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED });
+    }
+
     public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
@@ -182,6 +209,19 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testNoPolicyButILMDisabled() {
+        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        registry = new WatcherIndexTemplateRegistry(Settings.builder()
+            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
+            clusterService, threadPool, client, xContentRegistry);
+        ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
+        registry.clusterChanged(event);
+        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { XPackSettings.INDEX_LIFECYCLE_ENABLED });
+    }
+
+    public void testNoPolicyButILMManagementDisabled() {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 

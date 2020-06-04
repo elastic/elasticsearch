@@ -20,30 +20,35 @@ public class IndexLifecycleFeatureSetUsageTests extends AbstractWireSerializingT
     @Override
     protected IndexLifecycleFeatureSetUsage createTestInstance() {
         boolean available = randomBoolean();
+        boolean enabled = randomBoolean();
         List<PolicyStats> policyStats = new ArrayList<>();
         int size = randomIntBetween(0, 10);
         for (int i = 0; i < size; i++) {
             policyStats.add(PolicyStatsTests.randomPolicyStats());
         }
-        return new IndexLifecycleFeatureSetUsage(available, policyStats);
+        return new IndexLifecycleFeatureSetUsage(available, enabled, policyStats);
     }
 
     @Override
     protected IndexLifecycleFeatureSetUsage mutateInstance(IndexLifecycleFeatureSetUsage instance) throws IOException {
         boolean available = instance.available();
+        boolean enabled = instance.enabled();
         List<PolicyStats> policyStats = instance.getPolicyStats();
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
         case 0:
             available = available == false;
             break;
         case 1:
+            enabled = enabled == false;
+            break;
+        case 2:
             policyStats = new ArrayList<>(policyStats);
             policyStats.add(PolicyStatsTests.randomPolicyStats());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new IndexLifecycleFeatureSetUsage(available, policyStats);
+        return new IndexLifecycleFeatureSetUsage(available, enabled, policyStats);
     }
 
     @Override

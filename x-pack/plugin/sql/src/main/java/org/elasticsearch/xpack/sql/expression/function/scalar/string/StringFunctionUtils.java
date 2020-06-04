@@ -23,15 +23,15 @@ final class StringFunctionUtils {
         if (!hasLength(s)) {
             return s;
         }
-        
+
         if (start < 0) {
             start = 0;
         }
-        
+
         if (start + 1 > s.length() || length < 0) {
             return "";
         }
-        
+
         return (start + length > s.length()) ? s.substring(start) : s.substring(start, start + length);
     }
 
@@ -47,11 +47,11 @@ final class StringFunctionUtils {
             return s;
         }
 
-        StringBuilder sb = new StringBuilder(s);
-        while (sb.length() > 0 && Character.isWhitespace(sb.charAt(sb.length() - 1))) {
-            sb.deleteCharAt(sb.length() - 1);
+        int i = s.length() - 1;
+        while (i >= 0 && Character.isWhitespace(s.charAt(i))) {
+            i--;
         }
-        return sb.toString();
+        return s.substring(0, i + 1);
     }
 
     /**
@@ -66,10 +66,10 @@ final class StringFunctionUtils {
             return s;
         }
 
-        StringBuilder sb = new StringBuilder(s);
-        while (sb.length() > 0 && Character.isWhitespace(sb.charAt(0))) {
-            sb.deleteCharAt(0);
+        int i = 0;
+        while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
+            i++;
         }
-        return sb.toString();
+        return s.substring(i);
     }
 }

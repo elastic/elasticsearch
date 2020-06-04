@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -89,19 +90,29 @@ public final class Mapping implements ToXContentFragment {
 
     /** @see DocumentMapper#merge(Mapping, MergeReason) */
     public Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root);
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason);
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetadataMappers = new HashMap<>(metadataMappersMap);
         for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
             MetadataFieldMapper mergeInto = mergedMetadataMappers.get(metaMergeWith.getClass());
             MetadataFieldMapper merged;
-            if (mergeInto == null) {
+            if (mergeInto == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = metaMergeWith;
             } else {
                 merged = (MetadataFieldMapper) mergeInto.merge(metaMergeWith);
             }
             mergedMetadataMappers.put(merged.getClass(), merged);
         }
-        Map<String, Object> mergedMeta = mergeWith.meta == null ? meta : mergeWith.meta;
+
+        Map<String, Object> mergedMeta;
+        if (mergeWith.meta == null) {
+            mergedMeta = meta;
+        } else if (meta == null || reason != MergeReason.INDEX_TEMPLATE) {
+            mergedMeta = mergeWith.meta;
+        } else {
+            mergedMeta = new HashMap<>(mergeWith.meta);
+            XContentHelper.mergeDefaults(mergedMeta, meta);
+        }
+
         return new Mapping(indexCreated, mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 

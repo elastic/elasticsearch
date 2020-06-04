@@ -31,12 +31,14 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -248,6 +250,10 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicDateTimeFormatters.value();
     }
 
+    public DynamicTemplate[] dynamicTemplates() {
+        return dynamicTemplates.value();
+    }
+
     @SuppressWarnings("rawtypes")
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
         return findTemplateBuilder(context, name, matchType.defaultMappingType(), matchType);
@@ -286,25 +292,41 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith) {
-        return (RootObjectMapper) super.merge(mergeWith);
+    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason) {
+        return (RootObjectMapper) super.merge(mergeWith, reason);
     }
 
     @Override
-    protected void doMerge(ObjectMapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected void doMerge(ObjectMapper mergeWith, MergeReason reason) {
+        super.doMerge(mergeWith, reason);
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
         if (mergeWithObject.numericDetection.explicit()) {
             this.numericDetection = mergeWithObject.numericDetection;
         }
+
         if (mergeWithObject.dateDetection.explicit()) {
             this.dateDetection = mergeWithObject.dateDetection;
         }
+
         if (mergeWithObject.dynamicDateTimeFormatters.explicit()) {
             this.dynamicDateTimeFormatters = mergeWithObject.dynamicDateTimeFormatters;
         }
+
         if (mergeWithObject.dynamicTemplates.explicit()) {
-            this.dynamicTemplates = mergeWithObject.dynamicTemplates;
+            if (reason == MergeReason.INDEX_TEMPLATE) {
+                Map<String, DynamicTemplate> templatesByKey = new LinkedHashMap<>();
+                for (DynamicTemplate template : this.dynamicTemplates.value()) {
+                    templatesByKey.put(template.name(), template);
+                }
+                for (DynamicTemplate template : mergeWithObject.dynamicTemplates.value()) {
+                    templatesByKey.put(template.name(), template);
+                }
+
+                DynamicTemplate[] mergedTemplates = templatesByKey.values().toArray(new DynamicTemplate[0]);
+                this.dynamicTemplates = new Explicit<>(mergedTemplates, true);
+            } else {
+                this.dynamicTemplates = mergeWithObject.dynamicTemplates;
+            }
         }
     }
 

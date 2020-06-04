@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -440,17 +441,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public ObjectMapper merge(Mapper mergeWith) {
+        return merge(mergeWith, MergeReason.MAPPING_UPDATE);
+    }
+
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
         if (!(mergeWith instanceof ObjectMapper)) {
             throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name()
                 + "] with an object mapping [" + name() + "]");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
-        merged.doMerge(mergeWithObject);
+        merged.doMerge(mergeWithObject, reason);
         return merged;
     }
 
-    protected void doMerge(final ObjectMapper mergeWith) {
+    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason) {
         if (nested().isNested()) {
             if (!mergeWith.nested().isNested()) {
                 throw new IllegalArgumentException("object mapping [" + name() + "] can't be changed from nested to non-nested");

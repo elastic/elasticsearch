@@ -325,6 +325,9 @@
           },
           "terms" : {
             "type" : "keyword"
+          },
+          "annotations_enabled" : {
+            "type" : "boolean"
           }
         }
       },

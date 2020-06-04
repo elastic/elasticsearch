@@ -37,9 +37,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.shards.ShardCounts;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -53,7 +51,6 @@ import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,15 +69,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_C
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.cluster.shards.ShardCounts.forDataNodeCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MetadataIndexStateServiceTests extends ESTestCase {
 
@@ -333,29 +327,6 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         assertEquals(blockedIndices.get(test), blockedIndices2.get(test));
     }
 
-    public void testValidateShardLimit() {
-        int nodesInCluster = randomIntBetween(2, 90);
-        ShardCounts counts = forDataNodeCount(nodesInCluster);
-        Settings clusterSettings = Settings.builder()
-            .put(Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
-            .build();
-        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
-            counts.getFailingIndexShards(), counts.getFailingIndexReplicas(), clusterSettings);
-
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
-            .map(IndexMetadata::getIndex)
-            .collect(Collectors.toList())
-            .toArray(new Index[2]);
-
-        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
-        int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        ValidationException exception = expectThrows(ValidationException.class,
-            () -> MetadataIndexStateService.validateShardLimit(state, indices));
-        assertEquals("Validation Failed: 1: this action would add [" + totalShards + "] total shards, but this cluster currently has [" +
-            currentShards + "]/[" + maxShards + "] maximum shards open;", exception.getMessage());
-    }
-
     public void testIsIndexVerifiedBeforeClosed() {
         final ClusterState initialState = ClusterState.builder(new ClusterName("testIsIndexMetadataClosed")).build();
         {
@@ -409,33 +380,11 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         assertThat(failedIndices, equalTo(disappearedIndices));
     }
 
-    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int openIndexShards, int openIndexReplicas,
-                                                              int closedIndexShards, int closedIndexReplicas, Settings clusterSettings) {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
-        for (int i = 0; i < nodesInCluster; i++) {
-            dataNodes.put(randomAlphaOfLengthBetween(5, 15), mock(DiscoveryNode.class));
-        }
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
-
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        state = addOpenedIndex(randomAlphaOfLengthBetween(5, 15), openIndexShards, openIndexReplicas, state);
-        state = addClosedIndex(randomAlphaOfLengthBetween(5, 15), closedIndexShards, closedIndexReplicas, state);
-
-        final Metadata.Builder metadata = Metadata.builder(state.metadata());
-        if (randomBoolean()) {
-            metadata.persistentSettings(clusterSettings);
-        } else {
-            metadata.transientSettings(clusterSettings);
-        }
-        return ClusterState.builder(state).metadata(metadata).nodes(nodes).build();
-    }
-
-    private static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
+    public static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         return addIndex(state, index, numShards, numReplicas, IndexMetadata.State.OPEN, null);
     }
 
-    private static ClusterState addClosedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
+    public static ClusterState addClosedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {
         return addIndex(state, index, numShards, numReplicas, IndexMetadata.State.CLOSE, INDEX_CLOSED_BLOCK);
     }
 

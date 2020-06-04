@@ -41,7 +41,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -149,12 +148,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder();
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
+            return new BytesBinaryIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
         @Override

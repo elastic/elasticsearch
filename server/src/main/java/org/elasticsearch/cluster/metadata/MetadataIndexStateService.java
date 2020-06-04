@@ -53,7 +53,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -67,6 +66,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -83,7 +83,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -107,6 +106,7 @@ public class MetadataIndexStateService {
     private final AllocationService allocationService;
     private final MetadataIndexUpgradeService metadataIndexUpgradeService;
     private final IndicesService indicesService;
+    private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
     private final NodeClient client;
     private final ActiveShardsObserver activeShardsObserver;
@@ -114,13 +114,15 @@ public class MetadataIndexStateService {
     @Inject
     public MetadataIndexStateService(ClusterService clusterService, AllocationService allocationService,
                                      MetadataIndexUpgradeService metadataIndexUpgradeService,
-                                     IndicesService indicesService, ThreadPool threadPool, NodeClient client) {
+                                     IndicesService indicesService, ShardLimitValidator shardLimitValidator,
+                                     NodeClient client, ThreadPool threadPool) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.threadPool = threadPool;
         this.client = client;
         this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.shardLimitValidator = shardLimitValidator;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
@@ -553,7 +555,7 @@ public class MetadataIndexStateService {
             }
         }
 
-        validateShardLimit(currentState, indices);
+        shardLimitValidator.validateShardLimit(currentState, indices);
         if (indicesToOpen.isEmpty()) {
             return currentState;
         }
@@ -601,33 +603,6 @@ public class MetadataIndexStateService {
             }
         }
         return ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
-    }
-
-    /**
-     * Validates whether a list of indices can be opened without going over the cluster shard limit.  Only counts indices which are
-     * currently closed and will be opened, ignores indices which are already open.
-     *
-     * @param currentState The current cluster state.
-     * @param indices The indices which are to be opened.
-     * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
-     */
-    static void validateShardLimit(ClusterState currentState, Index[] indices) {
-        int shardsToOpen = Arrays.stream(indices)
-            .filter(index -> currentState.metadata().index(index).getState().equals(IndexMetadata.State.CLOSE))
-            .mapToInt(index -> getTotalShardCount(currentState, index))
-            .sum();
-
-        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState);
-        if (error.isPresent()) {
-            ValidationException ex = new ValidationException();
-            ex.addValidationError(error.get());
-            throw ex;
-        }
-    }
-
-    private static int getTotalShardCount(ClusterState state, Index index) {
-        IndexMetadata indexMetadata = state.metadata().index(index);
-        return indexMetadata.getNumberOfShards() * (1 + indexMetadata.getNumberOfReplicas());
     }
 
     /**

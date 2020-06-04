@@ -13,7 +13,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -30,8 +29,7 @@ import java.util.Map;
  *
  * Uses lucene 8 XYPoint encoding
  */
-public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends CartesianPoint>, List<? extends CartesianPoint>>
-        implements ArrayValueMapperParser {
+public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends CartesianPoint>, List<? extends CartesianPoint>> {
     public static final String CONTENT_TYPE = "point";
 
     public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, PointFieldType> {

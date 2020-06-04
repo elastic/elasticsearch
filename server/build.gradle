@@ -336,6 +336,10 @@ dependencyLicenses {
   }
 }
 
+licenseHeaders {
+  // Ignore our vendored version of Google Guice
+  excludes << 'org/elasticsearch/common/inject/**/*'
+}
 
 tasks.named('internalClusterTest').configure {
   if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {

@@ -165,17 +165,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValuesSourceType getValuesSourceType() {
-            // TODO: should this even exist? Is aggregating on the ID field valid?
-            return CoreValuesSourceType.BYTES;
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+                    CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
@@ -185,7 +180,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                             + "you can re-enable it by updating the dynamic cluster setting: "
                             + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
                     }
-                    deprecationLogger.deprecatedAndMaybeLog("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
                         breakerService, mapperService);
                     return new IndexFieldData<LeafFieldData>() {
@@ -198,6 +193,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                         @Override
                         public String getFieldName() {
                             return fieldData.getFieldName();
+                        }
+
+                        @Override
+                        public ValuesSourceType getValuesSourceType() {
+                            return fieldData.getValuesSourceType();
                         }
 
                         @Override

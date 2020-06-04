@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -56,8 +57,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -979,11 +978,6 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.NUMERIC;
-        }
-
-        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -1074,7 +1068,7 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             try {
                 numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (IllegalArgumentException | JsonParseException e) {
+            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;

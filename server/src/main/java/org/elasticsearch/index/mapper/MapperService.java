@@ -449,7 +449,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private void checkNestedFieldsLimit(Map<String, ObjectMapper> fullPathObjectMappers) {
-        long allowedNestedFields = indexSettings.getValue(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
+        long allowedNestedFields = indexSettings.getMappingNestedFieldsLimit();
         long actualNestedFields = 0;
         for (ObjectMapper objectMapper : fullPathObjectMappers.values()) {
             if (objectMapper.nested().isNested()) {
@@ -463,7 +463,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private void checkTotalFieldsLimit(long totalMappers) {
-        long allowedTotalFields = indexSettings.getValue(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        long allowedTotalFields = indexSettings.getMappingTotalFieldsLimit();
         if (allowedTotalFields < totalMappers) {
             throw new IllegalArgumentException("Limit of total fields [" + allowedTotalFields + "] in index [" + index().getName()
                 + "] has been exceeded");
@@ -471,7 +471,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private void checkDepthLimit(Collection<String> objectPaths) {
-        final long maxDepth = indexSettings.getValue(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
+        final long maxDepth = indexSettings.getMappingDepthLimit();
         for (String objectPath : objectPaths) {
             checkDepthLimit(objectPath, maxDepth);
         }
@@ -494,7 +494,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private void checkFieldNameSoftLimit(Collection<ObjectMapper> objectMappers,
                                          Collection<FieldMapper> fieldMappers,
                                          Collection<FieldAliasMapper> fieldAliasMappers) {
-        final long maxFieldNameLength = indexSettings.getValue(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+        final long maxFieldNameLength = indexSettings.getMappingFieldNameLengthLimit();
 
         Stream.of(objectMappers.stream(), fieldMappers.stream(), fieldAliasMappers.stream())
             .reduce(Stream::concat)

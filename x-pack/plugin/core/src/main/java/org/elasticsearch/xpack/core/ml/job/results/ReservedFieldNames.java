@@ -277,6 +277,7 @@ public final class ReservedFieldNames {
 
             ModelPlotConfig.ENABLED_FIELD.getPreferredName(),
             ModelPlotConfig.TERMS_FIELD.getPreferredName(),
+            ModelPlotConfig.ANNOTATIONS_ENABLED_FIELD.getPreferredName(),
 
             DatafeedConfig.ID.getPreferredName(),
             DatafeedConfig.QUERY_DELAY.getPreferredName(),
@@ -304,6 +305,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
             DataFrameAnalyticsConfig.CREATE_TIME.getPreferredName(),
             DataFrameAnalyticsConfig.VERSION.getPreferredName(),
+            DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName(),
             DataFrameAnalyticsDest.INDEX.getPreferredName(),
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),

@@ -94,29 +94,25 @@ setting.
 
 [[deprecate-basic-license-feature-enabled]]
 
-.Several {xpack} settings no longer have any effect and are deprecated.
+.Several {xpack} settings no longer have any effect and are deprecated. 
 
 [%collapsible]
 ====
 *Details* +
-Basic {xpack} license features are always enabled for the {default-dist}
-and the following settings no longer have any effect:
+Basic {xpack} license features are always enabled for the {default-dist} 
+and the following settings no longer have any effect: 
 
 * `xpack.enrich.enabled`
 * `xpack.flattened.enabled`
+* `xpack.ilm.enabled`
 * `xpack.monitoring.enabled`
 * `xpack.rollup.enabled`
+* `xpack.slm.enabled`
 * `xpack.sql.enabled`
 * `xpack.transform.enabled`
 * `xpack.vectors.enabled`
 
 Previously, they could be set to `false` to disable the feature's APIs in a cluster.
-
-The ILM and SLM settings have been deprecated, but still have the effect of disabling
-their respective APIs:
-
-* `xpack.ilm.enabled`
-* `xpack.slm.enabled`
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of these settings.

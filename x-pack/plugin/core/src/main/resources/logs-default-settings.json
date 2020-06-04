@@ -8,8 +8,7 @@
         "codec": "best_compression",
         "query": {
           "default_field": ["message"]
-        },
-        "number_of_routing_shards": "30"
+        }
       }
     }
   },

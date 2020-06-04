@@ -19,7 +19,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;

@@ -19,7 +19,7 @@
         "@timestamp": {
           "type": "date"
         },
-        "stream": {
+        "dataset": {
           "properties": {
             "type": {
               "type": "constant_keyword",

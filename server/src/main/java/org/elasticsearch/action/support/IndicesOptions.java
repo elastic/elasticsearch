@@ -396,7 +396,7 @@ public class IndicesOptions implements ToXContentFragment {
      *         indices, and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandOpenHidden() {
-        return STRICT_EXPAND_OPEN;
+        return STRICT_EXPAND_OPEN_HIDDEN;
     }
 
     /**

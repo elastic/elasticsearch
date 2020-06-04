@@ -71,71 +71,8 @@
         },
         "host": {
           "properties": {
-            "hostname": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "os": {
-              "properties": {
-                "build": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "kernel": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "codename": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "name": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "family": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "version": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "platform": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                },
-                "full": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
-            },
             "ip": {
               "type": "ip"
-            },
-            "containerized": {
-              "type": "boolean"
-            },
-            "name": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "id": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "type": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "mac": {
-              "ignore_above": 1024,
-              "type": "keyword"
-            },
-            "architecture": {
-              "ignore_above": 1024,
-              "type": "keyword"
             }
           }
         },

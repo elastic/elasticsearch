@@ -61,12 +61,15 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
+import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
@@ -87,6 +90,8 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
 
@@ -247,6 +252,16 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         components.add(sslService);
         components.add(getLicenseService());
         components.add(getLicenseState());
+
+        if (DiscoveryNode.isDataNode(environment.settings())) {
+            // only data nodes should be eligible to run the maintenance service.
+            AsyncTaskIndexService<AsyncSearchResponse> indexService =
+                new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadPool.getThreadContext(), client,
+                    ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, namedWriteableRegistry);
+            AsyncTaskMaintenanceService maintenanceService =
+                new AsyncTaskMaintenanceService(clusterService, nodeEnvironment.nodeId(), settings, threadPool, indexService);
+            components.add(maintenanceService);
+        }
 
         return components;
     }

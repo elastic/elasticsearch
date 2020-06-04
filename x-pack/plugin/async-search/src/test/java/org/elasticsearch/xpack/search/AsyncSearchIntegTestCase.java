@@ -30,10 +30,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -50,7 +51,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
-import static org.elasticsearch.xpack.search.AsyncSearchMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
+import static org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -79,7 +80,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Before
     public void startMaintenanceService() {
-        for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
+        for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
             if (service.lifecycleState() == Lifecycle.State.STOPPED) {
                 // force the service to start again
                 service.start();
@@ -91,7 +92,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @After
     public void stopMaintenanceService() {
-        for (AsyncSearchMaintenanceService service : internalCluster().getDataNodeInstances(AsyncSearchMaintenanceService.class)) {
+        for (AsyncTaskMaintenanceService service : internalCluster().getDataNodeInstances(AsyncTaskMaintenanceService.class)) {
             service.stop();
         }
     }

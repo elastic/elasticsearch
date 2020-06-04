@@ -71,6 +71,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testMatchesSortedNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1)));
@@ -84,6 +85,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testMatchesNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(DATE_FIELD_NAME, milli1)));
@@ -219,7 +221,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
                 () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                     iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
                 }, range -> fail("Should have thrown exception"), fieldType));
-            assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [date_range]",
+            assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [date_range]",
                 e.getMessage());
         }
 

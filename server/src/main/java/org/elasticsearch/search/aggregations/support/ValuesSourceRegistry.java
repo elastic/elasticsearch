@@ -148,7 +148,7 @@ public class ValuesSourceRegistry {
                 && findMatchingSuppier(valuesSourceType, aggregatorRegistry.get(aggregationName)) != null) {
                 return valuesSourceType;
             }
-            String fieldDescription = fieldType.typeName() + "(" + fieldType.toString() + ")";
+            String fieldDescription = fieldType.typeName();
             throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldDescription +
                 "] is not supported for aggregation [" + aggregationName + "]");
         } else {

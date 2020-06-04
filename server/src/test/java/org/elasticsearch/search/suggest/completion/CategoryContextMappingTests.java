@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -729,7 +730,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         ParseContext.Document document = new ParseContext.Document();
 
         KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
-        document.add(new Field(keyword.name(), new BytesRef("category1"), KeywordFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<String> context = mapping.parseContext(document);

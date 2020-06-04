@@ -28,9 +28,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.StringFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -138,14 +138,15 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         if (fieldName != null) {
             IndexableField[] fields = document.getFields(fieldName);
             values = new HashSet<>(fields.length);
+            // TODO we should be checking mapped field types, not lucene field types
             for (IndexableField field : fields) {
                 if (field instanceof SortedDocValuesField ||
                         field instanceof SortedSetDocValuesField ||
                         field instanceof StoredField) {
                     // Ignore doc values and stored fields
-                } else if (field.binaryValue() != null) {
+                } else if (field instanceof KeywordFieldMapper.KeywordField) {
                     values.add(field.binaryValue().utf8ToString());
-                } else if (field.fieldType() instanceof StringFieldType) {
+                } else if (field.stringValue() != null) {
                     values.add(field.stringValue());
                 } else {
                     throw new IllegalArgumentException("Failed to parse context field [" + fieldName +

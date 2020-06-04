@@ -115,6 +115,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
@@ -138,6 +139,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/57651")
     public void  testMissingDateWithDateField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, Collections.emptyMap());
@@ -227,7 +229,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
             }, range -> fail("Should have thrown exception"), fieldType));
-        assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [range]", e.getMessage());
+        assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [range]", e.getMessage());
     }
 
     public void testBadMissingField() {

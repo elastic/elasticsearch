@@ -159,7 +159,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
             numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false, Collections.emptyMap());
+                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true, Collections.emptyMap());
             when(shardContext.fieldMapper("field")).thenReturn(numberFieldType);
             builder.setInnerHits(new InnerHitBuilder());
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));
@@ -177,7 +177,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
             exc = expectThrows(IllegalArgumentException.class, () -> kbuilder.build(shardContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
-            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, false, Collections.emptyMap());
+            keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
             when(shardContext.fieldMapper("field")).thenReturn(keywordFieldType);
             kbuilder.setInnerHits(new InnerHitBuilder());
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(shardContext));

@@ -158,8 +158,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     public void testMatchSparseRangeField() throws IOException {
         final RangeType rangeType = RangeType.DOUBLE;
-        final MappedFieldType aggFieldType = new NumberFieldMapper.NumberFieldType("agg_field", NumberType.LONG);
-        final MappedFieldType anotherFieldType = new NumberFieldMapper.NumberFieldType("another_field", NumberType.LONG);
+        final MappedFieldType aggFieldType = new RangeFieldMapper.RangeFieldType("agg_field", rangeType);
+        final MappedFieldType anotherFieldType = new RangeFieldMapper.RangeFieldType("another_field", rangeType);
 
         final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true);
         final BytesRef encodedRange = rangeType.encodeRanges(singleton(range));

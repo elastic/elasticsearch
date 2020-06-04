@@ -75,7 +75,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase<RangeFieldType> {
 
     public void testRangeQuery() throws Exception {
         QueryShardContext context = createContext();
-        RangeFieldType ft = new RangeFieldType(FIELDNAME, type);
+        RangeFieldType ft = createDefaultFieldType(FIELDNAME, Collections.emptyMap());
 
         ShapeRelation relation = randomFrom(ShapeRelation.values());
         boolean includeLower = randomBoolean();

@@ -255,7 +255,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         private GeoShapeFieldType buildFieldType(BuilderContext context) {
-            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, false, meta);
             setupFieldTypeDeprecatedParameters(ft);
             setupPrefixTrees(ft);
             ft.setGeometryIndexer(new LegacyGeoShapeIndexer(ft));
@@ -446,6 +446,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
     @Override
     protected void addMultiFields(ParseContext context, Shape geometry) {
         // noop (completion suggester currently not compatible with geo_shape)
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

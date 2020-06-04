@@ -650,6 +650,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
+                ft = context.getMapperService().getLuceneFieldType(fieldType.name());
                 checkPositions(fieldType.name(), ft);
                 if (this.analyzer == null) {
                     analyzer = fieldType.searchAnalyzer();

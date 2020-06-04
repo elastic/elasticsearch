@@ -42,6 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -906,6 +907,7 @@ public class NumberFieldMapper extends FieldMapper {
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
             super(name, isSearchable, hasDocValues, meta);
             this.type = Objects.requireNonNull(type);
+            this.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);    // allows match queries on number fields
         }
 
         public NumberFieldType(String name, NumberType type) {

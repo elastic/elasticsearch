@@ -308,7 +308,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 indexWriter.addDocument(document);
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("my_field");
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("mv_field");
 
                     String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
@@ -632,7 +632,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             BytesRef b2 = new BytesRef(InetAddressPoint.encode(o2));
             return b1.compareTo(b2);
         };
-        termsAggregator(ValueType.IP, new IpFieldMapper.IpFieldType("ip"), i -> base[0] = InetAddressPoint.nextUp(base[0]),
+        termsAggregator(ValueType.IP, new IpFieldMapper.IpFieldType("field"), i -> base[0] = InetAddressPoint.nextUp(base[0]),
             comparator, luceneFieldFactory);
     }
 

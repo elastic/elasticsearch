@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -201,6 +202,7 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
+            this.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {

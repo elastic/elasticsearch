@@ -298,7 +298,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             }, (Consumer<InternalMin>) min -> {
                 fail("Should have thrown exception");
             }, fieldType));
-        assertEquals("Field [not_a_number] of type [keyword(indexed,tokenized)] is not supported for aggregation [min]", e.getMessage());
+        assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [min]", e.getMessage());
     }
 
     public void testBadMissingField() {

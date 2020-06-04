@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -52,7 +52,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
         FIELD_TYPE.setStored(false);
-        FIELD_TYPE.setDimensions(2, Integer.BYTES);
         FIELD_TYPE.freeze();
     }
 
@@ -70,7 +69,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
             GeoPointFieldType ft = new GeoPointFieldType(buildFullName(context), indexed, hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new GeoPointIndexer(ft));
-            ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+            ft.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
             return new GeoPointFieldMapper(name, fieldType, ft, indexSettings, multiFields,
                 ignoreMalformed, ignoreZValue, nullValue, copyTo);
         }

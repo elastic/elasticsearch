@@ -79,6 +79,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         public static final boolean SPLIT_QUERIES_ON_WHITESPACE = false;
     }
 
+    public static class KeywordField extends Field {
+
+        public KeywordField(String field, BytesRef term, FieldType ft) {
+            super(field, term, ft);
+        }
+
+    }
+
     public static class Builder extends FieldMapper.Builder<Builder> {
 
         protected String nullValue = Defaults.NULL_VALUE;
@@ -390,7 +398,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
-            Field field = new Field(fieldType().name(), binaryValue, fieldType);
+            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             context.doc().add(field);
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {

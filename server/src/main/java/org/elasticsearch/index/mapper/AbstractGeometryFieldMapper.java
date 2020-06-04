@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -318,7 +317,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             // docValues:
             if (fieldType().hasDocValues()) {
                 addDocValuesFields(mappedFieldType.name(), shape, fields, context);
-            } else if (fieldType.stored() || fieldType.indexOptions() != IndexOptions.NONE) {
+            } else if (fieldType.stored() || fieldType().isSearchable()) {
                 createFieldNamesField(context);
             }
 

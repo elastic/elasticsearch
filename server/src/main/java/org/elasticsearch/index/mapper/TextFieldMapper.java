@@ -189,7 +189,8 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         private TextFieldType buildFieldType(BuilderContext context) {
-            TextFieldType ft = new TextFieldType(buildFullName(context), indexed, meta);
+            TextFieldType ft = new TextFieldType(buildFullName(context), indexed,
+                fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0, meta);
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setSearchAnalyzer(searchAnalyzer);
             ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
@@ -558,10 +559,11 @@ public class TextFieldMapper extends FieldMapper {
         private int fielddataMinSegmentSize;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
-        private boolean hasPositions = false;
+        private final boolean hasPositions;
 
-        public TextFieldType(String name, boolean indexed, Map<String, String> meta) {
+        public TextFieldType(String name, boolean indexed, boolean hasPositions, Map<String, String> meta) {
             super(name, indexed, false, meta);
+            this.hasPositions = hasPositions;
             fielddata = false;
             fielddataMinFrequency = Defaults.FIELDDATA_MIN_FREQUENCY;
             fielddataMaxFrequency = Defaults.FIELDDATA_MAX_FREQUENCY;
@@ -569,7 +571,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         public TextFieldType(String name) {
-            this(name, true, Collections.emptyMap());
+            this(name, true, true, Collections.emptyMap());
         }
 
         protected TextFieldType(TextFieldType ref) {
@@ -652,10 +654,6 @@ public class TextFieldMapper extends FieldMapper {
 
         public PrefixFieldType getPrefixFieldType() {
             return this.prefixFieldType;
-        }
-
-        void setHasPositions(boolean hasPositions) {
-            this.hasPositions = hasPositions;
         }
 
         public boolean hasPositions() {

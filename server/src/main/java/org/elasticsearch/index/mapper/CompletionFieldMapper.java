@@ -83,7 +83,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
  *  This field can also be extended to add search criteria to suggestions
  *  for query-time filtering and boosting (see {@link ContextMappings}
  */
-public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+public class CompletionFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "completion";
 
     /**
@@ -424,6 +424,11 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     @Override
     public CompletionFieldType fieldType() {
         return (CompletionFieldType) super.fieldType();
+    }
+
+    @Override
+    public boolean parsesArrayValue() {
+        return true;
     }
 
     /**

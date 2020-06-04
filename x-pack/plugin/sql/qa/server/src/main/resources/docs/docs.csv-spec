@@ -343,7 +343,8 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 STARTS_WITH      |SCALAR
-SUBSTRING        |SCALAR         
+SUBSTRING        |SCALAR
+TRIM             |SCALAR
 UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
@@ -1840,6 +1841,16 @@ SUBSTRING('Elasticsearch', 0, 7)
 --------------------------------
 Elastic    
 // end::stringSubString
+;
+
+stringTrim
+// tag::stringTrim
+SELECT TRIM('   Elastic   ') AS trimmed;
+
+trimmed
+--------------
+Elastic
+// end::stringTrim
 ;
 
 stringUCase

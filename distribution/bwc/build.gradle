@@ -107,7 +107,7 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
     task checkoutBwcBranch() {
       dependsOn fetchLatest
       doLast {
-        String refspec = System.getProperty("bwc.refspec.${bwcBranch}") ?: System.getProperty("tests.bwc.refspec.${bwcBranch}") ?: "${remote}/${bwcBranch}"
+        def refspec = System.getProperty("bwc.refspec." + bwcBranch) ?: System.getProperty("tests.bwc.refspec." + bwcBranch) ?: "${remote}/${bwcBranch}"
         if (System.getProperty("bwc.checkout.align") != null) {
           /*
               We use a time based approach to make the bwc versions built deterministic and compatible with the current hash.

@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -39,9 +40,17 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                                          ThreadPool threadPool) {
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new);
         this.transportService = transportService;
-        AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(AsyncSearch.INDEX, clusterService,
+        this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool);
+    }
+
+    static AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> createResultsService(TransportService transportService,
+                                                                                          ClusterService clusterService,
+                                                                                          NamedWriteableRegistry registry,
+                                                                                          Client client,
+                                                                                          ThreadPool threadPool) {
+        AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
             threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
-        resultsService = new AsyncResultsService<>(store, true, AsyncSearchTask.class, AsyncSearchTask::addCompletionListener,
+        return new AsyncResultsService<>(store, true, AsyncSearchTask.class, AsyncSearchTask::addCompletionListener,
             transportService.getTaskManager(), clusterService);
     }
 

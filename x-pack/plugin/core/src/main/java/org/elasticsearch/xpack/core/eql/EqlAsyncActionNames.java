@@ -11,5 +11,4 @@ package org.elasticsearch.xpack.core.eql;
  */
 public final class EqlAsyncActionNames {
     public static final String EQL_ASYNC_GET_RESULT_ACTION_NAME = "indices:data/read/eql/async/get";
-    public static final String EQL_ASYNC_DELETE_RESULT_ACTION_NAME = "indices:data/read/eql/async/delete";
 }

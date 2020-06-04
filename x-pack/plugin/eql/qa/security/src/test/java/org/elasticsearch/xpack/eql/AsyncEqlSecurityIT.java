@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.junit.Before;
 
@@ -29,7 +30,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.eql.plugin.EqlPlugin.INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -79,19 +79,18 @@ public class AsyncEqlSecurityIT extends ESRestTestCase {
 
             // other cannot delete the result
             exc = expectThrows(ResponseException.class, () -> deleteAsyncEqlSearch(id, other));
-            // TODO: This is not implemented yet, should return 404 when it is done
-            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(405));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other and user cannot access the result from direct get calls
             AsyncExecutionId searchId = AsyncExecutionId.decode(id);
             for (String runAs : new String[] {user, other}) {
-                exc = expectThrows(ResponseException.class, () -> get(INDEX, searchId.getDocId(), runAs));
+                exc = expectThrows(ResponseException.class, () -> get(XPackPlugin.ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
                 assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                 assertThat(exc.getMessage(), containsString("unauthorized"));
             }
-            // TODO: Deletion is not implemented yet
-            // Response delResp = deleteAsyncEqlSearch(id, user);
-            // assertOK(delResp);
+
+             Response delResp = deleteAsyncEqlSearch(id, user);
+             assertOK(delResp);
         }
         ResponseException exc = expectThrows(ResponseException.class,
             () -> submitAsyncEqlSearch("index-" + other, "*", TimeValue.timeValueSeconds(10), user));

@@ -30,9 +30,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -48,7 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.search.AsyncSearch.INDEX;
+import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.search.AsyncSearchMaintenanceService.ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -125,7 +126,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         stopMaintenanceService();
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
         startMaintenanceService();
-        ensureYellow(INDEX, indexName);
+        ensureYellow(ASYNC_RESULTS_INDEX, indexName);
     }
 
     protected AsyncSearchResponse submitAsyncSearch(SubmitAsyncSearchRequest request) throws ExecutionException, InterruptedException {
@@ -141,7 +142,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     protected AcknowledgedResponse deleteAsyncSearch(String id) throws ExecutionException, InterruptedException {
-        return client().execute(DeleteAsyncSearchAction.INSTANCE, new DeleteAsyncSearchAction.Request(id)).get();
+        return client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(id)).get();
     }
 
     /**
@@ -151,7 +152,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         AsyncExecutionId searchId = AsyncExecutionId.decode(id);
         assertBusy(() -> {
             GetResponse resp = client().prepareGet()
-                .setIndex(INDEX)
+                .setIndex(ASYNC_RESULTS_INDEX)
                 .setId(searchId.getDocId())
                 .get();
             assertFalse(resp.isExists());

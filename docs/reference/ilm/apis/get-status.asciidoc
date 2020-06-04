@@ -33,7 +33,7 @@ or `STOPPED`. You can change the status of the {ilm-init} plugin with the
 [[ilm-get-status-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[ilm-get-status-example]]
 ==== {api-examples-title}

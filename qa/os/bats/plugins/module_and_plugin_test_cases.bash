@@ -210,10 +210,10 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-4.0.0.jar so that the test does
+    # we specify the version on the poi-4.0.1.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.0.jar poi-ooxml-4.0.0.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-4.0.1.jar poi-ooxml-4.0.1.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] check ingest-common module" {
@@ -240,7 +240,7 @@ fi
 }
 
 @test "[$GROUP] check lang-painless module" {
-    check_secure_module lang-painless antlr4-runtime-*.jar asm-debug-all-*.jar
+    check_secure_module lang-painless antlr4-runtime-*.jar asm-util-*.jar asm-tree-*.jar asm-commons-*.jar asm-analysis-*.jar
 }
 
 @test "[$GROUP] install murmur3 mapper plugin" {
@@ -408,8 +408,8 @@ fi
     sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$relativePath" > /tmp/plugin-cli-output
     # exclude progress line
     local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
-    [ "$loglines" -eq "2" ] || {
-        echo "Expected 2 lines excluding progress bar but the output had $loglines lines and was:"
+    [ "$loglines" -eq "3" ] || {
+        echo "Expected 3 lines excluding progress bar but the output had $loglines lines and was:"
         cat /tmp/plugin-cli-output
         false
     }

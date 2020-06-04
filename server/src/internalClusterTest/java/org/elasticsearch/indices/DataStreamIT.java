@@ -16,53 +16,84 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getAliases;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getFieldMapping;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getMapping;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getSettings;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.health;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.indicesStats;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.msearch;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.refreshBuilder;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.search;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.segments;
+import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.validateQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DataStreamIT extends ESIntegTestCase {
 
+    @After
+    public void deleteAllComposableTemplates() {
+        DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
+        client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
+    }
+
     public void testBasicScenario() throws Exception {
+        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
-        createDataStreamRequest.setTimestampFieldName("@timestamp1");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
+        createIndexTemplate("id2", "metrics-bar*", "@timestamp2");
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
-        createDataStreamRequest.setTimestampFieldName("@timestamp2");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        GetDataStreamsAction.Request getDataStreamRequest = new GetDataStreamsAction.Request("*");
-        GetDataStreamsAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         getDataStreamResponse.getDataStreams().sort(Comparator.comparing(DataStream::getName));
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo("metrics-bar"));
@@ -131,9 +162,9 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testOtherWriteOps() throws Exception {
+        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
         String dataStreamName = "metrics-foobar";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        createDataStreamRequest.setTimestampFieldName("@timestamp1");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         {
@@ -179,6 +210,101 @@ public class DataStreamIT extends ESIntegTestCase {
         }
     }
 
+    public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
+        createIndexTemplate("id", "logs-*", "ts");
+        String dataStreamName = "logs-foobar";
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(request).actionGet();
+
+        verifyResolvability(dataStreamName, client().prepareIndex(dataStreamName)
+                .setSource("{}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE),
+            false);
+        verifyResolvability(dataStreamName, refreshBuilder(dataStreamName), false);
+        verifyResolvability(dataStreamName, search(dataStreamName), false, 1);
+        verifyResolvability(dataStreamName, msearch(null, dataStreamName), false);
+        verifyResolvability(dataStreamName, clearCache(dataStreamName), false);
+        verifyResolvability(dataStreamName, _flush(dataStreamName),false);
+        verifyResolvability(dataStreamName, segments(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesStats(dataStreamName), false);
+        verifyResolvability(dataStreamName, IndicesOptionsIntegrationIT.forceMerge(dataStreamName), false);
+        verifyResolvability(dataStreamName, validateQuery(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
+        verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
+        verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), true);
+        verifyResolvability(dataStreamName, getMapping(dataStreamName), false);
+        verifyResolvability(dataStreamName, getSettings(dataStreamName), false);
+        verifyResolvability(dataStreamName, health(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().cluster().prepareState().setIndices(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().prepareFieldCaps(dataStreamName).setFields("*"), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareGetIndex().addIndices(dataStreamName), false);
+
+        request = new CreateDataStreamAction.Request("logs-barbaz");
+        client().admin().indices().createDataStream(request).actionGet();
+        verifyResolvability("logs-barbaz", client().prepareIndex("logs-barbaz")
+                .setSource("{}", XContentType.JSON)
+                .setOpType(DocWriteRequest.OpType.CREATE),
+            false);
+
+        String wildcardExpression = "logs*";
+        verifyResolvability(wildcardExpression, refreshBuilder(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, search(wildcardExpression), false, 2);
+        verifyResolvability(wildcardExpression, msearch(null, wildcardExpression), false);
+        verifyResolvability(wildcardExpression, clearCache(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, _flush(wildcardExpression),false);
+        verifyResolvability(wildcardExpression, segments(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, indicesStats(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, IndicesOptionsIntegrationIT.forceMerge(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getMapping(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, getSettings(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, health(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().cluster().prepareState().setIndices(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
+    }
+
+    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
+        verifyResolvability(dataStream, requestBuilder, fail, 0);
+    }
+
+    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+        if (fail) {
+            String expectedErrorMessage = "The provided expression [" + dataStream +
+                "] matches a data stream, specify the corresponding concrete indices instead.";
+            if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
+                assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
+                assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
+            } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
+                ValidateQueryResponse response = (ValidateQueryResponse) requestBuilder.get();
+                assertThat(response.getQueryExplanation().get(0).getError(), equalTo(expectedErrorMessage));
+            } else {
+                Exception e = expectThrows(IllegalArgumentException.class, requestBuilder::get);
+                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
+            }
+        } else {
+            if (requestBuilder instanceof SearchRequestBuilder) {
+                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+                assertHitCount(searchRequestBuilder.get(), expectedCount);
+            } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
+            } else {
+                requestBuilder.get();
+            }
+        }
+    }
+
     private static void indexDocs(String dataStream, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
@@ -209,6 +335,18 @@ public class DataStreamIT extends ESIntegTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, runnable);
         assertThat(e.getMessage(), equalTo("The provided expression [" + dataStreamName +
             "] matches a data stream, specify the corresponding concrete indices instead."));
+    }
+
+    static void createIndexTemplate(String id, String pattern, String timestampFieldName) throws IOException {
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of(pattern),
+                null,
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName))
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }
 
 }

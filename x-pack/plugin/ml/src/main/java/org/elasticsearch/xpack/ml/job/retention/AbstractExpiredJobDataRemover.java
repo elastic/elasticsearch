@@ -38,11 +38,15 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
-        removeData(newJobIterator(), listener, isTimedOutSupplier);
+    public void remove(float requestsPerSecond,
+                       ActionListener<Boolean> listener,
+                       Supplier<Boolean> isTimedOutSupplier) {
+        removeData(newJobIterator(), requestsPerSecond, listener, isTimedOutSupplier);
     }
 
-    private void removeData(WrappedBatchedJobsIterator jobIterator, ActionListener<Boolean> listener,
+    private void removeData(WrappedBatchedJobsIterator jobIterator,
+                            float requestsPerSecond,
+                            ActionListener<Boolean> listener,
                             Supplier<Boolean> isTimedOutSupplier) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
@@ -62,17 +66,17 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
 
         Long retentionDays = getRetentionDays(job);
         if (retentionDays == null) {
-            removeData(jobIterator, listener, isTimedOutSupplier);
+            removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
             return;
         }
 
         calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(
                 response -> {
                     if (response == null) {
-                        removeData(jobIterator, listener, isTimedOutSupplier);
+                        removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
                     } else {
-                        removeDataBefore(job, response.latestTimeMs, response.cutoffEpochMs, ActionListener.wrap(
-                                r -> removeData(jobIterator, listener, isTimedOutSupplier),
+                        removeDataBefore(job, requestsPerSecond, response.latestTimeMs, response.cutoffEpochMs, ActionListener.wrap(
+                                r -> removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier),
                                 listener::onFailure));
                     }
                 },
@@ -93,7 +97,13 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      * Template method to allow implementation details of various types of data (e.g. results, model snapshots).
      * Implementors need to call {@code listener.onResponse} when they are done in order to continue to the next job.
      */
-    abstract void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener);
+    abstract void removeDataBefore(
+        Job job,
+        float requestsPerSecond,
+        long latestTimeMs,
+        long cutoffEpochMs,
+        ActionListener<Boolean> listener
+    );
 
     static BoolQueryBuilder createQuery(String jobId, long cutoffEpochMs) {
         return QueryBuilders.boolQuery()

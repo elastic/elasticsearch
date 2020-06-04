@@ -61,7 +61,7 @@ public class EConditional extends AExpression {
 
         Input conditionInput = new Input();
         conditionInput.expected = boolean.class;
-        Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
+        Output conditionOutput = analyze(condition, classNode, scriptRoot, scope, conditionInput);
         PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
@@ -69,13 +69,13 @@ public class EConditional extends AExpression {
         leftInput.expected = input.expected;
         leftInput.explicit = input.explicit;
         leftInput.internal = input.internal;
-        Output leftOutput = left.analyze(classNode, scriptRoot, scope, leftInput);
+        Output leftOutput = analyze(left, classNode, scriptRoot, scope, leftInput);
 
         Input rightInput = new Input();
         rightInput.expected = input.expected;
         rightInput.explicit = input.explicit;
         rightInput.internal = input.internal;
-        Output rightOutput = right.analyze(classNode, scriptRoot, scope, rightInput);
+        Output rightOutput = analyze(right, classNode, scriptRoot, scope, rightInput);
 
         output.actual = input.expected;
 

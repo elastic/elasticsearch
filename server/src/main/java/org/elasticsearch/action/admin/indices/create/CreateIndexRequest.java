@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -81,8 +80,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String mappings = "{}";
 
-    private Boolean preferV2Templates;
-
     private final Set<Alias> aliases = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -110,9 +107,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            preferV2Templates = in.readOptionalBoolean();
-        }
     }
 
     public CreateIndexRequest() {
@@ -162,16 +156,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest index(String index) {
         this.index = index;
         return this;
-    }
-
-    public CreateIndexRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
-        this.preferV2Templates = preferV2Templates;
-        return this;
-    }
-
-    @Nullable
-    public Boolean preferV2Templates() {
-        return this.preferV2Templates;
     }
 
     /**
@@ -484,9 +468,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             alias.writeTo(out);
         }
         waitForActiveShards.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalBoolean(preferV2Templates);
-        }
     }
 
 }

@@ -347,7 +347,7 @@ public abstract class ValuesSource {
 
             @Override
             public SortedNumericDocValues longValues(LeafReaderContext context) {
-                return DocValues.emptySortedNumeric(context.reader().maxDoc());
+                return DocValues.emptySortedNumeric();
             }
 
             @Override

@@ -94,7 +94,7 @@ abstract class OutboundMessage extends NetworkMessage {
         if (zeroCopyBuffer.length() == 0) {
             return message;
         } else {
-            return new CompositeBytesReference(message, zeroCopyBuffer);
+            return CompositeBytesReference.of(message, zeroCopyBuffer);
         }
     }
 

@@ -24,10 +24,12 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -47,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 public class RangeAggregator extends BucketsAggregator {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
@@ -62,6 +66,23 @@ public class RangeAggregator extends BucketsAggregator {
         protected final String fromAsStr;
         protected final double to;
         protected final String toAsStr;
+
+        /**
+         * Build the range. Generally callers should prefer
+         * {@link Range#Range(String, Double, Double)} or
+         * {@link Range#Range(String, String, String)}. If you
+         * <strong>must</strong> call this know that consumers prefer
+         * {@code from} and {@code to} parameters if they are non-null
+         * and finite. Otherwise they parse from {@code fromrStr} and
+         * {@code toStr}. 
+         */
+        public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
+            this.key = key;
+            this.from = from == null ? Double.NEGATIVE_INFINITY : from;
+            this.fromAsStr = fromAsStr;
+            this.to = to == null ? Double.POSITIVE_INFINITY : to;
+            this.toAsStr = toAsStr;
+        }
 
         public Range(String key, Double from, Double to) {
             this(key, from, null, to, null);
@@ -111,14 +132,6 @@ public class RangeAggregator extends BucketsAggregator {
             return this.key;
         }
 
-        public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
-            this.key = key;
-            this.from = from == null ? Double.NEGATIVE_INFINITY : from;
-            this.fromAsStr = fromAsStr;
-            this.to = to == null ? Double.POSITIVE_INFINITY : to;
-            this.toAsStr = toAsStr;
-        }
-
         boolean matches(double value) {
             return value >= from && value < to;
         }
@@ -126,50 +139,6 @@ public class RangeAggregator extends BucketsAggregator {
         @Override
         public String toString() {
             return "[" + from + " to " + to + ")";
-        }
-
-        public static Range fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            double from = Double.NEGATIVE_INFINITY;
-            String fromAsStr = null;
-            double to = Double.POSITIVE_INFINITY;
-            String toAsStr = null;
-            String key = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        from = parser.doubleValue();
-                    } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        to = parser.doubleValue();
-                    } else {
-                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
-                    }
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        fromAsStr = parser.text();
-                    } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        toAsStr = parser.text();
-                    } else if (KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        key = parser.text();
-                    } else {
-                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
-                    }
-                } else if (token == XContentParser.Token.VALUE_NULL) {
-                    if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())
-                        || TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())
-                        || KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // ignore null value
-                    } else {
-                        XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
-                    }
-                } else {
-                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
-                }
-            }
-            return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
         @Override
@@ -192,6 +161,35 @@ public class RangeAggregator extends BucketsAggregator {
             }
             builder.endObject();
             return builder;
+        }
+
+        public static final ConstructingObjectParser<Range, Void> PARSER = new ConstructingObjectParser<>("range", arg -> {
+            String key = (String) arg[0];
+            Object from = arg[1];
+            Object to = arg[2];
+            Double fromDouble = from instanceof Number ? ((Number) from).doubleValue() : null;
+            Double toDouble = to instanceof Number ? ((Number) to).doubleValue() : null;
+            String fromStr = from instanceof String ? (String) from : null;
+            String toStr = to instanceof String ? (String) to : null;
+            return new Range(key, fromDouble, fromStr, toDouble, toStr);
+        });
+
+        static {
+            PARSER.declareField(optionalConstructorArg(),
+                (p, c) -> p.text(),
+                KEY_FIELD, ValueType.DOUBLE); // DOUBLE supports string and number
+            ContextParser<Void, Object> fromToParser = (p, c) -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return p.text();
+                }
+                if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    return p.doubleValue();
+                }
+                return null;
+            };
+            // DOUBLE_OR_NULL accepts String, Number, and null
+            PARSER.declareField(optionalConstructorArg(), fromToParser, FROM_FIELD, ValueType.DOUBLE_OR_NULL);
+            PARSER.declareField(optionalConstructorArg(), fromToParser, TO_FIELD, ValueType.DOUBLE_OR_NULL);
         }
 
         @Override

@@ -59,7 +59,7 @@ public class RootObjectMapper extends ObjectMapper {
         public static final boolean NUMERIC_DETECTION = false;
     }
 
-    public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
+    public static class Builder extends ObjectMapper.Builder<Builder> {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
@@ -84,7 +84,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper build(BuilderContext context) {
             fixRedundantIncludes(this, true);
-            return super.build(context);
+            return (RootObjectMapper) super.build(context);
         }
 
         /**
@@ -309,11 +309,6 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        return (RootObjectMapper) super.updateFieldType(fullNameToFieldType);
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
@@ -373,7 +368,7 @@ public class RootObjectMapper extends ObjectMapper {
             Map<String, Object> fieldTypeConfig = dynamicTemplate.mappingForName("__dummy__", defaultDynamicType);
             fieldTypeConfig.remove("type");
             try {
-                Mapper.Builder<?, ?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
+                Mapper.Builder<?> dummyBuilder = typeParser.parse("__dummy__", fieldTypeConfig, parserContext);
                 if (fieldTypeConfig.isEmpty()) {
                     Settings indexSettings = parserContext.mapperService().getIndexSettings().getSettings();
                     BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
@@ -401,7 +396,7 @@ public class RootObjectMapper extends ObjectMapper {
                 } else {
                     deprecationMessage = message;
                 }
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("invalid_dynamic_template", deprecationMessage);
+                DEPRECATION_LOGGER.deprecate("invalid_dynamic_template", deprecationMessage);
             }
         }
     }

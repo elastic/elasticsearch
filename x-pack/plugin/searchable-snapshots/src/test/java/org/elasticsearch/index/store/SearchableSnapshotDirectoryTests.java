@@ -50,6 +50,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -98,6 +99,10 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -682,6 +687,32 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testRequiresAdditionalSettings() {
+        final List<Setting<String>> requiredSettings = List.of(
+            SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_INDEX_ID_SETTING,
+            SNAPSHOT_SNAPSHOT_NAME_SETTING,
+            SNAPSHOT_SNAPSHOT_ID_SETTING
+        );
+
+        for (int i = 0; i < requiredSettings.size(); i++) {
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+            for (int j = 0; j < requiredSettings.size(); j++) {
+                if (i != j) {
+                    settings.put(requiredSettings.get(j).getKey(), randomAlphaOfLength(10));
+                }
+            }
+            final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null)
+            );
+        }
+    }
+
     private static <T> void assertThat(
         String reason,
         IndexInput actual,
@@ -726,4 +757,5 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 .build()
         );
     }
+
 }

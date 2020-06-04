@@ -37,6 +37,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -71,15 +72,16 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             AutoDateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof AutoDateHistogramAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected AutoDateHistogramAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
+        Function<Rounding, Rounding.Prepared> roundingPreparer =
+                valuesSource.roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
         return ((AutoDateHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, roundingInfos,
-            // TODO once auto date histo is plugged into the ValuesSource refactoring use the date values source
-            Rounding::prepareForUnknown, valuesSource, config.format(), searchContext, parent, metadata);
+                roundingPreparer, valuesSource, config.format(), searchContext, parent, metadata);
     }
 
     @Override

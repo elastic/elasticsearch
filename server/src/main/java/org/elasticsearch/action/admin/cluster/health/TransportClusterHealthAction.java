@@ -42,6 +42,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -221,7 +222,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNodes().isEmpty() == false) {
             waitCount++;
         }
-        if (request.indices() != null && request.indices().length > 0) { // check that they actually exists in the meta data
+        if (CollectionUtils.isEmpty(request.indices()) == false) { // check that they actually exists in the meta data
             waitCount++;
         }
         return waitCount;
@@ -275,7 +276,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 waitForCounter++;
             }
         }
-        if (request.indices() != null && request.indices().length > 0) {
+        if (CollectionUtils.isEmpty(request.indices()) == false) {
             try {
                 indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), true, request.indices());
                 waitForCounter++;

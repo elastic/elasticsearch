@@ -48,7 +48,7 @@ public class SThrow extends AStatement {
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.expected = Exception.class;
-        AExpression.Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+        AExpression.Output expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
         PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
                 expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 

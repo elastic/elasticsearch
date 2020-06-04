@@ -81,32 +81,38 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final Setting<String> SNAPSHOT_REPOSITORY_SETTING = Setting.simpleString(
         "index.store.snapshot.repository_name",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_SNAPSHOT_NAME_SETTING = Setting.simpleString(
         "index.store.snapshot.snapshot_name",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_SNAPSHOT_ID_SETTING = Setting.simpleString(
         "index.store.snapshot.snapshot_uuid",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_INDEX_ID_SETTING = Setting.simpleString(
         "index.store.snapshot.index_uuid",
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
+        Setting.Property.PrivateIndex,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<Boolean> SNAPSHOT_CACHE_ENABLED_SETTING = Setting.boolSetting(
         "index.store.snapshot.cache.enabled",
         true,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<Boolean> SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING = Setting.boolSetting(
         "index.store.snapshot.cache.prewarm.enabled",
         true,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.NotCopyableOnResize
     );
     // The file extensions that are excluded from the cache
     public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
@@ -114,13 +120,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Collections.emptyList(),
         Function.identity(),
         Setting.Property.IndexScope,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.NotCopyableOnResize
     );
     public static final Setting<ByteSizeValue> SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
         "index.store.snapshot.uncached_chunk_size",
         new ByteSizeValue(-1, ByteSizeUnit.BYTES),
         Setting.Property.IndexScope,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.NotCopyableOnResize
     );
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;

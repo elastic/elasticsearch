@@ -93,7 +93,7 @@ public class EMapInit extends AExpression {
             Input expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
-            Output expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             keyOutputs.add(expressionOutput);
             keyCasts.add(AnalyzerCaster.getLegalCast(expression.location,
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
@@ -102,7 +102,7 @@ public class EMapInit extends AExpression {
             expressionInput = new Input();
             expressionInput.expected = def.class;
             expressionInput.internal = true;
-            expressionOutput = expression.analyze(classNode, scriptRoot, scope, expressionInput);
+            expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
             valueCasts.add(AnalyzerCaster.getLegalCast(expression.location,
                     expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
 

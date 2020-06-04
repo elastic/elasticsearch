@@ -160,16 +160,7 @@ public class NativePrivilegeStore {
                     // 2. If stale results are cached, ensure they will be invalidated as soon as possible
                     try (ReleasableLock ignored = invalidationReadLock.acquire()) {
                         if (invalidationCounter == numInvalidation.get()) {
-                            final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
-                            // Do not cache the names if expansion has no effect
-                            if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
-                                logger.debug("Caching application names query: {} = {}", applicationNamesCacheKey, fetchedApplicationNames);
-                                applicationNamesCache.put(applicationNamesCacheKey, fetchedApplicationNames);
-                            }
-                            for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
-                                logger.debug("Caching descriptors for application: {}", entry.getKey());
-                                descriptorsCache.put(entry.getKey(), entry.getValue());
-                            }
+                            cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors);
                         }
                     }
                     listener.onResponse(filterDescriptorsForPrivilegeNames(fetchedDescriptors, names));
@@ -305,6 +296,21 @@ public class NativePrivilegeStore {
             return descriptors;
         }
         return descriptors.stream().filter(d -> privilegeNames.contains(d.getName())).collect(Collectors.toUnmodifiableSet());
+    }
+
+    // protected for tests
+    protected void cacheFetchedDescriptors(Set<String> applicationNamesCacheKey,
+        Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors) {
+        final Set<String> fetchedApplicationNames = Collections.unmodifiableSet(mapOfFetchedDescriptors.keySet());
+        // Do not cache the names if expansion has no effect
+        if (fetchedApplicationNames.equals(applicationNamesCacheKey) == false) {
+            logger.debug("Caching application names query: {} = {}", applicationNamesCacheKey, fetchedApplicationNames);
+            applicationNamesCache.put(applicationNamesCacheKey, fetchedApplicationNames);
+        }
+        for (Map.Entry<String, Set<ApplicationPrivilegeDescriptor>> entry : mapOfFetchedDescriptors.entrySet()) {
+            logger.debug("Caching descriptors for application: {}", entry.getKey());
+            descriptorsCache.put(entry.getKey(), entry.getValue());
+        }
     }
 
     public void putPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges, WriteRequest.RefreshPolicy refreshPolicy,

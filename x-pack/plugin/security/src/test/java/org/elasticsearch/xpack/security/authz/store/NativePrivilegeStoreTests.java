@@ -51,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -83,6 +84,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     private List<ActionRequest> requests;
     private AtomicReference<ActionListener> listener;
     private Client client;
+    private SecurityIndexManager securityIndex;
 
     @Before
     public void setup() {
@@ -96,7 +98,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
                 NativePrivilegeStoreTests.this.listener.set(listener);
             }
         };
-        final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isAvailable()).thenReturn(true);
@@ -368,6 +370,77 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
         assertEquals(1, store.getApplicationNamesCache().count());
         assertResult(emptyList(), future4);
+    }
+
+    public void testStaleResultsWillNotBeCached() {
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = singletonList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap())
+        );
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(null, null, future);
+
+        // Before the results can be cached, invalidate the cache to simulate stale search results
+        store.invalidateAll();
+        final SearchHit[] hits = buildHits(sourcePrivileges);
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+            "_scrollId1", 1, 1, 0, 1, null, null));
+
+        // Nothing should be cached since the results are stale
+        assertEquals(0, store.getApplicationNamesCache().count());
+        assertEquals(0, store.getDescriptorsCache().count());
+    }
+
+    public void testWhenStaleResultsAreCachedTheyWillBeCleared() throws InterruptedException {
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = singletonList(
+            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap())
+        );
+
+        final CountDownLatch getPrivilegeCountDown = new CountDownLatch(1);
+        final CountDownLatch invalidationCountDown = new CountDownLatch(1);
+        // Use subclass so we can put the caching process on hold, which allows time to fire the cache invalidation call
+        // When the process reaches the overridden method, it already acquires the read lock.
+        // Hence the cache invalidation will be block at acquiring the write lock.
+        // This simulates the scenario when stale results are cached just before the invalidation call arrives.
+        // In this case, we guarantee the cache will be invalidate and the stale results won't stay for long.
+        final NativePrivilegeStore store1 = new NativePrivilegeStore(Settings.EMPTY, client, securityIndex) {
+            @Override
+            protected void cacheFetchedDescriptors(
+                Set<String> applicationNamesCacheKey, Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors) {
+                getPrivilegeCountDown.countDown();
+                try {
+                    // wait till the invalidation call is at the door step
+                    invalidationCountDown.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                super.cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors);
+                // Assert that cache is successful
+                assertEquals(1, getApplicationNamesCache().count());
+                assertEquals(1, getDescriptorsCache().count());
+            }
+        };
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store1.getPrivileges(null, null, future);
+        final SearchHit[] hits = buildHits(sourcePrivileges);
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+            "_scrollId1", 1, 1, 0, 1, null, null));
+
+        // Make sure the caching is about to happen
+        getPrivilegeCountDown.await(5, TimeUnit.SECONDS);
+        // Fire the invalidation call in another thread
+        new Thread(() -> {
+            // Let the caching proceed
+            invalidationCountDown.countDown();
+            store.invalidateAll();
+        }).start();
+        // The cache should be cleared
+        assertEquals(0, store.getApplicationNamesCache().count());
+        assertEquals(0, store.getDescriptorsCache().count());
     }
 
     public void testPutPrivileges() throws Exception {

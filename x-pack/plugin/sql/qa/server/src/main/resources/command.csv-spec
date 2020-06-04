@@ -89,6 +89,7 @@ TIMESTAMPADD     |SCALAR
 TIMESTAMPDIFF    |SCALAR
 TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
+TIME_PARSE       |SCALAR
 TODAY            |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
@@ -146,7 +147,8 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 STARTS_WITH      |SCALAR
-SUBSTRING        |SCALAR         
+SUBSTRING        |SCALAR
+TRIM             |SCALAR
 UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR

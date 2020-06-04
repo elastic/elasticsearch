@@ -147,9 +147,6 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                 spare = ordered.insertWithOverflow(spare);
-                if (spare == null) {
-                    consumeBucketsAndMaybeBreak(1);
-                }
             }
         }
 
@@ -169,6 +166,11 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                 metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
                 Arrays.asList(list), 0)
         };
+    }
+
+    @Override
+    public InternalAggregation buildEmptyAggregation() {
+        return buildEmptyTermsAggregation();
     }
 
     @Override

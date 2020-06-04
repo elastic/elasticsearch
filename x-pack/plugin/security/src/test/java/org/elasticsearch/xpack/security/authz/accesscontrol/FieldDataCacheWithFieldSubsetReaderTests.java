@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.junit.After;
@@ -61,8 +62,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         String name = "_field";
         indexFieldDataCache = new DummyAccountingFieldDataCache();
         sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  name,
-                circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, indexFieldDataCache,
+            CoreValuesSourceType.BYTES, circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, name, CoreValuesSourceType.BYTES, indexFieldDataCache,
                 circuitBreakerService, TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);

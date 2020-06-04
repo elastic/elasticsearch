@@ -35,24 +35,21 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLength(8));
-        request.setTimestampFieldName(randomAlphaOfLength(8));
-        return request;
+        return new Request(randomAlphaOfLength(8));
     }
 
     public void testValidateRequest() {
         CreateDataStreamAction.Request req = new CreateDataStreamAction.Request("my-data-stream");
-        req.setTimestampFieldName("my-timestamp-field");
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
 
-    public void testValidateRequestWithoutTimestampField() {
-        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request("my-data-stream");
+    public void testValidateRequestWithoutName() {
+        CreateDataStreamAction.Request req = new CreateDataStreamAction.Request("");
         ActionRequestValidationException e = req.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));
-        assertThat(e.validationErrors().get(0), containsString("timestamp field name is missing"));
+        assertThat(e.validationErrors().get(0), containsString("name is missing"));
     }
 
 }

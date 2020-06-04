@@ -103,8 +103,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Nullable private final String failure;
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     List<DataStream> dataStreams, long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
-                     String failure, Map<String, Object> userMetadata, Version version) {
+                     List<DataStream> dataStreams, long startTime, long repositoryStateId,
+                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure, Map<String, Object> userMetadata,
+                     Version version) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -142,14 +143,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
                      Map<String, Object> userMetadata, Version version) {
-            this(snapshot, includeGlobalState, partial, state, indices, Collections.emptyList(), startTime, repositoryStateId, shards, null, userMetadata,
-                version);
+            this(snapshot, includeGlobalState, partial, state, indices, Collections.emptyList(), startTime, repositoryStateId, shards,
+                null, userMetadata, version);
         }
 
         public Entry(Entry entry, State state, List<IndexId> indices, long repositoryStateId,
                      ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Version version, String failure) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.dataStreams, entry.startTime, repositoryStateId, shards,
-                failure, entry.userMetadata, version);
+            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.dataStreams, entry.startTime,
+                repositoryStateId, shards, failure, entry.userMetadata, version);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {

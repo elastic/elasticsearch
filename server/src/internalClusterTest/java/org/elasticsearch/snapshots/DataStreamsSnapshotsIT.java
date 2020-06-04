@@ -27,12 +27,14 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamsAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.indices.DataStreamIT;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -46,15 +48,15 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Client client = client();
 
         Path location = randomRepoPath();
-
         createRepository("repo", "fs", location);
+
+        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
+
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        request.setTimestampFieldName("@timestamp");
         AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
         assertTrue(response.isAcknowledged());
 
         request = new CreateDataStreamAction.Request("other-ds");
-        request.setTimestampFieldName("@timestamp");
         response = client.admin().indices().createDataStream(request).get();
         assertTrue(response.isAcknowledged());
 
@@ -93,7 +95,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         GetResponse getResponse = client.prepareGet("ds-000001", indexResponse.getId()).get();
         assertEquals(source, getResponse.getSourceAsMap());
 
-        GetDataStreamsAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamsAction.Request("ds")).get();
+        GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
         assertEquals("ds-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
@@ -107,7 +109,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .setRenameReplacement("ds2")
             .get();
 
-        ds = client.admin().indices().getDataStreams(new GetDataStreamsAction.Request("ds2")).get();
+        ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds2")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
         assertEquals("ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
@@ -118,10 +120,11 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Client client = client();
 
         Path location = randomRepoPath();
-
         createRepository("repo", "fs", location);
+
+        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
+
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        request.setTimestampFieldName("@timestamp");
         AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
         assertTrue(response.isAcknowledged());
 
@@ -145,7 +148,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
-        GetDataStreamsAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamsAction.Request("ds2")).get();
+        GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds2")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
         assertEquals("ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
@@ -155,10 +158,11 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Client client = client();
 
         Path location = randomRepoPath();
-
         createRepository("repo", "fs", location);
+
+        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
+
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        request.setTimestampFieldName("@timestamp");
         AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
         assertTrue(response.isAcknowledged());
 
@@ -178,10 +182,11 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Client client = client();
 
         Path location = randomRepoPath();
-
         createRepository("repo", "fs", location);
+
+        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
+
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        request.setTimestampFieldName("@timestamp");
         AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
         assertTrue(response.isAcknowledged());
 
@@ -206,8 +211,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
-        GetDataStreamsAction.Request getRequest = new GetDataStreamsAction.Request("ds");
-        expectThrows(ExecutionException.class, ResourceNotFoundException.class,
+        GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request("ds");
+        RemoteTransportException e = expectThrows(ExecutionException.class, RemoteTransportException.class,
             () -> client.admin().indices().getDataStreams(getRequest).get());
+        assertEquals(ResourceNotFoundException.class, e.getCause().getClass());
     }
 }

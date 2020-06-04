@@ -33,8 +33,7 @@ features that rely on token positions and offsets.
 
 The `pattern_capture` filter uses
 http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java's
-regular expression syntax]. However, the filter does not support anchor
-operators, such as `^` (beginning of line) or `$` (end of line).
+regular expression syntax].
 
 [WARNING]
 ====

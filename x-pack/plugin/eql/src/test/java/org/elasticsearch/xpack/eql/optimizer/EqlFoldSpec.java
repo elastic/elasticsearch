@@ -14,13 +14,13 @@ public class EqlFoldSpec {
 
     private final String name;
     private final String description;
-    private final Boolean caseSensitiveOnly;
-    private final Boolean caseInsensitiveOnly;
+    private final boolean caseSensitiveOnly;
+    private final boolean caseInsensitiveOnly;
     private final String expression;
     private final Object expected;
 
-    EqlFoldSpec(String name, String description, Boolean caseSensitiveOnly,
-                Boolean caseInsensitiveOnly, String expression, Object expected) {
+    EqlFoldSpec(String name, String description, boolean caseSensitiveOnly,
+                boolean caseInsensitiveOnly, String expression, Object expected) {
         this.name = name;
         this.description = description;
         this.caseInsensitiveOnly = caseInsensitiveOnly;
@@ -38,11 +38,11 @@ public class EqlFoldSpec {
     }
 
     public boolean supportsCaseSensitive() {
-        return caseInsensitiveOnly == null || caseInsensitiveOnly == false;
+        return caseInsensitiveOnly == false;
     }
 
     public boolean supportsCaseInsensitive() {
-        return caseSensitiveOnly == null || caseSensitiveOnly == false;
+        return caseSensitiveOnly == false;
     }
 
     public String toString() {

@@ -40,8 +40,9 @@ public class EqlFoldSpecLoader {
             TomlTable fold = table.getTomlTable("fold");
 
             String description = getTrimmedString(table, "description");
-            Boolean caseSensitiveOnly = table.getBoolean("case_sensitive");
-            Boolean caseInsensitiveOnly = table.getBoolean("case_insensitive");
+            // default to false if unspecified in toml
+            boolean caseSensitiveOnly = Boolean.TRUE.equals(table.getBoolean("case_sensitive"));
+            boolean caseInsensitiveOnly = Boolean.TRUE.equals(table.getBoolean("case_insensitive"));
 
             if (fold != null) {
                 List<TomlTable> tests = fold.getArrayTable("tests");

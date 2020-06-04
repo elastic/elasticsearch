@@ -248,7 +248,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         private long min = Long.MAX_VALUE;
         private long max = Long.MIN_VALUE;
 
-        public FromSingle(
+        FromSingle(
             String name,
             AggregatorFactories factories,
             int targetBuckets,

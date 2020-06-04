@@ -321,8 +321,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void executeDfsPhase(ShardSearchRequest request, boolean keepStatesInContext,
                                 SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard shard = indexService.getShard(request.shardId().id());
+        final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest rewritten) {
@@ -373,8 +372,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                   SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard shard = indexService.getShard(request.shardId().id());
+        final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
@@ -389,8 +387,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         // entirely. Otherwise we fork the execution in the search thread pool.
                         ShardSearchRequest canMatchRequest = new ShardSearchRequest(orig);
                         try (Engine.Searcher searcher = readerContext.acquireSearcher("can_match")) {
-                            QueryShardContext context = indexService.newQueryShardContext(canMatchRequest.shardId().id(), searcher,
-                                canMatchRequest::nowInMillis, canMatchRequest.getClusterAlias());
+                            QueryShardContext context = readerContext.indexService().newQueryShardContext(canMatchRequest.shardId().id(),
+                                searcher, canMatchRequest::nowInMillis, canMatchRequest.getClusterAlias());
                             Rewriteable.rewrite(canMatchRequest.getRewriteable(), context, true);
                         }
                         if (canRewriteToMatchNone(canMatchRequest.source())
@@ -432,6 +430,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 listener.onFailure(exc);
             }
         });
+    }
+
+    private IndexShard getShard(ShardSearchRequest request) {
+        if (request.readerId() != null) {
+            return findReaderContext(request.readerId()).indexShard();
+        } else {
+            return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+        }
     }
 
     private <T> void runAsync(IndexShard shard, CheckedSupplier<T, Exception> command, ActionListener<T> listener) {

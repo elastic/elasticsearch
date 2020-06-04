@@ -79,14 +79,14 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
         Function<Rounding, Rounding.Prepared> roundingPreparer =
                 config.getValuesSource().roundingPreparer(searchContext.getQueryShardContext().getIndexReader());
         return ((AutoDateHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, roundingInfos,
-                roundingPreparer, config.getValuesSource(), config.format(), searchContext, parent, metadata);
+                roundingPreparer, config, searchContext, parent, metadata);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, Rounding::prepareForUnknown, null,
-                config.format(), searchContext, parent, metadata);
+        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, Rounding::prepareForUnknown,
+                config, searchContext, parent, metadata);
     }
 }

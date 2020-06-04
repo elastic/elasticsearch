@@ -320,7 +320,8 @@ public class ValuesSourceConfig {
     }
 
     /**
-     * Returns true if the values source configured by this object can yield values
+     * Returns true if the values source configured by this object can yield values.  We might not be able to yield values if, for example,
+     * the specified field does not exist on this index.
      */
     public boolean hasValues() {
         return fieldContext != null || script != null || missing != null;
@@ -346,8 +347,11 @@ public class ValuesSourceConfig {
         return format;
     }
 
-    @Nullable
     public ValuesSource getValuesSource() {
         return valuesSource;
+    }
+
+    public boolean hasGlobalOrdinals() {
+        return valuesSource.hasGlobalOrdinals();
     }
 }

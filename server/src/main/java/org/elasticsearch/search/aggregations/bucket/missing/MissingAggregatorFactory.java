@@ -51,7 +51,7 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, null, searchContext, parent, metadata);
+        return new MissingAggregator(name, factories, config, searchContext, parent, metadata);
     }
 
     @Override
@@ -66,8 +66,7 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
 
-        return ((MissingAggregatorSupplier) aggregatorSupplier)
-            .build(name, factories, config.getValuesSource(), searchContext, parent, metadata);
+        return ((MissingAggregatorSupplier) aggregatorSupplier).build(name, factories, config, searchContext, parent, metadata);
     }
 
 }

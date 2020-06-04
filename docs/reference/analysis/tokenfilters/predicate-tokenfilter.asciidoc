@@ -13,7 +13,7 @@ context].
 ==== Example
 
 The following <<indices-analyze,analyze API>> request uses the
-`predicate_token_filter` filter to output only tokens longer than three
+`predicate_token_filter` filter to only output tokens longer than three
 characters from `the fox jumps the lazy dog`.
 
 [source,console]
@@ -77,8 +77,8 @@ positions or offets.
 
 `script`::
 (Required, <<modules-scripting-using,script object>>)
-Predicate script used to filter incoming tokens. Tokens that do not match this
-script are excluded from the output.
+Script containing a condition used to filter incoming tokens. Only tokens that
+match this script are included in the output.
 +
 This parameter supports inline {painless}/index.html[Painless] scripts only. The
 script is evaluated in the

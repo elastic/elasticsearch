@@ -44,7 +44,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -292,12 +291,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(IpScriptDocValues::new);
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.IP;
+            return new SortedSetOrdinalsIndexFieldData.Builder(IpScriptDocValues::new, CoreValuesSourceType.IP);
         }
 
         @Override
@@ -398,11 +392,10 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        IpFieldMapper other = (IpFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        IpFieldMapper mergeWith = (IpFieldMapper) other;
+        if (mergeWith.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = mergeWith.ignoreMalformed;
         }
     }
 

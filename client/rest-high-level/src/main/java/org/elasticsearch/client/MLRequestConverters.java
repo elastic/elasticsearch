@@ -167,13 +167,13 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) {
+    static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml")
             .addPathPartAsIs("_delete_expired_data")
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-
+        request.setEntity(createEntity(deleteExpiredDataRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
@@ -769,6 +769,9 @@ final class MLRequestConverters {
         }
         if (getTrainedModelsRequest.getTags() != null) {
             params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
+        }
+        if (getTrainedModelsRequest.getForExport() != null) {
+            params.putParam(GetTrainedModelsRequest.FOR_EXPORT, Boolean.toString(getTrainedModelsRequest.getForExport()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());

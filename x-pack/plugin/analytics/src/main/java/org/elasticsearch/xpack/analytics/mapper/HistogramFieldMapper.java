@@ -50,13 +50,13 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -152,9 +152,8 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        HistogramFieldMapper gpfmMergeWith = (HistogramFieldMapper) other;
         if (gpfmMergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
         }
@@ -198,7 +197,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                                CircuitBreakerService breakerService, MapperService mapperService) {
 
-                    return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name()) {
+                    return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                         @Override
                         public LeafHistogramFieldData load(LeafReaderContext context) {
@@ -273,11 +272,6 @@ public class HistogramFieldMapper extends FieldMapper {
                     };
                 }
             };
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return AnalyticsValuesSourceType.HISTOGRAM;
         }
 
         @Override

@@ -58,6 +58,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -346,13 +347,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new KeyedFlatObjectFieldData.Builder(key);
+            return new KeyedFlatObjectFieldData.Builder(key, CoreValuesSourceType.BYTES);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
     /**
@@ -383,6 +380,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public String getFieldName() {
             return delegate.getFieldName();
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return delegate.getValuesSourceType();
         }
 
         @Override
@@ -447,9 +449,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         public static class Builder implements IndexFieldData.Builder {
             private final String key;
+            private final ValuesSourceType valuesSourceType;
 
-            Builder(String key) {
+            Builder(String key, ValuesSourceType valuesSourceType) {
                 this.key = key;
+                this.valuesSourceType = valuesSourceType;
             }
 
             @Override
@@ -460,7 +464,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                            MapperService mapperService) {
                 String fieldName = fieldType.name();
                 IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(indexSettings,
-                    cache, fieldName, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                    cache, fieldName, valuesSourceType, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
             }
         }
@@ -536,13 +540,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
     private FlatObjectFieldParser fieldParser;
@@ -570,9 +570,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-
+    protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
         FlatObjectFieldMapper other = ((FlatObjectFieldMapper) mergeWith);
         this.depthLimit = other.depthLimit;
         this.ignoreAbove = other.ignoreAbove;

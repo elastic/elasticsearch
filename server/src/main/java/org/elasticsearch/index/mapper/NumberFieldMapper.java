@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 
+import com.fasterxml.jackson.core.exc.InputCoercionException;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -55,8 +56,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -967,11 +966,6 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.NUMERIC;
-        }
-
-        @Override
         public Object valueForDisplay(Object value) {
             if (value == null) {
                 return null;
@@ -1060,7 +1054,7 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             try {
                 numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (IllegalArgumentException | JsonParseException e) {
+            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(fieldType.name());
                     return;
@@ -1094,14 +1088,18 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        NumberFieldMapper other = (NumberFieldMapper) mergeWith;
-        if (other.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = other.ignoreMalformed;
-        }
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        NumberFieldMapper m = (NumberFieldMapper) other;
+        if (fieldType().type != m.fieldType().type) {
+            conflicts.add("mapper [" + name() + "] cannot be changed from type [" + fieldType().type.name +
+                "] to [" + m.fieldType().type.name + "]");
+        } else {
+            if (m.ignoreMalformed.explicit()) {
+                this.ignoreMalformed = m.ignoreMalformed;
+            }
+            if (m.coerce.explicit()) {
+                this.coerce = m.coerce;
+            }
         }
     }
 

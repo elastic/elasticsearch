@@ -315,6 +315,9 @@
       "job_version" : {
         "type" : "keyword"
       },
+      "max_num_threads" : {
+        "type" : "integer"
+      },
       "model_plot_config" : {
         "properties" : {
           "enabled" : {
@@ -322,6 +325,9 @@
           },
           "terms" : {
             "type" : "keyword"
+          },
+          "annotations_enabled" : {
+            "type" : "boolean"
           }
         }
       },

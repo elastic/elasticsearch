@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -136,20 +135,6 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType newFT, List<String> conflicts) {
-            super.checkCompatibility(newFT, conflicts);
-            ConstantKeywordFieldType newConstantKeywordFT = (ConstantKeywordFieldType) newFT;
-            if (this.value != null) {
-                if (newConstantKeywordFT.value == null) {
-                    conflicts.add("mapper [" + name() + "] cannot unset [value]");
-                } else if (Objects.equals(value, newConstantKeywordFT.value) == false) {
-                    conflicts.add("mapper [" + name() + "] has different [value] from the value that is configured in mappings: [" + value +
-                            "] vs. [" + newConstantKeywordFT.value + "]");
-                }
-            }
-        }
-
-        @Override
         public int hashCode() {
             return 31 * super.hashCode() + Objects.hashCode(value);
         }
@@ -172,7 +157,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new ConstantIndexFieldData.Builder(mapperService -> value);
+            return new ConstantIndexFieldData.Builder(mapperService -> value, CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -254,10 +239,6 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
@@ -300,6 +281,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() +
                     "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
                     "], but got [" + value + "]");
+        }
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        ConstantKeywordFieldType newConstantKeywordFT = (ConstantKeywordFieldType) other.fieldType();
+        if (this.fieldType().value != null) {
+            if (newConstantKeywordFT.value == null) {
+                conflicts.add("mapper [" + name() + "] cannot unset [value]");
+            } else if (Objects.equals(fieldType().value, newConstantKeywordFT.value) == false) {
+                conflicts.add("mapper [" + name() + "] has different [value] from the value that is configured in mappings: ["
+                    + fieldType().value + "] vs. [" + newConstantKeywordFT.value + "]");
+            }
         }
     }
 

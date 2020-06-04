@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -28,7 +29,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -79,7 +79,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
+    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 

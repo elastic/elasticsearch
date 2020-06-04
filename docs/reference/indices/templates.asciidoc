@@ -180,7 +180,7 @@ orders overriding them. For example:
 --------------------------------------------------
 PUT /_template/template_1
 {
-    "index_patterns" : ["*"],
+    "index_patterns" : ["te*"],
     "order" : 0,
     "settings" : {
         "number_of_shards" : 1
@@ -192,7 +192,7 @@ PUT /_template/template_1
 
 PUT /_template/template_2
 {
-    "index_patterns" : ["te*"],
+    "index_patterns" : ["tes*"],
     "order" : 1,
     "settings" : {
         "number_of_shards" : 1
@@ -204,7 +204,7 @@ PUT /_template/template_2
 --------------------------------------------------
 
 The above will disable storing the `_source`, but
-for indices that start with `te*`, `_source` will still be enabled.
+for indices that start with `tes*`, `_source` will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
@@ -231,7 +231,7 @@ replace the template without specifying	one.
 --------------------------------------------------
 PUT /_template/template_1
 {
-    "index_patterns" : ["*"],
+    "index_patterns" : ["myindex-*"],
     "order" : 0,
     "settings" : {
         "number_of_shards" : 1

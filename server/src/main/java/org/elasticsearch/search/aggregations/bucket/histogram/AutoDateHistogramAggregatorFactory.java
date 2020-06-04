@@ -44,7 +44,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(AutoDateHistogramAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (AutoDateHistogramAggregatorSupplier) AutoDateHistogramAggregator::new);
+            (AutoDateHistogramAggregatorSupplier) AutoDateHistogramAggregator::build);
     }
 
     private final int numBuckets;
@@ -85,7 +85,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, Rounding::prepareForUnknown, null,
+        return AutoDateHistogramAggregator.build(name, factories, numBuckets, roundingInfos, Rounding::prepareForUnknown, null,
                 config.format(), searchContext, parent, false, metadata);
     }
 }

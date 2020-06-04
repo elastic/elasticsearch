@@ -305,6 +305,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
     protected abstract void addMultiFields(ParseContext context, Processed geometry) throws IOException;
 
+    @Override
+    public final boolean parsesArrayValue() {
+        return true;
+    }
+
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {

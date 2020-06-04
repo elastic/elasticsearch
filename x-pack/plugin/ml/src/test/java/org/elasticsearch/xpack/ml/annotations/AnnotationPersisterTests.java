@@ -234,7 +234,7 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     private Annotation parseAnnotation(BytesReference source) throws IOException {
         try (XContentParser parser = createParser(jsonXContent, source)) {
-            return Annotation.PARSER.parse(parser, null).build();
+            return Annotation.fromXContent(parser, null);
         }
     }
 }

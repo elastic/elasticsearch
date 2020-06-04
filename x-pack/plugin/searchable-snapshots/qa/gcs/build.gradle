@@ -61,10 +61,6 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   serviceAccountFile = new File(gcsServiceAccount)
 }
 
-def encodedCredentials = {
-  Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
-}
-
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 task createServiceAccountFile() {
   doLast {
@@ -111,7 +107,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.gcs.bucket', gcsBucket
-    systemProperty 'test.gcs.base_path', gcsBasePath + "/searchable_snapshots_tests"
+    systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests"
   }
 }
 
@@ -136,3 +132,6 @@ testClusters.integTest {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
+task gcsThirdPartyTest {
+  dependsOn integTest
+}

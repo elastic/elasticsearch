@@ -17,7 +17,7 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
 
     @Override
     protected Annotation doParseInstance(XContentParser parser) {
-        return Annotation.PARSER.apply(parser, null).build();
+        return Annotation.fromXContent(parser, null);
     }
 
     @Override
@@ -35,7 +35,8 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
             .setJobId(jobId)
             .setModifiedTime(randomBoolean() ? new Date(randomNonNegativeLong()) : null)
             .setModifiedUsername(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
-            .setType(randomAlphaOfLengthBetween(10, 15))
+            .setType(randomFrom(Annotation.Type.values()))
+            .setEvent(randomBoolean() ? randomFrom(Annotation.Event.values()) : null)
             .setDetectorIndex(randomBoolean() ? randomIntBetween(0, 10) : null)
             .setPartitionFieldName(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)
             .setPartitionFieldValue(randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null)

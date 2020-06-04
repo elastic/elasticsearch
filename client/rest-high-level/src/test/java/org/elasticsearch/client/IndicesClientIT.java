@@ -1245,12 +1245,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 + "reason=final index setting [index.number_of_shards], not updateable"));
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
-    }
-
     public void testIndexPutSettingNonExistent() throws IOException {
 
         String index = "index";

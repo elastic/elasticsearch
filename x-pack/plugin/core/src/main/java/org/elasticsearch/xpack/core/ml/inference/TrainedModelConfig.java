@@ -49,6 +49,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
     public static final String DECOMPRESS_DEFINITION = "decompress_definition";
+    public static final String FOR_EXPORT = "for_export";
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
 
@@ -304,13 +305,22 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MODEL_ID.getPreferredName(), modelId);
-        builder.field(CREATED_BY.getPreferredName(), createdBy);
-        builder.field(VERSION.getPreferredName(), version.toString());
+        // If the model is to be exported for future import to another cluster, these fields are irrelevant.
+        if (params.paramAsBoolean(FOR_EXPORT, false) == false) {
+            builder.field(MODEL_ID.getPreferredName(), modelId);
+            builder.field(CREATED_BY.getPreferredName(), createdBy);
+            builder.field(VERSION.getPreferredName(), version.toString());
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            builder.humanReadableField(
+                ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
+                new ByteSizeValue(estimatedHeapMemory));
+            builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
+            builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
+        }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
         // We don't store the definition in the same document as the configuration
         if ((params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) && definition != null) {
             if (params.paramAsBoolean(DECOMPRESS_DEFINITION, false)) {
@@ -327,12 +337,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);
         }
         builder.field(INPUT.getPreferredName(), input);
-        builder.humanReadableField(
-            ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
-            ESTIMATED_HEAP_MEMORY_USAGE_HUMAN,
-            new ByteSizeValue(estimatedHeapMemory));
-        builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
-        builder.field(LICENSE_LEVEL.getPreferredName(), licenseLevel.description());
         if (defaultFieldMap != null && defaultFieldMap.isEmpty() == false) {
             builder.field(DEFAULT_FIELD_MAP.getPreferredName(), defaultFieldMap);
         }

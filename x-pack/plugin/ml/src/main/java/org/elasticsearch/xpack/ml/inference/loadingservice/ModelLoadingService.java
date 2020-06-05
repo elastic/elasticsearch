@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -103,7 +102,6 @@ public class ModelLoadingService implements ClusterStateListener {
                                InferenceAuditor auditor,
                                ThreadPool threadPool,
                                ClusterService clusterService,
-                               NamedXContentRegistry namedXContentRegistry,
                                TrainedModelStatsService modelStatsService,
                                Settings settings,
                                String localNode,
@@ -154,21 +152,32 @@ public class ModelLoadingService implements ClusterStateListener {
             // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
             // by a simulated pipeline
             logger.trace(() -> new ParameterizedMessage("[{}] not actively loading, eager loading without cache", modelId));
-            provider.getTrainedModelForInference(modelId, ActionListener.wrap(
-                configAndInferenceDef -> {
-                    TrainedModelConfig trainedModelConfig = configAndInferenceDef.v1();
-                    InferenceDefinition inferenceDefinition = configAndInferenceDef.v2();
-                    InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
-                        inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
-                        trainedModelConfig.getInferenceConfig();
-                    modelActionListener.onResponse(new LocalModel(
-                        trainedModelConfig.getModelId(),
-                        localNode,
-                        inferenceDefinition,
-                        trainedModelConfig.getInput(),
-                        trainedModelConfig.getDefaultFieldMap(),
-                        inferenceConfig,
-                        modelStatsService));
+            provider.getTrainedModel(modelId, false, ActionListener.wrap(
+                trainedModelConfig -> {
+                    // Verify we can pull the model into memory without causing OOM
+                    trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
+                    provider.getTrainedModelForInference(modelId, ActionListener.wrap(
+                        inferenceDefinition -> {
+                            InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
+                                inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
+                                trainedModelConfig.getInferenceConfig();
+                            // Remove the bytes as we cannot control how long the caller will keep the model in memory
+                            trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                            modelActionListener.onResponse(new LocalModel(
+                                trainedModelConfig.getModelId(),
+                                localNode,
+                                inferenceDefinition,
+                                trainedModelConfig.getInput(),
+                                trainedModelConfig.getDefaultFieldMap(),
+                                inferenceConfig,
+                                modelStatsService));
+                        },
+                        // Failure getting the definition, remove the initial estimation value
+                        e -> {
+                            trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                            modelActionListener.onFailure(e);
+                        }
+                    ));
                 },
                 modelActionListener::onFailure
             ));
@@ -210,56 +219,70 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId) {
-        provider.getTrainedModelForInference(modelId, ActionListener.wrap(
-            configAndInferenceDef -> {
-                logger.debug(() -> new ParameterizedMessage("[{}] successfully loaded model", modelId));
-                handleLoadSuccess(modelId, configAndInferenceDef);
+        provider.getTrainedModel(modelId, false, ActionListener.wrap(
+            trainedModelConfig -> {
+                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
+                provider.getTrainedModelForInference(modelId, ActionListener.wrap(
+                    inferenceDefinition -> {
+                        // Since we have used the previously stored estimate to help guard against OOM we need to adjust the memory
+                        // So that the memory this model uses in the circuit breaker is the most accurate estimate.
+                        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
+                        if (estimateDiff < 0) {
+                            trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
+                        } else if (estimateDiff > 0) { // rare case where estimate is now HIGHER
+                            try {
+                                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(estimateDiff, modelId);
+                            } catch (CircuitBreakingException ex) { // if we failed here, we should remove the initial estimate as well
+                                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                                handleLoadFailure(modelId, ex);
+                                return;
+                            }
+                        }
+                        handleLoadSuccess(modelId, trainedModelConfig, inferenceDefinition);
+                    },
+                    failure -> {
+                        // We failed to get the definition, remove the initial estimation.
+                        trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                        logger.warn(new ParameterizedMessage("[{}] failed to load model definition", modelId), failure);
+                        handleLoadFailure(modelId, failure);
+                    }
+                ));
             },
             failure -> {
-                logger.warn(new ParameterizedMessage("[{}] failed to load model", modelId), failure);
+                logger.warn(new ParameterizedMessage("[{}] failed to load model configuration", modelId), failure);
                 handleLoadFailure(modelId, failure);
             }
         ));
     }
 
     private void handleLoadSuccess(String modelId,
-                                   Tuple<TrainedModelConfig, InferenceDefinition> configAndInferenceDef) {
+                                   TrainedModelConfig trainedModelConfig,
+                                   InferenceDefinition inferenceDefinition) {
         Queue<ActionListener<Model>> listeners;
-        TrainedModelConfig trainedModelConfig = configAndInferenceDef.v1();
         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
-            inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
+            inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
             trainedModelConfig.getInferenceConfig();
         LocalModel loadedModel = new LocalModel(
             trainedModelConfig.getModelId(),
             localNode,
-            configAndInferenceDef.v2(),
+            inferenceDefinition,
             trainedModelConfig.getInput(),
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
             modelStatsService);
-        ElasticsearchException exception = null;
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
             // Consequently, we should not store the retrieved model
             if (listeners == null) {
+                trainedModelCircuitBreaker.addWithoutBreaking(-inferenceDefinition.ramBytesUsed());
                 return;
             }
-            try {
-                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(loadedModel.ramBytesUsed(), modelId);
-                localModelCache.put(modelId, loadedModel);
-                shouldNotAudit.remove(modelId);
-            } catch (CircuitBreakingException cbe) {
-                logger.error(new ParameterizedMessage("[{}] tripped circuit breaker", modelId), cbe);
-                exception = cbe;
-            }
+            localModelCache.put(modelId, loadedModel);
+            shouldNotAudit.remove(modelId);
         } // synchronized (loadingListeners)
         for (ActionListener<Model> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
-            if (exception != null) {
-                listener.onFailure(exception);
-            } else {
-                listener.onResponse(loadedModel);
-            }
+            listener.onResponse(loadedModel);
         }
     }
 
@@ -279,21 +302,24 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void cacheEvictionListener(RemovalNotification<String, LocalModel> notification) {
-        trainedModelCircuitBreaker.addWithoutBreaking(-notification.getValue().ramBytesUsed());
-        if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
-            MessageSupplier msg = () -> new ParameterizedMessage(
-                "model cache entry evicted." +
-                    "current cache [{}] current max [{}] model size [{}]. " +
-                    "If this is undesired, consider updating setting [{}] or [{}].",
-                new ByteSizeValue(localModelCache.weight()).getStringRep(),
-                maxCacheSize.getStringRep(),
-                new ByteSizeValue(notification.getValue().ramBytesUsed()).getStringRep(),
-                INFERENCE_MODEL_CACHE_SIZE.getKey(),
-                INFERENCE_MODEL_CACHE_TTL.getKey());
-            auditIfNecessary(notification.getKey(), msg);
+        try {
+            if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
+                MessageSupplier msg = () -> new ParameterizedMessage(
+                    "model cache entry evicted." +
+                        "current cache [{}] current max [{}] model size [{}]. " +
+                        "If this is undesired, consider updating setting [{}] or [{}].",
+                    new ByteSizeValue(localModelCache.weight()).getStringRep(),
+                    maxCacheSize.getStringRep(),
+                    new ByteSizeValue(notification.getValue().ramBytesUsed()).getStringRep(),
+                    INFERENCE_MODEL_CACHE_SIZE.getKey(),
+                    INFERENCE_MODEL_CACHE_TTL.getKey());
+                auditIfNecessary(notification.getKey(), msg);
+            }
+            // If the model is no longer referenced, flush the stats to persist as soon as possible
+            notification.getValue().persistStats(referencedModels.contains(notification.getKey()) == false);
+        } finally {
+            trainedModelCircuitBreaker.addWithoutBreaking(-notification.getValue().ramBytesUsed());
         }
-        // If the model is no longer referenced, flush the stats to persist as soon as possible
-        notification.getValue().persistStats(referencedModels.contains(notification.getKey()) == false);
     }
 
     @Override

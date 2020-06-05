@@ -143,8 +143,9 @@ value for this setting is `5s`.
 ==== {ml-cap} circuit breaker settings
 
 `breaker.model_inference.limit` (<<cluster-update-settings,Dynamic>>)
-Limit for model inference breaker, defaults to 40% of JVM heap.
-This means that it is bound by the limit configured for the parent circuit breaker.
+Limit for model inference breaker, defaults to 50% of JVM heap.
+If the parent circuit breaker is less than 50% of JVM heap, it is bound
+to that limit instead.
 See <<circuit-breaker>>.
 
 `breaker.model_inference.overhead` (<<cluster-update-settings,Dynamic>>)

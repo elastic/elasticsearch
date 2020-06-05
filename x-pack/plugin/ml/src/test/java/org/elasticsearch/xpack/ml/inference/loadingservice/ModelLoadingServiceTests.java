@@ -21,12 +21,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -122,7 +120,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
@@ -170,7 +167,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), new ByteSizeValue(20L)).build(),
             "test-node",
@@ -287,7 +283,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
@@ -313,7 +308,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
@@ -342,7 +336,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
@@ -366,7 +359,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
@@ -386,7 +378,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
         String model1 = "test-circuit-break-model-1";
         String model2 = "test-circuit-break-model-2";
         String model3 = "test-circuit-break-model-3";
-        String[] modelIds = new String[]{model1, model2, model3};
         withTrainedModel(model1, 5L);
         withTrainedModel(model2, 5L);
         withTrainedModel(model3, 12L);
@@ -395,7 +386,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node",
@@ -417,9 +407,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // the loading occurred or which models are currently in the cache due to evictions.
         // Verify that we have at least loaded all three
         assertBusy(() -> {
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(false), any());
+            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(false), any());
         });
         assertBusy(() -> {
             assertThat(circuitBreaker.getUsed(), equalTo(10L));
@@ -441,15 +431,48 @@ public class ModelLoadingServiceTests extends ESTestCase {
         when(trainedModelConfig.getModelId()).thenReturn(modelId);
         when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
         when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
+        when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(size);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
-            listener.onResponse(Tuple.tuple(trainedModelConfig, definition));
+            listener.onResponse(definition);
             return null;
         }).when(trainedModelProvider).getTrainedModelForInference(eq(modelId), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("rawtypes")
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(trainedModelConfig);
+            return null;
+        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
     }
 
+    @SuppressWarnings("unchecked")
     private void withMissingModel(String modelId) {
+        if (randomBoolean()) {
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("rawtypes")
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                listener.onFailure(new ResourceNotFoundException(
+                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
+                return null;
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+        } else {
+            TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
+            when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(0L);
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("rawtypes")
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                listener.onResponse(trainedModelConfig);
+                return null;
+            }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(false), any());
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("rawtypes")
+                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+                listener.onFailure(new ResourceNotFoundException(
+                    Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                return null;
+            }).when(trainedModelProvider).getTrainedModelForInference(eq(modelId), any());
+        }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];

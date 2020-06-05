@@ -169,9 +169,9 @@ public final class IndexMetaDataGenerations {
      * @return identifier string
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
-        return indexMetaData.getIndexUUID() + "-" +
-            indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE) +
-            indexMetaData.getSettingsVersion() + "-" + indexMetaData.getMappingVersion() + "-" +
-            indexMetaData.getAliasesVersion();
+        return indexMetaData.getIndexUUID() +
+                "-" + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE) +
+                "-" + indexMetaData.getSettingsVersion() + "-" + indexMetaData.getMappingVersion() +
+                "-" + indexMetaData.getAliasesVersion();
     }
 }

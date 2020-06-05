@@ -1178,6 +1178,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String repositoryName = "repo-" + indexName;
         final String snapshot0 = "snapshot-0";
         final String snapshot1 = "snapshot-1";
+        final String snapshot2 = "snapshot-2";
 
         createIndex(indexName);
 
@@ -1186,12 +1187,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             client().prepareIndex(indexName).setSource("test", "init").execute().actionGet();
         }
 
-        logger.info("--> register a repository");
-
         final Path repoPath = randomRepoPath();
-        assertAcked(client().admin().cluster().preparePutRepository(repositoryName)
-            .setType("fs")
-            .setSettings(Settings.builder().put("location", repoPath)));
+        createRepository(repositoryName, "fs", repoPath);
 
         logger.info("--> create a snapshot");
         client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshot0)
@@ -1202,7 +1199,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final List<Path> snapshot0IndexMetaFiles = findRepoMetaBlobs(repoPath);
         assertThat(snapshot0IndexMetaFiles, hasSize(1)); // snapshotting a single index
 
-        // add few docs - less than initially
         docs = between(1, 5);
         for (int i = 0; i < docs; i++) {
             client().prepareIndex(indexName).setSource("test", "test" + i).execute().actionGet();
@@ -1213,17 +1209,27 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startDataOnlyNode();
         ensureGreen(indexName);
 
-        // create another snapshot
-        // total size has to grow and has to be equal to files on fs
-        assertThat(client().admin().cluster()
-                .prepareCreateSnapshot(repositoryName, snapshot1)
-                .setWaitForCompletion(true).get().status(),
-            equalTo(RestStatus.OK));
+        assertThat(client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshot1).setWaitForCompletion(true).get().status(),
+                equalTo(RestStatus.OK));
 
         final List<Path> snapshot1IndexMetaFiles = findRepoMetaBlobs(repoPath);
 
         // The IndexMetadata did not change between snapshots, verify that no new redundant IndexMetaData was written to the repository
         assertThat(snapshot1IndexMetaFiles, is(snapshot0IndexMetaFiles));
+
+        // index to some other field to trigger a change in index metadata
+        for (int i = 0; i < docs; i++) {
+            client().prepareIndex(indexName).setSource("new_field", "test" + i).execute().actionGet();
+        }
+        assertThat(client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshot2).setWaitForCompletion(true).get().status(),
+                equalTo(RestStatus.OK));
+
+        final List<Path> snapshot2IndexMetaFiles = findRepoMetaBlobs(repoPath);
+        assertThat(snapshot2IndexMetaFiles, hasSize(2)); // should have created one new metadata blob
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshot0, snapshot1).get());
+        final List<Path> snapshot3IndexMetaFiles = findRepoMetaBlobs(repoPath);
+        assertThat(snapshot3IndexMetaFiles, hasSize(1)); // should have deleted the metadata blob referenced by the first two snapshots
     }
 
     public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {

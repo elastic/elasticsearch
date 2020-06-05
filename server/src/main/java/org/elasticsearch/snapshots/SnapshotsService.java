@@ -72,7 +72,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -105,7 +104,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -416,67 +414,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         return unmodifiableList(builder);
-    }
-
-    /**
-     * Returns status of shards  currently finished snapshots
-     * <p>
-     * This method is executed on master node and it's complimentary to the
-     * {@link SnapshotShardsService#currentSnapshotShards(Snapshot)} because it
-     * returns similar information but for already finished snapshots.
-     * </p>
-     *
-     * @param repositoryName  repository name
-     * @param snapshotInfo    snapshot info
-     * @return map of shard id to snapshot status
-     */
-    public Map<ShardId, IndexShardSnapshotStatus> snapshotShards(final String repositoryName,
-                                                                 final RepositoryData repositoryData,
-                                                                 final SnapshotInfo snapshotInfo) throws IOException {
-        final Repository repository = repositoriesService.repository(repositoryName);
-        final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
-        for (String index : snapshotInfo.indices()) {
-            IndexId indexId = repositoryData.resolveIndexId(index);
-            IndexMetadata indexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId);
-            if (indexMetaData != null) {
-                int numberOfShards = indexMetaData.getNumberOfShards();
-                for (int i = 0; i < numberOfShards; i++) {
-                    ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
-                    SnapshotShardFailure shardFailure = findShardFailure(snapshotInfo.shardFailures(), shardId);
-                    if (shardFailure != null) {
-                        shardStatus.put(shardId, IndexShardSnapshotStatus.newFailed(shardFailure.reason()));
-                    } else {
-                        final IndexShardSnapshotStatus shardSnapshotStatus;
-                        if (snapshotInfo.state() == SnapshotState.FAILED) {
-                            // If the snapshot failed, but the shard's snapshot does
-                            // not have an exception, it means that partial snapshots
-                            // were disabled and in this case, the shard snapshot will
-                            // *not* have any metadata, so attempting to read the shard
-                            // snapshot status will throw an exception.  Instead, we create
-                            // a status for the shard to indicate that the shard snapshot
-                            // could not be taken due to partial being set to false.
-                            shardSnapshotStatus = IndexShardSnapshotStatus.newFailed("skipped");
-                        } else {
-                            shardSnapshotStatus = repository.getShardSnapshotStatus(
-                                snapshotInfo.snapshotId(),
-                                indexId,
-                                shardId);
-                        }
-                        shardStatus.put(shardId, shardSnapshotStatus);
-                    }
-                }
-            }
-        }
-        return unmodifiableMap(shardStatus);
-    }
-
-    private static SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {
-        for (SnapshotShardFailure shardFailure : shardFailures) {
-            if (shardId.getIndexName().equals(shardFailure.index()) && shardId.getId() == shardFailure.shardId()) {
-                return shardFailure;
-            }
-        }
-        return null;
     }
 
     @Override

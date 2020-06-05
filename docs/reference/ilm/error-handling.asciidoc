@@ -81,11 +81,11 @@ Which returns the following information:
       "failed_step" : "shrink",                 <6>
       "step_info" : {
         "type" : "illegal_argument_exception",  <7>
-        "reason" : "the number of target shards [4] must be less that the number of source shards [2]" <8>
+        "reason" : "the number of target shards [4] must be less that the number of source shards [2]"
       },
       "phase_execution" : {
         "policy" : "shrink-index",
-        "phase_definition" : {                  <9>
+        "phase_definition" : {                  <8>
           "min_age" : "5d",
           "actions" : {
             "shrink" : {
@@ -106,11 +106,10 @@ Which returns the following information:
 <2> The index age: 5.1 days
 <3> The phase the index is currently in: `warm`
 <4> The current action: `shrink`
-<5> THe step the index is currently in: `ERROR`
+<5> The step the index is currently in: `ERROR`
 <6> The step that failed to execute: `shrink`
-<7> The type of error that occurred: `illegal_argument_exception`
-<8> The error message that describes what went wrong
-<9> The definition of the current phase from the `shrink-index` policy
+<7> The type of error and a description of that error.
+<8> The definition of the current phase from the `shrink-index` policy
 
 To resolve this, you could update the policy to shrink the index to a single shard after 5 days:
 

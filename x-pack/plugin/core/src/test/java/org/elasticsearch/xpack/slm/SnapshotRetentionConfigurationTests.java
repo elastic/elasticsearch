@@ -249,7 +249,6 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         final int totalShards = between(1,20);
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
             Collections.singletonList("foo"),
-            Collections.emptyList(),
             startTime,
             null,
             startTime + between(1, 10000),
@@ -281,7 +280,6 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
-            Collections.emptyList(),
             startTime,
             "forced-failure",
             startTime + between(1, 10000),
@@ -305,7 +303,6 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         assert failureCount == failures.size();
         SnapshotInfo snapInfo = new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
-            Collections.emptyList(),
             startTime,
             null,
             startTime + between(1, 10000),

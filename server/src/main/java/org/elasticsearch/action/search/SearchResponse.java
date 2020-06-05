@@ -64,6 +64,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField TOOK = new ParseField("took");
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
+    private static final ParseField EXEC_TIME = new ParseField("exec_Time");
+    private static final ParseField WAIT_TIME = new ParseField("wait_Time");
+    private static final ParseField NUM_TASK = new ParseField("num_task");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
@@ -75,12 +78,16 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final ShardSearchFailure[] shardFailures;
     private final Clusters clusters;
     private final long tookInMillis;
+    private final long execInMillis;
+    private final long waitInMillis;
+    private final long num_task;
+
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
         internalResponse = new InternalSearchResponse(in);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
+        this.totalShards = in.readVInt();
+        this.successfulShards = in.readVInt();
         int size = in.readVInt();
         if (size == 0) {
             shardFailures = ShardSearchFailure.EMPTY_ARRAY;
@@ -91,17 +98,20 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             }
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            clusters = new Clusters(in);
+            this.clusters = new Clusters(in);
         } else {
-            clusters = Clusters.EMPTY;
+            this.clusters = Clusters.EMPTY;
         }
         scrollId = in.readOptionalString();
-        tookInMillis = in.readVLong();
-        skippedShards = in.readVInt();
+        this.tookInMillis = in.readVLong();
+        this.skippedShards = in.readVInt();
+        waitInMillis = in.readVLong();
+        execInMillis = in.readVLong();
+        this.num_task = in.readVLong();
     }
 
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
-                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters) {
+                          int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters, long waitInMillis,long execInMillis, long num_task) {
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.clusters = clusters;
@@ -110,6 +120,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+        this.waitInMillis = waitInMillis;
+        this.execInMillis = execInMillis;
+        this.num_task = num_task;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
     }
 
@@ -165,6 +178,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
     }
+    public long getEXEC_TIME() {
+        return  execInMillis;
+    }
+    public long getWAIT_TIME() {
+        return waitInMillis;
+    }
+    public long getNum_task(){ return num_task; }
 
     /**
      * The total number of shards the search was executed on.
@@ -246,6 +266,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimedOut());
+        builder.field(EXEC_TIME.getPreferredName(), execInMillis);
+        builder.field(WAIT_TIME.getPreferredName(), waitInMillis);
+        builder.field(NUM_TASK.getPreferredName(), num_task);
         if (isTerminatedEarly() != null) {
             builder.field(TERMINATED_EARLY.getPreferredName(), isTerminatedEarly());
         }
@@ -276,6 +299,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         Boolean terminatedEarly = null;
         int numReducePhases = 1;
         long tookInMillis = -1;
+        long waitInMillis = -1;
+        long execInMillis = -1;
+        long num_task = -1;
         int successfulShards = -1;
         int totalShards = -1;
         int skippedShards = 0; // 0 for BWC
@@ -292,6 +318,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     tookInMillis = parser.longValue();
                 } else if (TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {
                     timedOut = parser.booleanValue();
+                }
+                else if(EXEC_TIME.match(currentFieldName, parser.getDeprecationHandler())){
+                    execInMillis = parser.longValue();
+                }
+                else if(WAIT_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    waitInMillis = parser.longValue();
+                }else if(NUM_TASK.match(currentFieldName, parser.getDeprecationHandler())) {
+                    num_task = parser.longValue();
                 } else if (TERMINATED_EARLY.match(currentFieldName, parser.getDeprecationHandler())) {
                     terminatedEarly = parser.booleanValue();
                 } else if (NUM_REDUCE_PHASES.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -366,7 +400,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters);
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters,0,0,0);
     }
 
     @Override
@@ -385,6 +419,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
+        out.writeVLong(waitInMillis);
+        out.writeVLong(execInMillis);
+        out.writeVLong(num_task);
     }
 
     @Override
@@ -493,6 +530,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
             InternalAggregations.EMPTY, null, null, false, null, 0);
         return new SearchResponse(internalSearchResponse, null, 0, 0, 0, tookInMillisSupplier.get(),
-            ShardSearchFailure.EMPTY_ARRAY, clusters);
+            ShardSearchFailure.EMPTY_ARRAY, clusters,0L,0L,0);
     }
 }

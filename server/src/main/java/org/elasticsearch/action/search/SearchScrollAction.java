@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 
 public class SearchScrollAction extends ActionType<SearchResponse> {
 
@@ -27,7 +28,7 @@ public class SearchScrollAction extends ActionType<SearchResponse> {
     public static final String NAME = "indices:data/read/scroll";
 
     private SearchScrollAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME, in -> new SearchResponse(in));
     }
 
 }

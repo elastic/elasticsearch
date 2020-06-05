@@ -108,7 +108,6 @@ public class QueryPhase implements SearchPhase {
         this.rescorePhase = new RescorePhase();
     }
 
-
     @Override
     public void preProcess(SearchContext context) {
         final Runnable cancellation;
@@ -133,6 +132,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        long start = System.currentTimeMillis();
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
             searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
@@ -140,7 +140,7 @@ public class QueryPhase implements SearchPhase {
                 new DocValueFormat[0]);
             return;
         }
-
+       int p = 3;
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
         }
@@ -162,6 +162,9 @@ public class QueryPhase implements SearchPhase {
                 .buildShardResults(searchContext.getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
+        searchContext.queryResult().setWaitTime(start-searchContext.getStart_Time());
+        searchContext.queryResult().setExecTime(System.currentTimeMillis()-start);
+
     }
 
     /**
@@ -416,7 +419,6 @@ public class QueryPhase implements SearchPhase {
 
     private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
                                             Query query, boolean hasFilterCollector) throws IOException {
-        if ((searchContext.from() + searchContext.size()) <= 0) return null;
         if (searchContext.searchAfter() != null) return null; //TODO: handle sort optimization with search after
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;

@@ -49,6 +49,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     private int from;
     private int size;
+//    private long cur_wait_time;
+//    private long cur_exec_time;
     private TopDocsAndMaxScore topDocsAndMaxScore;
     private boolean hasScoreDocs;
     private TotalHits totalHits;
@@ -70,7 +72,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private boolean hasProfileResults;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
-
+    private long waitTime;
+    private long execTime;
     private final boolean isNull;
 
     public QuerySearchResult() {
@@ -95,7 +98,22 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
         isNull = false;
     }
-
+    public long getWaitTime()
+    {
+        return waitTime;
+    }
+    public long getExecTime()
+    {
+        return execTime;
+    }
+    public void setWaitTime(long waitTime)
+    {
+        this.waitTime = waitTime;
+    }
+    public void setExecTime(long execTime)
+    {
+        this.execTime = execTime;
+    }
     private QuerySearchResult(boolean isNull) {
         this.isNull = isNull;
     }
@@ -180,7 +198,21 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         this.sortValueFormats = sortValueFormats;
     }
-
+//    public void waitTime(long cur_wait_time)
+//    {
+//         this.cur_wait_time = cur_wait_time;
+//    }
+//    public void execTime(long cur_exec_time)
+//    {
+//        this.cur_exec_time = cur_exec_time;
+//    }
+//    public long get_Cur_wait_time()
+//    {
+//        return this.cur_wait_time;
+//    }
+//    public long getCur_exec_time() {
+//        return this.cur_exec_time;
+//    }
     private void setTopDocs(TopDocsAndMaxScore topDocsAndMaxScore) {
         this.topDocsAndMaxScore = topDocsAndMaxScore;
         this.totalHits = topDocsAndMaxScore.topDocs.totalHits;

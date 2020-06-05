@@ -287,7 +287,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.isTimedOut(), searchResponse.isTerminatedEarly(), searchResponse.getNumReducePhases());
                     listener.onResponse(new SearchResponse(internalSearchResponse, searchResponse.getScrollId(),
                         searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getSkippedShards(),
-                        timeProvider.buildTookInMillis(), searchResponse.getShardFailures(), new SearchResponse.Clusters(1, 1, 0)));
+                        timeProvider.buildTookInMillis(), searchResponse.getShardFailures(), new SearchResponse.Clusters(1, 1, 0),searchResponse.getWAIT_TIME(),searchResponse.getEXEC_TIME(),searchResponse.getNum_task()));
                 }
 
                 @Override

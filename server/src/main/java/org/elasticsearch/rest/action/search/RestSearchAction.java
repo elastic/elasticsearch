@@ -95,6 +95,7 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        long requestReceivedTime = System.currentTimeMillis();
         SearchRequest searchRequest = new SearchRequest();
         /*
          * We have to pull out the call to `source().size(size)` because

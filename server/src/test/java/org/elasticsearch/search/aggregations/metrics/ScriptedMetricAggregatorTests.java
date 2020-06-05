@@ -20,12 +20,15 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -38,9 +41,10 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.AggregationUsageService;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -49,11 +53,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
@@ -115,8 +119,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             return state;
         });
         SCRIPTS.put("reduceScript", params -> {
-            Map<String, Object> state = (Map<String, Object>) params.get("state");
-            return state;
+            List<Integer> states = (List<Integer>) params.get("states");
+            return states.parallelStream().mapToInt(Integer::intValue).sum();
         });
 
         SCRIPTS.put("initScriptScore", params -> {
@@ -416,6 +420,32 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testAsSubAgg() throws IOException {
+        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("t").field("t")
+            .subAggregation(
+                new ScriptedMetricAggregationBuilder("scripted").initScript(INIT_SCRIPT)
+                    .mapScript(MAP_SCRIPT)
+                    .combineScript(COMBINE_SCRIPT)
+                    .reduceScript(REDUCE_SCRIPT)
+            );
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 99; i++) {
+                iw.addDocument(singleton(new SortedSetDocValuesField("t", i % 2 == 0 ? new BytesRef("even") : new BytesRef("odd"))));
+            }
+        };
+        Consumer<StringTerms> verify = terms -> {
+            StringTerms.Bucket even = terms.getBucketByKey("even");
+            assertThat(even.getDocCount(), equalTo(50L));
+            ScriptedMetric evenMetric = even.getAggregations().get("scripted");
+            assertThat(evenMetric.aggregation(), equalTo(50));
+            StringTerms.Bucket odd = terms.getBucketByKey("odd");
+            assertThat(odd.getDocCount(), equalTo(49L));
+            ScriptedMetric oddMetric = odd.getAggregations().get("scripted");
+            assertThat(oddMetric.aggregation(), equalTo(49));
+        };
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, verify, keywordField("t"), longField("number"));
+    }
+
     /**
      * We cannot use Mockito for mocking QueryShardContext in this case because
      * script-related methods (e.g. QueryShardContext#getLazyExecutableScript)
@@ -430,12 +460,24 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
         ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
-        ValuesSourceRegistry valuesSourceRegistry = mock(ValuesSourceRegistry.class);
-        AggregationUsageService.Builder builder = new AggregationUsageService.Builder();
-        builder.registerAggregationUsage(ScriptedMetricAggregationBuilder.NAME);
-        when(valuesSourceRegistry.getUsageService()).thenReturn(builder.build());
-        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-            null, mapperService, null, scriptService, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, null, () -> true, valuesSourceRegistry);
+        return new QueryShardContext(
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            getIndexFieldDataLookup(mapperService, circuitBreakerService),
+            mapperService,
+            null,
+            scriptService,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            null,
+            () -> true,
+            valuesSourceRegistry
+        );
     }
 }

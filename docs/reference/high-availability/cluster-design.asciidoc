@@ -288,7 +288,7 @@ failure of a remote zone and a mere loss of connectivity between the zones. If
 both zones were capable of running independent elections then a loss of
 connectivity would lead to a
 https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain problem] and
-therefore data loss. {es} will avoid this and protect your data by not electing
+therefore data loss. {es} avoids this and protects your data by not electing
 a node from either zone as master until that node can be sure that it has the
 latest cluster state and that there is no other master in the cluster. This may
 mean there is no master at all until connectivity is restored.

@@ -104,6 +104,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean() && jobSupportsCategorizationFilters(job)) {
             update.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
+        if (randomBoolean() && jobSupportsPerPartitionCategorization(job)) {
+            update.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
+        }
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
@@ -137,6 +140,13 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             return false;
         }
         return true;
+    }
+
+    private static boolean jobSupportsPerPartitionCategorization(@Nullable Job job) {
+        if (job == null) {
+            return true;
+        }
+        return job.getAnalysisConfig().getPerPartitionCategorizationConfig().isEnabled();
     }
 
     private static List<JobUpdate.DetectorUpdate> createRandomDetectorUpdates() {
@@ -240,6 +250,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setDailyModelSnapshotRetentionAfterDays(randomLongBetween(0, newModelSnapshotRetentionDays));
         updateBuilder.setRenormalizationWindowDays(randomNonNegativeLong());
         updateBuilder.setCategorizationFilters(categorizationFilters);
+        updateBuilder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
         updateBuilder.setJobVersion(Version.V_6_1_0);
@@ -249,10 +260,12 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.setGroups(Collections.singletonList("group-1"));
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("mlcategory");
+        d1.setPartitionFieldName("host");
         Detector.Builder d2 = new Detector.Builder("min", "field");
         d2.setOverFieldName("host");
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
         ac.setCategorizationFieldName("cat_field");
+        ac.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         jobBuilder.setAnalysisConfig(ac);
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
@@ -269,6 +282,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getModelSnapshotRetentionDays(), updatedJob.getModelSnapshotRetentionDays());
         assertEquals(update.getResultsRetentionDays(), updatedJob.getResultsRetentionDays());
         assertEquals(update.getCategorizationFilters(), updatedJob.getAnalysisConfig().getCategorizationFilters());
+        assertEquals(update.getPerPartitionCategorizationConfig().isEnabled(),
+            updatedJob.getAnalysisConfig().getPerPartitionCategorizationConfig().isEnabled());
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
         assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
@@ -304,6 +319,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setGroups(Collections.singletonList("bar")).build();
+        assertTrue(update.isAutodetectProcessUpdate());
+        update = new JobUpdate.Builder("foo")
+            .setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, true)).build();
         assertTrue(update.isAutodetectProcessUpdate());
     }
 

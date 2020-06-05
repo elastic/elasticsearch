@@ -61,12 +61,12 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     MinAggregator(String name,
                     ValuesSourceConfig config,
-                    ValuesSource valuesSource,
                     SearchContext context,
                     Aggregator parent,
                     Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        // TODO: Stop using nulls here
+        this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);

@@ -57,7 +57,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, null, precision(), searchContext, parent, metadata);
+        return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata);
     }
 
     @Override
@@ -72,7 +72,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         CardinalityAggregatorSupplier cardinalityAggregatorSupplier = (CardinalityAggregatorSupplier) aggregatorSupplier;
-        return cardinalityAggregatorSupplier.build(name, config.getValuesSource(), precision(), searchContext, parent, metadata);
+        return cardinalityAggregatorSupplier.build(name, config, precision(), searchContext, parent, metadata);
     }
 
     private int precision() {

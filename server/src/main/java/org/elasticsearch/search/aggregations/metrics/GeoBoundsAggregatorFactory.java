@@ -53,7 +53,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new GeoBoundsAggregator(name, searchContext, parent, null, wrapLongitude, metadata);
+        return new GeoBoundsAggregator(name, searchContext, parent, config, wrapLongitude, metadata);
     }
 
     @Override
@@ -69,8 +69,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 + GeoBoundsAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
 
-        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, config.getValuesSource(),
-            wrapLongitude, metadata);
+        return ((GeoBoundsAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, config, wrapLongitude, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {

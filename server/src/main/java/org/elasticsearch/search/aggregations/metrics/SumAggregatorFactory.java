@@ -57,7 +57,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             Map<String, Object> metadata)
             throws IOException {
-        return new SumAggregator(name, config, null, searchContext, parent, metadata);
+        return new SumAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
@@ -72,7 +72,6 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, config.getValuesSource(), searchContext, parent,
-            metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, searchContext, parent, metadata);
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -53,11 +54,18 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray sumOfSqrs;
     DoubleArray compensationOfSqrs;
 
-    ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            SearchContext context, Aggregator parent, double sigma, Map<String, Object> metadata) throws IOException {
+    ExtendedStatsAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        double sigma,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
-        this.format = formatter;
+        // TODO: stop depending on nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.format = valuesSourceConfig.format();
         this.sigma = sigma;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();

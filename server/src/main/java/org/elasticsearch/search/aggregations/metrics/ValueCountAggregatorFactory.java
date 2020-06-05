@@ -38,7 +38,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
-            (ValueCountAggregatorSupplier) ValueCountAggregator::new);
+            (MetricAggregatorSupplier) ValueCountAggregator::new);
     }
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
@@ -51,7 +51,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new ValueCountAggregator(name, null, searchContext, parent, metadata);
+        return new ValueCountAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
@@ -61,11 +61,11 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             ValueCountAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof ValueCountAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected ValueCountAggregatorSupplier, found [" +
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
+            throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((ValueCountAggregatorSupplier) aggregatorSupplier)
-            .build(name, config.getValuesSource(), searchContext, parent, metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier)
+            .build(name, config, searchContext, parent, metadata);
     }
 }

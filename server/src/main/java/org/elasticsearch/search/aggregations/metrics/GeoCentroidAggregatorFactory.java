@@ -49,7 +49,7 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new GeoCentroidAggregator(name, searchContext, parent, null, metadata);
+        return new GeoCentroidAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
@@ -60,15 +60,15 @@ class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             GeoCentroidAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof GeoCentroidAggregatorSupplier == false) {
+        if (aggregatorSupplier instanceof MetricAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
-                + GeoCentroidAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
+                + MetricAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((GeoCentroidAggregatorSupplier) aggregatorSupplier).build(name, searchContext, parent, config.getValuesSource(), metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, searchContext, parent, metadata);
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoCentroidAggregatorSupplier) GeoCentroidAggregator::new);
+            (MetricAggregatorSupplier) GeoCentroidAggregator::new);
     }
 }

@@ -96,7 +96,16 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
         PercentilesAggregatorSupplier percentilesAggregatorSupplier = (PercentilesAggregatorSupplier) aggregatorSupplier;
-        return percentilesAggregatorSupplier.build(name, config.getValuesSource(), searchContext, parent, percents, percentilesConfig, keyed,
-            config.format(), metadata);
+        return percentilesAggregatorSupplier.build(
+            name,
+            config.getValuesSource(),
+            searchContext,
+            parent,
+            percents,
+            percentilesConfig,
+            keyed,
+            config.format(),
+            metadata
+        );
     }
 }

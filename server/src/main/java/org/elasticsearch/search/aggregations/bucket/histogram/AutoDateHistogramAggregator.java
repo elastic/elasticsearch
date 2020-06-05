@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;

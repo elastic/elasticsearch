@@ -78,7 +78,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 this.timeout = null;
             }
             if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-                jobId = in.readString();
+                jobId = in.readOptionalString();
             }
         }
 
@@ -142,7 +142,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 out.writeOptionalTimeValue(timeout);
             }
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                out.writeString(jobId);
+                out.writeOptionalString(jobId);
             }
         }
     }

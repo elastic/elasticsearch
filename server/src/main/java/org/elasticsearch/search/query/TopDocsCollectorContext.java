@@ -131,7 +131,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                         this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                     } else {
                         EarlyTerminatingCollector col =
-                            new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
+                            new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, true);
                         this.collector = col;
                         this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(),
                             col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO);

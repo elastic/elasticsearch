@@ -57,10 +57,10 @@ To override the default for this field, set the
 `search.default_allow_partial_results` cluster setting to `false`.
 
 `batched_reduce_size`::
-  (Optional, integer) The number of shard results that should be reduced at once
-  on the coordinating node. This value should be used as a protection mechanism
-  to reduce the memory overhead per search request if the potential number of
-  shards in the request can be large. Defaults to `512`.
+(Optional, integer) The number of shard results that should be reduced at once
+on the coordinating node. This value should be used as a protection mechanism
+to reduce the memory overhead per search request if the potential number of
+shards in the request can be large. Defaults to `512`.
 
 [[ccs-minimize-roundtrips]]
 `ccs_minimize_roundtrips`::
@@ -69,8 +69,8 @@ coordinating node and the remote clusters are minimized when executing
 {ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
 
 `docvalue_fields`::
-  (Optional, string) A comma-separated list of fields to return as the docvalue
-  representation of a field for each hit.
+(Optional, string) A comma-separated list of fields to return as the docvalue
+representation of a field for each hit.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
@@ -99,32 +99,32 @@ As an alternative to deep paging, we recommend using
 --
 
 `ignore_throttled`::
-  (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
-  ignored when frozen. Defaults to `false`.
+(Optional, boolean) If `true`, concrete, expanded or aliased indices will be
+ignored when frozen. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `max_concurrent_shard_requests`::
-  (Optional, integer) Defines the number of concurrent shard requests per node
-  this search executes concurrently. This value should be used to limit the
-  impact of the search on the cluster in order to limit the number of concurrent
-  shard requests. Defaults to `5`.
+(Optional, integer) Defines the number of concurrent shard requests per node
+this search executes concurrently. This value should be used to limit the
+impact of the search on the cluster in order to limit the number of concurrent
+shard requests. Defaults to `5`.
 
 `pre_filter_shard_size`::
-  (Optional, integer) Defines a threshold that enforces a pre-filter roundtrip
-  to prefilter search shards based on query rewriting if the number of shards
-  the search request expands to exceeds the threshold. This filter roundtrip can
-  limit the number of shards significantly if for instance a shard can not match
-  any documents based on its rewrite method ie. if date filters are mandatory
-  to match but the shard bounds and the query are disjoint.
-  When unspecified, the pre-filter phase is executed if any of these conditions is met:
-    - The request targets more than `128` shards.
-    - The request targets one or more read-only index.
-    - The primary sort of the query targets an indexed field.
+(Optional, integer) Defines a threshold that enforces a pre-filter roundtrip
+to prefilter search shards based on query rewriting if the number of shards
+the search request expands to exceeds the threshold. This filter roundtrip can
+limit the number of shards significantly if for instance a shard can not match
+any documents based on its rewrite method ie. if date filters are mandatory
+to match but the shard bounds and the query are disjoint.
+When unspecified, the pre-filter phase is executed if any of these conditions is met:
+  - The request targets more than `128` shards.
+  - The request targets one or more read-only index.
+  - The primary sort of the query targets an indexed field.
 
 `preference`::
-  (Optional, string) Specifies the node or shard the operation should be
-  performed on. Random by default.
+(Optional, string) Specifies the node or shard the operation should be
+performed on. Random by default.
 
 [[search-api-query-params-q]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
@@ -144,12 +144,12 @@ requests where `size` is `0`. See <<shard-request-cache>>. Defaults to index
 level settings.
 
 `rest_total_hits_as_int`::
-  (Optional, boolean) Indicates whether hits.total should be rendered as an
-  integer or an object in the rest search response. Defaults to `false`.
+(Optional, boolean) Indicates whether hits.total should be rendered as an
+integer or an object in the rest search response. Defaults to `false`.
 
 `routing`::
-  (Optional, <<time-units, time units>>) Specifies how long a consistent view of
-  the index should be maintained for scrolled search.
+(Optional, <<time-units, time units>>) Specifies how long a consistent view of
+the index should be maintained for scrolled search.
 
 [[search-api-scroll-query-param]]
 `scroll`::
@@ -189,7 +189,7 @@ value cannot be `0`.
 --
 
 `sort`::
-  (Optional, string) A comma-separated list of <field>:<direction> pairs.
+(Optional, string) A comma-separated list of <field>:<direction> pairs.
 
 `_source`::
 (Optional, boolean)
@@ -201,20 +201,20 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `stats`::
-  (Optional, string) Specific `tag` of the request for logging and statistical
-  purposes.
+(Optional, string) Specific `tag` of the request for logging and statistical
+purposes.
 
 `stored_fields`::
-  (Optional, string) A comma-separated list of stored fields to return as part
-  of a hit. If no fields are specified, no stored fields are included in the
-  response.
+(Optional, string) A comma-separated list of stored fields to return as part
+of a hit. If no fields are specified, no stored fields are included in the
+response.
 
 `suggest_field`::
-  (Optional, string) Specifies which field to use for suggestions.
+(Optional, string) Specifies which field to use for suggestions.
 
 `suggest_text`::
-  (Optional, string) The source text for which the suggestions should be
-  returned.
+(Optional, string) The source text for which the suggestions should be
+returned.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
@@ -226,8 +226,8 @@ for a response. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
 `track_scores`::
-  (Optional, boolean) If `true`, calculate and return document scores, even if
-  the scores are not used for sorting. Defaults to `false`.
+(Optional, boolean) If `true`, calculate and return document scores, even if
+the scores are not used for sorting. Defaults to `false`.
 
 `track_total_hits`::
 (Optional, integer or boolean)
@@ -237,8 +237,8 @@ If `true`, the default value is used. If `false`, the response does not
 include the total number of hits matching the query.
 
 `typed_keys`::
-  (Optional, boolean) If `true`, aggregation and suggester names are be prefixed
-  by their respective types in the response. Defaults to `true`.
+(Optional, boolean) If `true`, aggregation and suggester names are be prefixed
+by their respective types in the response. Defaults to `true`.
 
 `version`::
 (Optional, boolean)
@@ -477,37 +477,37 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "took" : 5,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 1,
-    "successful" : 1,
-    "skipped" : 0,
-    "failed" : 0
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
   },
-  "hits" : {
-    "total" : {
-      "value" : 1,
-      "relation" : "eq"
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
     },
-    "max_score" : 1.3862942,
-    "hits" : [
+    "max_score": 1.3862942,
+    "hits": [
       {
-        "_index" : "twitter",
-        "_id" : "0",
-        "_score" : 1.3862942,
-        "_source" : {
-          "date" : "2009-11-15T14:12:12",
-          "likes" : 0,
-          "message" : "trying out Elasticsearch",
-          "user" : "kimchy"
+        "_index": "twitter",
+        "_id": "0",
+        "_score": 1.3862942,
+        "_source": {
+          "date": "2009-11-15T14:12:12",
+          "likes": 0,
+          "message": "trying out Elasticsearch",
+          "user": "kimchy"
         }
       }
     ]
   }
 }
 ----
-// TESTRESPONSE[s/"took" : 5/"took": $body.took/]
+// TESTRESPONSE[s/"took": 5/"took": $body.took/]
 
 [[search-multi-index]]
 ===== Search several indices using the `q` query parameter
@@ -552,9 +552,11 @@ GET /*/_search?q=user:kimchy
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query" : {
-        "term" : { "user" : "kimchy" }
+  "query": {
+    "term": {
+      "user": "kimchy"
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -564,34 +566,34 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "took": 1,
-    "timed_out": false,
-    "_shards":{
-        "total" : 1,
-        "successful" : 1,
-        "skipped" : 0,
-        "failed" : 0
+  "took": 1,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
     },
-    "hits":{
-        "total" : {
-            "value": 1,
-            "relation": "eq"
-        },
-        "max_score": 1.3862942,
-        "hits" : [
-            {
-                "_index" : "twitter",
-                "_id" : "0",
-                "_score": 1.3862942,
-                "_source" : {
-                    "user" : "kimchy",
-                    "message": "trying out Elasticsearch",
-                    "date" : "2009-11-15T14:12:12",
-                    "likes" : 0
-                }
-            }
-        ]
-    }
+    "max_score": 1.3862942,
+    "hits": [
+      {
+        "_index": "twitter",
+        "_id": "0",
+        "_score": 1.3862942,
+        "_source": {
+          "user": "kimchy",
+          "message": "trying out Elasticsearch",
+          "date": "2009-11-15T14:12:12",
+          "likes": 0
+        }
+      }
+    ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 1/"took": $body.took/]

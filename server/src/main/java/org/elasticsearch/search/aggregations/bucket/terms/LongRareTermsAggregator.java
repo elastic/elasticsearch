@@ -113,8 +113,6 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                     LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(oldKey, docCount, null, format);
                     bucket.bucketOrd = newBucketOrd;
                     buckets.add(bucket);
-
-                    consumeBucketsAndMaybeBreak(1);
                 } else {
                     // Make a note when one of the ords has been deleted
                     deletionCount += 1;

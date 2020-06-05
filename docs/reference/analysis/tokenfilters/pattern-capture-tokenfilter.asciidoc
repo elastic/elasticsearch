@@ -204,7 +204,7 @@ PUT /my_camel_case_index
 ----
 
 The following <<indices-analyze,analyze API>> request uses the custom
-`my_camel_case_pattern_capture_filter` to analyze the code
+`my_camel_case_pattern_capture_filter` filter to analyze the code
 `import static org.apache.commons.lang.StringEscapeUtils.escapeHtml`.
 
 [source,console]

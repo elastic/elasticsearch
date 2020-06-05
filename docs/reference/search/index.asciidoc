@@ -28,14 +28,14 @@ a specific number of results.
 [[search-toc]]
 === In this section
 
-* <<near-real-time>>
 * <<run-a-search>>
+* <<near-real-time>>
 * <<modules-cross-cluster-search>>
 * <<async-search-intro>>
 
 --
 
-include::{es-repo-dir}/search/near-real-time.asciidoc[]
 include::run-a-search.asciidoc[]
+include::{es-repo-dir}/search/near-real-time.asciidoc[]
 include::{es-repo-dir}/async-search.asciidoc[]
 include::{es-repo-dir}/modules/cross-cluster-search.asciidoc[]

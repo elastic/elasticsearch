@@ -51,10 +51,6 @@ the node fails, you may need to restore an older copy of any lost
 indices from a <<modules-snapshots,snapshot>>. Because they are not resilient to
 any failures, we do not recommend using one-node clusters in production.
 
-We can illustrate a single node having all four roles as follows.
-
-image:images/high-availability/one-node-all-roles.png[]
-
 [[high-availability-cluster-design-two-nodes]]
 ==== Two-node clusters
 
@@ -88,11 +84,6 @@ across the nodes in your cluster.
 
 Because it's not resilient to failures, we do not recommend deploying a two-node
 cluster in production.
-
-We can illustrate a two-node cluster as follows. Notice that only one of the nodes
-is master-eligible, but both nodes have all other roles.
-
-image:images/high-availability/two-node-cluster.png[]
 
 [[high-availability-cluster-design-two-nodes-plus]]
 ==== Two-node clusters with a tiebreaker
@@ -147,10 +138,6 @@ provides such a load balancer.
 A two-node cluster with an additional tiebreaker node is the smallest possible
 cluster that is suitable for production deployments.
 
-We can illustrate a two-node cluster with a dedicated tiebreaker as follows.
-
-image:images/high-availability/two-node-cluster-with-tiebreaker.png[]
-
 [[high-availability-cluster-design-three-nodes]]
 ==== Three-node clusters
 
@@ -171,10 +158,6 @@ address of multiple nodes when configuring your client to connect to your
 cluster. Alternatively you can use a resilient load balancer to balance client
 requests across your cluster. The {ess-trial}[Elastic Cloud]
 service provides such a load balancer.
-
-We can illustrate a three-node cluster in which all nodes have all roles as follows.
-
-image:images/high-availability/three-node-cluster.png[]
 
 [[high-availability-cluster-design-three-plus-nodes]]
 ==== Clusters with more than three nodes
@@ -203,13 +186,6 @@ master node. For instance, you may have two dedicated master nodes and a third
 node that is both a data node and a voting-only master-eligible node. This
 third voting-only node will act as a tiebreaker in master elections but will
 never become the master itself.
-
-We can illustrate a larger cluster with more specialized nodes as follows. Here
-there are three dedicated master-eligible nodes, two nodes that can perform
-data and ingest, two dedicated {ml} nodes, and one dedicated coordinating node
-that has no specific roles.
-
-image:images/high-availability/more-than-three-nodes.png[]
 
 [[high-availability-cluster-design-small-cluster-summary]]
 ==== Summary
@@ -282,13 +258,6 @@ each zone. If you place the same number of master-eligible nodes in each zone,
 neither zone has a majority of its own. Therefore, the cluster may not survive
 the loss of either zone.
 
-The following diagram represents a cluster split across zones A and B.
-The cluster has three master-eligible nodes: one in zone A and two in zone B.
-Each zone also has four dedicated data nodes, a dedicated ingest node, a
-dedicated {ml} node, and two dedicated coordinating nodes.
-
-image:images/high-availability/two-zone-cluster.png[]
-
 [[high-availability-cluster-design-two-zones-plus]]
 ==== Two-zone clusters with a tiebreaker
 
@@ -327,11 +296,6 @@ connection to the rest of the cluster. If you add a tiebreaker node in a third
 independent zone then you must make sure it has adequate resources and good
 connectivity to the rest of the cluster.
 
-The following diagram represents a cluster split across
-zones A and B with a dedicated tiebreaker in the independent zone C.
-
-image:images/high-availability/two-zone-cluster-with-tiebreaker.png[]
-
 [[high-availability-cluster-design-three-zones]]
 ==== Clusters with three or more zones
 
@@ -348,11 +312,6 @@ ensure that the replicas of the shard are in a different zone from the primary.
 This means that a copy of every shard will still be available if one zone
 fails. The availability of this shard will not be affected by such a
 failure.
-
-For instance, here is an illustration of a cluster which is split evenly across
-three zones.
-
-image:images/high-availability/three-zone-cluster.png[]
 
 [[high-availability-cluster-design-large-cluster-summary]]
 ==== Summary

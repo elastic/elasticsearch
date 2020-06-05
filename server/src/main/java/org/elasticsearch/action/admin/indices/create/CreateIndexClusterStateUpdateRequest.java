@@ -40,6 +40,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final String cause;
     private final String index;
+    private String dataStreamName;
     private final String providedName;
     private Index recoverFrom;
     private ResizeType resizeType;
@@ -145,5 +146,35 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public boolean copySettings() {
         return copySettings;
+    }
+
+    /**
+     * Returns the name of the data stream this new index will be part of.
+     * If this new index will not be part of a data stream then this returns <code>null</code>.
+     */
+    public String dataStreamName() {
+        return dataStreamName;
+    }
+
+    public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
+        this.dataStreamName = dataStreamName;
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return "CreateIndexClusterStateUpdateRequest{" +
+            "cause='" + cause + '\'' +
+            ", index='" + index + '\'' +
+            ", dataStreamName='" + dataStreamName + '\'' +
+            ", providedName='" + providedName + '\'' +
+            ", recoverFrom=" + recoverFrom +
+            ", resizeType=" + resizeType +
+            ", copySettings=" + copySettings +
+            ", settings=" + settings +
+            ", aliases=" + aliases +
+            ", blocks=" + blocks +
+            ", waitForActiveShards=" + waitForActiveShards +
+            '}';
     }
 }

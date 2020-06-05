@@ -71,11 +71,11 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
         Template template = null;
         ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
 
-        if (randomBoolean()) {
+        if (dataStreamTemplate != null || randomBoolean()) {
             if (randomBoolean()) {
                 settings = randomSettings();
             }
-            if (randomBoolean()) {
+            if (dataStreamTemplate != null || randomBoolean()) {
                 mappings = randomMappings(dataStreamTemplate);
             }
             if (randomBoolean()) {

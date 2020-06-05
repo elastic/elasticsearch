@@ -25,7 +25,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -172,14 +171,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Client remoteClient = getRemoteClusterClient();
         ClusterStateResponse response = remoteClient.admin().cluster().prepareState().clear().setMetadata(true).setNodes(true)
             .get(ccrSettings.getRecoveryActionTimeout());
-        Metadata metadata = response.getState().metadata();
-        ImmutableOpenMap<String, IndexMetadata> indicesMap = metadata.indices();
+        ImmutableOpenMap<String, IndexMetadata> indicesMap = response.getState().metadata().indices();
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        ArrayList<DataStream> dataStreams = new ArrayList<>(metadata.dataStreams().values());
-        return new SnapshotInfo(snapshotId, indices, dataStreams, SnapshotState.SUCCESS,
-            response.getState().getNodes().getMaxNodeVersion());
+        return new SnapshotInfo(snapshotId, indices, SnapshotState.SUCCESS, response.getState().getNodes().getMaxNodeVersion());
     }
 
     @Override

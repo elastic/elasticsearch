@@ -157,6 +157,15 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
                 // we cancel the underlying search action explicitly in the submit action
                 return false;
             }
+
+            @Override
+            public String getDescription() {
+                // generating description in a lazy way since source can be quite big
+                return "waitForCompletionTimeout[" + waitForCompletionTimeout +
+                    "], keepOnCompletion[" + keepOnCompletion +
+                    "] keepAlive[" + keepAlive +
+                    "], request=" + request.getDescription();
+            }
         };
     }
 

@@ -23,7 +23,7 @@ public class GetAsyncSearchRequestTests extends AbstractWireSerializingTestCase<
     protected GetAsyncSearchAction.Request createTestInstance() {
         GetAsyncSearchAction.Request req = new GetAsyncSearchAction.Request(randomSearchId());
         if (randomBoolean()) {
-            req.setWaitForCompletion(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
+            req.setWaitForCompletionTimeout(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
         }
         if (randomBoolean()) {
             req.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));

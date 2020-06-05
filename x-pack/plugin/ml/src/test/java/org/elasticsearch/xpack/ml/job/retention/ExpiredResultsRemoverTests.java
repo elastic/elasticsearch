@@ -63,7 +63,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
 
     public void testRemove_GivenNoJobs() throws IOException {
         givenDBQRequestsSucceed();
-        AbstractExpiredJobDataRemoverTests.givenJobs(client, Collections.emptyList());
+        givenJobs(client, Collections.emptyList());
 
         createExpiredResultsRemover().remove(1.0f, listener, () -> false);
 
@@ -73,7 +73,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
 
     public void testRemove_GivenJobsWithoutRetentionPolicy() throws IOException {
         givenDBQRequestsSucceed();
-        AbstractExpiredJobDataRemoverTests.givenJobs(client,
+        givenJobs(client,
                 Arrays.asList(
                 JobTests.buildJobBuilder("foo").build(),
                 JobTests.buildJobBuilder("bar").build()
@@ -153,6 +153,17 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(latest.getTime(), expectedCutoffTime)));
     }
 
+    @SuppressWarnings("unchecked")
+    static void givenJobs(Client client, List<Job> jobs) throws IOException {
+        SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(response);
+            return null;
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+    }
+
     private void givenDBQRequestsSucceed() {
         givenDBQRequest(true);
     }
@@ -208,6 +219,6 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             }
         ).when(executor).execute(any());
 
-        return new ExpiredResultsRemover(originSettingClient, mock(AnomalyDetectionAuditor.class), threadPool);
+        return new ExpiredResultsRemover(originSettingClient, "*", mock(AnomalyDetectionAuditor.class), threadPool);
     }
 }

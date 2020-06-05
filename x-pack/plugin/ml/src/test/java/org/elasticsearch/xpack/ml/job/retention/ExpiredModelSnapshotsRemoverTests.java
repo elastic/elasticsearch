@@ -256,7 +256,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
                     return null;
                 }
         ).when(executor).execute(any());
-        return new ExpiredModelSnapshotsRemover(originSettingClient, threadPool);
+        return new ExpiredModelSnapshotsRemover(originSettingClient, "*", threadPool);
     }
 
     private static ModelSnapshot createModelSnapshot(String jobId, String snapshotId, Date date) {

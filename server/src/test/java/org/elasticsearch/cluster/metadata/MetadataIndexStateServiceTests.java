@@ -401,7 +401,8 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             dataStreamsToCreate.add(new Tuple<>(dataStreamName, numBackingIndices));
             writeIndices.add(DataStream.getBackingIndexName(dataStreamName, numBackingIndices));
         }
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dataStreamsToCreate, List.of());
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dataStreamsToCreate,
+            org.elasticsearch.common.collect.List.of());
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(cs);

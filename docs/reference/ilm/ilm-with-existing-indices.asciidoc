@@ -105,7 +105,7 @@ PUT _template/mylogs_template
   ],
   "settings": {
     "number_of_shards": 1,
-    "number_of_replicas": 1
+    "number_of_replicas": 1,
     "index": {
       "lifecycle": {
         "name": "mylogs_condensed_policy", <2>

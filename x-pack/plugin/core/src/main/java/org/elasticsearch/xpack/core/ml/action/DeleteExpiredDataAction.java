@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -49,6 +50,14 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
                 TIMEOUT);
             PARSER.declareString(Request::setJobId, Job.ID);
+        }
+
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (jobId != null) {
+                request.jobId = jobId;
+            }
+            return request;
         }
 
         private Float requestsPerSecond;

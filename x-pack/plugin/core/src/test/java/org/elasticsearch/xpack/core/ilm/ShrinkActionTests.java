@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkAction.getSkipShrinkStepPredicate;
 import static org.hamcrest.Matchers.equalTo;
@@ -164,6 +165,12 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         ).build();
 
         expectThrows(IllegalStateException.class, () -> getSkipShrinkStepPredicate(1).test(sourceIndexMetadata.getIndex(), clusterState));
+    }
+
+    public void testShrinkSkipIfIndexIsDeleted() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        Index missingIndex = new Index("missing", UUID.randomUUID().toString());
+        assertThat(getSkipShrinkStepPredicate(1).test(missingIndex, clusterState), is(true));
     }
 
     public void testToSteps() {

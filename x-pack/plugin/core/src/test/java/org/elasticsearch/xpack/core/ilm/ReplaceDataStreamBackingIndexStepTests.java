@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.is;
@@ -111,6 +113,14 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
+    public void testPerformActionIsNoOpIfIndexIsMissing() {
+        ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT).build();
+        Index missingIndex = new Index("missing", UUID.randomUUID().toString());
+        ReplaceDataStreamBackingIndexStep replaceSourceIndexStep = createRandomInstance();
+        ClusterState newState = replaceSourceIndexStep.performAction(missingIndex, initialState);
+        assertThat(newState, is(initialState));
+    }
+
     public void testPerformAction() {
         String dataStreamName = randomAlphaOfLength(10);
         String indexName = dataStreamName + "-000001";
@@ -119,7 +129,6 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
-
 
         String writeIndexName = dataStreamName + "-000002";
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)

@@ -144,28 +144,34 @@ public class ShrinkAction implements LifecycleAction {
     static BiPredicate<Index, ClusterState> getSkipShrinkStepPredicate(int targetNumberOfShards) {
         return (index, clusterState) -> {
             IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-            boolean skipShrink = indexMetadata.getNumberOfShards() == targetNumberOfShards;
+            if (indexMetadata == null) {
+                // Index must have been since deleted, skip the shrink action
+                logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", NAME, index.getName());
+                return true;
+            }
 
-            if (skipShrink == false) {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
-                assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
+            if (indexMetadata.getNumberOfShards() == targetNumberOfShards) {
+                return true;
+            }
 
-                if (indexAbstraction.getParentDataStream() != null) {
-                    IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
-                    assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-                    if (dataStream.getWriteIndex().getIndex().getName().equals(index.getName())) {
-                        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-                        String errorMessage = String.format(Locale.ROOT,
-                            "index [%s] is the write index for data stream [%s]. stopping execution of lifecycle [%s] as a data stream's " +
-                                "write index cannot be shrunk. manually rolling over the index will resume the execution of the policy " +
-                                "as the index will not be the data stream's write index anymore",
-                            index.getName(), dataStream.getName(), policyName);
-                        logger.debug(errorMessage);
-                        throw new IllegalStateException(errorMessage);
-                    }
+            IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+            assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
+
+            if (indexAbstraction.getParentDataStream() != null) {
+                IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+                assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
+                if (dataStream.getWriteIndex().getIndex().getName().equals(index.getName())) {
+                    String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                    String errorMessage = String.format(Locale.ROOT,
+                        "index [%s] is the write index for data stream [%s]. stopping execution of lifecycle [%s] as a data stream's " +
+                            "write index cannot be shrunk. manually rolling over the index will resume the execution of the policy " +
+                            "as the index will not be the data stream's write index anymore",
+                        index.getName(), dataStream.getName(), policyName);
+                    logger.debug(errorMessage);
+                    throw new IllegalStateException(errorMessage);
                 }
             }
-            return skipShrink;
+            return false;
         };
     }
 

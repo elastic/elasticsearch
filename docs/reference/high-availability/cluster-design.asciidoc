@@ -71,8 +71,8 @@ we do not recommend using one-node clusters in production.
 [[high-availability-cluster-design-two-nodes]]
 ==== Two-node clusters
 
-If you have two nodes then they should both be data nodes and you should ensure
-that every shard is stored redundantly on both nodes by setting
+If you have two nodes, we recommend they both be data nodes. You should also
+ensure every shard is stored redundantly on both nodes by setting
 <<dynamic-index-settings,`index.number_of_replicas`>> to `1` on every index.
 This is the default number of replicas but may be overridden by an
 <<indices-templates,index template>>. <<dynamic-index-settings,Auto-expand
@@ -87,9 +87,9 @@ node, both nodes are master-eligible. This means both nodes are required for a
 master election. This election will fail if your cluster cannot reliably
 tolerate the loss of either node.
 
-By default, each node is assigned every role. We recommend both nodes are
-assigned all other roles. If one node fails, the other node can handle its
-tasks.
+By default, each node is assigned every role. We recommend you assign both nodes
+all other roles except master eligibility. If one node fails, the other node can
+handle its tasks.
 
 You should avoid sending client requests to just one of your nodes. If you do
 and this node fails, such requests will not receive responses even if the
@@ -115,11 +115,10 @@ remote node and a mere loss of connectivity between the nodes. If both nodes
 were capable of running independent elections, a loss of connectivity would
 lead to a https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain
 problem] and therefore, data loss. {es} avoids this and
-protects
-your data by not electing either node as master until that node can be sure
-that it has the latest cluster state and that there is no other master in the
-cluster. This could result in the cluster having no master until connectivity is
-restored.
+protects your data by electing neither node as master until that node can be
+sure that it has the latest cluster state and that there is no other master in
+the cluster. This could result in the cluster having no master until
+connectivity is restored.
 
 You can solve this problem by adding a third node and making all three nodes
 master-eligible. A <<modules-discovery-quorums,master election>> requires only
@@ -127,10 +126,10 @@ two of the three master-eligible nodes. This means the cluster can tolerate the
 loss of any single node. This third node acts as a tiebreaker in cases where the
 two original nodes are disconnected from each other. You can reduce the resource
 requirements of this extra node by making it a <<voting-only-node,dedicated
-voting-only master-eligible node>>, also known as a dedicated tiebreaker. A
-dedicated tiebreaker need not be as powerful as the other two nodes since it has
-no other roles. It will not perform any searches nor coordinate any client
-requests and cannot be elected as the master of the cluster.
+voting-only master-eligible node>>, also known as a dedicated tiebreaker.
+Because it has no other roles, a dedicated tiebreaker does not need to be as
+powerful as the other two nodes. It will not perform any searches nor coordinate
+any client requests and cannot be elected as the master of the cluster.
 
 The two original nodes should not be voting-only master-eligible nodes since a
 resilient cluster requires at least three master-eligible nodes, at least two
@@ -158,8 +157,8 @@ cluster that is suitable for production deployments.
 [[high-availability-cluster-design-three-nodes]]
 ==== Three-node clusters
 
-If you have three nodes then they should normally all be <<data-node,data
-nodes>>, and every index should have at least one replica. Nodes are data nodes
+If you have three nodes, we recommend they all be <<data-node,data
+nodes>> and every index should have at least one replica. Nodes are data nodes
 by default. You may prefer for some indices to have two replicas so that each
 node has a copy of each shard in those indices. You should also configure each
 node to be <<master-node,master-eligible>> so that any two of them can hold a
@@ -287,11 +286,12 @@ expect that if either zone fails then {es} can elect a node from the remaining
 zone as the master but it is impossible to tell the difference between the
 failure of a remote zone and a mere loss of connectivity between the zones. If
 both zones were capable of running independent elections then a loss of
-connectivity would lead to a split brain and therefore data loss. {es} will
-avoid this and protect your data by not electing a node from either zone as
-master until that node can be sure that it has the latest cluster state and
-that there is no other master in the cluster. This may mean there is no master
-at all until connectivity is restored.
+connectivity would lead to a
+https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain problem] and
+therefore data loss. {es} will avoid this and protect your data by not electing
+a node from either zone as master until that node can be sure that it has the
+latest cluster state and that there is no other master in the cluster. This may
+mean there is no master at all until connectivity is restored.
 
 You can solve this by placing one master-eligible node in each of your two
 zones and adding a single extra master-eligible node in an independent third

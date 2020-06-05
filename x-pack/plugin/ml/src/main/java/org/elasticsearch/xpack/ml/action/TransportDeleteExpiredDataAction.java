@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -86,7 +87,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         Instant timeoutTime = Instant.now(clock).plus(
             request.getTimeout() == null ? DEFAULT_MAX_DURATION : Duration.ofMillis(request.getTimeout().millis())
         );
-
+        
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
 
@@ -114,8 +115,6 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                    List<MlDataRemover> dataRemovers,
                                    ActionListener<DeleteExpiredDataAction.Response> listener,
                                    Supplier<Boolean> isTimedOutSupplier) {
-
-
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
         // If there is no throttle provided, default to none
         float requestsPerSec = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();

@@ -227,7 +227,12 @@ public class MLRequestConvertersTests extends ESTestCase {
 
         String expectedPath = jobId == null ? "/_ml/_delete_expired_data" : "/_ml/_delete_expired_data/" + jobId;
         assertEquals(expectedPath, request.getEndpoint());
-        assertEquals("{\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}", requestEntityToString(request));
+        if (jobId == null) {
+            assertEquals("{\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}", requestEntityToString(request));
+        } else {
+            assertEquals("{\"job_id\":\"" + jobId + "\",\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}",
+                requestEntityToString(request));
+        }
     }
 
     public void testDeleteJob() {

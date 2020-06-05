@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,15 +53,13 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public static Request parseRequest(String jobId, XContentParser parser) {
             Request request = PARSER.apply(parser, null);
-            if (jobId != null) {
-                request.jobId = jobId;
-            }
+            request.jobId = jobId;
             return request;
         }
 
         private Float requestsPerSecond;
         private TimeValue timeout;
-        private String jobId = Metadata.ALL;
+        private String jobId;
 
         public Request() {}
 

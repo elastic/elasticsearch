@@ -30,7 +30,7 @@ public class PerPartitionCategorizationConfigTests extends AbstractSerializingTe
     @Override
     protected PerPartitionCategorizationConfig createTestInstance() {
         boolean enabled = randomBoolean();
-        return new PerPartitionCategorizationConfig(enabled, enabled && randomBoolean());
+        return new PerPartitionCategorizationConfig(enabled, randomBoolean() ? null : enabled && randomBoolean());
     }
 
     @Override

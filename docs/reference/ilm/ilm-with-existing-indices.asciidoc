@@ -32,7 +32,7 @@ you don't want to have a lot of indices performing those operations all at once
 when you switch over to {ilm-init}. 
 
 You can specify different `min_age` values in the policy you use for existing indices, 
-or set the <<index-lifecycle-origination-date, `index.lifecycle.origination_date`>> 
+or set <<index-lifecycle-origination-date, `index.lifecycle.origination_date`>> 
 to control how the index age is calculated. 
 
 Once all pre-{ilm-init} indices have been aged out and removed, 

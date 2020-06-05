@@ -107,7 +107,7 @@ public class QueryPhase implements SearchPhase {
         this.suggestPhase = new SuggestPhase();
         this.rescorePhase = new RescorePhase();
     }
-    int p1 = 5;
+
 
     @Override
     public void preProcess(SearchContext context) {

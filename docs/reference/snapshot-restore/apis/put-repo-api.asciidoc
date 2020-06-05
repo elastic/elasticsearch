@@ -113,7 +113,7 @@ source-only snapshots that take up to 50% less space on disk.
 +
 Source-only snapshots are only supported if the <<mapping-source-field,`_source`
 field>> is enabled and no
-<<request-body-search-source-filtering,source-filtering>> is applied.
+<<search-fields,source-filtering>> is applied.
 +
 WARNING: Source-only snapshots contain stored fields and index metadata. They do
 not include index or doc values structures and are not searchable when restored.

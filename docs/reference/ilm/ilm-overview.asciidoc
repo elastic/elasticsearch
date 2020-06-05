@@ -26,7 +26,7 @@ which are common when you're working with time-series data such as logs and metr
 
 You can specify:
 
-* The maximum index size, number of documents, or age at which you want to roll over to a new index.
+* The maximum shard size, number of documents, or age at which you want to roll over to a new index.
 * The point at which the index is no longer being updated and the number of
 primary shards can be reduced.
 * When to force a merge to permanently remove documents marked for deletion.

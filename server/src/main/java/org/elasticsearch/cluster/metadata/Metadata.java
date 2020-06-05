@@ -1462,6 +1462,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         List<String> indexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
                         List<String> conflicts = new ArrayList<>();
                         for (Map.Entry<String, IndexAbstraction> entry : potentialConflicts.entrySet()) {
+                            // This validation is meant to prevent the case where rolling over a backing index will conflict with an
+                            // existing index (ie. data stream `foo` reaches generation 3 and wants to rollover to generation 4, but
+                            // index `foo-000004` was manually created in the meantime).
+                            // Backing indices can be shrunk so we expect some of them to have the `shrink-` prefix.
+                            // We'll allow adding a data stream that has backing indices with prefixed names even if the
+                            // previous non-prefixed backing index exists and is not part of the data stream anymore
+                            // For eg. adding a data stream with backing indices
+                            //    [shrink-foo-000001, foo-000002]
+                            // is valid, even if index `foo-000001` still exists (it will likely be deleted shortly)
+                            // This is the reason why we check if backing indices names `endWith` an existing index name (ie.
+                            // `shrink-foo-000001` ends with standalone index name `foo-000001` so we'll treat it as a valid backing
+                            // index name)
                             if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX ||
                                 indexNames.stream().noneMatch(name -> name.endsWith(entry.getKey()))) {
                                 conflicts.add(entry.getKey());

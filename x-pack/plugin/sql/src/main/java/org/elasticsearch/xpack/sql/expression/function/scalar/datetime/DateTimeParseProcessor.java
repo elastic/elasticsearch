@@ -33,7 +33,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
     public enum Parser {
         DATE_TIME("datetime", ZonedDateTime::from, LocalDateTime::from), 
         TIME("time", OffsetTime::from, LocalTime::from),
-        DATE("date", LocalDate::from, (TemporalAccessor ta) -> {throw new RuntimeException();});
+        DATE("date", LocalDate::from);
         
         private final BiFunction<String, String, TemporalAccessor> parser;
         
@@ -41,8 +41,12 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
         Parser(String parseType,  TemporalQuery<?>... queries) {
             this.parseType = parseType;
+            if (queries.length == 1){
+                queries = new TemporalQuery<?>[]{queries[0], (ta) -> {throw new RuntimeException();}};
+            }
+            final TemporalQuery<?>[] finalQueries = queries;
             this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
-                    .parseBest(timestampStr, queries);
+                    .parseBest(timestampStr, finalQueries);
         }
 
         public Object parse(Object timestamp, Object pattern, ZoneId zoneId) {

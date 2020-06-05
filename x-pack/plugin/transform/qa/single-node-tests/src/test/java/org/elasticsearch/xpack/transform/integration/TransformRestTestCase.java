@@ -54,6 +54,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     private static boolean useDeprecatedEndpoints;
 
+    protected boolean useDeprecatedEndpoints() {
+        return useDeprecatedEndpoints;
+    }
+
     @BeforeClass
     public static void init() {
         // randomly return the old or the new endpoints, old endpoints to be removed for 8.0.0

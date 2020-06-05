@@ -903,4 +903,9 @@ For search examples, see <<run-a-search>>.
 ==== From / size
 
 See <<paginate-search-results>>.
+
+[role="exclude",id="request-body-search-source-filtering"]
+==== Source filtering
+
+See <<search-fields>>.
 ////

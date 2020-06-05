@@ -175,7 +175,11 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
-        assertEquals(Collections.emptyList(), createSnapshotResponse.getSnapshotInfo().dataStreams());
+        expectThrows(Exception.class, () -> client.admin().cluster()
+            .prepareRestoreSnapshot("repo", "snap2")
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get());
     }
 
     public void testDataStreamNotRestoredWhenIndexRequested() throws Exception {
@@ -199,7 +203,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
-        assertEquals(1, createSnapshotResponse.getSnapshotInfo().dataStreams().size());
 
         assertTrue(client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).get().isAcknowledged());
 
@@ -212,8 +215,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
         GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request("ds");
-        RemoteTransportException e = expectThrows(ExecutionException.class, RemoteTransportException.class,
-            () -> client.admin().indices().getDataStreams(getRequest).get());
-        assertEquals(ResourceNotFoundException.class, e.getCause().getClass());
+        Throwable e = expectThrows(ExecutionException.class, () -> client.admin().indices().getDataStreams(getRequest).get()).getCause();
+        if (e instanceof RemoteTransportException) {
+            e = e.getCause();
+        }
+        assertEquals(ResourceNotFoundException.class, e.getClass());
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -209,7 +210,7 @@ public class RestoreService implements ClusterStateApplier {
                 Map<String, DataStream> dataStreams = new HashMap<>(globalMetadata.dataStreams());
                 List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
                 List<String> requestedDataStreams = filterIndices(new ArrayList<>(dataStreams.keySet()),
-                    requestIndices.toArray(String[]::new), request.indicesOptions());
+                    requestIndices.toArray(String[]::new), IndicesOptions.fromOptions(true, true, true, true));
                 dataStreams.keySet().retainAll(requestedDataStreams);
                 requestIndices.removeAll(dataStreams.keySet());
                 requestIndices.addAll(dataStreams.values().stream()

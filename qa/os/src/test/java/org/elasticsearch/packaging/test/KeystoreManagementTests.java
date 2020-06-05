@@ -157,7 +157,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearch(password, true, false));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, false));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
@@ -168,7 +168,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearch("wrong", false, false);
+        Shell.Result result = runElasticsearchStartCommand("wrong", false, false);
         assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
@@ -185,7 +185,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearch(password, true, true));
+        awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
@@ -198,7 +198,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearch("wrong", false, true);
+        Shell.Result result = runElasticsearchStartCommand("wrong", false, true);
         // error will be on stdout for "expect"
         assertThat(result.stdout, anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
     }
@@ -261,7 +261,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Files.write(esKeystorePassphraseFile, List.of("wrongpassword"));
 
             Packages.JournaldWrapper journaldWrapper = new Packages.JournaldWrapper(sh);
-            Shell.Result result = runElasticsearchStartCommand(false);
+            Shell.Result result = runElasticsearchStartCommand(null, false, false);
             assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), journaldWrapper);
         } finally {
             sh.run("sudo systemctl unset-environment ES_KEYSTORE_PASSPHRASE_FILE");

@@ -8,7 +8,8 @@ It's set automatically by {ilm-init} when the rollover action completes successf
 
 You can set it manually to skip rollover if you need to make an exception
 to your normal lifecycle policy and update the alias to force a roll over, 
-but want {ilm-init} to continue to manage the index.
+but want {ilm-init} to continue to manage the index. 
+If you use the rollover API. It is not necessary to  configure this setting manually. 
 
 If an index's lifecycle policy is removed, this setting is also removed.
 
@@ -28,6 +29,6 @@ using the <<indices-aliases, index aliases>> API.
 . Set `index.lifecycle.indexing_complete` to `true` on the old index to indicate 
 that it does not need to be rolled over.
 
-{ilm} continues to manage the old index in accordance with your existing policy. 
+{ilm-init} continues to manage the old index in accordance with your existing policy. 
 New indices are named according to the new template and 
 managed according to the same policy without interruption.

@@ -138,7 +138,7 @@ PUT _ilm/policy/shrink-index
 === Retrying failed lifecycle policy steps
 
 Once you fix the problem that put an index in the `ERROR` step, 
-you need to explicitly tell {ilm-init} to retry the step:
+you might need to explicitly tell {ilm-init} to retry the step:
 
 [source,console]
 --------------------------------------------------

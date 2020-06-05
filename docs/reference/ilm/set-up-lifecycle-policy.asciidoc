@@ -14,8 +14,7 @@ you can specify a lifecycle policy when you create it.
 
 {ilm-init} policies are stored in the global cluster state and can be included in snapshots
 by setting `include_global_state` to `true` when you <<snapshots-take-snapshot, take the snapshot>>. 
-Restoring {ilm-init} policies from a snapshot is all-or-nothing. 
-The entire global state, including all policies, is overwritten when you restore a snapshot.
+When the snapshot is restored, all of the policies in the global state are restored and any local policies with the same names are overwritten.
 
 IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
 the necessary policies and configuration changes are applied automatically. 

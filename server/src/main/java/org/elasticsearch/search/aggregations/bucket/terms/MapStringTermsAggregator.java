@@ -139,6 +139,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
+        add.accept("total_buckets", bucketOrds.size());
         add.accept("result_strategy", resultStrategy.describe());
     }
 

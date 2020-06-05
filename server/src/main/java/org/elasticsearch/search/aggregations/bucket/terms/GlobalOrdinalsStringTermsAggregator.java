@@ -204,6 +204,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("collection_strategy", collectionStrategy.describe());
+        collectionStrategy.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
@@ -375,6 +376,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          */
         abstract String describe();
         /**
+         * Collect debug information to add to the profiling results. This will
+         * only be called if the aggregation is being profiled.
+         */
+        abstract void collectDebugInfo(BiConsumer<String, Object> add);
+        /**
          * Called when the global ordinals are ready.
          */
         abstract void globalOrdsReady(SortedSetDocValues globalOrds);
@@ -416,6 +422,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         String describe() {
             return "dense";
         }
+
+        @Override
+        void collectDebugInfo(BiConsumer<String, Object> add) {}
 
         @Override
         void globalOrdsReady(SortedSetDocValues globalOrds) {
@@ -468,6 +477,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         String describe() {
             return "remap";
+        }
+
+        @Override
+        void collectDebugInfo(BiConsumer<String, Object> add) {
+            add.accept("total_buckets", bucketOrds.size());
         }
 
         @Override

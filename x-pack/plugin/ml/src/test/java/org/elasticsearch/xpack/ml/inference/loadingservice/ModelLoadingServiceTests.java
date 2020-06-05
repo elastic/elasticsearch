@@ -390,7 +390,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             auditor,
             threadPool,
             clusterService,
-            NamedXContentRegistry.EMPTY,
             trainedModelStatsService,
             Settings.EMPTY,
             "test-node");
@@ -403,7 +402,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         assertTrue(modelLoadingService.isModelCached(modelId));
 
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(modelId), eq(true), any());
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(modelId), any());
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 

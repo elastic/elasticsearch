@@ -69,6 +69,9 @@ can be explicitly configured by adding the following setting in your
 ------------------------------------------------------------
 xpack.security.authc.token.enabled: true
 ------------------------------------------------------------
+
+This step is necessary to support Kerberos authentication via {kib}.
+It is not required for Kerberos authentication directly against the {es} Rest API.
 --
 
 [[kerberos-realm-create]]

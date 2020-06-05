@@ -447,7 +447,9 @@ public class MetadataIndexTemplateService {
         ClusterState newState = ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
             .build();
-        validateDataStreamTemplate(name, finalIndexTemplate, newState);
+        if (finalIndexTemplate.getDataStreamTemplate() != null) {
+            validateDataStreamTemplate(name, finalIndexTemplate, newState);
+        }
         return newState;
     }
 

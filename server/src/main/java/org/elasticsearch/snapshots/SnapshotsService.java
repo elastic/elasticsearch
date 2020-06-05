@@ -227,8 +227,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
                     request.indicesOptions(), true, request.indices()));
 
-                List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(),
-                    request.indices());
+                Map<String, DataStream> allDataStreams = currentState.metadata().dataStreams();
+                List<String> dataStreams;
+                if (request.includeGlobalState()) {
+                    dataStreams = new ArrayList<>(allDataStreams.keySet());
+                } else {
+                    dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
+                }
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 

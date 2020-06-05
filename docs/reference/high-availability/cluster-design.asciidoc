@@ -82,9 +82,9 @@ false` on one node, both nodes are master-eligible. This means both nodes are
 required for a master election. This election will fail if your cluster cannot reliably
 tolerate the loss of either node.
 
-It is a good idea for both nodes to have all other roles so that the other
-tasks in the cluster can be handled by either node. Nodes have all roles by
-default.
+By default, each node is assigned every role. We recommend both nodes are
+assigned all other roles. If one node fails, the other node can handle its
+tasks.
 
 You should avoid sending client requests to just one of your nodes. If you do
 and this node fails, such requests will not receive responses even if the

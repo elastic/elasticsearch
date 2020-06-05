@@ -55,7 +55,7 @@ PUT /_index_template/logs_template
         }
       }
     }
-  }
+  },
   "data_stream": {
     "timestamp_field": "@timestamp"
   }

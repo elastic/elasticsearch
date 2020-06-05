@@ -91,7 +91,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), GeoDistanceAggregationBuilder.NAME);
+            .getAggregator(config, GeoDistanceAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoDistanceAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoDistanceAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");

@@ -47,7 +47,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
             "_type", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("conditional-processor__type",
+                deprecationLogger.deprecate("conditional-processor__type",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });

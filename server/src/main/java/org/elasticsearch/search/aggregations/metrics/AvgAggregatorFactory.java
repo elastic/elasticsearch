@@ -54,7 +54,7 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new AvgAggregator(name, config, null, searchContext, parent, metadata);
+        return new AvgAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
@@ -69,6 +69,6 @@ class AvgAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, config.getValuesSource(), searchContext, parent, metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, searchContext, parent, metadata);
     }
 }

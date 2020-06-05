@@ -56,7 +56,7 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new StatsAggregator(name, config, null, searchContext, parent, metadata);
+        return new StatsAggregator(name, config, searchContext, parent, metadata);
     }
 
     @Override
@@ -71,6 +71,6 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected MetricAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, config.getValuesSource(), searchContext, parent, metadata);
+        return ((MetricAggregatorSupplier) aggregatorSupplier).build(name, config, searchContext, parent, metadata);
     }
 }

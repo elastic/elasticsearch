@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -61,7 +60,7 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new ExtendedStatsAggregator(name, null, config.format(), searchContext, parent, sigma, metadata);
+        return new ExtendedStatsAggregator(name, config, searchContext, parent, sigma, metadata);
     }
 
     @Override
@@ -76,7 +75,6 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected ExtendedStatsAggregatorProvider, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((ExtendedStatsAggregatorProvider) aggregatorSupplier).build(name, (Numeric) config.getValuesSource(), config.format(),
-            searchContext, parent, sigma, metadata);
+        return ((ExtendedStatsAggregatorProvider) aggregatorSupplier).build(name, config, searchContext, parent, sigma, metadata);
     }
 }

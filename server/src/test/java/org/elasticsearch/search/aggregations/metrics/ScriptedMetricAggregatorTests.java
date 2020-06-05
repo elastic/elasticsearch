@@ -120,7 +120,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         });
         SCRIPTS.put("reduceScript", params -> {
             List<Integer> states = (List<Integer>) params.get("states");
-            return states.parallelStream().mapToInt(Integer::intValue).sum();
+            return states.stream().mapToInt(Integer::intValue).sum();
         });
 
         SCRIPTS.put("initScriptScore", params -> {

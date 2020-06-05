@@ -326,8 +326,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         rolloverRequest.getCreateIndexRequest().settings(settings);
-        final CreateIndexClusterStateUpdateRequest createIndexRequest =
-            MetadataRolloverService.prepareDataStreamCreateIndexRequest(newWriteIndexName, rolloverRequest.getCreateIndexRequest());
+        final CreateIndexClusterStateUpdateRequest createIndexRequest = MetadataRolloverService.prepareDataStreamCreateIndexRequest(
+            dataStream.getName(), newWriteIndexName, rolloverRequest.getCreateIndexRequest());
         for (String settingKey : settings.keySet()) {
             assertThat(settings.get(settingKey), equalTo(createIndexRequest.settings().get(settingKey)));
         }

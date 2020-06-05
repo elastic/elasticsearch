@@ -1113,6 +1113,25 @@ The field used to segment the analysis. When you use this property, you have
 completely independent baselines for each value of this field.
 end::partition-field-name[]
 
+tag::per-partition-categorization[]
+Settings related to how categorization interacts with partition fields.
+end::per-partition-categorization[]
+
+tag::per-partition-categorization-enabled[]
+To enable this setting, you must also set the partition_field_name property to
+the same value in every detector that uses the keyword mlcategory. Otherwise,
+job creation fails.
+end::per-partition-categorization-enabled[]
+
+tag::per-partition-categorization-stop-on-warn[]
+This setting can be set to true only if per-partition categorization is enabled.
+If true, both categorization and subsequent anomaly detection stops for
+partitions where the categorization status changes to `warn`. This setting makes
+it viable to have a job where it is expected that categorization works well for
+some partitions but not others; you do not pay the cost of bad categorization
+forever in the partitions where it works badly.
+end::per-partition-categorization-stop-on-warn[]
+
 tag::prediction-field-name[]
 Defines the name of the prediction field in the results. 
 Defaults to `<dependent_variable>_prediction`.

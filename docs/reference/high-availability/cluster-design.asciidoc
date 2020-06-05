@@ -33,12 +33,12 @@ cluster to full health after a failure. Finally, the cluster needs three
 master-eligible nodes so that if one of them fails then the remaining two still
 form a majority and can hold a successful election.
 
-Depending on your needs and budget, an {es} cluster can consist of a single node,
-hundreds of nodes, or any number in between. When designing a smaller cluster, you
-should typically focus on making it resilient to single-node failures.
-Designers of larger clusters must also consider cases where multiple nodes
-fail at the same time. This section gives some recommendations for building
-resilient clusters of various sizes.
+Depending on your needs and budget, an {es} cluster can consist of a single
+node, hundreds of nodes, or any number in between. When designing a smaller
+cluster, you should typically focus on making it resilient to single-node
+failures. Designers of larger clusters must also consider cases where multiple
+nodes fail at the same time. This section gives some recommendations for
+building resilient clusters of various sizes.
 
 [[high-availability-cluster-small-clusters]]
 === Resilience in small clusters
@@ -53,15 +53,15 @@ as possible to the failure of an individual node.
 If your cluster consists of one node, that single node must do everything.
 To accommodate this, {es} assigns nodes every role by default.
 
-A single node cluster is not resilient. If the
-the node fails, the cluster will stop working. Because there are no replicas in
-a one-node cluster, you cannot store your data redundantly. However, at least
-one replica is required for a <cluster-health,`green` cluster health status>>.
-To ensure your cluster can report a `green` status, set
+A single node cluster is not resilient. If the the node fails, the cluster will
+stop working. Because there are no replicas in a one-node cluster, you cannot
+store your data redundantly. However, at least one replica is required for a
+<cluster-health,`green` cluster health status>>. To ensure your cluster can
+report a `green` status, set
 <<dynamic-index-settings,`index.number_of_replicas`>> to `0` on every index. If
-the node fails, you may need to restore an older copy of any lost
-indices from a <<modules-snapshots,snapshot>>. Because they are not resilient to
-any failures, we do not recommend using one-node clusters in production.
+the node fails, you may need to restore an older copy of any lost indices from a
+<<modules-snapshots,snapshot>>. Because they are not resilient to any failures,
+we do not recommend using one-node clusters in production.
 
 [[high-availability-cluster-design-two-nodes]]
 ==== Two-node clusters
@@ -75,11 +75,11 @@ replicas>> can also achieve the same thing, but it's not necessary to use this
 feature in such a small cluster.
 
 We recommend you set `node.master: false` on one of your two nodes so that it is
-not <<master-node,master-eligible>>. This means you can be certain which of
-your nodes is the elected master of the cluster. The cluster can
-tolerate the loss of the other master-ineligible node. If you don't set `node.master:
-false` on one node, both nodes are master-eligible. This means both nodes are
-required for a master election. This election will fail if your cluster cannot reliably
+not <<master-node,master-eligible>>. This means you can be certain which of your
+nodes is the elected master of the cluster. The cluster can tolerate the loss of
+the other master-ineligible node. If you don't set `node.master: false` on one
+node, both nodes are master-eligible. This means both nodes are required for a
+master election. This election will fail if your cluster cannot reliably
 tolerate the loss of either node.
 
 By default, each node is assigned every role. We recommend both nodes are
@@ -118,13 +118,13 @@ restored.
 
 You can solve this problem by adding a third node and making all three nodes
 master-eligible. A <<modules-discovery-quorums,master election>> requires only
-two of the three master-eligible nodes. This means the cluster can tolerate the loss of any single
-node. This third node acts as a tiebreaker in cases where the two
-original nodes are disconnected from each other. You can reduce the resource
+two of the three master-eligible nodes. This means the cluster can tolerate the
+loss of any single node. This third node acts as a tiebreaker in cases where the
+two original nodes are disconnected from each other. You can reduce the resource
 requirements of this extra node by making it a <<voting-only-node,dedicated
 voting-only master-eligible node>>, also known as a dedicated tiebreaker. A
-dedicated tiebreaker need not be as powerful as the other two nodes since it
-has no other roles. It will not perform any searches nor coordinate any client
+dedicated tiebreaker need not be as powerful as the other two nodes since it has
+no other roles. It will not perform any searches nor coordinate any client
 requests and cannot be elected as the master of the cluster.
 
 The two original nodes should not be voting-only master-eligible nodes since a
@@ -204,15 +204,15 @@ never become the master itself.
 
 The cluster will be resilient to the loss of any node as long as:
 
-- The cluster health status is `green.
-- There are at least two data nodes.
-- Every index has at least one replica of each shard, in addition to the primary.
-- The cluster has at least three master-eligible nodes. At least two of these nodes
-  are not voting-only, master-eligible nodes.
+- The cluster health status is `green. - There are at least two data nodes. -
+  Every index has at least one replica of each shard, in addition to the 
+  primary.
+- The cluster has at least three master-eligible nodes. At least two of these
+  nodes are not voting-only, master-eligible nodes.
 - Clients are configured to send their requests to more than one node or are
   configured to use a load balancer that balances the requests across an
-  appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such a load
-  balancer.
+  appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such
+  a load balancer.
 
 [[high-availability-cluster-design-large-clusters]]
 === Resilience in larger clusters
@@ -250,7 +250,7 @@ more than one zone.
 
 You should consider all node roles and ensure that each role is split
 redundantly across two or more zones. For instance, if you are using
-<<ingest,ingest pipelines>> or {stack-ov}/xpack-ml.html[{ml}], 
+<<ingest,ingest pipelines>> or {stack-ov}/xpack-ml.html[{ml}],
 you should have ingest or {ml} nodes in two or more zones. However,
 the placement of master-eligible nodes requires a little more care because a
 resilient cluster needs at least two of the three master-eligible nodes in
@@ -332,13 +332,14 @@ The cluster will be resilient to the loss of any zone as long as:
 
 - The cluster health status is `green`.
 - There are at least two zones containing data nodes.
-- Every index has at least one replica of each shard, in addition to the primary.
+- Every index has at least one replica of each shard, in addition to the 
+  primary.
 - Shard allocation awareness is configured to avoid concentrating all copies of
   a shard within a single zone.
-- The cluster has at least three master-eligible nodes. At least two of these nodes
-  are not voting-only master-eligible nodes, spread evenly across at least
+- The cluster has at least three master-eligible nodes. At least two of these 
+  nodes are not voting-only master-eligible nodes, spread evenly across at least
   three zones.
 - Clients are configured to send their requests to nodes in more than one zone
   or are configured to use a load balancer that balances the requests across an
-  appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such a load
-  balancer.
+  appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such
+  a load balancer.

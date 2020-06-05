@@ -11,7 +11,7 @@ Once {ilm-init} is managing your current write index, you can apply an appropria
 
 * Reindex into an {ilm-init}-managed index. 
 
-NOTE: Starting in version 5.7, Curator ignores {ilm-init} managed indices.
+NOTE: Starting in Curator version 5.7, Curator ignores {ilm-init} managed indices.
 
 [discrete]
 [[ilm-existing-indices-apply]]

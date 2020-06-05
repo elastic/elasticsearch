@@ -139,9 +139,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model2), any());
         verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), any());
 
-        assertTrue(modelLoadingService.modelIsCached(model1));
-        assertTrue(modelLoadingService.modelIsCached(model2));
-        assertTrue(modelLoadingService.modelIsCached(model3));
+        assertTrue(modelLoadingService.isModelCached(model1));
+        assertTrue(modelLoadingService.isModelCached(model2));
+        assertTrue(modelLoadingService.isModelCached(model3));
 
         // Test invalidate cache for model3
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
@@ -300,13 +300,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-<<<<<<< HEAD
+        assertFalse(modelLoadingService.isModelCached(model1));
         verify(trainedModelProvider, times(10)).getTrainedModelForInference(eq(model1), any());
-=======
-        assertFalse(modelLoadingService.modelIsCached(model1));
-
-        verify(trainedModelProvider, times(10)).getTrainedModel(eq(model1), eq(true), any());
->>>>>>> Add method for search models to service
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
@@ -333,7 +328,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         } catch (Exception ex) {
             assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
-        assertFalse(modelLoadingService.modelIsCached(model));
+        assertFalse(modelLoadingService.isModelCached(model));
 
         verify(trainedModelProvider, atMost(2)).getTrainedModelForInference(eq(model), any());
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
@@ -360,7 +355,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         } catch (Exception ex) {
             assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
-        assertFalse(modelLoadingService.modelIsCached(model));
+        assertFalse(modelLoadingService.isModelCached(model));
     }
 
     public void testGetModelEagerly() throws Exception {
@@ -382,13 +377,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-<<<<<<< HEAD
         verify(trainedModelProvider, times(3)).getTrainedModelForInference(eq(model), any());
-=======
-        assertFalse(modelLoadingService.modelIsCached(model));
-
-        verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), eq(true), any());
->>>>>>> Add method for search models to service
+        assertFalse(modelLoadingService.isModelCached(model));
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
@@ -411,7 +401,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        assertTrue(modelLoadingService.modelIsCached(modelId));
+        assertTrue(modelLoadingService.isModelCached(modelId));
 
         verify(trainedModelProvider, times(1)).getTrainedModel(eq(modelId), eq(true), any());
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());

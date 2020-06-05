@@ -134,7 +134,7 @@ public class ModelLoadingService implements ClusterStateListener {
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, modelAndConsumer) -> modelAndConsumer.model.ramBytesUsed())
             // explicit declaration of the listener lambda necessary for Eclipse IDE 4.14
-            .removalListener(this::cacheEvictionListener)
+            .removalListener(notification -> cacheEvictionListener(notification))
             .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
             .build();
         clusterService.addListener(this);
@@ -142,7 +142,7 @@ public class ModelLoadingService implements ClusterStateListener {
         this.trainedModelCircuitBreaker = ExceptionsHelper.requireNonNull(trainedModelCircuitBreaker, "trainedModelCircuitBreaker");
     }
 
-    public boolean modelIsCached(String modelId) {
+    boolean isModelCached(String modelId) {
         return localModelCache.get(modelId) != null;
     }
 
@@ -202,7 +202,7 @@ public class ModelLoadingService implements ClusterStateListener {
             return;
         }
 
-        if (loadModelIfNecessary(modelId, consumer, modelActionListener) == false) {
+        if (loadModelIfNecessary(modelId, consumer, modelActionListener)) {
             logger.trace(() -> new ParameterizedMessage("[{}] is loading or loaded, added new listener to queue", modelId));
         }
     }
@@ -425,10 +425,10 @@ public class ModelLoadingService implements ClusterStateListener {
 
             // Remove all cached models that are not referenced by any processors
             // and are not used in search
-            removedModels.forEach(modleId -> {
-                ModelAndConsumer modelAndConsumer = localModelCache.get(modleId);
+            removedModels.forEach(modelId -> {
+                ModelAndConsumer modelAndConsumer = localModelCache.get(modelId);
                 if (modelAndConsumer != null && modelAndConsumer.consumers.contains(Consumer.SEARCH) == false) {
-                    localModelCache.invalidate(modleId);
+                    localModelCache.invalidate(modelId);
                 }
             });
             // Remove the models that are no longer referenced

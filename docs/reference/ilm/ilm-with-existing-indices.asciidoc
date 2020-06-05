@@ -81,7 +81,7 @@ PUT _cluster/settings
 }
 -----------------------
 // TEST[skip:don't want to overwrite this setting for other tests]
-<1> Check for rollover conditions every minute.
+<1> Check once a minute to see if {ilm-init} actions such as rollover need to be performed.
 --
 
 . Reindex your data using the <<docs-reindex,reindex API>>. 

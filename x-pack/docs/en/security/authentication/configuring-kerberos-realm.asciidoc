@@ -52,6 +52,9 @@ https://docs.oracle.com/javase/10/security/kerberos-requirements1.htm[Java GSS K
 If your {es} cluster is operating in production mode, you must configure the
 HTTP interface to use SSL/TLS before you can enable Kerberos authentication. For
 more information, see <<tls-http>>.
+
+This step is necessary to support Kerberos authentication via {kib}.
+It is not required for Kerberos authentication directly against the {es} Rest API.
 --
 
 . Enable the token service

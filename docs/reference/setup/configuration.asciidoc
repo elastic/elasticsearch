@@ -79,7 +79,7 @@ node.name:    ${HOSTNAME}
 network.host: ${ES_NETWORK_HOST}
 --------------------------------------------------
 
-When specifying values for environment variables, you can only use strings. More complex data structures like lists are not supported. However, settings that accept data structures such as lists also accepted comma-separated strings. For example, you can specify multiple values for the `${HOSTNAME}` variable from the previous example:
+Values for environment variables must be simple strings. Use a comma-separated string to provide values that Elasticsearch will parse as a list. For example, Elasticsearch will split the following string into a list of values for the `${HOSTNAME}` environment variable:
 
 [source,yaml]
 ----

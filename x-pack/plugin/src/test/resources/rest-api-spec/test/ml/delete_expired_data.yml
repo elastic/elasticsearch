@@ -156,9 +156,3 @@ setup:
       ml.get_model_snapshots:
         job_id: delete-expired-data-a
   - match: { count: 1 }
-
----
-"Test delete expired data with unknown job id":
-  - do:
-      ml.delete_expired_data:
-        job_id: not-a-job

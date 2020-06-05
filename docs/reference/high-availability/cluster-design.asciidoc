@@ -23,15 +23,17 @@ except the elected master node. For resilient clusters, we recommend:
 * At least two nodes of each role
 * At least two copies of each shard (one primary and one or more replicas)
 
-The node redundancy makes it likely that if a node for a particular role fails,
-another node can take on its responsibilities.
+A resilient cluster needs three master-eligible nodes so that if one of
+them fails then the remaining two still form a majority and can hold a
+successful election.
 
-Similarly, a resilient cluster should have at least two copies of each shard. If
+Similarly, node redundancy makes it likely that if a node for a particular role
+fails, another node can take on its responsibilities.
+
+Finally, a resilient cluster should have at least two copies of each shard. If
 one copy fails then there is another good copy to take over. {es} automatically
 rebuilds any failed shard copies on the remaining nodes in order to restore the
-cluster to full health after a failure. Finally, the cluster needs three
-master-eligible nodes so that if one of them fails then the remaining two still
-form a majority and can hold a successful election.
+cluster to full health after a failure.
 
 Depending on your needs and budget, an {es} cluster can consist of a single
 node, hundreds of nodes, or any number in between. When designing a smaller

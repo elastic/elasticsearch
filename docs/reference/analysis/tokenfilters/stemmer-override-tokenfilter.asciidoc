@@ -4,11 +4,12 @@
 <titleabbrev>Stemmer override</titleabbrev>
 ++++
 
-Stems specified tokens based on mapping rules in the form of 
-`token1[,..., tokenN] => override`. The `stemmer_override` filter then assigns
-these tokens a `keyword` attribute of `true`. These keyword tokens are not
-stemmed by later stemmer filters, such as
-<<analysis-stemmer-tokenfilter,`stemmer`>> or
+Stems tokens based on a list of custom mapping rules. Mapping rules are
+formatted as `<token1>[,..., <tokenN>] => <override>`.
+
+The `stemmer_override` filter then assigns these stemmed tokens a `keyword`
+attribute of `true`. These keyword tokens are not stemmed by later stemmer
+filters, such as <<analysis-stemmer-tokenfilter,`stemmer`>> or
 <<analysis-porterstem-tokenfilter,`porter_stem`>>.
 
 [IMPORTANT]
@@ -285,7 +286,7 @@ The API returns the following response. Note the `quick` token has a
 
 `rules`::
 (Required*, array of strings)
-A list of custom mapping rules. The input and output token must be separated by
+Array of custom mapping rules. The input and output token must be separated by
 a `=>` (e.g., `running => run`). Output tokens are assigned a `keyword`
 attribute of `true`. Stemmer token filters skip these keyword tokens.
 +

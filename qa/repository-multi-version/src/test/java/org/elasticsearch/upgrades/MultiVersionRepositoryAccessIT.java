@@ -19,10 +19,8 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -65,7 +63,6 @@ import static org.hamcrest.Matchers.is;
  *     <li>Run against the current version cluster from the second step: {@link TestStep#STEP4_NEW_CLUSTER}</li>
  * </ul>
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57650")
 public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private enum TestStep {
@@ -290,7 +287,11 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static void createSnapshot(RestHighLevelClient client, String repoName, String name, String index) throws IOException {
-        client.snapshot().create(new CreateSnapshotRequest(repoName, name).waitForCompletion(true).indices(index), RequestOptions.DEFAULT);
+        final Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + name);
+        createSnapshotRequest.addParameter("wait_for_completion", "true");
+        createSnapshotRequest.setJsonEntity("{ \"indices\" : \"" + index + "\"}");
+        final Response response = client.getLowLevelClient().performRequest(createSnapshotRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(HttpURLConnection.HTTP_OK));
     }
 
     private void createIndex(RestHighLevelClient client, String name, int shards) throws IOException {

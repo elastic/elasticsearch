@@ -40,7 +40,9 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskDependency;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
 
@@ -48,6 +50,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 
@@ -106,21 +109,29 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     void setupDistributions(Project project) {
         for (ElasticsearchDistribution distribution : distributionsContainer) {
             distribution.finalizeValues();
+            if (distribution.isLocalInstall()) {
+                String localInstallTaskPath = distributionLocalInstallTaskPath(distribution);
+                // TODO resolve without realizing task
+                Copy byPath = (Copy) project.getTasks().getByPath(localInstallTaskPath);
+                TaskDependency taskDependency = task -> Set.of(byPath);
+                distribution.setLocalInstallTaskDependency(taskDependency);
+                distribution.setLocalInstallTask(byPath);
+            } else {
+                DependencyHandler dependencies = project.getDependencies();
+                // for the distribution as a file, just depend on the artifact directly
+                dependencies.add(distribution.configuration.getName(), dependencyNotation(project, distribution));
 
-            DependencyHandler dependencies = project.getDependencies();
-            // for the distribution as a file, just depend on the artifact directly
-            dependencies.add(distribution.configuration.getName(), dependencyNotation(project, distribution));
-
-            // no extraction allowed for rpm, deb or docker
-            if (distribution.getType().shouldExtract()) {
-                // for the distribution extracted, add a root level task that does the extraction, and depend on that
-                // extracted configuration as an artifact consisting of the extracted distribution directory
-                dependencies.add(
-                    distribution.getExtracted().configuration.getName(),
-                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution))
-                );
-                // ensure a root level download task exists
-                setupRootDownload(project.getRootProject(), distribution);
+                // no extraction allowed for rpm, deb or docker
+                if (distribution.getType().shouldExtract()) {
+                    // for the distribution extracted, add a root level task that does the extraction, and depend on that
+                    // extracted configuration as an artifact consisting of the extracted distribution directory
+                    dependencies.add(
+                        distribution.getExtracted().configuration.getName(),
+                        projectDependency(project, ":", configName("extracted_elasticsearch", distribution))
+                    );
+                    // ensure a root level download task exists
+                    setupRootDownload(project.getRootProject(), distribution);
+                }
             }
         }
     }
@@ -336,16 +347,20 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         );
     }
 
+    private String distributionLocalInstallTaskPath(ElasticsearchDistribution distribution) {
+        String taskPath = ":distribution:archives:install";
+        taskPath += getDistributionFlavourString(distribution);
+        if (distribution.getType() == Type.ARCHIVE) {
+            taskPath += capitalize(distribution.getPlatform().toString());
+        } else if (distribution.getType() != Type.INTEG_TEST_ZIP) {
+            taskPath += capitalize(distribution.getType().toString());
+        }
+        return taskPath;
+    }
+
     private static String extractTaskName(ElasticsearchDistribution distribution) {
         String taskName = "extractElasticsearch";
-        if (distribution.getType() != Type.INTEG_TEST_ZIP) {
-            if (distribution.getFlavor() == Flavor.OSS) {
-                taskName += "Oss";
-            }
-            if (distribution.getBundledJdk() == false) {
-                taskName += "NoJdk";
-            }
-        }
+        taskName += getDistributionFlavourString(distribution);
         if (distribution.getType() == Type.ARCHIVE) {
             taskName += capitalize(distribution.getPlatform().toString());
         } else if (distribution.getType() != Type.INTEG_TEST_ZIP) {
@@ -353,5 +368,18 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
         taskName += distribution.getVersion();
         return taskName;
+    }
+
+    private static String getDistributionFlavourString(ElasticsearchDistribution distribution) {
+        String suffix = "";
+        if (distribution.getType() != Type.INTEG_TEST_ZIP) {
+            if (distribution.getFlavor() == Flavor.OSS) {
+                suffix += "Oss";
+            }
+            if (distribution.getBundledJdk() == false) {
+                suffix += "NoJdk";
+            }
+        }
+        return suffix;
     }
 }

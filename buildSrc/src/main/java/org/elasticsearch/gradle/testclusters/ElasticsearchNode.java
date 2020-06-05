@@ -750,6 +750,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void startElasticsearchProcess() {
         final ProcessBuilder processBuilder = new ProcessBuilder();
 
+        System.out.println("workingDir = " + workingDir);
         List<String> command = OS.<List<String>>conditional()
             .onUnix(() -> Arrays.asList(workingDir.relativize(getDistroDir()).resolve("./bin/elasticsearch").toString()))
             .onWindows(() -> Arrays.asList("cmd", "/c", workingDir.relativize(getDistroDir()).resolve("bin\\elasticsearch.bat").toString()))
@@ -776,6 +777,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();
+            System.out.println("esProcess = " + esProcess);
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
@@ -1159,7 +1161,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private Path getExtractedDistributionDir() {
-        return Paths.get(distributions.get(currentDistro).getExtracted().toString());
+        return Paths.get(distributions.get(currentDistro).getInstallDir());
     }
 
     private List<File> getInstalledFileSet(Action<? super PatternFilterable> filter) {
@@ -1210,7 +1212,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Set<File> getDistributionFiles(Action<PatternFilterable> patternFilter) {
         Set<File> files = new TreeSet<>();
         for (ElasticsearchDistribution distribution : distributions) {
-            files.addAll(project.fileTree(Paths.get(distribution.getExtracted().toString())).matching(patternFilter).getFiles());
+            files.addAll(project.fileTree(Paths.get(distribution.getInstallDir())).matching(patternFilter).getFiles());
         }
         return files;
     }

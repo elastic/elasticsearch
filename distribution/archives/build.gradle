@@ -22,8 +22,6 @@ import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
 import groovy.io.FileType
 import java.nio.file.Files
@@ -31,6 +29,7 @@ import java.nio.file.Path
 
 // need this so Zip/Tar tasks get basic defaults...
 apply plugin: 'base'
+
 
 // CopySpec does not make it easy to create an empty directory so we
 // create the directory that we want, and then point CopySpec to its
@@ -50,7 +49,6 @@ tasks.register('createJvmOptionsDir', EmptyDirTask) {
   dir = "${jvmOptionsDir}"
   dirMode = 0750
 }
-
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean oss, boolean jdk) {
   return copySpec {
     into("elasticsearch-${version}") {
@@ -102,6 +100,8 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
   }
 }
 
+evaluationDependsOn(":distribution")
+
 // common config across all zip/tar
 tasks.withType(AbstractArchiveTask).configureEach {
   dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
@@ -110,34 +110,58 @@ tasks.withType(AbstractArchiveTask).configureEach {
   archiveBaseName = "elasticsearch${subdir.contains('oss') ? '-oss' : ''}"
 }
 
+
 Closure commonZipConfig = {
   dirMode 0755
   fileMode 0644
 }
 
+tasks.withType(Copy).configureEach {
+  dependsOn createLogsDir, createPluginsDir, createJvmOptionsDir
+  dirMode 0755
+  fileMode 0644
+  includeEmptyDirs = true
+  into("build/${name}")
+}
+
+tasks.register("installIntegTest", Copy) {
+  with archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
+}
 tasks.register('buildIntegTestZip', Zip) {
   configure(commonZipConfig)
   with archiveFiles(transportModulesFiles, 'zip', null, 'x64', true, false)
 }
 
+tasks.register("installWindows", Copy) {
+  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
+}
 tasks.register('buildWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
   with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, true)
 }
 
+tasks.register("installOssWindows", Copy) {
+  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
+}
 tasks.register('buildOssWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
   with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, true)
 }
 
+tasks.register("installNoJdkWindows", Copy) {
+  with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
+}
 tasks.register('buildNoJdkWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
   with archiveFiles(modulesFiles(false, 'windows-x86_64'), 'zip', 'windows', 'x64', false, false)
 }
 
+tasks.register("installOssNoJdkWindows", Copy) {
+  with archiveFiles(modulesFiles(true, 'windows-x86_64'), 'zip', 'windows', 'x64', true, false)
+}
 tasks.register('buildOssNoJdkWindowsZip', Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
@@ -151,60 +175,90 @@ Closure commonTarConfig = {
   fileMode 0644
 }
 
+tasks.register("installDarwin", Copy) {
+  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
+}
 tasks.register('buildDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, true)
 }
 
+tasks.register("installOssDarwin", Copy) {
+  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
+}
 tasks.register('buildOssDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
 }
 
+tasks.register("installNoJdkDarwin", Copy) {
+  with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
+}
 tasks.register('buildNoJdkDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
   with archiveFiles(modulesFiles(false, 'darwin-x86_64'), 'tar', 'darwin', 'x64', false, false)
 }
 
+tasks.register("installOssNoJdkDarwin", Copy) {
+  with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
+}
 tasks.register('buildOssNoJdkDarwinTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
   with archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, false)
 }
 
+tasks.register("installLinuxAarch64", Copy) {
+  with archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
+}
 tasks.register('buildLinuxAarch64Tar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-aarch64'
   with archiveFiles(modulesFiles(false, 'linux-aarch64'), 'tar', 'linux', 'aarch64', false, true)
 }
 
+tasks.register("installLinux", Copy) {
+  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
+}
 tasks.register('buildLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
   with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, true)
 }
 
+tasks.register("installOssLinuxAarch64", Copy) {
+  with archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
+}
 tasks.register('buildOssLinuxAarch64Tar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-aarch64'
   with archiveFiles(modulesFiles(true, 'linux-aarch64'), 'tar', 'linux', 'aarch64', true, true)
 }
 
+tasks.register("installOssLinux", Copy) {
+  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
+}
 tasks.register('buildOssLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
   with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, true)
 }
 
+tasks.register("installNoJdkLinux", Copy) {
+  with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
+}
 tasks.register('buildNoJdkLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
   with archiveFiles(modulesFiles(false, 'linux-x86_64'), 'tar', 'linux', 'x64', false, false)
 }
 
+tasks.register("installOssNoJdkLinux", Copy) {
+  with archiveFiles(modulesFiles(true, 'linux-x86_64'), 'tar', 'linux', 'x64', true, false)
+}
 tasks.register('buildOssNoJdkLinuxTar', SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'

@@ -20,19 +20,47 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.docker.DockerSupportService;
+import org.elasticsearch.gradle.info.BuildParams;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskDependency;
 
 import java.io.File;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Set;
 
 public class ElasticsearchDistribution implements Buildable, Iterable<File> {
+
+    private TaskDependency localInstallTaskDependency;
+
+    private Copy localInstallTask;
+
+    public boolean isLocalInstall() {
+        // ignore integTest for now
+        return !getType().equals(Type.INTEG_TEST_ZIP)
+            && BuildParams.isInternal()
+            && VersionProperties.getElasticsearch().equals(getVersion())
+            && getType().shouldExtract();
+    }
+
+    // TODO RG: make that type stronger
+    public String getInstallDir() {
+        return isLocalInstall() ? localInstallTask.getDestinationDir().toString() : getExtracted().configuration.getSingleFile().toString();
+    }
+
+    public void setLocalInstallTask(Copy localInstallTask) {
+        this.localInstallTask = localInstallTask;
+    }
+
+    public Object getInstallBuildDependencies() {
+        return isLocalInstall() ? (TaskDependency) task -> Set.of(localInstallTask) : getExtracted();
+    }
 
     public enum Platform {
         LINUX,
@@ -210,7 +238,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     @Override
     public String toString() {
-        return configuration.getSingleFile().toString();
+        return getName();
     }
 
     public Extracted getExtracted() {
@@ -236,7 +264,14 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             return task -> Collections.emptySet();
         }
 
+        if (isLocalInstall()) {
+            return localInstallTaskDependency;
+        }
         return configuration.getBuildDependencies();
+    }
+
+    public void setLocalInstallTaskDependency(TaskDependency localInstallTaskDependency) {
+        this.localInstallTaskDependency = localInstallTaskDependency;
     }
 
     @Override

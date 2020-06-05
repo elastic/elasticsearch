@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName;
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
@@ -47,7 +47,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        indices.add(new Index(getBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
         return new DataStream(dataStreamName, randomAlphaOfLength(10), indices, generation);
     }
 
@@ -68,7 +68,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = randomInstance();
-        Index newWriteIndex = new Index(getBackingIndexName(ds.getName(), ds.getGeneration() + 1), UUIDs.randomBase64UUID(random()));
+        Index newWriteIndex = new Index(getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1), UUIDs.randomBase64UUID(random()));
         DataStream rolledDs = ds.rollover(newWriteIndex);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
@@ -86,7 +86,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         List<Index> indices = new ArrayList<>(numBackingIndices);
         for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
         }
         DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
         DataStream updated = original.removeBackingIndex(indices.get(indexToRemove - 1));

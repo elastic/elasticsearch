@@ -199,14 +199,14 @@ public class DataStreamIT extends ESIntegTestCase {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{}", XContentType.JSON)
                 .opType(DocWriteRequest.OpType.CREATE);
             IndexResponse indexResponse = client().index(indexRequest).actionGet();
-            assertThat(indexResponse.getIndex(), equalTo(DataStream.getBackingIndexName(dataStreamName, 1)));
+            assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
         }
         {
             BulkRequest bulkRequest = new BulkRequest()
                 .add(new IndexRequest(dataStreamName).source("{}", XContentType.JSON)
                     .opType(DocWriteRequest.OpType.CREATE));
             BulkResponse bulkItemResponses  = client().bulk(bulkRequest).actionGet();
-            assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(DataStream.getBackingIndexName(dataStreamName, 1)));
+            assertThat(bulkItemResponses.getItems()[0].getIndex(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
         }
     }
 
@@ -324,7 +324,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         List<String> expectedIndices = new ArrayList<>();
         for (long k = minGeneration; k <= maxGeneration; k++) {
-            expectedIndices.add(DataStream.getBackingIndexName(dataStream, k));
+            expectedIndices.add(DataStream.getDefaultBackingIndexName(dataStream, k));
         }
         Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> {
             assertTrue(expectedIndices.contains(hit.getIndex()));

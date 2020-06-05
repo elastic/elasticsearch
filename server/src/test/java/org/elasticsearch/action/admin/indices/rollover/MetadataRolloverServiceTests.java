@@ -315,7 +315,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
     public void testCreateIndexRequestForDataStream() {
         DataStream dataStream = DataStreamTests.randomInstance();
-        final String newWriteIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
         final RolloverRequest rolloverRequest = new RolloverRequest(dataStream.getName(), randomAlphaOfLength(10));
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
         rolloverRequest.getCreateIndexRequest().waitForActiveShards(activeShardCount);
@@ -560,8 +560,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     randomBoolean());
             long after = testThreadPool.absoluteTimeInMillis();
 
-            String sourceIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration());
-            String newIndexName = DataStream.getBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
+            String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
+            String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
             assertEquals(newIndexName, rolloverResult.rolloverIndexName);
             Metadata rolloverMetadata = rolloverResult.clusterState.metadata();

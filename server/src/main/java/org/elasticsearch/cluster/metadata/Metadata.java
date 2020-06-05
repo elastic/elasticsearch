@@ -1457,7 +1457,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     SortedMap<String, IndexAbstraction> potentialConflicts =
-                        indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
+                        indicesLookup.subMap(".ds-" + ds.getName() + "-", ".ds-" + ds.getName() + "."); // '.' is the char after '-'
                     if (potentialConflicts.size() != 0) {
                         List<String> indexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
                         List<String> conflicts = new ArrayList<>();

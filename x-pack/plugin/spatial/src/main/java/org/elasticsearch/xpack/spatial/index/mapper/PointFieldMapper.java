@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -40,7 +39,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  *
  * Uses lucene 8 XYPoint encoding
  */
-public class PointFieldMapper extends AbstractGeometryFieldMapper implements ArrayValueMapperParser {
+public class PointFieldMapper extends AbstractGeometryFieldMapper {
     public static final String CONTENT_TYPE = "point";
 
     public static class Names extends AbstractGeometryFieldMapper.Names {

@@ -237,6 +237,10 @@ public class JobResultsPersister {
             bulkRequest = new BulkRequest();
         }
 
+        public void clearBulkRequest() {
+            bulkRequest = new BulkRequest();
+        }
+
         // for testing
         BulkRequest getBulkRequest() {
             return bulkRequest;

@@ -340,9 +340,9 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("index_template_multiple_match", "index [{}] matches multiple v1 templates " +
-                        "[{}], v2 index templates will only match a single index template", request.index(),
-                        v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
+                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("index_template_multiple_match",
+                        "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
+                        request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
 
                 return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
@@ -446,7 +446,7 @@ public class MetadataCreateIndexService {
                                                                 final List<IndexTemplateMetadata> templates,
                                                                 final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                         throws Exception {
-        logger.info("applying create index request using v1 templates {}",
+        logger.debug("applying create index request using legacy templates {}",
             templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList()));
 
         final Map<String, Map<String, Object>> mappings = Collections.unmodifiableMap(parseV1Mappings(request.mappings(),
@@ -483,7 +483,7 @@ public class MetadataCreateIndexService {
                                                                final String templateName,
                                                                final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                     throws Exception {
-        logger.info("applying create index request using v2 template [{}]", templateName);
+        logger.debug("applying create index request using composable template [{}]", templateName);
 
         final String sourceMappings;
         if (request.mappings().size() > 0) {

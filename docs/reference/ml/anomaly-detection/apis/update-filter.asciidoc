@@ -25,7 +25,7 @@ Updates the description of a filter, adds items, or removes items.
 
 `<filter_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=filter-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-update-filter-request-body]]
 ==== {api-request-body-title}

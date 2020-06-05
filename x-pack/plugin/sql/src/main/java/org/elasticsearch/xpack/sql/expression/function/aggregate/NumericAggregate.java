@@ -16,7 +16,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-abstract class NumericAggregate extends AggregateFunction {
+public abstract class NumericAggregate extends AggregateFunction {
 
     NumericAggregate(Source source, Expression field, List<Expression> parameters) {
         super(source, field, parameters);

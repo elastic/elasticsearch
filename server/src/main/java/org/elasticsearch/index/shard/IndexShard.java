@@ -609,7 +609,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         }
 
-        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
+        if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false && state() == IndexShardState.STARTED) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
             final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.getShards());
             shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
@@ -1423,14 +1423,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("skip local recovery as failed to find the safe commit", e);
             return UNASSIGNED_SEQ_NO;
         }
-        if (safeCommit.isPresent() == false) {
-            logger.trace("skip local recovery as no safe commit found");
-            return UNASSIGNED_SEQ_NO;
-        }
-        assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
         try {
             maybeCheckIndex(); // check index here and won't do it again if ops-based recovery occurs
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            if (safeCommit.isPresent() == false) {
+                logger.trace("skip local recovery as no safe commit found");
+                return UNASSIGNED_SEQ_NO;
+            }
+            assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
             if (safeCommit.get().localCheckpoint == globalCheckpoint) {
                 logger.trace("skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
                     safeCommit.get(), globalCheckpoint);

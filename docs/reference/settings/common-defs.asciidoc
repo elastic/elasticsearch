@@ -10,7 +10,7 @@ List of paths to PEM encoded certificate files that should be trusted.
 end::ssl-certificate-authorities[]
 
 tag::ssl-cipher-suites-values[]
-include::{docdir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values-java11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values-java11]
 end::ssl-cipher-suites-values[]
 
 tag::ssl-cipher-suites-values-java11[]

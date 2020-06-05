@@ -158,23 +158,23 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearchStandardInputPassword(password, true));
+        awaitElasticsearchStartup(startElasticsearch(password, true, false));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
 
-    public void test41WrongKeystorePasswordOnStandardInput() {
+    public void test41WrongKeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearchStandardInputPassword("wrong", false);
+        Shell.Result result = startElasticsearch("wrong", false, false);
         assertElasticsearchFailure(result, Arrays.asList(ERROR_INCORRECT_PASSWORD, ERROR_CORRUPTED_KEYSTORE), null);
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test42KeystorePasswordOnTty() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
@@ -187,20 +187,20 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        awaitElasticsearchStartup(startElasticsearchTtyPassword(password, true));
+        awaitElasticsearchStartup(startElasticsearch(password, true, true));
         ServerUtils.runElasticsearchTests();
         stopElasticsearch();
     }
 
-    @Ignore /* Ignored for feature branch, awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
     public void test43WrongKeystorePasswordOnTty() throws Exception {
+        /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin", distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
         assertPasswordProtectedKeystore();
 
-        Shell.Result result = startElasticsearchTtyPassword("wrong", false);
+        Shell.Result result = startElasticsearch("wrong", false, true);
         // error will be on stdout for "expect"
         assertThat(result.stdout, anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
     }

@@ -303,14 +303,21 @@ public abstract class PackagingTestCase extends Assert {
         awaitElasticsearchStartup(runElasticsearchStartCommand(true));
     }
 
-    public Shell.Result startElasticsearchStandardInputPassword(String password, boolean daemonize) {
-        assertTrue("Only archives support passwords on standard input", distribution().isArchive());
-        return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
-    }
-
-    public Shell.Result startElasticsearchTtyPassword(String password, boolean daemonize) throws Exception {
-        assertTrue("Only archives support passwords on TTY", distribution().isArchive());
-        return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+    /**
+     * Start elasticsearch and return shell result
+     * @param password Password for password-protected keystore
+     * @param daemonize Run Elasticsearch in the background
+     * @param useTty Use a tty for inputting the password rather than standard input
+     * @return Shell result object
+     * @throws Exception if something goes wrong
+     */
+    public Shell.Result startElasticsearch(String password, boolean daemonize, boolean useTty) throws Exception {
+        assertTrue("Only archives support user-entered passwords", distribution().isArchive());
+        if (useTty) {
+            return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+        } else {
+            return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+        }
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage, Packages.JournaldWrapper journaldWrapper) {

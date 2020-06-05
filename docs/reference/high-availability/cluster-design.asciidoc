@@ -39,8 +39,11 @@ Depending on your needs and budget, an {es} cluster can consist of a single
 node, hundreds of nodes, or any number in between. When designing a smaller
 cluster, you should typically focus on making it resilient to single-node
 failures. Designers of larger clusters must also consider cases where multiple
-nodes fail at the same time. This section gives some recommendations for
-building resilient clusters of various sizes.
+nodes fail at the same time. The following pages give some recommendations for
+building resilient clusters of various sizes:
+
+* <<high-availability-cluster-small-clusters>>
+* <<high-availability-cluster-design-large-clusters>>
 
 [[high-availability-cluster-small-clusters]]
 === Resilience in small clusters

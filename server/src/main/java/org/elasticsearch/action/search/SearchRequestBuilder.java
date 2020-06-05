@@ -213,7 +213,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         sourceBuilder().version(version);
         return this;
     }
-    
+
     /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
@@ -558,8 +558,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
-     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
-     * bounds and the query are disjoint. The default is {@code 128}
+     * instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint.
+     *
+     * When unspecified, the pre-filter phase is executed if any of these conditions is met:
+     * <ul>
+     * <li>The request targets more than 128 shards</li>
+     * <li>The request targets one or more read-only index</li>
+     * <li>The primary sort of the query targets an indexed field</li>
+     * </ul>
      */
     public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
         this.request.setPreFilterShardSize(preFilterShardSize);

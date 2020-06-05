@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.slm;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,6 +41,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 
 public class SnapshotLifecycleServiceTests extends ESTestCase {
 
@@ -64,11 +66,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("no such repository [repo]"));
 
-        RepositoryMetaData repo = new RepositoryMetaData("repo", "fs", Settings.EMPTY);
-        RepositoriesMetaData repoMeta = new RepositoriesMetaData(Collections.singletonList(repo));
+        RepositoryMetadata repo = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
+        RepositoriesMetadata repoMeta = new RepositoriesMetadata(Collections.singletonList(repo));
         ClusterState stateWithRepo = ClusterState.builder(state)
-            .metaData(MetaData.builder()
-            .putCustom(RepositoriesMetaData.TYPE, repoMeta))
+            .metadata(Metadata.builder()
+            .putCustom(RepositoriesMetadata.TYPE, repoMeta))
             .build();
 
         SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
@@ -150,7 +152,6 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
      * Test new policies getting scheduled correctly, updated policies also being scheduled,
      * and deleted policies having their schedules cancelled.
      */
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/44997")
     public void testPolicyCRUD() throws Exception {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);
@@ -206,13 +207,20 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             sls.clusterChanged(event);
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-2")));
 
+            CopyOnWriteArrayList<String> triggeredJobs = new CopyOnWriteArrayList<>();
             trigger.set(e -> {
-                // Make sure the job got updated
-                assertThat(e.getJobName(), equalTo("foo-2"));
+                triggeredJobs.add(e.getJobName());
                 triggerCount.incrementAndGet();
             });
             clock.fastForwardSeconds(1);
 
+            // Let's make sure the job got updated
+            // We don't simply assert that triggeredJobs has one element with value "foo-2" because of a race condition that can see the
+            // list containing <foo-2, foo-1>. This can happen because when we update the policy to version 2 (ie. to foo-2) we will
+            // cancel the existing policy (foo-1) without waiting for the thread executing foo-1 to actually interrupt
+            // (see org.elasticsearch.common.util.concurrent.FutureUtils#cancel) which means that foo-1 could actually get to be
+            // rescheduled and re-run before it is indeed cancelled.
+            assertBusy(() -> assertThat(triggeredJobs, hasItem("foo-2")));
             assertBusy(() -> assertThat(triggerCount.get(), greaterThan(currentCount)));
 
             final int currentCount2 = triggerCount.get();
@@ -328,11 +336,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public ClusterState createState(SnapshotLifecycleMetadata snapMeta) {
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta)
             .build();
         return ClusterState.builder(new ClusterName("cluster"))
-            .metaData(metaData)
+            .metadata(metadata)
             .build();
     }
 

@@ -9,7 +9,7 @@ Japanese, and Korean) tokens.
 
 This filter is included in {es}'s built-in <<cjk-analyzer,CJK language
 analyzer>>. It uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/cjk/CJKBigramFilter.html[CJKBigramFilter].
+{lucene-analysis-docs}/cjk/CJKBigramFilter.html[CJKBigramFilter].
 
 
 [[analysis-cjk-bigram-tokenfilter-analyze-ex]]

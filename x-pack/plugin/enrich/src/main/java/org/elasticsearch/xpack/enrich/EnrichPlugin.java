@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -24,11 +24,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -36,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -45,6 +48,7 @@ import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction;
 import org.elasticsearch.xpack.enrich.action.EnrichInfoTransportAction;
 import org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchAction;
+import org.elasticsearch.xpack.enrich.action.EnrichUsageTransportAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportEnrichStatsAction;
 import org.elasticsearch.xpack.enrich.action.TransportExecuteEnrichPolicyAction;
@@ -57,14 +61,15 @@ import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.ENRICH_INDEX_PATTERN;
 
-public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlugin {
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING = Setting.intSetting(
         "enrich.fetch_size",
@@ -119,19 +124,13 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
     private final Settings settings;
-    private final Boolean enabled;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
-        this.enabled = ENRICH_ENABLED_SETTING.get(settings);
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        if (enabled == false) {
-            return Map.of();
-        }
-
         EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client, parameters.scriptService);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
@@ -142,12 +141,9 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled == false) {
-            return List.of(new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class));
-        }
-
         return List.of(
             new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.ENRICH, EnrichUsageTransportAction.class),
             new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
@@ -168,16 +164,12 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (enabled == false) {
-            return List.of();
-        }
-
         return List.of(
-            new RestGetEnrichPolicyAction(restController),
-            new RestDeleteEnrichPolicyAction(restController),
-            new RestPutEnrichPolicyAction(restController),
-            new RestExecuteEnrichPolicyAction(restController),
-            new RestEnrichStatsAction(restController)
+            new RestGetEnrichPolicyAction(),
+            new RestDeleteEnrichPolicyAction(),
+            new RestPutEnrichPolicyAction(),
+            new RestExecuteEnrichPolicyAction(),
+            new RestEnrichStatsAction()
         );
     }
 
@@ -191,12 +183,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         NamedXContentRegistry xContentRegistry,
         Environment environment,
         NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        if (enabled == false) {
-            return List.of();
-        }
-
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyMaintenanceService enrichPolicyMaintenanceService = new EnrichPolicyMaintenanceService(
             settings,
@@ -212,25 +202,24 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(MetaData.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, EnrichMetadata.TYPE, EnrichMetadata::new),
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
                 EnrichMetadata.TYPE,
-                in -> EnrichMetadata.readDiffFrom(MetaData.Custom.class, EnrichMetadata.TYPE, in)
+                in -> EnrichMetadata.readDiffFrom(Metadata.Custom.class, EnrichMetadata.TYPE, in)
             )
         );
     }
 
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
-            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
+            new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)
         );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            ENRICH_ENABLED_SETTING,
             ENRICH_FETCH_SIZE_SETTING,
             ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS,
             ENRICH_CLEANUP_PERIOD,
@@ -238,6 +227,13 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS
+        );
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return Collections.singletonList(
+            new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );
     }
 }

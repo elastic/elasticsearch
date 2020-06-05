@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
@@ -32,6 +34,8 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptScoreQueryBuilder> {
 
@@ -48,7 +52,12 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
 
     @Override
     protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(ScriptScoreQuery.class));
+        Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
+        if (wrappedQuery instanceof MatchNoDocsQuery) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        } else {
+            assertThat(query, instanceOf(ScriptScoreQuery.class));
+        }
     }
 
     public void testFromJson() throws IOException {
@@ -71,26 +80,62 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         String scriptStr = "1";
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptStr, Collections.emptyMap());
 
-        expectThrows(
+        IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new ScriptScoreQueryBuilder(matchAllQuery(), null)
         );
+        assertEquals("script_score: script must not be null" , e.getMessage());
 
-        expectThrows(
+        e = expectThrows(
             IllegalArgumentException.class,
             () -> new ScriptScoreQueryBuilder(null, script)
         );
+        assertEquals("script_score: query must not be null" , e.getMessage());
     }
 
     /**
-     * Check that this query is generally not cacheable
+     * Check that this query is cacheable
      */
     @Override
     public void testCacheability() throws IOException {
-        ScriptScoreQueryBuilder queryBuilder = createTestQueryBuilder();
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(
+            new TermQueryBuilder(KEYWORD_FIELD_NAME, "value"), script);
+
         QueryShardContext context = createShardContext();
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        QueryShardContext context = createShardContext();
+        context.setAllowUnmappedFields(true);
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+        String scriptStr = "1";
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptStr, Collections.emptyMap());
+        ScriptScoreQueryBuilder scriptScoreQueryBuilder = new ScriptScoreQueryBuilder(termQueryBuilder, script);
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+                () -> scriptScoreQueryBuilder.toQuery(context));
+        assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testRewriteToMatchNone() throws IOException {
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        ScriptScoreQueryBuilder builder = new ScriptScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "value"), script);
+        QueryBuilder rewrite = builder.rewrite(createShardContext());
+        assertThat(rewrite, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testDisallowExpensiveQueries() {
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.allowExpensiveQueries()).thenReturn(false);
+
+        ScriptScoreQueryBuilder queryBuilder = doCreateTestQueryBuilder();
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+                () -> queryBuilder.toQuery(queryShardContext));
+        assertEquals("[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                e.getMessage());
     }
 }

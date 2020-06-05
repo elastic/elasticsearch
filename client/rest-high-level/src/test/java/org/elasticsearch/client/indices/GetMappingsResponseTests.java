@@ -20,7 +20,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,10 +36,10 @@ public class GetMappingsResponseTests
 
     @Override
     protected org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse createServerTestInstance(XContentType xContentType) {
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
         int numberOfIndexes = randomIntBetween(1, 5);
         for (int i = 0; i < numberOfIndexes; i++) {
-            mappings.put("index-" + randomAlphaOfLength(5), randomMappingMetaData());
+            mappings.put("index-" + randomAlphaOfLength(5), randomMappingMetadata());
         }
         return new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse(mappings.build());
     }
@@ -55,7 +55,7 @@ public class GetMappingsResponseTests
         assertMapEquals(serverTestInstance.getMappings(), clientInstance.mappings());
     }
 
-    public static MappingMetaData randomMappingMetaData() {
+    public static MappingMetadata randomMappingMetadata() {
         Map<String, Object> mappings = new HashMap<>();
 
         if (frequently()) { // rarely have no fields
@@ -65,7 +65,7 @@ public class GetMappingsResponseTests
             }
         }
 
-        return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, mappings);
+        return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mappings);
     }
 
     private static Map<String, Object> randomFieldMapping() {

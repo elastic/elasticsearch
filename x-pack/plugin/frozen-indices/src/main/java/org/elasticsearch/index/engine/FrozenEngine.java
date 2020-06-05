@@ -21,6 +21,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;
@@ -68,25 +70,28 @@ import java.util.function.Function;
 public final class FrozenEngine extends ReadOnlyEngine {
     public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
         Setting.Property.PrivateIndex);
-    private final SegmentsStats stats;
+    private final SegmentsStats segmentsStats;
+    private final DocsStats docsStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
     private final ElasticsearchDirectoryReader canMatchReader;
 
-    public FrozenEngine(EngineConfig config) {
-        super(config, null, null, true, Function.identity());
+    public FrozenEngine(EngineConfig config, boolean requireCompleteHistory) {
+        super(config, null, null, true, Function.identity(), requireCompleteHistory);
 
         boolean success = false;
         Directory directory = store.directory();
-        try (DirectoryReader reader = DirectoryReader.open(directory, OFF_HEAP_READER_ATTRIBUTES)) {
-            canMatchReader = ElasticsearchDirectoryReader.wrap(new RewriteCachingDirectoryReader(directory, reader.leaves()),
-                config.getShardId());
-            // we record the segment stats here - that's what the reader needs when it's open and it give the user
+        try (DirectoryReader reader = openDirectory(directory)) {
+            // we record the segment stats and doc stats here - that's what the reader needs when it's open and it give the user
             // an idea of what it can save when it's closed
-            this.stats = new SegmentsStats();
+            this.segmentsStats = new SegmentsStats();
             for (LeafReaderContext ctx : reader.getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
-                fillSegmentStats(segmentReader, true, stats);
+                fillSegmentStats(segmentReader, true, segmentsStats);
             }
+            this.docsStats = docsStats(reader);
+            final DirectoryReader wrappedReader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+            canMatchReader = ElasticsearchDirectoryReader.wrap(
+                new RewriteCachingDirectoryReader(directory, wrappedReader.leaves()), config.getShardId());
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -167,7 +172,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
                     listeners.beforeRefresh();
                 }
-                final DirectoryReader dirReader = DirectoryReader.open(engineConfig.getStore().directory(), OFF_HEAP_READER_ATTRIBUTES);
+                final DirectoryReader dirReader = openDirectory(engineConfig.getStore().directory());
                 reader = lastOpenedReader = wrapReader(dirReader, Function.identity());
                 processReader(reader);
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
@@ -591,7 +596,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         if (includeUnloadedSegments) {
             final SegmentsStats stats = new SegmentsStats();
-            stats.add(this.stats);
+            stats.add(this.segmentsStats);
             if (includeSegmentFileSizes == false) {
                 stats.clearFileSizes();
             }
@@ -600,6 +605,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
             return super.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         }
 
+    }
+
+    @Override
+    public DocsStats docStats() {
+        return docsStats;
     }
 
     synchronized boolean isReaderOpen() {

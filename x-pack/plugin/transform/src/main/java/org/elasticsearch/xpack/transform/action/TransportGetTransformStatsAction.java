@@ -15,12 +15,14 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,15 +55,17 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
+    private final Client client;
 
     @Inject
     public TransportGetTransformStatsAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        Client client
     ) {
-        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices);
+        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client);
     }
 
     protected TransportGetTransformStatsAction(
@@ -69,11 +73,13 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        Client client
     ) {
         super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
+        this.client = client;
     }
 
     @Override
@@ -133,7 +139,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 final ClusterState state = clusterService.state();
                 request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
                 super.doExecute(task, request, ActionListener.wrap(response -> {
-                    PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                    PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
                         response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, state));
@@ -169,10 +175,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private static void setNodeAttributes(
         TransformStats transformStats,
-        PersistentTasksCustomMetaData persistentTasksCustomMetaData,
+        PersistentTasksCustomMetadata persistentTasksCustomMetadata,
         ClusterState state
     ) {
-        var pTask = persistentTasksCustomMetaData.getTask(transformStats.getId());
+        var pTask = persistentTasksCustomMetadata.getTask(transformStats.getId());
         if (pTask != null) {
             transformStats.setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
         }
@@ -189,7 +195,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             && derivedState.equals(TransformStats.State.STOPPED) == false
             && derivedState.equals(TransformStats.State.FAILED) == false) {
             derivedState = TransformStats.State.STOPPING;
-            reason = reason.isEmpty() ? "transform is set to stop at the next checkpoint" : reason;
+            reason = Strings.isNullOrEmpty(reason) ? "transform is set to stop at the next checkpoint" : reason;
         }
         return new TransformStats(
             task.getTransformId(),
@@ -207,7 +213,6 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             listener.onResponse(response);
             return;
         }
-
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
         transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(TransformStats::getId).collect(Collectors.toList()));
 
@@ -248,11 +253,12 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private void populateSingleStoppedTransformStat(TransformStoredDoc transform, ActionListener<TransformCheckpointingInfo> listener) {
         transformCheckpointService.getCheckpointingInfo(
+            client,
             transform.getId(),
             transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getPosition(),
             transform.getTransformState().getProgress(),
-            ActionListener.wrap(listener::onResponse, e -> {
+            ActionListener.wrap(infoBuilder -> listener.onResponse(infoBuilder.build()), e -> {
                 logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
                 listener.onResponse(TransformCheckpointingInfo.EMPTY);
             })

@@ -4,18 +4,16 @@
 == {transform-cap} APIs
 
 * <<put-transform>> 
-* <<update-transform>>
 * <<delete-transform>>
 * <<get-transform>>
 * <<get-transform-stats>>
 * <<preview-transform>>
 * <<start-transform>>
 * <<stop-transform>>
+* <<update-transform>>
 
 //CREATE
 include::put-transform.asciidoc[]
-//UPDATE
-include::update-transform.asciidoc[]
 //DELETE
 include::delete-transform.asciidoc[]
 //GET
@@ -27,3 +25,5 @@ include::preview-transform.asciidoc[]
 include::start-transform.asciidoc[]
 //STOP
 include::stop-transform.asciidoc[]
+//UPDATE
+include::update-transform.asciidoc[]

@@ -43,7 +43,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
 
     protected void createIdx(String keyFieldMapping) {
         assertAcked(prepareCreate("idx")
-                .addMapping("type", "key", keyFieldMapping));
+                .setMapping("key", keyFieldMapping));
     }
 
     protected static String routing1; // routing key to shard 1

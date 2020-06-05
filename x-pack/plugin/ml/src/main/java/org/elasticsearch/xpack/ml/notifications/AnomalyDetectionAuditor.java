@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.notifications;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.notifications.AnomalyDetectionAuditMessage;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -15,6 +15,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 public class AnomalyDetectionAuditor extends AbstractAuditor<AnomalyDetectionAuditMessage> {
 
     public AnomalyDetectionAuditor(Client client, String nodeName) {
-        super(client, nodeName, AuditorField.NOTIFICATIONS_INDEX, ML_ORIGIN, AnomalyDetectionAuditMessage::new);
+        super(client, nodeName, NotificationsIndex.NOTIFICATIONS_INDEX, ML_ORIGIN, AnomalyDetectionAuditMessage::new);
     }
 }

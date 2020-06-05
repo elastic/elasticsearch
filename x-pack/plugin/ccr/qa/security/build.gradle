@@ -20,7 +20,6 @@ testClusters.'leader-cluster' {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.monitoring.enabled', 'false'
   extraConfigFile 'roles.yml', file('leader-roles.yml')
   user username: "test_admin", role: "superuser"
   user username: "test_ccr", role: "ccruser"

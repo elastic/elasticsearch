@@ -7,6 +7,7 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.example.realm.CustomRealm;
+import org.elasticsearch.example.realm.CustomRoleMappingRealm;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -33,6 +34,7 @@ public class SpiExtensionPlugin extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         List<Setting<?>> list = new ArrayList<>(RealmSettings.getStandardSettings(CustomRealm.TYPE));
         list.add(RealmSettings.simpleString(CustomRealm.TYPE, "filtered_setting", Setting.Property.NodeScope, Setting.Property.Filtered));
+        list.addAll(RealmSettings.getStandardSettings(CustomRoleMappingRealm.TYPE));
         return list;
     }
 }

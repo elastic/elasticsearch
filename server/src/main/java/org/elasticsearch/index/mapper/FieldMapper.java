@@ -21,11 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
@@ -45,11 +43,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
@@ -57,7 +56,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Setting.boolSetting("index.mapping.ignore_malformed", false, Property.IndexScope);
     public static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", false, Property.IndexScope);
-    public abstract static class Builder<T extends Builder, Y extends FieldMapper> extends Mapper.Builder<T, Y> {
+    public abstract static class Builder<T extends Builder> extends Mapper.Builder<T> {
 
         protected final MappedFieldType fieldType;
         protected final MappedFieldType defaultFieldType;
@@ -193,7 +192,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public T addMultiField(Mapper.Builder<?, ?> mapperBuilder) {
+        public T addMultiField(Mapper.Builder<?> mapperBuilder) {
             multiFieldsBuilder.add(mapperBuilder);
             return builder;
         }
@@ -222,6 +221,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             if (docValuesSet == false) {
                 fieldType.setHasDocValues(defaultDocValues);
             }
+        }
+
+        /** Set metadata on this field. */
+        public T meta(Map<String, String> meta) {
+            fieldType.setMeta(meta);
+            return (T) this;
         }
     }
 
@@ -269,20 +274,26 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Whether this mapper can handle an array value during document parsing. If true,
+     * when an array is encountered during parsing, the document parser will pass the
+     * whole array to the mapper. If false, the array is split into individual values
+     * and each value is passed to the mapper for parsing.
+     */
+    public boolean parsesArrayValue() {
+        return false;
+    }
+
+    /**
      * Parse the field value using the provided {@link ParseContext}.
      */
     public void parse(ParseContext context) throws IOException {
-        final List<IndexableField> fields = new ArrayList<>(2);
         try {
-            parseCreateField(context, fields);
-            for (IndexableField field : fields) {
-                context.doc().add(field);
-            }
+            parseCreateField(context);
         } catch (Exception e) {
             String valuePreview = "";
             try {
                 XContentParser parser = context.parser();
-                Object complexValue = AbstractXContentParser.readValue(parser, ()-> new HashMap<String, Object>());
+                Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new);
                 if (complexValue == null) {
                     valuePreview = "null";
                 } else {
@@ -302,19 +313,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse the field value and populate <code>fields</code>.
+     * Parse the field value and populate the fields on {@link ParseContext#doc()}.
      *
      * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
      * current failing token
      */
-    protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
+    protected abstract void parseCreateField(ParseContext context) throws IOException;
 
-    protected void createFieldNamesField(ParseContext context, List<IndexableField> fields) {
-        FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.docMapper()
-                .metadataMapper(FieldNamesFieldMapper.class).fieldType();
+    protected void createFieldNamesField(ParseContext context) {
+        FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                fields.add(new Field(FieldNamesFieldMapper.NAME, fieldName, fieldNamesFieldType));
+                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, fieldNamesFieldType));
             }
         }
     }
@@ -334,52 +344,84 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public FieldMapper merge(Mapper mergeWith) {
+    public final FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
-        merged.doMerge(mergeWith);
+        List<String> conflicts = new ArrayList<>();
+        if (mergeWith instanceof FieldMapper == false) {
+            throw new IllegalArgumentException("mapper [" + fieldType.name() + "] cannot be changed from type ["
+            + contentType() + "] to [" + mergeWith.getClass().getSimpleName() + "]");
+        }
+        FieldMapper toMerge = (FieldMapper) mergeWith;
+        merged.mergeSharedOptions(toMerge, conflicts);
+        merged.mergeOptions(toMerge, conflicts);
+        if (conflicts.isEmpty() == false) {
+            throw new IllegalArgumentException("Mapper for [" + name() +
+                "] conflicts with existing mapping:\n" + conflicts.toString());
+        }
+        merged.multiFields = multiFields.merge(toMerge.multiFields);
+        // apply changeable values
+        merged.fieldType = toMerge.fieldType;
+        merged.copyTo = toMerge.copyTo;
         return merged;
     }
 
-    /**
-     * Merge changes coming from {@code mergeWith} in place.
-     */
-    protected void doMerge(Mapper mergeWith) {
-        if (!this.getClass().equals(mergeWith.getClass())) {
-            String mergedType = mergeWith.getClass().getSimpleName();
-            if (mergeWith instanceof FieldMapper) {
-                mergedType = ((FieldMapper) mergeWith).contentType();
+    private void mergeSharedOptions(FieldMapper mergeWith, List<String> conflicts) {
+
+        if (Objects.equals(this.contentType(), mergeWith.contentType()) == false) {
+            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] cannot be changed from type [" + contentType()
+                + "] to [" + mergeWith.contentType() + "]");
+        }
+
+        MappedFieldType other = mergeWith.fieldType;
+
+        boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
+        boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
+        // TODO: should be validating if index options go "up" (but "down" is ok)
+        if (indexed != mergeWithIndexed) {
+            conflicts.add("mapper [" + name() + "] has different [index] values");
+        }
+        if (fieldType.stored() != other.stored()) {
+            conflicts.add("mapper [" + name() + "] has different [store] values");
+        }
+        if (fieldType.hasDocValues() != other.hasDocValues()) {
+            conflicts.add("mapper [" + name() + "] has different [doc_values] values");
+        }
+        if (fieldType.omitNorms() && !other.omitNorms()) {
+            conflicts.add("mapper [" + name() + "] has different [norms] values, cannot change from disable to enabled");
+        }
+        if (fieldType.storeTermVectors() != other.storeTermVectors()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector] values");
+        }
+        if (fieldType.storeTermVectorOffsets() != other.storeTermVectorOffsets()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_offsets] values");
+        }
+        if (fieldType.storeTermVectorPositions() != other.storeTermVectorPositions()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_positions] values");
+        }
+        if (fieldType.storeTermVectorPayloads() != other.storeTermVectorPayloads()) {
+            conflicts.add("mapper [" + name() + "] has different [store_term_vector_payloads] values");
+        }
+
+        // null and "default"-named index analyzers both mean the default is used
+        if (fieldType.indexAnalyzer() == null || "default".equals(fieldType.indexAnalyzer().name())) {
+            if (other.indexAnalyzer() != null && "default".equals(other.indexAnalyzer().name()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [analyzer]");
             }
-            throw new IllegalArgumentException("mapper [" + fieldType().name() + "] of different type, current_type [" + contentType()
-                + "], merged_type [" + mergedType + "]");
+        } else if (other.indexAnalyzer() == null || "default".equals(other.indexAnalyzer().name())) {
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
+        } else if (fieldType.indexAnalyzer().name().equals(other.indexAnalyzer().name()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [analyzer]");
         }
-        FieldMapper fieldMergeWith = (FieldMapper) mergeWith;
-        multiFields = multiFields.merge(fieldMergeWith.multiFields);
 
-        // apply changeable values
-        this.fieldType = fieldMergeWith.fieldType;
-        this.copyTo = fieldMergeWith.copyTo;
+        if (Objects.equals(fieldType.similarity(), other.similarity()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
+        }
     }
 
-    @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        final MappedFieldType newFieldType = fullNameToFieldType.get(fieldType.name());
-        if (newFieldType == null) {
-            // this field does not exist in the mappings yet
-            // this can happen if this mapper represents a mapping update
-            return this;
-        } else if (fieldType.getClass() != newFieldType.getClass()) {
-            throw new IllegalStateException("Mixing up field types: " +
-                fieldType.getClass() + " != " + newFieldType.getClass() + " on field " + fieldType.name());
-        }
-        MultiFields updatedMultiFields = multiFields.updateFieldType(fullNameToFieldType);
-        if (fieldType == newFieldType && multiFields == updatedMultiFields) {
-            return this; // no change
-        }
-        FieldMapper updated = clone();
-        updated.fieldType = newFieldType;
-        updated.multiFields = updatedMultiFields;
-        return updated;
-    }
+    /**
+     * Merge type-specific options and check for incompatible settings in mappings to be merged
+     */
+    protected abstract void mergeOptions(FieldMapper other, List<String> conflicts);
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -427,6 +469,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         multiFields.toXContent(builder, params);
         copyTo.toXContent(builder, params);
+
+        if (includeDefaults || fieldType().meta().isEmpty() == false) {
+            builder.field("meta", new TreeMap<>(fieldType().meta())); // ensure consistent order
+        }
     }
 
     protected final void doXContentAnalyzers(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -574,27 +620,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper);
                     newMappersBuilder.put(merged.simpleName(), merged); // override previous definition
                 }
-            }
-
-            ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();
-            return new MultiFields(mappers);
-        }
-
-        public MultiFields updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-            ImmutableOpenMap.Builder<String, FieldMapper> newMappersBuilder = null;
-
-            for (ObjectCursor<FieldMapper> cursor : mappers.values()) {
-                FieldMapper updated = cursor.value.updateFieldType(fullNameToFieldType);
-                if (updated != cursor.value) {
-                    if (newMappersBuilder == null) {
-                        newMappersBuilder = ImmutableOpenMap.builder(mappers);
-                    }
-                    newMappersBuilder.put(updated.simpleName(), updated);
-                }
-            }
-
-            if (newMappersBuilder == null) {
-                return this;
             }
 
             ImmutableOpenMap<String, FieldMapper> mappers = newMappersBuilder.build();

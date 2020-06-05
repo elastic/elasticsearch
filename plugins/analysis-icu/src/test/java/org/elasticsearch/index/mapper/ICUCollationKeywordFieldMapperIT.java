@@ -59,7 +59,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testBasicUsage() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = {"I WİLL USE TURKİSH CASING", "ı will use turkish casıng"};
 
@@ -75,7 +74,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // both values should collate to same value
         indexRandom(true,
@@ -103,7 +102,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
     public void testMultipleValues() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = {"a", "C", "a", "B"};
 
@@ -118,7 +116,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         // everything should be indexed fine, no exceptions
         indexRandom(true,
@@ -166,7 +164,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testNormalization() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = {"I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng"};
 
@@ -183,7 +180,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1")
@@ -213,7 +210,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testSecondaryStrength() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = {"TESTING", "testing"};
 
@@ -230,7 +226,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1")
@@ -260,7 +256,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testIgnorePunctuation() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         String[] equivalent = {"foo-bar", "foo bar"};
 
@@ -277,7 +272,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
@@ -305,7 +300,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testIgnoreWhitespace() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -322,7 +316,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
@@ -350,7 +344,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
      */
     public void testNumerics() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -362,7 +355,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1").setSource("{\"collate\":\"foobar-10\"}", XContentType.JSON),
@@ -388,7 +381,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testIgnoreAccentsButNotCase() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -404,7 +396,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"résumé\"}", XContentType.JSON),
@@ -433,7 +425,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testUpperCaseFirst() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -446,7 +437,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1").setSource("{\"collate\":\"resume\"}", XContentType.JSON),
@@ -475,7 +466,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
     */
     public void testCustomRules() throws Exception {
         String index = "foo";
-        String type = "mytype";
 
         RuleBasedCollator baseCollator = (RuleBasedCollator) Collator.getInstance(new ULocale("de_DE"));
         String DIN5007_2_tailorings =
@@ -500,7 +490,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject().endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
+        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
         indexRandom(true,
             client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),

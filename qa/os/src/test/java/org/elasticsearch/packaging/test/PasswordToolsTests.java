@@ -28,13 +28,14 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.Assume.assumeTrue;
@@ -52,17 +53,24 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test010Install() throws Exception {
         install();
-        append(installation.config("elasticsearch.yml"),
-            "xpack.license.self_generated.type: trial\n" +
-            "xpack.security.enabled: true");
+        Files.write(
+            installation.config("elasticsearch.yml"),
+            List.of("xpack.license.self_generated.type: trial", "xpack.security.enabled: true"),
+            StandardOpenOption.APPEND
+        );
     }
 
     public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
-            Shell.Result result = installation.executables().elasticsearchSetupPasswords.run(sh, "auto --batch", null);
+            Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
-                String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue());
+                String response = ServerUtils.makeRequest(
+                    Request.Get("http://localhost:9200"),
+                    userpass.getKey(),
+                    userpass.getValue(),
+                    null
+                );
                 assertThat(response, containsString("You Know, for Search"));
             }
         });
@@ -106,12 +114,15 @@ public class PasswordToolsTests extends PackagingTestCase {
             });
         }
 
-        installation.executables().elasticsearchKeystore.run(sh, "add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
+        installation.executables().keystoreTool.run("add --stdin bootstrap.password", BOOTSTRAP_PASSWORD);
 
         assertWhileRunning(() -> {
             String response = ServerUtils.makeRequest(
                 Request.Get("http://localhost:9200/_cluster/health?wait_for_status=green&timeout=180s"),
-                "elastic", BOOTSTRAP_PASSWORD);
+                "elastic",
+                BOOTSTRAP_PASSWORD,
+                null
+            );
             assertThat(response, containsString("\"status\":\"green\""));
         });
     }
@@ -119,11 +130,16 @@ public class PasswordToolsTests extends PackagingTestCase {
     public void test40GeneratePasswordsBootstrapAlreadySet() throws Exception {
         assertWhileRunning(() -> {
 
-            Shell.Result result = installation.executables().elasticsearchSetupPasswords.run(sh, "auto --batch", null);
+            Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
             Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
-                String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200"), userpass.getKey(), userpass.getValue());
+                String response = ServerUtils.makeRequest(
+                    Request.Get("http://localhost:9200"),
+                    userpass.getKey(),
+                    userpass.getValue(),
+                    null
+                );
                 assertThat(response, containsString("You Know, for Search"));
             }
         });

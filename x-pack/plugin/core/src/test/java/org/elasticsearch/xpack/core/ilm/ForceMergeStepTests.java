@@ -11,18 +11,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
@@ -65,16 +60,11 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
     }
 
     public void testPerformActionComplete() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
-        Client client = mock(Client.class);
-        AdminClient adminClient = mock(AdminClient.class);
-        IndicesAdminClient indicesClient = mock(IndicesAdminClient.class);
-        when(client.admin()).thenReturn(adminClient);
-        when(adminClient.indices()).thenReturn(indicesClient);
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
@@ -88,7 +78,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
         SetOnce<Boolean> completed = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed.set(complete);
@@ -103,23 +93,18 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
     }
 
     public void testPerformActionThrowsException() {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException("error");
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
-        Client client = mock(Client.class);
-        AdminClient adminClient = mock(AdminClient.class);
-        IndicesAdminClient indicesClient = mock(IndicesAdminClient.class);
-        when(client.admin()).thenReturn(adminClient);
-        when(adminClient.indices()).thenReturn(indicesClient);
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
             assertThat(request.indices().length, equalTo(1));
-            assertThat(request.indices()[0], equalTo(indexMetaData.getIndex().getName()));
+            assertThat(request.indices()[0], equalTo(indexMetadata.getIndex().getName()));
             assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
             @SuppressWarnings("unchecked")
             ActionListener<ForceMergeResponse> listener = (ActionListener<ForceMergeResponse>) invocationOnMock.getArguments()[1];
@@ -129,7 +114,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("unexpected method call");

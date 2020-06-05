@@ -43,8 +43,8 @@ public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction
     @Override
     protected void masterOperation(Task task, GetTrialStatusRequest request, ClusterState state,
                                    ActionListener<GetTrialStatusResponse> listener) throws Exception {
-        LicensesMetaData licensesMetaData = state.metaData().custom(LicensesMetaData.TYPE);
-        listener.onResponse(new GetTrialStatusResponse(licensesMetaData == null || licensesMetaData.isEligibleForTrial()));
+        LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
+        listener.onResponse(new GetTrialStatusResponse(licensesMetadata == null || licensesMetadata.isEligibleForTrial()));
 
     }
 

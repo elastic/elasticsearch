@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -146,7 +146,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * For the given job id, return an optional policy metadata object, if one exists
      */
     static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(final String jobId, final ClusterState state) {
-       return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
+       return Optional.ofNullable((SnapshotLifecycleMetadata) state.metadata().custom(SnapshotLifecycleMetadata.TYPE))
            .map(SnapshotLifecycleMetadata::getSnapshotConfigurations)
            .flatMap(configMap -> configMap.values().stream()
                .filter(policyMeta -> jobId.equals(SnapshotLifecycleService.getJobId(policyMeta)))
@@ -194,7 +194,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
-            SnapshotLifecycleMetadata snapMeta = currentState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
 
             assert snapMeta != null : "this should never be called while the snapshot lifecycle cluster metadata is null";
             if (snapMeta == null) {
@@ -225,9 +225,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             snapLifecycles.put(policyName, newPolicyMetadata.build());
             SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles,
                 snapMeta.getOperationMode(), stats);
-            MetaData currentMeta = currentState.metaData();
+            Metadata currentMeta = currentState.metadata();
             return ClusterState.builder(currentState)
-                .metaData(MetaData.builder(currentMeta)
+                .metadata(Metadata.builder(currentMeta)
                     .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
                 .build();
         }

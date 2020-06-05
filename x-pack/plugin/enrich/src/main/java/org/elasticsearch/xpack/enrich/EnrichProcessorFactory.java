@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -27,7 +27,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     private final Client client;
     private final ScriptService scriptService;
 
-    volatile MetaData metaData;
+    volatile Metadata metadata;
 
     EnrichProcessorFactory(Client client, ScriptService scriptService) {
         this.client = client;
@@ -38,13 +38,16 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
         String policyAlias = EnrichPolicy.getBaseName(policyName);
-        AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(policyAlias);
-        if (aliasOrIndex == null) {
+        if (metadata == null) {
+            throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
+        }
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(policyAlias);
+        if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }
-        assert aliasOrIndex.isAlias();
-        assert aliasOrIndex.getIndices().size() == 1;
-        IndexMetaData imd = aliasOrIndex.getIndices().get(0);
+        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+        assert indexAbstraction.getIndices().size() == 1;
+        IndexMetadata imd = indexAbstraction.getIndices().get(0);
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(
@@ -97,7 +100,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
     @Override
     public void accept(ClusterState state) {
-        metaData = state.getMetaData();
+        metadata = state.getMetadata();
     }
 
 }

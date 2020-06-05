@@ -405,8 +405,15 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        SecureSettings secureSettings = settings.getSecureSettings();
-        return settings.keySet().contains(getKey()) &&
+        return exists(settings.keySet(), settings.getSecureSettings());
+    }
+
+    public boolean exists(final Settings.Builder builder) {
+        return exists(builder.keys(), builder.getSecureSettings());
+    }
+
+    private boolean exists(final Set<String> keys, final SecureSettings secureSettings) {
+        return keys.contains(getKey()) &&
             (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
     }
 
@@ -439,7 +446,16 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                        if (setting instanceof AffixSetting) {
+                            // Collect all possible concrete settings
+                            AffixSetting<?> as = ((AffixSetting<?>)setting);
+                            for (String ns : as.getNamespaces(settings)) {
+                                Setting<?> s = as.getConcreteSettingForNamespace(ns);
+                                map.put(s, s.get(settings, false));
+                            }
+                        } else {
+                            map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                        }
                     }
                 } else {
                     map = Collections.emptyMap();
@@ -506,11 +522,9 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            Settings.DeprecationLoggerHolder.deprecationLogger.deprecatedAndMaybeLog(
-                    key,
-                    "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version.",
-                    key);
+            Settings.DeprecationLoggerHolder.deprecationLogger
+                .deprecate(key, "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                    + "See the breaking changes documentation for the next major version.", key);
         }
     }
 
@@ -565,10 +579,36 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Allows a setting to declare a dependency on another setting being set. Optionally, a setting can validate the value of the dependent
+     * setting.
+     */
+    public interface SettingDependency {
+
+        /**
+         * The setting to declare a dependency on.
+         *
+         * @return the setting
+         */
+        Setting getSetting();
+
+        /**
+         * Validates the dependent setting value.
+         *
+         * @param key        the key for this setting
+         * @param value      the value of this setting
+         * @param dependency the value of the dependent setting
+         */
+        default void validate(String key, Object value, Object dependency) {
+
+        }
+
+    }
+
+    /**
      * Returns a set of settings that are required at validation time. Unless all of the dependencies are present in the settings
      * object validation of setting must fail.
      */
-    public Set<Setting<?>> getSettingsDependencies(String key) {
+    public Set<SettingDependency> getSettingsDependencies(final String key) {
         return Collections.emptySet();
     }
 
@@ -633,7 +673,12 @@ public class Setting<T> implements ToXContentObject {
 
     static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer,
                                                                                   final List<? extends Setting<?>> configuredSettings) {
+        return groupedSettingsUpdater(consumer, configuredSettings, (v) -> {});
+    }
 
+    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer,
+                                                                                  final List<? extends Setting<?>> configuredSettings,
+                                                                                  Consumer<Settings> validator) {
         return new AbstractScopedSettings.SettingUpdater<Settings>() {
 
             private Settings get(Settings settings) {
@@ -656,6 +701,7 @@ public class Setting<T> implements ToXContentObject {
 
             @Override
             public Settings getValue(Settings current, Settings previous) {
+                validator.accept(current);
                 return get(current);
             }
 
@@ -671,13 +717,23 @@ public class Setting<T> implements ToXContentObject {
         };
     }
 
+    /**
+     * Allows an affix setting to declare a dependency on another affix setting.
+     */
+    public interface AffixSettingDependency extends SettingDependency {
+
+        @Override
+        AffixSetting getSetting();
+
+    }
+
     public static class AffixSetting<T> extends Setting<T> {
         private final AffixKey key;
         private final BiFunction<String, String, Setting<T>> delegateFactory;
-        private final Set<AffixSetting> dependencies;
+        private final Set<AffixSettingDependency> dependencies;
 
         public AffixSetting(AffixKey key, Setting<T> delegate, BiFunction<String, String, Setting<T>> delegateFactory,
-                            AffixSetting... dependencies) {
+                            AffixSettingDependency... dependencies) {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
@@ -692,13 +748,35 @@ public class Setting<T> implements ToXContentObject {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
+        /**
+         * Get the raw list of dependencies. This method is exposed for testing purposes and {@link #getSettingsDependencies(String)}
+         * should be preferred for most all cases.
+         * @return the raw list of dependencies for this setting
+         */
+        public Set<AffixSettingDependency> getDependencies() {
+            return Collections.unmodifiableSet(dependencies);
+        }
+
         @Override
-        public Set<Setting<?>> getSettingsDependencies(String settingsKey) {
+        public Set<SettingDependency> getSettingsDependencies(String settingsKey) {
             if (dependencies.isEmpty()) {
                 return Collections.emptySet();
             } else {
                 String namespace = key.getNamespace(settingsKey);
-                return dependencies.stream().map(s -> (Setting<?>)s.getConcreteSettingForNamespace(namespace)).collect(Collectors.toSet());
+                return dependencies.stream()
+                    .map(s ->
+                        new SettingDependency() {
+                            @Override
+                            public Setting<Object> getSetting() {
+                                return s.getSetting().getConcreteSettingForNamespace(namespace);
+                            }
+
+                            @Override
+                            public void validate(final String key, final Object value, final Object dependency) {
+                                s.validate(key, value, dependency);
+                            };
+                        })
+                    .collect(Collectors.toSet());
             }
         }
 
@@ -1208,6 +1286,16 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
 
+    public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Validator<Boolean> validator,
+                                               Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, b -> parseBoolean(b, key,
+            isFiltered(properties)), validator, properties);
+    }
+
+    public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
+        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+    }
+
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
         return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
@@ -1573,6 +1661,12 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
+    public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallBackSetting, Validator<TimeValue> validator,
+                                                 Property... properties) {
+        return new Setting<>(new SimpleKey(key), fallBackSetting, fallBackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key),
+            validator, properties);
+    }
+
     public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
         return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }
@@ -1635,19 +1729,19 @@ public class Setting<T> implements ToXContentObject {
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
     public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory,
-                                                      AffixSetting... dependencies) {
+                                                      AffixSettingDependency... dependencies) {
         BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
         return affixKeySetting(new AffixKey(prefix, suffix), delegateFactoryWithNamespace, dependencies);
     }
 
     public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, BiFunction<String, String, Setting<T>> delegateFactory,
-                                                      AffixSetting... dependencies) {
+                                                      AffixSettingDependency... dependencies) {
         Setting<T> delegate = delegateFactory.apply("_na_", "_na_");
         return new AffixSetting<>(new AffixKey(prefix, suffix), delegate, delegateFactory, dependencies);
     }
 
     private static <T> AffixSetting<T> affixKeySetting(AffixKey key, BiFunction<String, String, Setting<T>> delegateFactory,
-                                                       AffixSetting... dependencies) {
+                                                       AffixSettingDependency... dependencies) {
         Setting<T> delegate = delegateFactory.apply("_na_", "_na_");
         return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
     }

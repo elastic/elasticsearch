@@ -24,6 +24,25 @@ esplugin {
 
 dependencies {
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+  testCompile project(path: ':modules:geo', configuration: 'runtime')
+}
+
+tasks.named('integTestRunner').configure {
+  exclude '**/PercolatorQuerySearchIT.class'
+}
+
+tasks.register('internalClusterTest', Test) {
+  include '**/PercolatorQuerySearchIT.class'
+}
+
+tasks.named('check').configure {
+  dependsOn 'internalClusterTest'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search', 'msearch'
+  }
 }
 
 dependencyLicenses {

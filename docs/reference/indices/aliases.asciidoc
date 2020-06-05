@@ -6,7 +6,7 @@
 
 Adds or removes index aliases.
 
-include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
@@ -42,7 +42,7 @@ searching, and routing values. An alias cannot have the same name as an index.
 [[indices-aliases-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[indices-aliases-api-request-body]]
@@ -102,9 +102,16 @@ this parameter is required for the `add` or `remove` action.
 
 `filter`::
 (Optional, query object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 +
 See <<filtered>> for an example.
+
+`is_hidden`::
+(Optional, boolean)
+If `true`, the alias will be excluded from wildcard expressions by default,
+unless overriden in the request using the `expand_wildcards` parameter,
+similar to <<index-hidden,hidden indices>>. This property must be set to the
+same value on all indices that share an alias. Defaults to `false`.
 
 `is_write_index`::
 (Optional, boolean)
@@ -123,7 +130,7 @@ until an additional index is referenced. At that point, there will be no write i
 writes will be rejected.
 ====
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 +
 See <<aliases-routing>> for an example.
 
@@ -135,7 +142,6 @@ for the alias's indexing operations.
 See <<aliases-routing>> for an example.
 
 `search_routing`::
-`index_routing`::
 (Optional, string)
 Custom <<mapping-routing-field, routing value>> used
 for the alias's search operations.
@@ -252,7 +258,9 @@ indices that match this pattern are added/removed.
 
 It is an error to index to an alias which points to more than one index.
 
-It is also possible to swap an index with an alias in one operation:
+It is also possible to swap an index with an alias in one, atomic operation.
+This means there will be no period of downtime where the alias points to no
+index.
 
 [source,console]
 --------------------------------------------------

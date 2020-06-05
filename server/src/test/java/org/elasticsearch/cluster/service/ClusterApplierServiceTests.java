@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -392,7 +392,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state())
-                .metaData(MetaData.builder(clusterApplierService.state().metaData())
+                .metadata(Metadata.builder(clusterApplierService.state().metadata())
                     .persistentSettings(
                         Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), false).build())
                     .build())

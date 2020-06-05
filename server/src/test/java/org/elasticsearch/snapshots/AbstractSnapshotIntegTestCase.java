@@ -31,7 +31,6 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
@@ -47,6 +46,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
@@ -75,9 +75,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @After
     public void assertRepoConsistency() {
         if (skipRepoConsistencyCheckReason == null) {
-            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetaData -> {
-                final String name = repositoryMetaData.name();
-                if (repositoryMetaData.settings().getAsBoolean("readonly", false) == false) {
+            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetadata -> {
+                final String name = repositoryMetadata.name();
+                if (repositoryMetadata.settings().getAsBoolean("readonly", false) == false) {
                     client().admin().cluster().prepareCleanupRepository(name).get();
                 }
                 BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
@@ -93,12 +93,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected RepositoryData getRepositoryData(Repository repository) {
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
-        final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            repository.getRepositoryData(repositoryData);
-        });
-        return repositoryData.actionGet();
+        return PlainActionFuture.get(repository::getRepositoryData);
     }
 
     public static long getFailureCount(String repository) {
@@ -139,7 +134,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
-    public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
+    public static void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
         MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -220,7 +215,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+    public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -236,5 +231,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void unblockNode(final String repository, final String node) {
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
+    }
+
+    protected void createRepository(String repoName, String type, Path location) {
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository(repoName)
+                .setType(type)
+                .setSettings(Settings.builder().put("location", location)));
     }
 }

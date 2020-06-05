@@ -11,6 +11,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,7 +33,9 @@ public class TransportStartTransformActionDeprecated extends TransportStartTrans
         IndexNameExpressionResolver indexNameExpressionResolver,
         TransformServices transformServices,
         PersistentTasksService persistentTasksService,
-        Client client
+        Client client,
+        Settings settings,
+        IngestService ingestService
     ) {
         super(
             StartTransformActionDeprecated.NAME,
@@ -43,7 +47,9 @@ public class TransportStartTransformActionDeprecated extends TransportStartTrans
             indexNameExpressionResolver,
             transformServices,
             persistentTasksService,
-            client
+            client,
+            settings,
+            ingestService
         );
     }
 }

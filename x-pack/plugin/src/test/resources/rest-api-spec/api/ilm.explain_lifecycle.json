@@ -1,7 +1,8 @@
 {
   "ilm.explain_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html",
+      "description": "Retrieves information about the index's current lifecycle state, such as the currently executing phase, action, and step."
     },
     "stability":"stable",
     "url":{

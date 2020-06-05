@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,10 +21,9 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 
 /**
- * Provide access to the C++ model memory usage numbers for the Java process.
+ * Provide access to the C++ model size stats for the Java process.
  */
 public class ModelSizeStats implements ToXContentObject, Writeable {
 
@@ -46,6 +44,13 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public static final ParseField TOTAL_PARTITION_FIELD_COUNT_FIELD = new ParseField("total_partition_field_count");
     public static final ParseField BUCKET_ALLOCATION_FAILURES_COUNT_FIELD = new ParseField("bucket_allocation_failures_count");
     public static final ParseField MEMORY_STATUS_FIELD = new ParseField("memory_status");
+    public static final ParseField CATEGORIZED_DOC_COUNT_FIELD = new ParseField("categorized_doc_count");
+    public static final ParseField TOTAL_CATEGORY_COUNT_FIELD = new ParseField("total_category_count");
+    public static final ParseField FREQUENT_CATEGORY_COUNT_FIELD = new ParseField("frequent_category_count");
+    public static final ParseField RARE_CATEGORY_COUNT_FIELD = new ParseField("rare_category_count");
+    public static final ParseField DEAD_CATEGORY_COUNT_FIELD = new ParseField("dead_category_count");
+    public static final ParseField FAILED_CATEGORY_COUNT_FIELD = new ParseField("failed_category_count");
+    public static final ParseField CATEGORIZATION_STATUS_FIELD = new ParseField("categorization_status");
     public static final ParseField LOG_TIME_FIELD = new ParseField("log_time");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
 
@@ -65,12 +70,19 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         parser.declareLong(Builder::setTotalByFieldCount, TOTAL_BY_FIELD_COUNT_FIELD);
         parser.declareLong(Builder::setTotalOverFieldCount, TOTAL_OVER_FIELD_COUNT_FIELD);
         parser.declareLong(Builder::setTotalPartitionFieldCount, TOTAL_PARTITION_FIELD_COUNT_FIELD);
+        parser.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
+        parser.declareLong(Builder::setCategorizedDocCount, CATEGORIZED_DOC_COUNT_FIELD);
+        parser.declareLong(Builder::setTotalCategoryCount, TOTAL_CATEGORY_COUNT_FIELD);
+        parser.declareLong(Builder::setFrequentCategoryCount, FREQUENT_CATEGORY_COUNT_FIELD);
+        parser.declareLong(Builder::setRareCategoryCount, RARE_CATEGORY_COUNT_FIELD);
+        parser.declareLong(Builder::setDeadCategoryCount, DEAD_CATEGORY_COUNT_FIELD);
+        parser.declareLong(Builder::setFailedCategoryCount, FAILED_CATEGORY_COUNT_FIELD);
+        parser.declareField(Builder::setCategorizationStatus,
+                p -> CategorizationStatus.fromString(p.text()), CATEGORIZATION_STATUS_FIELD, ValueType.STRING);
         parser.declareField(Builder::setLogTime,
                 p -> TimeUtils.parseTimeField(p, LOG_TIME_FIELD.getPreferredName()), LOG_TIME_FIELD, ValueType.VALUE);
         parser.declareField(Builder::setTimestamp,
                 p -> TimeUtils.parseTimeField(p, TIMESTAMP_FIELD.getPreferredName()), TIMESTAMP_FIELD, ValueType.VALUE);
-        BiConsumer<Builder, MemoryStatus> setMemoryStatus = Builder::setMemoryStatus;
-        parser.declareField(setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
 
         return parser;
     }
@@ -103,6 +115,32 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         }
     }
 
+    /**
+     * The status of categorization for a job. OK is default, WARN
+     * means that inappropriate numbers of categories are being found
+     */
+    public enum CategorizationStatus implements Writeable {
+        OK, WARN;
+
+        public static CategorizationStatus fromString(String statusName) {
+            return valueOf(statusName.trim().toUpperCase(Locale.ROOT));
+        }
+
+        public static CategorizationStatus readFromStream(StreamInput in) throws IOException {
+            return in.readEnum(CategorizationStatus.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
     private final String jobId;
     private final long modelBytes;
     private final Long modelBytesExceeded;
@@ -112,13 +150,21 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     private final long totalPartitionFieldCount;
     private final long bucketAllocationFailuresCount;
     private final MemoryStatus memoryStatus;
+    private final long categorizedDocCount;
+    private final long totalCategoryCount;
+    private final long frequentCategoryCount;
+    private final long rareCategoryCount;
+    private final long deadCategoryCount;
+    private final long failedCategoryCount;
+    private final CategorizationStatus categorizationStatus;
     private final Date timestamp;
     private final Date logTime;
 
     private ModelSizeStats(String jobId, long modelBytes, Long modelBytesExceeded, Long modelBytesMemoryLimit, long totalByFieldCount,
                            long totalOverFieldCount, long totalPartitionFieldCount, long bucketAllocationFailuresCount,
-                           MemoryStatus memoryStatus,
-                           Date timestamp, Date logTime) {
+                           MemoryStatus memoryStatus, long categorizedDocCount, long totalCategoryCount, long frequentCategoryCount,
+                           long rareCategoryCount, long deadCategoryCount, long failedCategoryCount,
+                           CategorizationStatus categorizationStatus, Date timestamp, Date logTime) {
         this.jobId = jobId;
         this.modelBytes = modelBytes;
         this.modelBytesExceeded = modelBytesExceeded;
@@ -128,6 +174,13 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         this.totalPartitionFieldCount = totalPartitionFieldCount;
         this.bucketAllocationFailuresCount = bucketAllocationFailuresCount;
         this.memoryStatus = memoryStatus;
+        this.categorizedDocCount = categorizedDocCount;
+        this.totalCategoryCount = totalCategoryCount;
+        this.frequentCategoryCount = frequentCategoryCount;
+        this.rareCategoryCount = rareCategoryCount;
+        this.deadCategoryCount = deadCategoryCount;
+        this.failedCategoryCount = failedCategoryCount;
+        this.categorizationStatus = categorizationStatus;
         this.timestamp = timestamp;
         this.logTime = logTime;
     }
@@ -135,21 +188,20 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public ModelSizeStats(StreamInput in) throws IOException {
         jobId = in.readString();
         modelBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            modelBytesExceeded = in.readOptionalLong();
-        } else {
-            modelBytesExceeded = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            modelBytesMemoryLimit = in.readOptionalLong();
-        } else {
-            modelBytesMemoryLimit = null;
-        }
+        modelBytesExceeded = in.readOptionalLong();
+        modelBytesMemoryLimit = in.readOptionalLong();
         totalByFieldCount = in.readVLong();
         totalOverFieldCount = in.readVLong();
         totalPartitionFieldCount = in.readVLong();
         bucketAllocationFailuresCount = in.readVLong();
         memoryStatus = MemoryStatus.readFromStream(in);
+        categorizedDocCount = in.readVLong();
+        totalCategoryCount = in.readVLong();
+        frequentCategoryCount = in.readVLong();
+        rareCategoryCount = in.readVLong();
+        deadCategoryCount = in.readVLong();
+        failedCategoryCount = in.readVLong();
+        categorizationStatus = CategorizationStatus.readFromStream(in);
         logTime = new Date(in.readVLong());
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
     }
@@ -166,17 +218,20 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
         out.writeVLong(modelBytes);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeOptionalLong(modelBytesExceeded);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeOptionalLong(modelBytesMemoryLimit);
-        }
+        out.writeOptionalLong(modelBytesExceeded);
+        out.writeOptionalLong(modelBytesMemoryLimit);
         out.writeVLong(totalByFieldCount);
         out.writeVLong(totalOverFieldCount);
         out.writeVLong(totalPartitionFieldCount);
         out.writeVLong(bucketAllocationFailuresCount);
         memoryStatus.writeTo(out);
+        out.writeVLong(categorizedDocCount);
+        out.writeVLong(totalCategoryCount);
+        out.writeVLong(frequentCategoryCount);
+        out.writeVLong(rareCategoryCount);
+        out.writeVLong(deadCategoryCount);
+        out.writeVLong(failedCategoryCount);
+        categorizationStatus.writeTo(out);
         out.writeVLong(logTime.getTime());
         boolean hasTimestamp = timestamp != null;
         out.writeBoolean(hasTimestamp);
@@ -208,6 +263,13 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         builder.field(TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(), totalPartitionFieldCount);
         builder.field(BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName(), bucketAllocationFailuresCount);
         builder.field(MEMORY_STATUS_FIELD.getPreferredName(), memoryStatus);
+        builder.field(CATEGORIZED_DOC_COUNT_FIELD.getPreferredName(), categorizedDocCount);
+        builder.field(TOTAL_CATEGORY_COUNT_FIELD.getPreferredName(), totalCategoryCount);
+        builder.field(FREQUENT_CATEGORY_COUNT_FIELD.getPreferredName(), frequentCategoryCount);
+        builder.field(RARE_CATEGORY_COUNT_FIELD.getPreferredName(), rareCategoryCount);
+        builder.field(DEAD_CATEGORY_COUNT_FIELD.getPreferredName(), deadCategoryCount);
+        builder.field(FAILED_CATEGORY_COUNT_FIELD.getPreferredName(), failedCategoryCount);
+        builder.field(CATEGORIZATION_STATUS_FIELD.getPreferredName(), categorizationStatus);
         builder.timeField(LOG_TIME_FIELD.getPreferredName(), LOG_TIME_FIELD.getPreferredName() + "_string", logTime.getTime());
         if (timestamp != null) {
             builder.timeField(TIMESTAMP_FIELD.getPreferredName(), TIMESTAMP_FIELD.getPreferredName() + "_string", timestamp.getTime());
@@ -252,6 +314,34 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         return memoryStatus;
     }
 
+    public long getCategorizedDocCount() {
+        return categorizedDocCount;
+    }
+
+    public long getTotalCategoryCount() {
+        return totalCategoryCount;
+    }
+
+    public long getFrequentCategoryCount() {
+        return frequentCategoryCount;
+    }
+
+    public long getRareCategoryCount() {
+        return rareCategoryCount;
+    }
+
+    public long getDeadCategoryCount() {
+        return deadCategoryCount;
+    }
+
+    public long getFailedCategoryCount() {
+        return deadCategoryCount;
+    }
+
+    public CategorizationStatus getCategorizationStatus() {
+        return categorizationStatus;
+    }
+
     /**
      * The timestamp of the last processed record when this instance was created.
      * @return The record time
@@ -272,7 +362,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public int hashCode() {
         // this.id excluded here as it is generated by the datastore
         return Objects.hash(jobId, modelBytes, modelBytesExceeded, modelBytesMemoryLimit, totalByFieldCount, totalOverFieldCount,
-                totalPartitionFieldCount, this.bucketAllocationFailuresCount, memoryStatus, timestamp, logTime);
+                totalPartitionFieldCount, bucketAllocationFailuresCount, memoryStatus, categorizedDocCount, totalCategoryCount,
+                frequentCategoryCount, rareCategoryCount, deadCategoryCount, failedCategoryCount, categorizationStatus, timestamp, logTime);
     }
 
     /**
@@ -295,7 +386,15 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
                 && this.totalByFieldCount == that.totalByFieldCount
                 && this.totalOverFieldCount == that.totalOverFieldCount && this.totalPartitionFieldCount == that.totalPartitionFieldCount
                 && this.bucketAllocationFailuresCount == that.bucketAllocationFailuresCount
-                && Objects.equals(this.memoryStatus, that.memoryStatus) && Objects.equals(this.timestamp, that.timestamp)
+                && Objects.equals(this.memoryStatus, that.memoryStatus)
+                && Objects.equals(this.categorizedDocCount, that.categorizedDocCount)
+                && Objects.equals(this.totalCategoryCount, that.totalCategoryCount)
+                && Objects.equals(this.frequentCategoryCount, that.frequentCategoryCount)
+                && Objects.equals(this.rareCategoryCount, that.rareCategoryCount)
+                && Objects.equals(this.deadCategoryCount, that.deadCategoryCount)
+                && Objects.equals(this.failedCategoryCount, that.failedCategoryCount)
+                && Objects.equals(this.categorizationStatus, that.categorizationStatus)
+                && Objects.equals(this.timestamp, that.timestamp)
                 && Objects.equals(this.logTime, that.logTime)
                 && Objects.equals(this.jobId, that.jobId);
     }
@@ -311,12 +410,20 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         private long totalPartitionFieldCount;
         private long bucketAllocationFailuresCount;
         private MemoryStatus memoryStatus;
+        private long categorizedDocCount;
+        private long totalCategoryCount;
+        private long frequentCategoryCount;
+        private long rareCategoryCount;
+        private long deadCategoryCount;
+        private long failedCategoryCount;
+        private CategorizationStatus categorizationStatus;
         private Date timestamp;
         private Date logTime;
 
         public Builder(String jobId) {
             this.jobId = jobId;
             memoryStatus = MemoryStatus.OK;
+            categorizationStatus = CategorizationStatus.OK;
             logTime = new Date();
         }
 
@@ -330,6 +437,13 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             this.totalPartitionFieldCount = modelSizeStats.totalPartitionFieldCount;
             this.bucketAllocationFailuresCount = modelSizeStats.bucketAllocationFailuresCount;
             this.memoryStatus = modelSizeStats.memoryStatus;
+            this.categorizedDocCount = modelSizeStats.categorizedDocCount;
+            this.totalCategoryCount = modelSizeStats.totalCategoryCount;
+            this.frequentCategoryCount = modelSizeStats.frequentCategoryCount;
+            this.rareCategoryCount = modelSizeStats.rareCategoryCount;
+            this.deadCategoryCount = modelSizeStats.deadCategoryCount;
+            this.failedCategoryCount = modelSizeStats.failedCategoryCount;
+            this.categorizationStatus = modelSizeStats.categorizationStatus;
             this.timestamp = modelSizeStats.timestamp;
             this.logTime = modelSizeStats.logTime;
         }
@@ -375,6 +489,42 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setCategorizedDocCount(long categorizedDocCount) {
+            this.categorizedDocCount = categorizedDocCount;
+            return this;
+        }
+
+        public Builder setTotalCategoryCount(long totalCategoryCount) {
+            this.totalCategoryCount = totalCategoryCount;
+            return this;
+        }
+
+        public Builder setFrequentCategoryCount(long frequentCategoryCount) {
+            this.frequentCategoryCount = frequentCategoryCount;
+            return this;
+        }
+
+        public Builder setRareCategoryCount(long rareCategoryCount) {
+            this.rareCategoryCount = rareCategoryCount;
+            return this;
+        }
+
+        public Builder setDeadCategoryCount(long deadCategoryCount) {
+            this.deadCategoryCount = deadCategoryCount;
+            return this;
+        }
+
+        public Builder setFailedCategoryCount(long failedCategoryCount) {
+            this.failedCategoryCount = failedCategoryCount;
+            return this;
+        }
+
+        public Builder setCategorizationStatus(CategorizationStatus categorizationStatus) {
+            Objects.requireNonNull(categorizationStatus, "[" + CATEGORIZATION_STATUS_FIELD.getPreferredName() + "] must not be null");
+            this.categorizationStatus = categorizationStatus;
+            return this;
+        }
+
         public Builder setTimestamp(Date timestamp) {
             this.timestamp = timestamp;
             return this;
@@ -387,7 +537,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         public ModelSizeStats build() {
             return new ModelSizeStats(jobId, modelBytes, modelBytesExceeded, modelBytesMemoryLimit, totalByFieldCount, totalOverFieldCount,
-                    totalPartitionFieldCount, bucketAllocationFailuresCount, memoryStatus, timestamp, logTime);
+                    totalPartitionFieldCount, bucketAllocationFailuresCount, memoryStatus, categorizedDocCount, totalCategoryCount,
+                    frequentCategoryCount, rareCategoryCount, deadCategoryCount, failedCategoryCount, categorizationStatus, timestamp,
+                    logTime);
         }
     }
 }

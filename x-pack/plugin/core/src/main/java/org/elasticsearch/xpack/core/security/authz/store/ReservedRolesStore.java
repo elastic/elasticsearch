@@ -9,7 +9,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -50,11 +53,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("kibana_user", new RoleDescriptor("kibana_user", null, null, new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-.kibana").resources("*").privileges("all").build() },
-                        null, null,
-                        MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                .put("kibana_admin", kibanaAdminUser("kibana_admin", MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("kibana_user", kibanaAdminUser("kibana_user",
+                    MetadataUtils.getDeprecatedReservedMetadata("Please use the [kibana_admin] role instead")))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
                         new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] {
@@ -108,12 +109,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-.kibana").resources("*").privileges("read").build() },
                         null, null,
-                        MetadataUtils.DEFAULT_RESERVED_METADATA,
+                        MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
                         null))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
                         new String[] {
                             "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc",
-                            GetBuiltinPrivilegesAction.NAME, "delegate_pki"
+                            InvalidateApiKeyAction.NAME, "grant_api_key",
+                            GetBuiltinPrivilegesAction.NAME, "delegate_pki", GetLifecycleAction.NAME,  PutLifecycleAction.NAME,
+                            // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
+                            "cluster:admin/analyze"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -122,12 +126,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
-                                // .code_internal-* is for Code's internal worker queue index creation.
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".code-*", ".code_internal-*").privileges("all").build(),
-                                // .apm-* is for APM's agent configuration index creation
+                                // APM agent configuration
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".apm-agent-configuration").privileges("all").build(),
+                                // APM custom link index creation
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".apm-custom-link").privileges("all").build(),
+                                // APM telemetry queries APM indices in kibana task runner
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("apm-*")
+                                    .privileges("read", "read_cross_cluster").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
@@ -148,7 +156,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.APM_ROLE, new RoleDescriptor(UsernamesField.APM_ROLE,
-                        new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                        new String[] { "monitor", MonitoringBulkAction.NAME},
+                        new RoleDescriptor.IndicesPrivileges[]{
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(".monitoring-beats-*").privileges("create_index", "create_doc").build()
+                        },
+                    null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("apm_user", new RoleDescriptor("apm_user",
                     null, new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices("apm-*")
@@ -165,20 +178,20 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                .application("kibana-*").resources("*").privileges("reserved_ml").build()
+                                .application("kibana-*").resources("*").privileges("reserved_ml_user").build()
                         },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("machine_learning_admin", new RoleDescriptor("machine_learning_admin", new String[] { "manage_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*")
+                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*", ".ml-stats-*")
                                         .privileges("view_index_metadata", "read").build(),
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
                                         .privileges("view_index_metadata", "read", "write").build()
                         },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                .application("kibana-*").resources("*").privileges("reserved_ml").build()
+                                .application("kibana-*").resources("*").privileges("reserved_ml_admin").build()
                         },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 // DEPRECATED: to be removed in 9.0.0
@@ -193,8 +206,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                .application("kibana-*").resources("*").privileges("reserved_ml").build()
-                        }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                                .application("kibana-*").resources("*").privileges("reserved_ml_user").build()
+                        }, null, null, MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_admin] role instead"), null))
                 // DEPRECATED: to be removed in 9.0.0
                 .put("data_frame_transforms_user", new RoleDescriptor("data_frame_transforms_user",
                         new String[] { "monitor_data_frame_transforms" },
@@ -207,8 +220,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                .application("kibana-*").resources("*").privileges("reserved_ml").build()
-                        }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                                .application("kibana-*").resources("*").privileges("reserved_ml_user").build()
+                        }, null, null, MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_user] role instead"), null))
                 .put("transform_admin", new RoleDescriptor("transform_admin",
                         new String[] { "manage_transform" },
                         new RoleDescriptor.IndicesPrivileges[]{
@@ -248,16 +261,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_admin", new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("code_admin", new RoleDescriptor("code_admin", new String[] {},
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".code-*").privileges("all").build()
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("code_user", new RoleDescriptor("code_user", new String[] {},
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".code-*").privileges("read").build()
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("snapshot_user", new RoleDescriptor("snapshot_user", new String[] { "create_snapshot", GetRepositoriesAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("*")
@@ -272,8 +275,19 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .immutableMap();
     }
 
+    private static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
+        return new RoleDescriptor(name, null, null,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*").privileges("all")
+                    .build() },
+            null, null, metadata, null);
+    }
+
     public static boolean isReserved(String role) {
-        return RESERVED_ROLES.containsKey(role) || UsernamesField.SYSTEM_ROLE.equals(role) || UsernamesField.XPACK_ROLE.equals(role);
+        return RESERVED_ROLES.containsKey(role) || UsernamesField.SYSTEM_ROLE.equals(role) ||
+                UsernamesField.XPACK_ROLE.equals(role) || UsernamesField.ASYNC_SEARCH_ROLE.equals(role);
     }
 
     public Map<String, Object> usageStats() {

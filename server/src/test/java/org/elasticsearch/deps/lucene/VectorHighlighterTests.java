@@ -35,8 +35,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class VectorHighlighterTests extends ESTestCase {
     public void testVectorHighlighter() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
@@ -72,7 +72,7 @@ public class VectorHighlighterTests extends ESTestCase {
     }
 
     public void testVectorHighlighterPrefixQuery() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
@@ -113,7 +113,7 @@ public class VectorHighlighterTests extends ESTestCase {
     }
 
     public void testVectorHighlighterNoStore() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();
@@ -138,7 +138,7 @@ public class VectorHighlighterTests extends ESTestCase {
     }
 
     public void testVectorHighlighterNoTermVector() throws Exception {
-        Directory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document document = new Document();

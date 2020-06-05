@@ -165,6 +165,7 @@ public class MultiTermVectorsRequest extends ActionRequest
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public MultiTermVectorsRequest realtime(boolean realtime) {
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);

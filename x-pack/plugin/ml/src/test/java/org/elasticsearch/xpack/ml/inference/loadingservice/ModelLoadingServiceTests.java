@@ -13,12 +13,13 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,20 +35,29 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
+import org.mockito.ArgumentMatcher;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,10 +65,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +82,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private InferenceAuditor auditor;
+    private TrainedModelStatsService trainedModelStatsService;
 
     @Before
     public void setUpComponents() {
@@ -77,6 +91,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         trainedModelProvider = mock(TrainedModelProvider.class);
         clusterService = mock(ClusterService.class);
         auditor = mock(InferenceAuditor.class);
+        trainedModelStatsService = mock(TrainedModelStatsService.class);
         doAnswer(a -> null).when(auditor).error(any(String.class), any(String.class));
         doAnswer(a -> null).when(auditor).info(any(String.class), any(String.class));
         doAnswer(a -> null).when(auditor).warning(any(String.class), any(String.class));
@@ -102,7 +117,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             NamedXContentRegistry.EMPTY,
-            Settings.EMPTY);
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node");
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2, model3));
 
@@ -114,9 +131,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model1), any());
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model2), any());
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), any());
 
         // Test invalidate cache for model3
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
@@ -127,18 +144,19 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model1), any());
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model2), any());
         // It is not referenced, so called eagerly
-        verify(trainedModelProvider, times(4)).getTrainedModel(eq(model3), eq(true), any());
+        verify(trainedModelProvider, times(4)).getTrainedModelForInference(eq(model3), any());
     }
 
     public void testMaxCachedLimitReached() throws Exception {
         String model1 = "test-cached-limit-load-model-1";
         String model2 = "test-cached-limit-load-model-2";
         String model3 = "test-cached-limit-load-model-3";
+        String[] modelIds = new String[]{model1, model2, model3};
         withTrainedModel(model1, 10L);
-        withTrainedModel(model2, 5L);
+        withTrainedModel(model2, 6L);
         withTrainedModel(model3, 15L);
 
         ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
@@ -146,19 +164,30 @@ public class ModelLoadingServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             NamedXContentRegistry.EMPTY,
-            Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), new ByteSizeValue(20L)).build());
+            trainedModelStatsService,
+            Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), new ByteSizeValue(20L)).build(),
+            "test-node");
+
+        // We want to be notified when the models are loaded which happens in a background thread
+        ModelLoadedTracker loadedTracker = new ModelLoadedTracker(Arrays.asList(modelIds));
+        for (String modelId : modelIds) {
+            modelLoadingService.addModelLoadedListener(modelId, loadedTracker.actionListener());
+        }
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2, model3));
 
-        // Should have been loaded from the cluster change event
-        // Verify that we have at least loaded all three so that evictions occur in the following loop
+        // Should have been loaded from the cluster change event but it is unknown in what order
+        // the loading occurred or which models are currently in the cache due to evictions.
+        // Verify that we have at least loaded all three
         assertBusy(() -> {
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model1), eq(true), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model2), eq(true), any());
-            verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
+            verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model1), any());
+            verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model2), any());
+            verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), any());
         });
 
-        String[] modelIds = new String[]{model1, model2, model3};
+        // all models loaded put in the cache
+        assertBusy(() -> assertTrue(loadedTracker.allModelsLoaded()), 2, TimeUnit.SECONDS);
+
         for(int i = 0; i < 10; i++) {
             // Only reference models 1 and 2, so that cache is only invalidated once for model3 (after initial load)
             String model = modelIds[i%2];
@@ -167,35 +196,64 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model1), eq(true), any());
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model2), eq(true), any());
+        // Depending on the order the models were first loaded in the first step
+        // models 1 & 2 may have been evicted by model 3 in which case they have
+        // been loaded at most twice
+        verify(trainedModelProvider, atMost(2)).getTrainedModelForInference(eq(model1), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModelForInference(eq(model2), any());
         // Only loaded requested once on the initial load from the change event
-        verify(trainedModelProvider, times(1)).getTrainedModel(eq(model3), eq(true), any());
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), any());
 
-        // Load model 3, should invalidate 1
+        // model 3 has been loaded and evicted exactly once
+        verify(trainedModelStatsService, times(1)).queueStats(argThat(new ArgumentMatcher<>() {
+            @Override
+            public boolean matches(final Object o) {
+                return ((InferenceStats)o).getModelId().equals(model3);
+            }
+        }), anyBoolean());
+
+        // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
             PlainActionFuture<Model> future3 = new PlainActionFuture<>();
             modelLoadingService.getModel(model3, future3);
             assertThat(future3.get(), is(not(nullValue())));
         }
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model3), eq(true), any());
+        verify(trainedModelProvider, times(2)).getTrainedModelForInference(eq(model3), any());
 
-        // Load model 1, should invalidate 2
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
+            @Override
+            public boolean matches(final Object o) {
+                return ((InferenceStats)o).getModelId().equals(model1);
+            }
+        }), anyBoolean());
+        verify(trainedModelStatsService, atMost(2)).queueStats(argThat(new ArgumentMatcher<>() {
+            @Override
+            public boolean matches(final Object o) {
+                return ((InferenceStats)o).getModelId().equals(model2);
+            }
+        }), anyBoolean());
+
+        // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
             PlainActionFuture<Model> future1 = new PlainActionFuture<>();
             modelLoadingService.getModel(model1, future1);
             assertThat(future1.get(), is(not(nullValue())));
         }
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), eq(true), any());
+        verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model1), any());
+        verify(trainedModelStatsService, times(2)).queueStats(argThat(new ArgumentMatcher<>() {
+            @Override
+            public boolean matches(final Object o) {
+                return ((InferenceStats)o).getModelId().equals(model3);
+            }
+        }), anyBoolean());
 
-        // Load model 2, should invalidate 3
+        // Load model 2
         for(int i = 0; i < 10; i++) {
             PlainActionFuture<Model> future2 = new PlainActionFuture<>();
             modelLoadingService.getModel(model2, future2);
             assertThat(future2.get(), is(not(nullValue())));
         }
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model2), eq(true), any());
-
+        verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model2), any());
 
         // Test invalidate cache for model3
         // Now both model 1 and 2 should fit in cache without issues
@@ -207,10 +265,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model1), eq(true), any());
-        verify(trainedModelProvider, atMost(3)).getTrainedModel(eq(model2), eq(true), any());
-        verify(trainedModelProvider, Mockito.atLeast(4)).getTrainedModel(eq(model3), eq(true), any());
-        verify(trainedModelProvider, Mockito.atMost(5)).getTrainedModel(eq(model3), eq(true), any());
+        verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model1), any());
+        verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model2), any());
+        verify(trainedModelProvider, times(5)).getTrainedModelForInference(eq(model3), any());
     }
 
 
@@ -223,7 +280,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             NamedXContentRegistry.EMPTY,
-            Settings.EMPTY);
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node");
 
         modelLoadingService.clusterChanged(ingestChangedEvent(false, model1));
 
@@ -233,7 +292,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(10)).getTrainedModel(eq(model1), eq(true), any());
+        verify(trainedModelProvider, times(10)).getTrainedModelForInference(eq(model1), any());
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
     public void testGetCachedMissingModel() throws Exception {
@@ -245,7 +305,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             NamedXContentRegistry.EMPTY,
-            Settings.EMPTY);
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node");
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
         PlainActionFuture<Model> future = new PlainActionFuture<>();
@@ -258,7 +320,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
 
-        verify(trainedModelProvider, atMost(2)).getTrainedModel(eq(model), eq(true), any());
+        verify(trainedModelProvider, atMost(2)).getTrainedModelForInference(eq(model), any());
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
     public void testGetMissingModel() {
@@ -270,7 +333,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             NamedXContentRegistry.EMPTY,
-            Settings.EMPTY);
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node");
 
         PlainActionFuture<Model> future = new PlainActionFuture<>();
         modelLoadingService.getModel(model, future);
@@ -291,7 +356,9 @@ public class ModelLoadingServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             NamedXContentRegistry.EMPTY,
-            Settings.EMPTY);
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node");
 
         for(int i = 0; i < 3; i++) {
             PlainActionFuture<Model> future = new PlainActionFuture<>();
@@ -299,32 +366,34 @@ public class ModelLoadingServiceTests extends ESTestCase {
             assertThat(future.get(), is(not(nullValue())));
         }
 
-        verify(trainedModelProvider, times(3)).getTrainedModel(eq(model), eq(true), any());
+        verify(trainedModelProvider, times(3)).getTrainedModelForInference(eq(model), any());
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 
     @SuppressWarnings("unchecked")
-    private void withTrainedModel(String modelId, long size) throws IOException {
-        TrainedModelDefinition definition = mock(TrainedModelDefinition.class);
+    private void withTrainedModel(String modelId, long size) {
+        InferenceDefinition definition = mock(InferenceDefinition.class);
         when(definition.ramBytesUsed()).thenReturn(size);
         TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
-        when(trainedModelConfig.getModelDefinition()).thenReturn(definition);
+        when(trainedModelConfig.getModelId()).thenReturn(modelId);
+        when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
+        when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(trainedModelConfig);
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
+            listener.onResponse(Tuple.tuple(trainedModelConfig, definition));
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(true), any());
-        doAnswer(invocationOnMock -> trainedModelConfig).when(trainedModelConfig).ensureParsedDefinition(any());
+        }).when(trainedModelProvider).getTrainedModelForInference(eq(modelId), any());
     }
 
     private void withMissingModel(String modelId) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onFailure(new ResourceNotFoundException(
                 Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
             return null;
-        }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(true), any());
+        }).when(trainedModelProvider).getTrainedModelForInference(eq(modelId), any());
     }
 
     private static ClusterChangedEvent ingestChangedEvent(String... modelId) throws IOException {
@@ -333,7 +402,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
     private static ClusterChangedEvent ingestChangedEvent(boolean isIngestNode, String... modelId) throws IOException {
         ClusterChangedEvent event = mock(ClusterChangedEvent.class);
-        when(event.changedCustomMetaDataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
+        when(event.changedCustomMetadataSet()).thenReturn(Collections.singleton(IngestMetadata.TYPE));
         when(event.state()).thenReturn(buildClusterStateWithModelReferences(isIngestNode, modelId));
         return event;
     }
@@ -346,7 +415,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
         return ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(DiscoveryNodes.builder().add(
                 new DiscoveryNode("node_name",
                     "node_id",
@@ -366,6 +435,30 @@ public class ModelLoadingServiceTests extends ESTestCase {
                     Collections.singletonMap(InferenceProcessor.MODEL_ID,
                         modelId)))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+        }
+    }
+
+    private static class ModelLoadedTracker {
+        private final Set<String> expectedModelIds;
+
+        ModelLoadedTracker(Collection<String> expectedModelIds) {
+            this.expectedModelIds = new HashSet<>(expectedModelIds);
+        }
+
+        private synchronized boolean allModelsLoaded() {
+            return expectedModelIds.isEmpty();
+        }
+
+        private synchronized void onModelLoaded(Model model) {
+            expectedModelIds.remove(model.getModelId());
+        }
+
+        private void onFailure(Exception e) {
+            fail(e.getMessage());
+        }
+
+        ActionListener<Model> actionListener() {
+            return ActionListener.wrap(this::onModelLoaded, this::onFailure);
         }
     }
 }

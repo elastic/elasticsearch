@@ -9,7 +9,7 @@ words. These subwords are then checked against the specified word list. Subwords
 in the list are excluded from the token output.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/compound/HyphenationCompoundWordTokenFilter.html[HyphenationCompoundWordTokenFilter],
+{lucene-analysis-docs}/compound/HyphenationCompoundWordTokenFilter.html[HyphenationCompoundWordTokenFilter],
 which was built for Germanic languages.
 
 [[analysis-hyp-decomp-tokenfilter-analyze-ex]]

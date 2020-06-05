@@ -30,10 +30,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
@@ -136,4 +139,8 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new MatrixAggregationPlugin());
+    }
 }

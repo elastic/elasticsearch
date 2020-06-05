@@ -51,7 +51,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     static final ParseField OUTLIER_FRACTION = new ParseField("outlier_fraction");
     static final ParseField STANDARDIZATION_ENABLED = new ParseField("standardization_enabled");
 
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Builder::new);
 
     static {
         PARSER.declareInt(Builder::setNNeighbors, N_NEIGHBORS);

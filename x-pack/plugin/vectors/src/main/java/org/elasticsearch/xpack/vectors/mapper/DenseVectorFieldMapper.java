@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -27,7 +25,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xpack.vectors.query.VectorDVIndexFieldData;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -40,7 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
+public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
@@ -58,7 +57,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         }
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, DenseVectorFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private int dims = 0;
 
         public Builder(String name) {
@@ -97,7 +96,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(name);
             Object dimsField = node.remove("dims");
             if (dimsField == null) {
@@ -147,7 +146,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder();
+            return new VectorIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -171,6 +170,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     @Override
     public DenseVectorFieldType fieldType() {
         return (DenseVectorFieldType) super.fieldType();
+    }
+
+    @Override
+    public boolean parsesArrayValue() {
+        return true;
     }
 
     @Override
@@ -225,7 +229,15 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        DenseVectorFieldType otherType = (DenseVectorFieldType) other.fieldType();
+        if (this.fieldType().dims() != otherType.dims()) {
+            conflicts.add("mapper [" + name() + "] has different dims");
+        }
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
 

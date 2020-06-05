@@ -5,23 +5,24 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Multiplication function ({@code a * b}).
  */
-public class Mul extends ArithmeticOperation {
+public class Mul extends SqlArithmeticOperation {
 
     private DataType dataType;
 
     public Mul(Source source, Expression left, Expression right) {
-        super(source, left, right, BinaryArithmeticOperation.MUL);
+        super(source, left, right, SqlBinaryArithmeticOperation.MUL);
     }
 
     @Override
@@ -34,14 +35,14 @@ public class Mul extends ArithmeticOperation {
         DataType r = right().dataType();
 
         // 1. both are numbers
-        if (l.isNullOrNumeric() && r.isNullOrNumeric()) {
+        if (DataTypes.isNullOrNumeric(l) && DataTypes.isNullOrNumeric(r)) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (l.isNullOrInterval() && (r.isInteger() || r.isNull())) {
+        if (SqlDataTypes.isNullOrInterval(l) && (r.isInteger() || DataTypes.isNull(r))) {
             dataType = l;
             return TypeResolution.TYPE_RESOLVED;
-        } else if (r.isNullOrInterval() && (l.isInteger() || l.isNull())) {
+        } else if (SqlDataTypes.isNullOrInterval(r) && (l.isInteger() || DataTypes.isNull(l))) {
             dataType = r;
             return TypeResolution.TYPE_RESOLVED;
         }

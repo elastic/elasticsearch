@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -656,7 +656,7 @@ public final class SamlRealm extends Realm implements Releasable {
                 .forceAuthn(forceAuthn)
                 .build();
         if (logger.isTraceEnabled()) {
-            logger.trace("Constructed SAML Authentication Request: {}", SamlUtils.samlObjectToString(authnRequest));
+            logger.trace("Constructed SAML Authentication Request: {}", SamlUtils.getXmlContent(authnRequest, true));
         }
         return authnRequest;
     }
@@ -672,7 +672,7 @@ public final class SamlRealm extends Realm implements Releasable {
             final LogoutRequest logoutRequest = new SamlLogoutRequestMessageBuilder(
                     Clock.systemUTC(), serviceProvider, idpDescriptor.get(), nameId, session).build();
             if (logoutRequest != null && logger.isTraceEnabled()) {
-                logger.trace("Constructed SAML Logout Request: {}", SamlUtils.samlObjectToString(logoutRequest));
+                logger.trace("Constructed SAML Logout Request: {}", SamlUtils.getXmlContent(logoutRequest, true));
             }
             return logoutRequest;
         } else {
@@ -688,7 +688,7 @@ public final class SamlRealm extends Realm implements Releasable {
         final LogoutResponse logoutResponse = new SamlLogoutResponseBuilder(
                 Clock.systemUTC(), serviceProvider, idpDescriptor.get(), inResponseTo, StatusCode.SUCCESS).build();
         if (logoutResponse != null && logger.isTraceEnabled()) {
-            logger.trace("Constructed SAML Logout Response: {}", SamlUtils.samlObjectToString(logoutResponse));
+            logger.trace("Constructed SAML Logout Response: {}", SamlUtils.getXmlContent(logoutResponse, true));
         }
         return logoutResponse;
     }

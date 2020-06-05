@@ -415,7 +415,7 @@ GET /_search
 
 `offset`::
     If an `offset` is defined, the decay function will only compute the
-    decay function for documents with a distance greater that the defined
+    decay function for documents with a distance greater than the defined
     `offset`. The default is 0.
 
 `decay`::

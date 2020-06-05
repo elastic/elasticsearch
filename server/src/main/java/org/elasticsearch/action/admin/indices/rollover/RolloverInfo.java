@@ -44,7 +44,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public static final ParseField TIME_FIELD = new ParseField("time");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>("rollover_info", false,
+    public static final ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>("rollover_info", false,
         (a, alias) -> new RolloverInfo(alias, (List<Condition<?>>) a[0], (Long) a[1]));
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
@@ -62,6 +62,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
         this.time = time;
     }
 
+    @SuppressWarnings("unchecked")
     public RolloverInfo(StreamInput in) throws IOException {
         this.alias = in.readString();
         this.time = in.readVLong();

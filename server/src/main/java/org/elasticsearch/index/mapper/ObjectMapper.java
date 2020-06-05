@@ -20,11 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -96,7 +94,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     @SuppressWarnings("rawtypes")
-    public static class Builder<T extends Builder, Y extends ObjectMapper> extends Mapper.Builder<T, Y> {
+    public static class Builder<T extends Builder> extends Mapper.Builder<T> {
 
         protected boolean enabled = Defaults.ENABLED;
 
@@ -133,8 +131,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public Y build(BuilderContext context) {
+        public ObjectMapper build(BuilderContext context) {
             context.path().add(name);
 
             Map<String, Mapper> mappers = new HashMap<>();
@@ -151,7 +148,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             ObjectMapper objectMapper = createMapper(name, context.path().pathAsText(name), enabled, nested, dynamic,
                 mappers, context.indexSettings());
 
-            return (Y) objectMapper;
+            return objectMapper;
         }
 
         protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
@@ -202,7 +199,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecated("[include_in_all] is deprecated, the _all field have been removed in this version");
+                deprecationLogger.deprecate("include_in_all",
+                    "[include_in_all] is deprecated, the _all field have been removed in this version");
                 return true;
             }
             return false;
@@ -279,9 +277,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
                     String[] fieldNameParts = fieldName.split("\\.");
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder<?,?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder<?, ?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }
@@ -310,8 +308,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private final Nested nested;
 
-    private final String nestedTypePathAsString;
-    private final BytesRef nestedTypePathAsBytes;
+    private final String nestedTypePath;
 
     private final Query nestedTypeFilter;
 
@@ -335,9 +332,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } else {
             this.mappers = CopyOnWriteHashMap.copyOf(mappers);
         }
-        this.nestedTypePathAsString = "__" + fullPath;
-        this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
-        this.nestedTypeFilter = new TermQuery(new Term(TypeFieldMapper.NAME, nestedTypePathAsBytes));
+        if (Version.indexCreated(settings).before(Version.V_8_0_0)) {
+            this.nestedTypePath = "__" + fullPath;
+        } else {
+            this.nestedTypePath = fullPath;
+        }
+        this.nestedTypeFilter = NestedPathFieldMapper.filter(settings, nestedTypePath);
     }
 
     @Override
@@ -401,8 +401,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.fullPath;
     }
 
-    public String nestedTypePathAsString() {
-        return nestedTypePathAsString;
+    public String nestedTypePath() {
+        return this.nestedTypePath;
     }
 
     public final Dynamic dynamic() {
@@ -465,9 +465,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
+        checkObjectMapperParameters(mergeWith);
+
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
-            checkEnabledFieldChange(mergeWith, mergeWithMapper, mergeIntoMapper);
 
             Mapper merged;
             if (mergeIntoMapper == null) {
@@ -481,38 +482,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    private static void checkEnabledFieldChange(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
-        if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
-            final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
-            final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;
+    private void checkObjectMapperParameters(final ObjectMapper mergeWith) {
+        if (isEnabled() != mergeWith.isEnabled()) {
+            throw new MapperException("The [enabled] parameter can't be updated for the object mapping [" + name() + "].");
+        }
 
-            if (mergeIntoObjectMapper.isEnabled() != mergeWithObjectMapper.isEnabled()) {
-                final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
-                throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
-            }
+        if (nested().isIncludeInParent() != mergeWith.nested().isIncludeInParent()) {
+            throw new MapperException("The [include_in_parent] parameter can't be updated for the nested object mapping [" +
+                name() + "].");
         }
-    }
 
-    @Override
-    public ObjectMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        List<Mapper> updatedMappers = null;
-        for (Mapper mapper : this) {
-            Mapper updated = mapper.updateFieldType(fullNameToFieldType);
-            if (mapper != updated) {
-                if (updatedMappers == null) {
-                    updatedMappers = new ArrayList<>();
-                }
-                updatedMappers.add(updated);
-            }
+        if (nested().isIncludeInRoot() != mergeWith.nested().isIncludeInRoot()) {
+            throw new MapperException("The [include_in_root] parameter can't be updated for the nested object mapping [" +
+                name() + "].");
         }
-        if (updatedMappers == null) {
-            return this;
-        }
-        ObjectMapper updated = clone();
-        for (Mapper updatedMapper : updatedMappers) {
-            updated.putMapper(updatedMapper);
-        }
-        return updated;
     }
 
     @Override

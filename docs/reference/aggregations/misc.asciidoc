@@ -167,3 +167,12 @@ request. This is the case for Terms, Significant Terms and Percentiles aggregati
 also contains information about the type of the targeted field: `lterms` (for a terms aggregation on a Long field),
  `sigsterms` (for a significant terms aggregation on a String field), `tdigest_percentiles` (for a percentile
  aggregation based on the TDigest algorithm).
+ 
+
+[[indexing-aggregation-results]]
+== Indexing aggregation results with {transforms}
+ 
+<<transforms,{transforms-cap}>> enable you to convert existing {es} indices 
+into summarized indices, which provide opportunities for new insights and 
+analytics. You can use {transforms} to persistently index your aggregation 
+results into entity-centric indices.

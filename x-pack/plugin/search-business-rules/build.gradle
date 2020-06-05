@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name 'search-business-rules'
@@ -13,17 +14,6 @@ archivesBaseName = 'x-pack-searchbusinessrules'
 
 integTest.enabled = false
 
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: Test) {
-  description = 'Java fantasy integration tests'
-  mustRunAfter test
-
-  include '**/*IT.class'
-}
-
-check.dependsOn internalClusterTest
-
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
@@ -35,8 +25,3 @@ dependencyLicenses {
   ignoreSha 'x-pack-core'
 }
 
-//testingConventions.naming {
-//    IT {
-//        baseClass "org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilderIT"
-//    }
-//}

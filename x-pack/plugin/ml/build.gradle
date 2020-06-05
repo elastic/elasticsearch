@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-ml'
   description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
@@ -50,6 +51,7 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ilm'), configuration: 'default')
   // This should not be here
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
@@ -98,17 +100,6 @@ project.afterEvaluate {
 // so we disable integ tests
 integTest.enabled = false
 
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: Test) {
-  description = 'Multi-node tests'
-
-  include '**/*IT.class'
-  systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-check.dependsOn internalClusterTest
-internalClusterTest.mustRunAfter test
-
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {
   project.subprojects
@@ -116,9 +107,4 @@ gradle.projectsEvaluated {
     .subprojects
     .findAll { it.path.startsWith(project.path + ":qa") }
     .each { check.dependsOn it.check }
-}
-
-// also add an "alias" task to make typing on the command line easier
-task icTest {
-  dependsOn internalClusterTest
 }

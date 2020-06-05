@@ -10,6 +10,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
@@ -66,11 +70,15 @@ public class TransformTaskTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
-        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
         TransformAuditor auditor = new MockTransformAuditor();
         TransformConfigManager transformsConfigManager = new InMemoryTransformConfigManager();
-
-        TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(client, transformsConfigManager, auditor);
+        TransformCheckpointService transformsCheckpointService = new TransformCheckpointService(
+            Settings.EMPTY,
+            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            transformsConfigManager,
+            auditor
+        );
 
         TransformState transformState = new TransformState(
             TransformTaskState.FAILED,
@@ -88,7 +96,8 @@ public class TransformTaskTests extends ESTestCase {
             "some_type",
             "some_action",
             TaskId.EMPTY_TASK_ID,
-            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10)),
+            client,
+            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10), false),
             transformState,
             mock(SchedulerEngine.class),
             auditor,
@@ -101,7 +110,7 @@ public class TransformTaskTests extends ESTestCase {
         transformTask.init(mock(PersistentTasksService.class), taskManager, "task-id", 42);
 
         ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder();
-        indexerBuilder.setClient(client)
+        indexerBuilder.setClient(new ParentTaskAssigningClient(client, TaskId.EMPTY_TASK_ID))
             .setTransformConfig(transformConfig)
             .setAuditor(auditor)
             .setTransformsConfigManager(transformsConfigManager)
@@ -149,7 +158,7 @@ public class TransformTaskTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
-        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfigWithoutHeaders();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
         TransformAuditor auditor = new MockTransformAuditor();
 
         TransformState transformState = new TransformState(
@@ -168,7 +177,8 @@ public class TransformTaskTests extends ESTestCase {
             "some_type",
             "some_action",
             TaskId.EMPTY_TASK_ID,
-            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10)),
+            client,
+            new TransformTaskParams(transformConfig.getId(), Version.CURRENT, TimeValue.timeValueSeconds(10), false),
             transformState,
             mock(SchedulerEngine.class),
             auditor,

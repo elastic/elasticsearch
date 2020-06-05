@@ -20,8 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,20 +33,20 @@ public final class TcpTransportChannel implements TransportChannel {
     private final String action;
     private final long requestId;
     private final Version version;
-    private final CircuitBreakerService breakerService;
-    private final long reservedBytes;
     private final boolean compressResponse;
+    private final boolean isHandshake;
+    private final Releasable breakerRelease;
 
     TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse) {
+                        boolean compressResponse, boolean isHandshake, Releasable breakerRelease) {
         this.version = version;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
         this.action = action;
         this.requestId = requestId;
-        this.breakerService = breakerService;
-        this.reservedBytes = reservedBytes;
         this.compressResponse = compressResponse;
+        this.isHandshake = isHandshake;
+        this.breakerRelease = breakerRelease;
     }
 
     @Override
@@ -58,7 +57,7 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            outboundHandler.sendResponse(version, channel, requestId, action, response, compressResponse, false);
+            outboundHandler.sendResponse(version, channel, requestId, action, response, compressResponse, isHandshake);
         } finally {
             release(false);
         }
@@ -78,7 +77,7 @@ public final class TcpTransportChannel implements TransportChannel {
     private void release(boolean isExceptionResponse) {
         if (released.compareAndSet(false, true)) {
             assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
-            breakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS).addWithoutBreaking(-reservedBytes);
+            breakerRelease.close();
         } else if (isExceptionResponse == false) {
             // only fail if we are not sending an error - we might send the error triggered by the previous
             // sendResponse call
@@ -99,6 +98,5 @@ public final class TcpTransportChannel implements TransportChannel {
     public TcpChannel getChannel() {
         return channel;
     }
-
 }
 

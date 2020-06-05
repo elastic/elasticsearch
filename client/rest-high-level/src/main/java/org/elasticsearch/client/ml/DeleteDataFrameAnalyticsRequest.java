@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -31,6 +32,8 @@ import java.util.Optional;
 public class DeleteDataFrameAnalyticsRequest implements Validatable {
 
     private final String id;
+    private Boolean force;
+    private TimeValue timeout;
 
     public DeleteDataFrameAnalyticsRequest(String id) {
         this.id = id;
@@ -38,6 +41,33 @@ public class DeleteDataFrameAnalyticsRequest implements Validatable {
 
     public String getId() {
         return id;
+    }
+
+    public Boolean getForce() {
+        return force;
+    }
+
+    /**
+     * Used to forcefully delete an job that is not stopped.
+     * This method is quicker than stopping and deleting the job.
+     *
+     * @param force When {@code true} forcefully delete a non stopped job. Defaults to {@code false}
+     */
+    public void setForce(Boolean force) {
+        this.force = force;
+    }
+
+    public TimeValue getTimeout() {
+        return timeout;
+    }
+
+    /**
+     * Sets the time to wait until the job is deleted.
+     *
+     * @param timeout The time to wait until the job is deleted.
+     */
+    public void setTimeout(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     @Override
@@ -54,11 +84,13 @@ public class DeleteDataFrameAnalyticsRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
 
         DeleteDataFrameAnalyticsRequest other = (DeleteDataFrameAnalyticsRequest) o;
-        return Objects.equals(id, other.id);
+        return Objects.equals(id, other.id)
+            && Objects.equals(force, other.force)
+            && Objects.equals(timeout, other.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(id, force, timeout);
     }
 }

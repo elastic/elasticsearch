@@ -40,5 +40,4 @@ public class SearchShardTask extends CancellableTask {
     public boolean shouldCancelChildrenOnCancellation() {
         return false;
     }
-
 }

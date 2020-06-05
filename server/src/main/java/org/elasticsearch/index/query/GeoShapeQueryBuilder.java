@@ -34,12 +34,14 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -55,6 +57,12 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     protected static final ParseField STRATEGY_FIELD = new ParseField("strategy");
 
     private SpatialStrategy strategy;
+
+    protected static final List<String> validContentTypes =
+        Collections.unmodifiableList(
+            Arrays.asList(
+                GeoShapeFieldMapper.CONTENT_TYPE,
+                GeoPointFieldMapper.CONTENT_TYPE));
 
     /**
      * Creates a new GeoShapeQueryBuilder whose Query will be against the given
@@ -168,13 +176,8 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    protected List validContentTypes() {
-        return Arrays.asList(GeoShapeFieldMapper.CONTENT_TYPE);
-    }
-
-    @Override
-    public String queryFieldType() {
-        return GeoShapeFieldMapper.CONTENT_TYPE;
+    protected List<String> validContentTypes() {
+        return validContentTypes;
     }
 
     @Override
@@ -197,12 +200,15 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     public Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType) {
-        if (fieldType.typeName().equals(GeoShapeFieldMapper.CONTENT_TYPE) == false) {
+        if (validContentTypes().contains(fieldType.typeName()) == false) {
             throw new QueryShardException(context,
-                "Field [" + fieldName + "] is not of type [" + queryFieldType() + "] but of type [" + fieldType.typeName() + "]");
+                "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "]. ["
+                + NAME + "] query supports the following types ["
+                + String.join(",", validContentTypes()) +  "]");
         }
 
-        final AbstractGeometryFieldMapper.AbstractGeometryFieldType ft = (AbstractGeometryFieldMapper.AbstractGeometryFieldType) fieldType;
+        final AbstractGeometryFieldType ft =
+            (AbstractGeometryFieldType) fieldType;
         return new ConstantScoreQuery(ft.geometryQueryBuilder().process(shape, fieldName, strategy, relation, context));
     }
 

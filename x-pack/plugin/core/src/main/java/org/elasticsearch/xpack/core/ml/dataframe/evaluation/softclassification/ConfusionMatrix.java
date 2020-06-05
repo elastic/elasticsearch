@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+
 public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("confusion_matrix");
@@ -46,7 +48,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
     @Override
     public String getWriteableName() {
-        return NAME.getPreferredName();
+        return registeredMetricName(BinarySoftClassification.NAME, NAME);
     }
 
     @Override
@@ -129,7 +131,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
         @Override
         public String getWriteableName() {
-            return NAME.getPreferredName();
+            return registeredMetricName(BinarySoftClassification.NAME, NAME);
         }
 
         @Override

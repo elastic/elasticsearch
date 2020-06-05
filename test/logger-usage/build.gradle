@@ -27,8 +27,7 @@ dependencies {
 
 loggerUsageCheck.enabled = false
 
-forbiddenApisMain.enabled = true // disabled by parent project
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures' // does not depend on core, only jdk signatures
 }
 jarHell.enabled = true // disabled by parent project

@@ -10,9 +10,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTransportAction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +31,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -103,7 +105,9 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
     }

@@ -69,13 +69,13 @@ public class MergePolicySettingsTests extends ESTestCase {
         assertThat(indexSettings.getMergePolicy().getNoCFSRatio(), equalTo(0.1));
         indexSettings = indexSettings(build(0.9));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.9));
-        indexSettings.updateIndexMetaData(newIndexMeta("index", build(0.1)));
+        indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.1)));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.1));
-        indexSettings.updateIndexMetaData(newIndexMeta("index", build(0.0)));
+        indexSettings.updateIndexMetadata(newIndexMeta("index", build(0.0)));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.0));
-        indexSettings.updateIndexMetaData(newIndexMeta("index", build("true")));
+        indexSettings.updateIndexMetadata(newIndexMeta("index", build("true")));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(1.0));
-        indexSettings.updateIndexMetaData(newIndexMeta("index", build("false")));
+        indexSettings.updateIndexMetadata(newIndexMeta("index", build("false")));
         assertThat((indexSettings.getMergePolicy()).getNoCFSRatio(), equalTo(0.0));
     }
 
@@ -85,7 +85,7 @@ public class MergePolicySettingsTests extends ESTestCase {
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(),
             MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d);
 
-        indexSettings.updateIndexMetaData(newIndexMeta("index",
+        indexSettings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING.getKey(),
                 MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED + 1.0d).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(),
@@ -93,7 +93,7 @@ public class MergePolicySettingsTests extends ESTestCase {
 
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getFloorSegmentMB(),
             MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMbFrac(), 0);
-        indexSettings.updateIndexMetaData(newIndexMeta("index",
+        indexSettings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey(),
                 new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb() + 1, ByteSizeUnit.MB)).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getFloorSegmentMB(),
@@ -101,7 +101,7 @@ public class MergePolicySettingsTests extends ESTestCase {
 
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(),
             MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE);
-        indexSettings.updateIndexMetaData(newIndexMeta("index",
+        indexSettings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(),
                 MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE - 1).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(),
@@ -109,7 +109,7 @@ public class MergePolicySettingsTests extends ESTestCase {
 
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnceExplicit(),
             MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
-        indexSettings.updateIndexMetaData(newIndexMeta("index",
+        indexSettings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING.getKey(),
                 MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT - 1).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnceExplicit(),
@@ -117,7 +117,7 @@ public class MergePolicySettingsTests extends ESTestCase {
 
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergedSegmentMB(),
             MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getMbFrac(), 0.0001);
-        indexSettings.updateIndexMetaData(newIndexMeta("index",
+        indexSettings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING.getKey(),
                 new ByteSizeValue(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1)).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergedSegmentMB(),
@@ -125,7 +125,7 @@ public class MergePolicySettingsTests extends ESTestCase {
 
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getSegmentsPerTier(),
             MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER, 0);
-        indexSettings.updateIndexMetaData(newIndexMeta("index",
+        indexSettings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(),
                 MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER + 1).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getSegmentsPerTier(),
@@ -133,16 +133,16 @@ public class MergePolicySettingsTests extends ESTestCase {
 
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getDeletesPctAllowed(),
             MergePolicyConfig.DEFAULT_DELETES_PCT_ALLOWED, 0);
-        indexSettings.updateIndexMetaData(newIndexMeta("index",
+        indexSettings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING.getKey(), 22).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getDeletesPctAllowed(), 22, 0);
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
-            indexSettings.updateIndexMetaData(newIndexMeta("index",
+            indexSettings.updateIndexMetadata(newIndexMeta("index",
                 Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING.getKey(), 53).build())));
         final Throwable cause = exc.getCause();
         assertThat(cause.getMessage(), containsString("must be <= 50.0"));
-        indexSettings.updateIndexMetaData(newIndexMeta("index", EMPTY_SETTINGS)); // see if defaults are restored
+        indexSettings.updateIndexMetadata(newIndexMeta("index", EMPTY_SETTINGS)); // see if defaults are restored
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(),
             MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d);
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getFloorSegmentMB(),

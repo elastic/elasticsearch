@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * PreProcessor for one hot encoding a set of categorical values for a given field.
@@ -77,6 +79,11 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
      */
     public Map<String, String> getHotMap() {
         return hotMap;
+    }
+
+    @Override
+    public Map<String, String> reverseLookup() {
+        return hotMap.entrySet().stream().collect(Collectors.toMap(HashMap.Entry::getValue, (entry) -> field));
     }
 
     @Override

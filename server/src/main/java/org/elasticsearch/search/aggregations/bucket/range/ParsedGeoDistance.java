@@ -31,7 +31,7 @@ public class ParsedGeoDistance extends ParsedRange {
         return GeoDistanceAggregationBuilder.NAME;
     }
 
-    private static ObjectParser<ParsedGeoDistance, Void> PARSER =
+    private static final ObjectParser<ParsedGeoDistance, Void> PARSER =
             new ObjectParser<>(ParsedGeoDistance.class.getSimpleName(), true, ParsedGeoDistance::new);
     static {
         declareParsedRangeFields(PARSER,

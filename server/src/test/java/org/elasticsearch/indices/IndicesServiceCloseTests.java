@@ -39,7 +39,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -53,8 +52,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -69,7 +68,6 @@ public class IndicesServiceCloseTests extends ESTestCase {
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
             .put(Node.NODE_DATA_SETTING.getKey(), true)

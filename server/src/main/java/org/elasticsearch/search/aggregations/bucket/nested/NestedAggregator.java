@@ -42,11 +42,9 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -61,9 +59,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
     NestedAggregator(String name, AggregatorFactories factories, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
                      SearchContext context, Aggregator parentAggregator,
-                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-                     boolean collectsFromSingleBucket) throws IOException {
-        super(name, factories, context, parentAggregator, pipelineAggregators, metaData);
+                     Map<String, Object> metadata, boolean collectsFromSingleBucket) throws IOException {
+        super(name, factories, context, parentAggregator, metadata);
 
         Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
             : Queries.newNonNestedFilter();
@@ -125,14 +122,14 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
-                pipelineAggregators(), metaData());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
-        @Override
+    @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+        return new InternalNested(name, 0, buildEmptySubAggregations(), metadata());
     }
 
     class BufferingNestedLeafBucketCollector extends LeafBucketCollectorBase {

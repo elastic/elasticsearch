@@ -6,20 +6,20 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.BinaryPipe;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.pipe;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
-import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
+import static org.elasticsearch.xpack.ql.expression.Expressions.pipe;
+import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.randomStringLiteral;
+import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
 public class BinaryStringStringPipeTests
         extends AbstractNodeTestCase<BinaryStringStringPipe, Pipe> {

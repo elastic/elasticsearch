@@ -102,6 +102,7 @@ Verify this response as well but in a hidden block.
 
 For more details on specifying scripts see <<modules-scripting, script documentation>>.
 
+[[scripted-metric-aggregation-return-types]]
 ==== Allowed return types
 
 Whilst any valid script object can be used within a single script, the scripts must return or store in the `state` object only the following types:
@@ -111,6 +112,7 @@ Whilst any valid script object can be used within a single script, the scripts m
 * Map (containing only keys and values of the types listed here)
 * Array (containing elements of only the types listed here)
 
+[[scripted-metric-aggregation-scope]]
 ==== Scope of scripts
 
 The scripted metric aggregation uses scripts at 4 stages of its execution:
@@ -139,7 +141,8 @@ reduce_script::     Executed once on the coordinating node after all shards have
 In the above example, the `reduce_script` iterates through the `profit` returned by each shard summing the values before returning the
 final combined profit which will be returned in the response of the aggregation.
 
-==== Worked Example
+[[scripted-metric-aggregation-example]]
+==== Worked example
 
 Imagine a situation where you index the following documents into an index with 2 shards:
 
@@ -255,7 +258,8 @@ produce the response:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Other Parameters
+[[scripted-metric-aggregation-parameters]]
+==== Other parameters
 
 [horizontal]
 params::           Optional. An object whose contents will be passed as variables to the  `init_script`, `map_script` and `combine_script`. This can be
@@ -268,7 +272,8 @@ params::           Optional. An object whose contents will be passed as variable
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Empty Buckets
+[[scripted-metric-aggregation-empty-buckets]]
+==== Empty buckets
 
 If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
 shard with a `null` value. In this case the `reduce_script`'s `states` variable will contain `null` as a response from that shard.

@@ -35,9 +35,8 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     public static final String NAME = "simple_value";
     protected final double value;
 
-    InternalSimpleValue(String name, double value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalSimpleValue(String name, double value, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = formatter;
         this.value = value;
     }
@@ -76,7 +75,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    public InternalSimpleValue doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSimpleValue reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

@@ -1,0 +1,39 @@
+{
+  "async_search.get":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html",
+      "description": "Retrieves the results of a previously submitted async search request given its ID."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_async_search/{id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The async search ID"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_completion_timeout":{
+        "type":"time",
+        "description":"Specify the time that the request should block waiting for the final response"
+      },
+      "keep_alive": {
+        "type": "time",
+        "description": "Specify the time interval in which the results (partial or final) for this search will be available"
+      },
+      "typed_keys":{
+        "type":"boolean",
+        "description":"Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+      }
+    }
+  }
+}

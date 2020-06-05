@@ -7,11 +7,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
@@ -32,15 +35,16 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(IndexMetaData indexMetaData, Listener listener) {
-        Map<String, String> customIndexMetadata = indexMetaData.getCustomData(CCR_METADATA_KEY);
+    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexMetadata indexMetadata = metadata.index(index);
+        Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
         if (customIndexMetadata == null) {
             listener.onResponse(true, null);
             return;
         }
 
         FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
-        request.setIndices(new String[]{indexMetaData.getIndex().getName()});
+        request.setIndices(new String[]{index.getName()});
         getClient().execute(FollowStatsAction.INSTANCE, request,
             ActionListener.wrap(r -> handleResponse(r, listener), listener::onFailure));
     }

@@ -34,15 +34,11 @@ import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
@@ -50,8 +46,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -65,21 +59,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 
-public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
-
-    protected BlobStore newBlobStore() {
-        return randomMockS3BlobStore();
-    }
-
-    @Override
-    public void testDeleteBlob() {
-        assumeFalse("not implemented because of S3's weak consistency model", true);
-    }
-
-    @Override
-    public void testVerifyOverwriteFails() {
-        assumeFalse("not implemented because of S3's weak consistency model", true);
-    }
+public class S3BlobStoreContainerTests extends ESTestCase {
 
     public void testExecuteSingleUploadBlobSizeTooLarge() {
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(6, 10));
@@ -466,36 +446,5 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
         assertEquals("Expected number of parts [" + expectedParts + "] but got [" + result.v1() + "]", expectedParts, (long) result.v1());
         assertEquals("Expected remaining [" + expectedRemaining + "] but got [" + result.v2() + "]", expectedRemaining, (long) result.v2());
-    }
-
-    /**
-     * Creates a new {@link S3BlobStore} with random settings.
-     * <p>
-     * The blobstore uses a {@link MockAmazonS3} client.
-     */
-    public static S3BlobStore randomMockS3BlobStore() {
-        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        ByteSizeValue bufferSize = new ByteSizeValue(randomIntBetween(5, 100), ByteSizeUnit.MB);
-        boolean serverSideEncryption = randomBoolean();
-
-        String cannedACL = null;
-        if (randomBoolean()) {
-            cannedACL = randomFrom(CannedAccessControlList.values()).toString();
-        }
-
-        String storageClass = null;
-        if (randomBoolean()) {
-            storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
-        }
-
-        final AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
-        final S3Service service = new S3Service() {
-            @Override
-            public synchronized AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
-                return new AmazonS3Reference(client);
-            }
-        };
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
-            new RepositoryMetaData(bucket, "s3", Settings.EMPTY));
     }
 }

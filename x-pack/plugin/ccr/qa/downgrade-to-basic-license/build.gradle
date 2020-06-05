@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -26,13 +27,35 @@ task writeJavaPolicy {
     if (policyFile.parentFile.exists() == false && policyFile.parentFile.mkdirs() == false) {
       throw new GradleException("failed to create temporary directory [${tmp}]")
     }
-    policyFile.write(
-      [
-        "grant {",
-        "  permission java.io.FilePermission \"${-> testClusters."follow-cluster".getFirstNode().getServerLog()}\", \"read\";",
-        "};"
-      ].join("\n")
-    )
+    if (BuildParams.inFipsJvm) {
+      policyFile.write(
+        [
+          "grant {",
+          "permission java.security.SecurityPermission \"putProviderProperty.BCFIPS\";",
+          "permission java.security.SecurityPermission \"putProviderProperty.BCJSSE\";",
+          "permission java.lang.RuntimePermission \"getProtectionDomain\";",
+          "permission java.util.PropertyPermission \"java.runtime.name\", \"read\";",
+          "permission org.bouncycastle.crypto.CryptoServicesPermission \"tlsAlgorithmsEnabled\";",
+          "permission java.lang.RuntimePermission \"accessClassInPackage.sun.security.internal.spec\";",
+          "permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
+          "permission java.util.PropertyPermission \"intellij.debug.agent\", \"read\";",
+          "permission java.util.PropertyPermission \"intellij.debug.agent\", \"write\";",
+          "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
+          "permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
+          "permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
+          "permission java.io.FilePermission \"${-> testClusters."follow-cluster".getFirstNode().getServerLog()}\", \"read\";",
+          "};"
+        ].join("\n")
+      )
+    } else {
+      policyFile.write(
+        [
+          "grant {",
+          "  permission java.io.FilePermission \"${-> testClusters."follow-cluster".getFirstNode().getServerLog()}\", \"read\";",
+          "};"
+        ].join("\n")
+      )
+    }
   }
 }
 
@@ -40,7 +63,11 @@ task "follow-cluster"(type: RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
   runner {
     useCluster testClusters."leader-cluster"
-    systemProperty 'java.security.policy', "file://${policyFile}"
+    if (BuildParams.inFipsJvm){
+      systemProperty 'java.security.policy', "=file://${policyFile}"
+    } else {
+      systemProperty 'java.security.policy', "file://${policyFile}"
+    }
     systemProperty 'tests.target_cluster', 'follow'
     nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"

@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -50,9 +49,9 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
 
     StringRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes valuesSource,
                                      DocValueFormat format,  IncludeExclude.StringFilter stringFilter,
-                                     SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                     Map<String, Object> metaData, long maxDocCount, double precision) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData, maxDocCount, precision, format, valuesSource, stringFilter);
+                                     SearchContext context, Aggregator parent,
+                                     Map<String, Object> metadata, long maxDocCount, double precision) throws IOException {
+        super(name, factories, context, parent, metadata, maxDocCount, precision, format, valuesSource, stringFilter);
         this.bucketOrds = new BytesRefHash(1, context.bigArrays());
     }
 
@@ -60,9 +59,6 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                 final LeafBucketCollector sub) throws IOException {
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        if (subCollectors == null) {
-            subCollectors = sub;
-        }
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
 
@@ -84,7 +80,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                             continue;
                         }
 
-                        doCollect(bytes, docId);
+                        doCollect(sub, bytes, docId);
                         previous.copyBytes(bytes);
                     }
                 }
@@ -123,8 +119,6 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                     StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(BytesRef.deepCopyOf(oldKey), docCount, null, format);
                     bucket.bucketOrd = newBucketOrd;
                     buckets.add(bucket);
-
-                    consumeBucketsAndMaybeBreak(1);
                 } else {
                     // Make a note when one of the ords has been deleted
                     deletionCount += 1;
@@ -147,24 +141,18 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
         List<StringRareTerms.Bucket> buckets = buildSketch();
-        runDeferredCollections(buckets.stream().mapToLong(b -> b.bucketOrd).toArray());
+        buildSubAggsForBuckets(buckets, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
 
-        // Finalize the buckets
-        for (StringRareTerms.Bucket bucket : buckets) {
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-        }
-
-        CollectionUtil.introSort(buckets, ORDER.comparator(this));
-        return new StringRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
+        CollectionUtil.introSort(buckets, ORDER.comparator());
+        return new InternalAggregation[] {new StringRareTerms(name, ORDER, metadata(), format, buckets, maxDocCount, filter)};
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringRareTerms(name, LongRareTermsAggregator.ORDER, pipelineAggregators(), metaData(), format, emptyList(), 0, filter);
+        return new StringRareTerms(name, LongRareTermsAggregator.ORDER, metadata(), format, emptyList(), 0, filter);
     }
 
     @Override

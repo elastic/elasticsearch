@@ -78,7 +78,7 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
         fieldType1.setHasDocValues(true);
 
         FiltersAggregationBuilder filters = new FiltersAggregationBuilder("placeholder", new MatchAllQueryBuilder())
-            .subAggregation(new TermsAggregationBuilder("the_terms", ValueType.STRING).field("the_field")
+            .subAggregation(new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING).field("the_field")
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("number_field")))
             .subAggregation(new BucketScriptPipelineAggregationBuilder("bucket_script",
                 Collections.singletonMap("the_avg", "the_terms['test1']>the_avg.value"),

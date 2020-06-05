@@ -19,8 +19,11 @@
 
 package org.elasticsearch.packaging.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.client.fluent.Request;
 import org.elasticsearch.common.CheckedRunnable;
 
 import java.nio.file.Path;
@@ -28,22 +31,26 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
-import static org.hamcrest.CoreMatchers.containsString;
+import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -54,6 +61,8 @@ public class Docker {
 
     private static final Shell sh = new Shell();
     private static final DockerShell dockerShell = new DockerShell();
+    public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
+    public static final int STARTUP_ATTEMPTS_MAX = 10;
 
     /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,
@@ -99,7 +108,7 @@ public class Docker {
 
         waitForElasticsearchToStart();
 
-        return Installation.ofContainer(distribution);
+        return Installation.ofContainer(dockerShell, distribution);
     }
 
     /**
@@ -120,7 +129,7 @@ public class Docker {
 
         waitForElasticsearchToExit();
 
-        return sh.run("docker logs " + containerId);
+        return getContainerLogs();
     }
 
     private static void executeDockerRun(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
@@ -146,9 +155,19 @@ public class Docker {
 
         // Bind-mount any volumes
         if (volumes != null) {
-            volumes.forEach((localPath, containerPath) -> args.add("--volume \"" + localPath + ":" + containerPath + "\""));
+            volumes.forEach((localPath, containerPath) -> {
+                assertThat(localPath, fileExists());
+
+                if (Platforms.WINDOWS == false && System.getProperty("user.name").equals("root")) {
+                    // The tests are running as root, but the process in the Docker container runs as `elasticsearch` (UID 1000),
+                    // so we need to ensure that the container process is able to read the bind-mounted files.
+                    sh.run("chown -R 1000:0 " + localPath);
+                }
+                args.add("--volume \"" + localPath + ":" + containerPath + "\"");
+            });
         }
 
+        // Image name
         args.add(distribution.flavor.name + ":test");
 
         final String command = String.join(" ", args);
@@ -160,7 +179,7 @@ public class Docker {
      * Waits for the Elasticsearch process to start executing in the container.
      * This is called every time a container is started.
      */
-    private static void waitForElasticsearchToStart() {
+    public static void waitForElasticsearchToStart() {
         boolean isElasticsearchRunning = false;
         int attempt = 0;
 
@@ -169,21 +188,21 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to crash out
-                Thread.sleep(1000);
+                Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
-                psOutput = dockerShell.run("ps ax").stdout;
+                psOutput = dockerShell.run("ps -ww ax").stdout;
 
-                if (psOutput.contains("/usr/share/elasticsearch/jdk/bin/java")) {
+                if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;
                     break;
                 }
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to start", e);
             }
-        } while (attempt++ < 5);
+        } while (attempt++ < STARTUP_ATTEMPTS_MAX);
 
         if (isElasticsearchRunning == false) {
-            final Shell.Result dockerLogs = sh.run("docker logs " + containerId);
+            final Shell.Result dockerLogs = getContainerLogs();
             fail(
                 "Elasticsearch container did not start successfully.\n\nps output:\n"
                     + psOutput
@@ -217,7 +236,7 @@ public class Docker {
         } while (attempt++ < 5);
 
         if (isElasticsearchRunning) {
-            final Shell.Result dockerLogs = sh.run("docker logs " + containerId);
+            final Shell.Result dockerLogs = getContainerLogs();
             fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
     }
@@ -270,7 +289,37 @@ public class Docker {
         protected String[] getScriptCommand(String script) {
             assert containerId != null;
 
-            return super.getScriptCommand("docker exec " + "--user elasticsearch:root " + "--tty " + containerId + " " + script);
+            return super.getScriptCommand("docker exec --user elasticsearch:root --tty " + containerId + " " + script);
+        }
+
+        /**
+         * Overrides {@link Shell#run(String)} to attempt to collect Docker container
+         * logs when a command fails to execute successfully.
+         * @param script the command to run
+         * @return the command's output
+         */
+        @Override
+        public Result run(String script) {
+            try {
+                return super.run(script);
+            } catch (ShellException e) {
+                try {
+                    final Shell.Result dockerLogs = getContainerLogs();
+                    logger.error(
+                        "Command [{}] failed.\n\nContainer stdout: [{}]\n\nContainer stderr: [{}]",
+                        script,
+                        dockerLogs.stdout,
+                        dockerLogs.stderr
+                    );
+                } catch (ShellException shellException) {
+                    logger.error(
+                        "Command [{}] failed.\n\nTried to dump container logs but that failed too: [{}]",
+                        script,
+                        shellException.getMessage()
+                    );
+                }
+                throw e;
+            }
         }
     }
 
@@ -278,6 +327,13 @@ public class Docker {
      * Checks whether a path exists in the Docker container.
      */
     public static boolean existsInContainer(Path path) {
+        return existsInContainer(path.toString());
+    }
+
+    /**
+     * Checks whether a path exists in the Docker container.
+     */
+    public static boolean existsInContainer(String path) {
         logger.debug("Checking whether file " + path + " exists in container");
         final Shell.Result result = dockerShell.runIgnoreExitCode("test -e " + path);
 
@@ -333,9 +389,9 @@ public class Docker {
 
         final PosixFileAttributes dirAttributes = FileUtils.getPosixFileAttributes(localPath);
         final Map<String, Integer> numericPathOwnership = FileUtils.getNumericUnixPathOwnership(localPath);
-        assertEquals(localPath + " has wrong uid", numericPathOwnership.get("uid").intValue(), uid);
-        assertEquals(localPath + " has wrong gid", numericPathOwnership.get("gid").intValue(), gid);
-        assertEquals(localPath + " has wrong permissions", dirAttributes.permissions(), p770);
+        assertThat(localPath + " has wrong uid", numericPathOwnership.get("uid"), equalTo(uid));
+        assertThat(localPath + " has wrong gid", numericPathOwnership.get("gid"), equalTo(gid));
+        assertThat(localPath + " has wrong permissions", dirAttributes.permissions(), equalTo(p770));
     }
 
     /**
@@ -414,63 +470,54 @@ public class Docker {
 
         Stream.of(es.plugins, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        // FIXME these files should all have the same permissions
-        Stream
-            .of(
-                "elasticsearch.keystore",
-                // "elasticsearch.yml",
-                "jvm.options"
-                // "log4j2.properties"
-            )
+        Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
-
-        Stream
-            .of("elasticsearch.yml", "log4j2.properties")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p644));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
         Stream.of(es.bin, es.lib).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        Stream
-            .of(
-                "elasticsearch",
-                "elasticsearch-cli",
-                "elasticsearch-env",
-                "elasticsearch-enve",
-                "elasticsearch-keystore",
-                "elasticsearch-node",
-                "elasticsearch-plugin",
-                "elasticsearch-shard"
-            )
-            .forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        Stream.of(
+            "elasticsearch",
+            "elasticsearch-cli",
+            "elasticsearch-env",
+            "elasticsearch-keystore",
+            "elasticsearch-node",
+            "elasticsearch-plugin",
+            "elasticsearch-shard"
+        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
-        Stream.of("LICENSE.txt", "NOTICE.txt", "README.textile").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+        Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc").forEach(doc -> assertPermissionsAndOwnership(es.home.resolve(doc), p644));
+
+        // These are installed to help users who are working with certificates.
+        Stream.of("zip", "unzip").forEach(cliPackage -> {
+            // We could run `yum list installed $pkg` but that causes yum to call out to the network.
+            // rpm does the job just as well.
+            final Shell.Result result = dockerShell.runIgnoreExitCode("rpm -q " + cliPackage);
+            assertTrue(cliPackage + " ought to be installed. " + result, result.isSuccess());
+        });
     }
 
     private static void verifyDefaultInstallation(Installation es) {
-        Stream
-            .of(
-                "elasticsearch-certgen",
-                "elasticsearch-certutil",
-                "elasticsearch-croneval",
-                "elasticsearch-saml-metadata",
-                "elasticsearch-setup-passwords",
-                "elasticsearch-sql-cli",
-                "elasticsearch-syskeygen",
-                "elasticsearch-users",
-                "x-pack-env",
-                "x-pack-security-env",
-                "x-pack-watcher-env"
-            )
-            .forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
+        Stream.of(
+            "elasticsearch-certgen",
+            "elasticsearch-certutil",
+            "elasticsearch-croneval",
+            "elasticsearch-saml-metadata",
+            "elasticsearch-setup-passwords",
+            "elasticsearch-sql-cli",
+            "elasticsearch-syskeygen",
+            "elasticsearch-users",
+            "x-pack-env",
+            "x-pack-security-env",
+            "x-pack-watcher-env"
+        ).forEach(executable -> assertPermissionsAndOwnership(es.bin(executable), p755));
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
 
-        Stream
-            .of("role_mapping.yml", "roles.yml", "users", "users_roles")
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
     }
 
@@ -483,13 +530,53 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
+    /**
+     * Runs the provided closure, and captures logging information if an exception is thrown.
+     * @param r the closure to run
+     * @throws Exception any exception encountered while running the closure are propagated.
+     */
     private static <E extends Exception> void withLogging(CheckedRunnable<E> r) throws Exception {
         try {
             r.run();
         } catch (Exception e) {
-            final Shell.Result logs = sh.run("docker logs " + containerId);
+            final Shell.Result logs = getContainerLogs();
             logger.warn("Elasticsearch container failed to start.\n\nStdout:\n" + logs.stdout + "\n\nStderr:\n" + logs.stderr);
             throw e;
         }
+    }
+
+    /**
+     * @return The ID of the container that this class will be operating on.
+     */
+    public static String getContainerId() {
+        return containerId;
+    }
+
+    public static JsonNode getJson(String path) throws Exception {
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/" + path));
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        return mapper.readTree(pluginsResponse);
+    }
+
+    public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
+        // The format below extracts the .Config.Labels value, and prints it as json. Without the json
+        // modifier, a stringified Go map is printed instead, which isn't helpful.
+        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + distribution.flavor.name + ":test").stdout;
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        final JsonNode jsonNode = mapper.readTree(labelsJson);
+
+        Map<String, String> labels = new HashMap<>();
+
+        jsonNode.fieldNames().forEachRemaining(field -> labels.put(field, jsonNode.get(field).asText()));
+
+        return labels;
+    }
+
+    public static Shell.Result getContainerLogs() {
+        return sh.run("docker logs " + containerId);
     }
 }

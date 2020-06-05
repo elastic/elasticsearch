@@ -59,7 +59,7 @@ java.net.MulticastSocket#<init>(int)
 java.net.ServerSocket#<init>(int)
 java.net.ServerSocket#<init>(int,int)
 
-@defaultMessage use NetworkAddress format/formatAddress to print IP or IP+ports
+@defaultMessage use NetworkAddress format() to print IP or IP+ports
 java.net.InetAddress#toString()
 java.net.InetAddress#getHostAddress()
 java.net.Inet4Address#getHostAddress()

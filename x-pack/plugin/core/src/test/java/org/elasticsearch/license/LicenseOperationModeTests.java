@@ -47,9 +47,9 @@ public class LicenseOperationModeTests extends ESTestCase {
         assertResolve(OperationMode.PLATINUM, "PlAtINum", "platinum");
     }
 
-    public void testResolveEnterpriseAsPlatinum() {
-        assertResolve(OperationMode.PLATINUM, License.LicenseType.ENTERPRISE.getTypeName());
-        assertResolve(OperationMode.PLATINUM, License.LicenseType.ENTERPRISE.name());
+    public void testResolveEnterprise() {
+        assertResolve(OperationMode.ENTERPRISE, License.LicenseType.ENTERPRISE.getTypeName());
+        assertResolve(OperationMode.ENTERPRISE, License.LicenseType.ENTERPRISE.name());
     }
 
     public void testResolveUnknown() {
@@ -57,7 +57,8 @@ public class LicenseOperationModeTests extends ESTestCase {
 
         for (String type : types) {
             try {
-                OperationMode.resolve(type);
+                final License.LicenseType licenseType = License.LicenseType.resolve(type);
+                OperationMode.resolve(licenseType);
 
                 fail(String.format(Locale.ROOT, "[%s] should not be recognized as an operation mode", type));
             }
@@ -69,7 +70,8 @@ public class LicenseOperationModeTests extends ESTestCase {
 
     private static void assertResolve(OperationMode expected, String... types) {
         for (String type : types) {
-            assertThat(OperationMode.resolve(type), equalTo(expected));
+            License.LicenseType licenseType = License.LicenseType.resolve(type);
+            assertThat(OperationMode.resolve(licenseType), equalTo(expected));
         }
     }
 }

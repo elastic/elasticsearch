@@ -1,0 +1,473 @@
+[role="xpack"]
+[testenv="basic"]
+[[transform-painless-examples]]
+=== Painless examples for {transforms}
+++++
+<titleabbrev>Painless examples for {transforms}</titleabbrev>
+++++
+
+These examples demonstrate how to use Painless in {transforms}. You can learn 
+more about the Painless scripting language in the 
+{painless}/painless-guide.html[Painless guide].
+
+* <<painless-top-hits>>
+* <<painless-time-features>>
+* <<painless-group-by>>
+* <<painless-bucket-script>>
+* <<painless-count-http>>
+* <<painless-compare>>
+
+NOTE: While the context of the following examples is the {transform} use case, 
+the Painless scripts in the snippets below can be used in other {es} search 
+aggregations, too.
+
+
+[discrete]
+[[painless-top-hits]]
+==== Getting top hits by using scripted metric aggregation
+
+This snippet shows how to find the latest document, in other words the document 
+with the earliest timestamp. From a technical perspective, it helps to achieve 
+the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
+scripted metric aggregation in a {transform}, which provides a metric output.
+
+[source,js]
+--------------------------------------------------
+"aggregations": {
+  "latest_doc": { 
+    "scripted_metric": {
+      "init_script": "state.timestamp_latest = 0L; state.last_doc = ''", <1>
+      "map_script": """ <2>
+        def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); 
+        if (current_date > state.timestamp_latest) 
+        {state.timestamp_latest = current_date;
+        state.last_doc = new HashMap(params['_source']);}
+      """,
+      "combine_script": "return state", <3>
+      "reduce_script": """ <4>
+        def last_doc = '';
+        def timestamp_latest = 0L;
+        for (s in states) {if (s.timestamp_latest > (timestamp_latest))
+        {timestamp_latest = s.timestamp_latest; last_doc = s.last_doc;}} 
+        return last_doc
+      """
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The `init_script` creates a long type `timestamp_latest` and a string type 
+`last_doc` in the `state` object.
+<2> The `map_script` defines `current_date` based on the timestamp of the 
+document, then compares `current_date` with `state.timestamp_latest`, finally 
+returns `state.last_doc` from the shard. By using `new HashMap(...)` you copy 
+the source document, this is important whenever you want to pass the full source 
+object from one phase to the next.
+<3> The `combine_script` returns `state` from each shard.
+<4> The `reduce_script` iterates through the value of `s.timestamp_latest` 
+returned by each shard and returns the document with the latest timestamp 
+(`last_doc`). In the response, the top hit (in other words, the `latest_doc`) is 
+nested below the `latest_doc` field.
+
+Check the
+<<scripted-metric-aggregation-scope,scope of scripts>>
+for detailed explanation on the respective scripts.
+
+You can retrieve the last value in a similar way: 
+
+[source,js]
+--------------------------------------------------
+"aggregations": {
+  "latest_value": {
+    "scripted_metric": {
+      "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
+      "map_script": """
+        def current_date = doc['date'].getValue().toInstant().toEpochMilli(); 
+        if (current_date > state.timestamp_latest) 
+        {state.timestamp_latest = current_date;
+        state.last_value = params['_source']['value'];}
+      """,
+      "combine_script": "return state",
+      "reduce_script": """
+        def last_value = '';
+        def timestamp_latest = 0L; 
+        for (s in states) {if (s.timestamp_latest > (timestamp_latest)) 
+        {timestamp_latest = s.timestamp_latest; last_value = s.last_value;}} 
+        return last_value
+      """
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+[discrete]
+[[painless-time-features]]
+==== Getting time features as scripted fields
+
+This snippet shows how to extract time based features by using Painless in a 
+{transform}. The snippet uses an index where `@timestamp` is defined as a `date` 
+type field.
+
+[source,js]
+--------------------------------------------------
+"aggregations": {
+  "script_fields": {
+      "hour_of_day": { <1>
+        "script": {
+          "lang": "painless",
+          "source": """
+            ZonedDateTime date =  doc['@timestamp'].value; <2>
+            return date.getHour(); <3>
+          """
+        }
+      },
+      "month_of_year": { <4>
+        "script": {
+          "lang": "painless",
+          "source": """
+            ZonedDateTime date =  doc['@timestamp'].value; <5>
+            return date.getMonthValue(); <6>
+          """
+        }
+      }
+    },
+  ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> Contains the Painless script that returns the hour of the day.
+<2> Sets `date` based on the timestamp of the document.
+<3> Returns the hour value from `date`.
+<4> Contains the Painless script that returns the month of the year.
+<5> Sets `date` based on the timestamp of the document.
+<6> Returns the month value from `date`.
+
+
+[discrete]
+[[painless-group-by]]
+==== Using Painless in `group_by`
+
+It is possible to base the `group_by` property of a {transform} on the output of 
+a script. The following example uses the {kib} sample web logs dataset. The goal 
+here is to make the {transform} output easier to understand through normalizing 
+the value of the fields that the data is grouped by.
+
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": [ <1>
+      "kibana_sample_data_logs"
+    ]
+  },
+  "pivot": {
+    "group_by": {
+      "agent": {
+        "terms": {
+          "script": { <2>
+            "source": """String agent = doc['agent.keyword'].value; 
+            if (agent.contains("MSIE")) { 
+              return "internet explorer";
+            } else if (agent.contains("AppleWebKit")) { 
+              return "safari"; 
+            } else if (agent.contains('Firefox')) { 
+              return "firefox";
+            } else { return agent }""",
+            "lang": "painless"
+          }
+        }
+      }
+    },
+    "aggregations": { <3>
+      "200": {
+        "filter": {
+          "term": {
+            "response": "200"
+          }
+        }
+      },
+      "404": {
+        "filter": {
+          "term": {
+            "response": "404"
+          }
+        }
+      },
+      "503": {
+        "filter": {
+          "term": {
+            "response": "503"
+          }
+        }
+      }
+    }
+  },
+  "dest": { <4>
+    "index": "pivot_logs"
+  }
+} 
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> Specifies the source index or indices.
+<2> The script defines an `agent` string based on the `agent` field of the 
+documents, then iterates through the values. If an `agent` field contains 
+"MSIE", than the script returns "Internet Explorer". If it contains 
+`AppleWebKit`, it returns "safari". It returns "firefox" if the field value 
+contains "Firefox". Finally, in every other case, the value of the field is 
+returned.
+<3> The aggregations object contains filters that narrow down the results to 
+documents that contains `200`, `404`, or `503` values in the `response` field.
+<4> Specifies the destination index of the {transform}.
+
+The API returns the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "preview" : [
+    {
+      "agent" : "firefox",
+      "200" : 4931,
+      "404" : 259,
+      "503" : 172
+    },
+    {
+      "agent" : "internet explorer",
+      "200" : 3674,
+      "404" : 210,
+      "503" : 126
+    },
+    {
+      "agent" : "safari",
+      "200" : 4227,
+      "404" : 332,
+      "503" : 143
+    }
+  ],
+  "mappings" : {
+    "properties" : {
+      "200" : {
+        "type" : "long"
+      },
+      "agent" : {
+        "type" : "keyword"
+      },
+      "404" : {
+        "type" : "long"
+      },
+      "503" : {
+        "type" : "long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+You can see that the `agent` values are simplified so it is easier to interpret 
+them. The table below shows how normalization modifies the output of the 
+{transform} in our example compared to the non-normalized values.
+
+[width="50%"]
+
+|===
+| Non-normalized `agent` value                                                 | Normalized `agent` value 
+
+| "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; SV1; .NET CLR 1.1.4322)" | "internet explorer"
+| "Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24" | "safari"
+| "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
+|===
+
+
+[discrete]
+[[painless-bucket-script]]
+==== Getting duration by using bucket script
+
+This example shows you how to get the duration of a session by client IP from a 
+data log by using 
+{ref}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket script]. 
+The example uses the {kib} sample web logs dataset.
+
+[source,console]
+--------------------------------------------------
+PUT _data_frame/transforms/data_log
+{
+  "source": {
+    "index": "kibana_sample_data_logs"
+  },
+  "dest": {
+    "index": "data-logs-by-client"
+  },
+  "pivot": {
+    "group_by": {
+      "machine.os": {"terms": {"field": "machine.os.keyword"}},
+      "machine.ip": {"terms": {"field": "clientip"}}
+    },
+    "aggregations": {
+      "time_frame.lte": {
+        "max": {
+          "field": "timestamp"
+        }
+      },
+      "time_frame.gte": {
+        "min": {
+          "field": "timestamp"
+        }
+      },
+      "time_length": { <1>
+        "bucket_script": {
+          "buckets_path": { <2>
+            "min": "time_frame.gte.value",
+            "max": "time_frame.lte.value"
+          },
+          "script": "params.max - params.min" <3>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> To define the length of the sessions, we use a bucket script.
+<2> The bucket path is a map of script variables and their associated path to 
+the buckets you want to use for the variable. In this particular case, `min` and 
+`max` are variables mapped to `time_frame.gte.value` and `time_frame.lte.value`.
+<3> Finally, the script substracts the start date of the session from the end 
+date which results in the duration of the session.
+
+
+[discrete]
+[[painless-count-http]]
+==== Counting HTTP responses by using scripted metric aggregation
+
+You can count the different HTTP response types in a web log data set by using 
+scripted metric aggregation as part of the {transform}. The example below 
+assumes that the HTTP response codes are stored as keywords in the `response` 
+field of the documents.
+
+[source,js]
+--------------------------------------------------
+"aggregations": { <1>
+  "responses.counts": { <2>
+    "scripted_metric": { <3>
+      "init_script": "state.responses = ['error':0L,'success':0L,'other':0L]", <4>
+      "map_script": """ <5>
+        def code = doc['response.keyword'].value;
+        if (code.startsWith('5') || code.startsWith('4')) {
+          state.responses.error += 1 ;
+        } else if(code.startsWith('2')) {
+          state.responses.success += 1;
+        } else {
+          state.responses.other += 1;
+        }
+        """,
+      "combine_script": "state.responses", <6>
+      "reduce_script": """ <7>
+        def counts = ['error': 0L, 'success': 0L, 'other': 0L];
+        for (responses in states) {
+          counts.error += responses['error'];
+          counts.success += responses['success'];
+          counts.other += responses['other'];
+        }
+        return counts;
+        """
+      }
+    },
+  ...  
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The `aggregations` object of the {transform} that contains all aggregations.
+<2> Object of the `scripted_metric` aggregation.
+<3> This `scripted_metric` performs a distributed operation on the web log data 
+to count specific types of HTTP responses (error, success, and other).
+<4> The `init_script` creates a `responses` array in the `state` object with 
+three properties (`error`, `success`, `other`) with long data type.
+<5> The `map_script` defines `code` based on the `response.keyword` value of the 
+document, then it counts the errors, successes, and other responses based on the 
+first digit of the responses.
+<6> The `combine_script` returns `state.responses` from each shard.
+<7> The `reduce_script` creates a `counts` array with the `error`, `success`, 
+and `other` properties, then iterates through the value of `responses` returned 
+by each shard and assigns the different response types to the appropriate 
+properties of the `counts` object; error responses to the error counts, success 
+responses to the success counts, and other responses to the other counts. 
+Finally, returns the `counts` array with the response counts.
+
+
+[discrete]
+[[painless-compare]]
+==== Comparing indices by using scripted metric aggregations
+
+This example shows how to compare the content of two indices by a {transform} 
+that uses a scripted metric aggregation. 
+
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "id" : "index_compare",
+  "source" : { <1>
+    "index" : [
+      "index1",
+      "index2"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : { <2>
+    "index" : "compare"
+  },
+  "pivot" : {
+    "group_by" : {
+      "unique-id" : {
+        "terms" : {
+          "field" : "<unique-id-field>" <3>
+        }
+      }
+    },
+    "aggregations" : {
+      "compare" : { <4>
+        "scripted_metric" : {
+          "init_script" : "",
+          "map_script" : "state.doc = new HashMap(params['_source'])", <5>
+          "combine_script" : "return state", <6>
+          "reduce_script" : """ <7>
+            if (states.size() != 2) {
+              return "count_mismatch"
+            }
+            if (states.get(0).equals(states.get(1))) {
+              return "match"
+            } else {
+              return "mismatch"
+            }
+            """
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> The indices referenced in the `source` object are compared to each other.
+<2> The `dest` index contains the results of the comparison.
+<3> The `group_by` field needs to be a unique identifier for each document.
+<4> Object of the `scripted_metric` aggregation.
+<5> The `map_script` defines `doc` in the state object. By using 
+`new HashMap(...)` you copy the source document, this is important whenever you 
+want to pass the full source object from one phase to the next.
+<6> The `combine_script` returns `state` from each shard.
+<7> The `reduce_script` checks if the size of the indices are equal. If they are 
+not equal, than it reports back a `count_mismatch`. Then it iterates through all 
+the values of the two indices and compare them. If the values are equal, then it 
+returns a `match`, otherwise returns a `mismatch`.

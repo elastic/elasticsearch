@@ -19,27 +19,23 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Scope;
+import org.elasticsearch.painless.Scope.Variable;
+import org.elasticsearch.painless.ir.ClassNode;
+import org.elasticsearch.painless.ir.StaticNode;
+import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a variable load/store.
  */
-public final class EVariable extends AStoreable {
+public class EVariable extends AExpression {
 
-    private final String name;
-
-    private Variable variable = null;
+    protected final String name;
 
     public EVariable(Location location, String name) {
         super(location);
@@ -48,63 +44,54 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void storeSettings(CompilerSettings settings) {
-        // do nothing
-    }
+    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+        Output output = new Output();
+        Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(name);
 
-    @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-    }
+        if (type != null)  {
+            if (input.write) {
+                throw createError(new IllegalArgumentException("invalid assignment: " +
+                        "cannot write a value to a static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "]"));
+            }
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        variable = locals.getVariable(location, name);
+            if (input.read == false) {
+                throw createError(new IllegalArgumentException("not a statement: " +
+                        "static type [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] not used"));
+            }
 
-        if (write && variable.readonly) {
-            throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
+            output.actual = type;
+            output.isStaticType = true;
+
+            StaticNode staticNode = new StaticNode();
+
+            staticNode.setLocation(location);
+            staticNode.setExpressionType(output.actual);
+
+            output.expressionNode = staticNode;
+        } else if (scope.isVariableDefined(name)) {
+            if (input.read == false && input.write == false) {
+                throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
+            }
+
+            Variable variable = scope.getVariable(location, name);
+
+            if (input.write && variable.isFinal()) {
+                throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
+            }
+
+            output.actual = variable.getType();
+
+            VariableNode variableNode = new VariableNode();
+
+            variableNode.setLocation(location);
+            variableNode.setExpressionType(output.actual);
+            variableNode.setName(name);
+
+            output.expressionNode = variableNode;
+        } else {
+            output.partialCanonicalTypeName = name;
         }
 
-        actual = variable.clazz;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
-
-    @Override
-    int accessElementCount() {
-        return 0;
-    }
-
-    @Override
-    boolean isDefOptimized() {
-        return false;
-    }
-
-    @Override
-    void updateActual(Class<?> actual) {
-        throw new IllegalArgumentException("Illegal tree structure.");
-    }
-
-    @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
-    }
-
-    @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ISTORE), variable.getSlot());
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(name);
+        return output;
     }
 }

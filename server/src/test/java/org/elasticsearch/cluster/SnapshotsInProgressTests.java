@@ -30,6 +30,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -66,7 +67,8 @@ public class SnapshotsInProgressTests extends ESTestCase {
         // test no waiting shards in an index
         shards.put(new ShardId(idx3Name, idx3UUID, 0), new ShardSnapshotStatus(randomAlphaOfLength(2), randomNonWaitingState(), "", "1"));
         Entry entry = new Entry(snapshot, randomBoolean(), randomBoolean(), State.INIT,
-            indices, System.currentTimeMillis(), randomLong(), shards.build(), SnapshotInfoTests.randomUserMetadata(), randomBoolean());
+            indices, System.currentTimeMillis(), randomLong(), shards.build(), SnapshotInfoTests.randomUserMetadata(),
+            VersionUtils.randomVersion(random()));
 
         ImmutableOpenMap<String, List<ShardId>> waitingIndices = entry.waitingIndices();
         assertEquals(2, waitingIndices.get(idx1Name).size());

@@ -16,6 +16,7 @@ if (buildNumber) {
           Set<File> fileSet = fileTree(projectDir) {
             include("**/*.hprof")
             include("**/reaper.log")
+            include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")
@@ -38,6 +39,8 @@ if (buildNumber) {
         fileset(dir: "${gradle.gradleUserHomeDir}/daemon/${gradle.gradleVersion}", followsymlinks: false) {
           include(name: "**/daemon-${ProcessHandle.current().pid()}*.log")
         }
+
+        fileset(dir: "${gradle.gradleUserHomeDir}/workers", followsymlinks: false)
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)

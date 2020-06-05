@@ -7,7 +7,7 @@
 Keeps only tokens contained in a specified word list.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/miscellaneous/KeepWordFilter.html[KeepWordFilter].
+{lucene-analysis-docs}/miscellaneous/KeepWordFilter.html[KeepWordFilter].
 
 [NOTE]
 ====

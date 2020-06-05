@@ -1,0 +1,78 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# This file contains a whitelist for EQL specific utilities and classes available inside EQL scripting
+
+#### Classes
+
+class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils {
+
+#
+# Utilities
+#
+  def docValue(java.util.Map, String)
+  boolean nullSafeFilter(Boolean)
+  double nullSafeSortNumeric(Number)
+  String nullSafeSortString(Object)
+
+#
+# ASCII Functions
+#
+  Boolean startsWith(String, String, Boolean)
+
+#
+# Comparison
+#
+  Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
+  Boolean neq(Object, Object)
+  Boolean lt(Object, Object)
+  Boolean lte(Object, Object)
+  Boolean gt(Object, Object)
+  Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
+
+#
+# Logical
+#
+  Boolean and(Boolean, Boolean)
+  Boolean or(Boolean, Boolean)
+  Boolean not(Boolean)
+  Boolean isNull(Object)
+  Boolean isNotNull(Object)
+
+#
+# Regex
+#
+  Boolean regex(String, String)
+
+#
+# Math
+#
+  Number add(Number, Number)
+  Number div(Number, Number)
+  Number mod(Number, Number)
+  Number mul(Number, Number)
+  Number neg(Number)
+  Number sub(Number, Number)
+}
+
+class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils {
+
+#
+# ASCII Functions
+#
+  String  between(String, String, String, Boolean, Boolean)
+  Boolean cidrMatch(String, java.util.List)
+  String  concat(java.util.List)
+  Boolean endsWith(String, String)
+  Integer indexOf(String, String, Number)
+  Integer length(String)
+  Number  number(String, Number)
+  String  string(Object)
+  Boolean stringContains(String, String)
+  String  substring(String, Number, Number)
+}

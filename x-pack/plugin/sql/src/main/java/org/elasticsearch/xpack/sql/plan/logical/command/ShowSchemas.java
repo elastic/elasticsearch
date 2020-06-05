@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.KeywordEsField;
 
 import java.util.List;
 

@@ -1,0 +1,60 @@
+{
+  "_doc": {
+    "_meta" : {
+      "version" : "${xpack.ml.version}"
+    },
+    "properties" : {
+      "annotation" : {
+        "type" : "text"
+      },
+      "create_time" : {
+        "type" : "date"
+      },
+      "create_username" : {
+        "type" : "keyword"
+      },
+      "end_timestamp" : {
+        "type" : "date"
+      },
+      "job_id" : {
+        "type" : "keyword"
+      },
+      "modified_time" : {
+        "type" : "date"
+      },
+      "modified_username" : {
+        "type" : "keyword"
+      },
+      "timestamp" : {
+        "type" : "date"
+      },
+      "type" : {
+        "type" : "keyword"
+      },
+      "event" : {
+        "type" : "keyword"
+      },
+      "detector_index" : {
+        "type" : "integer"
+      },
+      "partition_field_name" : {
+        "type" : "keyword"
+      },
+      "partition_field_value" : {
+        "type" : "keyword"
+      },
+      "over_field_name" : {
+        "type" : "keyword"
+      },
+      "over_field_value" : {
+        "type" : "keyword"
+      },
+      "by_field_name" : {
+        "type" : "keyword"
+      },
+      "by_field_value" : {
+        "type" : "keyword"
+      }
+    }
+  }
+}

@@ -44,7 +44,7 @@ public class LifecyclePolicy implements ToXContentObject {
     static final ParseField PHASES_FIELD = new ParseField("phases");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", true,
+    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", true,
         (a, name) -> {
             List<Phase> phases = (List<Phase>) a[0];
             Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));

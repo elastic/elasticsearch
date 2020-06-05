@@ -9,6 +9,13 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
+# source the default env file
+if [ -f "${path.env}" ]; then
+    . "${path.env}"
+fi
+
+export ES_PATH_CONF=${ES_PATH_CONF:-${path.conf}}
+
 STOP_REQUIRED=false
 REMOVE_SERVICE=false
 
@@ -46,42 +53,20 @@ esac
 if [ "$STOP_REQUIRED" = "true" ]; then
     echo -n "Stopping elasticsearch service..."
     if command -v systemctl >/dev/null; then
-        systemctl --no-reload stop elasticsearch.service
-
-    elif [ -x /etc/init.d/elasticsearch ]; then
-        if command -v invoke-rc.d >/dev/null; then
-            invoke-rc.d elasticsearch stop
-        else
-            /etc/init.d/elasticsearch stop
-        fi
-
-    # older suse linux distributions do not ship with systemd
-    # but do not have an /etc/init.d/ directory
-    # this tries to start the elasticsearch service on these
-    # as well without failing this script
-    elif [ -x /etc/rc.d/init.d/elasticsearch ] ; then
-        /etc/rc.d/init.d/elasticsearch stop
+        systemctl --no-reload stop elasticsearch.service || true
     fi
     echo " OK"
 fi
 
-if [ -f /etc/elasticsearch/elasticsearch.keystore ]; then
-  if md5sum --status -c /etc/elasticsearch/.elasticsearch.keystore.initial_md5sum; then
-    rm /etc/elasticsearch/elasticsearch.keystore /etc/elasticsearch/.elasticsearch.keystore.initial_md5sum
+if [ -f "${ES_PATH_CONF}"/elasticsearch.keystore ]; then
+  if md5sum --status -c "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum; then
+    rm "${ES_PATH_CONF}"/elasticsearch.keystore "${ES_PATH_CONF}"/.elasticsearch.keystore.initial_md5sum
   fi
 fi
 
 if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v systemctl >/dev/null; then
         systemctl disable elasticsearch.service > /dev/null 2>&1 || true
-    fi
-
-    if command -v chkconfig >/dev/null; then
-        chkconfig --del elasticsearch 2> /dev/null || true
-    fi
-
-    if command -v update-rc.d >/dev/null; then
-        update-rc.d elasticsearch remove >/dev/null || true
     fi
 fi
 

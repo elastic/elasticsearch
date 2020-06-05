@@ -32,11 +32,12 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     TimeBasedCheckpointProvider(
         final Client client,
+        final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig
     ) {
-        super(client, transformConfigManager, transformAuditor, transformConfig);
+        super(client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
     }
 

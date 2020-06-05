@@ -54,23 +54,23 @@ public class TransformStats implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<TransformStats, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new TransformStats((String) a[0],
+        a -> new TransformStats(
+            (String) a[0],
             (State) a[1],
             (String) a[2],
             (NodeAttributes) a[3],
             (TransformIndexerStats) a[4],
-            (TransformCheckpointingInfo) a[5]));
+            (TransformCheckpointingInfo) a[5]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), TransformField.ID);
-        PARSER.declareField(constructorArg(), p -> TransformStats.State.fromString(p.text()), STATE_FIELD,
-            ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), p -> TransformStats.State.fromString(p.text()), STATE_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), REASON_FIELD);
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareObject(constructorArg(), (p, c) -> TransformIndexerStats.fromXContent(p),
-            TransformField.STATS_FIELD);
-        PARSER.declareObject(constructorArg(),
-            (p, c) -> TransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> TransformIndexerStats.fromXContent(p), TransformField.STATS_FIELD);
+        PARSER.declareObject(constructorArg(), (p, c) -> TransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
     }
 
     public static TransformStats fromXContent(XContentParser parser) throws IOException {
@@ -82,18 +82,17 @@ public class TransformStats implements Writeable, ToXContentObject {
     }
 
     public static TransformStats stoppedStats(String id, TransformIndexerStats indexerTransformStats) {
-        return new TransformStats(id,
-            State.STOPPED,
-            null,
-            null,
-            indexerTransformStats,
-            TransformCheckpointingInfo.EMPTY);
+        return new TransformStats(id, State.STOPPED, null, null, indexerTransformStats, TransformCheckpointingInfo.EMPTY);
     }
 
-
-    public TransformStats(String id, State state, @Nullable String reason,
-                          @Nullable NodeAttributes node, TransformIndexerStats stats,
-                          TransformCheckpointingInfo checkpointingInfo) {
+    public TransformStats(
+        String id,
+        State state,
+        @Nullable String reason,
+        @Nullable NodeAttributes node,
+        TransformIndexerStats stats,
+        TransformCheckpointingInfo checkpointingInfo
+    ) {
         this.id = Objects.requireNonNull(id);
         this.state = Objects.requireNonNull(state);
         this.reason = reason;
@@ -116,8 +115,8 @@ public class TransformStats implements Writeable, ToXContentObject {
             this.checkpointingInfo = new TransformCheckpointingInfo(in);
 
         } else {
-            // Prior to version 7.4 DataFrameTransformStats didn't exist, and we have
-            // to do the best we can of reading from a DataFrameTransformStoredDoc object
+            // Prior to version 7.4 TransformStats didn't exist, and we have
+            // to do the best we can of reading from a TransformStoredDoc object
             // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
             this.id = in.readString();
             TransformState transformState = new TransformState(in);
@@ -161,18 +160,20 @@ public class TransformStats implements Writeable, ToXContentObject {
             indexerStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         } else {
-            // Prior to version 7.4 DataFrameTransformStats didn't exist, and we have
-            // to do the best we can of writing to a DataFrameTransformStoredDoc object
+            // Prior to version 7.4 TransformStats didn't exist, and we have
+            // to do the best we can of writing to a TransformStoredDoc object
             // (which is called DataFrameTransformStateAndStats in 7.2/7.3)
             out.writeString(id);
             Tuple<TransformTaskState, IndexerState> stateComponents = state.toComponents();
-            new TransformState(stateComponents.v1(),
+            new TransformState(
+                stateComponents.v1(),
                 stateComponents.v2(),
                 checkpointingInfo.getNext().getPosition(),
                 checkpointingInfo.getLast().getCheckpoint(),
                 reason,
                 checkpointingInfo.getNext().getCheckpointProgress(),
-                node).writeTo(out);
+                node
+            ).writeTo(out);
             indexerStats.writeTo(out);
             checkpointingInfo.writeTo(out);
         }
@@ -240,7 +241,12 @@ public class TransformStats implements Writeable, ToXContentObject {
 
     public enum State implements Writeable {
 
-        STARTED, INDEXING, ABORTING, STOPPING, STOPPED, FAILED;
+        STARTED,
+        INDEXING,
+        ABORTING,
+        STOPPING,
+        STOPPED,
+        FAILED;
 
         public static State fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -259,8 +265,8 @@ public class TransformStats implements Writeable, ToXContentObject {
             } else {
 
                 // If we get here then the task state must be started, and that means we should have an indexer state
-                assert(taskState == TransformTaskState.STARTED);
-                assert(indexerState != null);
+                assert (taskState == TransformTaskState.STARTED);
+                assert (indexerState != null);
 
                 switch (indexerState) {
                     case STARTED:
@@ -301,7 +307,7 @@ public class TransformStats implements Writeable, ToXContentObject {
                     return new Tuple<>(TransformTaskState.STARTED, IndexerState.STOPPING);
                 case STOPPED:
                     // This one is not deterministic, because an overall state of STOPPED could arise
-                    // from either (STOPPED, null) or (STARTED, STOPPED).  However, (STARTED, STOPPED)
+                    // from either (STOPPED, null) or (STARTED, STOPPED). However, (STARTED, STOPPED)
                     // is a very short-lived state so it's reasonable to assume the other, especially
                     // as this method is only for mixed version cluster compatibility.
                     return new Tuple<>(TransformTaskState.STOPPED, null);

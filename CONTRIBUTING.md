@@ -92,71 +92,130 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 12 is required to build Elasticsearch. You must have a JDK 12 installation
+JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 12 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 12 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 14 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME` available so that the tests can pass.
-
-> Warning: do not use `sdkman` for Java installations which do not have proper
-`jrunscript` for jdk distributions.
+and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat` 
+using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in the Eclipse and IntelliJ IDEs.
-For Eclipse, the minimum version that we support is [4.13][eclipse].
-For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in IntelliJ versions IntelliJ 2019.2 and
+onwards and Eclipse 2020-3 and onwards.
 
-### Configuring IDEs And Running Tests
+[Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
-Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Gradle : Existing Gradle Project`.
-Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying
-`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
+    ./gradlew :run
 
-IntelliJ users can automatically configure their IDE: `./gradlew idea`
-then `File->New Project From Existing Sources`. Point to the root of
-the source directory, select
-`Import project from external model->Gradle`, enable
-`Use auto-import`. In order to run tests directly from
-IDEA 2017.2 and above, it is required to disable the IDEA run launcher in order to avoid
-`idea_rt.jar` causing "jar hell". This can be achieved by adding the
-`-Didea.no.launcher=true` [JVM
-option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties).
-Alternatively, `idea.no.launcher=true` can be set in the
-[`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
-file which can be accessed under Help > Edit Custom Properties (this will require a
-restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
-`Run->Edit Configurations->...->Defaults->JUnit` and verify that the `Shorten command line` setting is set to
-`user-local default: none`. You may also need to [remove `ant-javafx.jar` from your
-classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
-reported as a source of jar hell.
+That'll spend a while building Elasticsearch and then it'll start Elasticsearch,
+writing its log above Gradle's status message. We log a lot of stuff on startup,
+specifically these lines tell you that Elasticsearch is ready:
 
-To run an instance of elasticsearch from the source code run `./gradlew run`
+    [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
+    [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
 
-The Elasticsearch codebase makes heavy use of Java `assert`s and the
-test runner requires that assertions be enabled within the JVM. This
-can be accomplished by passing the flag `-ea` to the JVM on startup.
+But to be honest its typically easier to wait until the console stopps scrolling
+and then run `curl` in another window like this:
 
-For IntelliJ, go to
-`Run->Edit Configurations...->Defaults->JUnit->VM options` and input
-`-ea`.
+    curl -u elastic:password localhost:9200
 
-For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
-`VM Arguments`.
 
-Some tests related to locale testing also require the flag 
-`-Djava.locale.providers` to be set. Set the VM options/VM arguments for
-IntelliJ or Eclipse like describe above to use 
-`-Djava.locale.providers=SPI,COMPAT`.
+
+### Importing the project into IntelliJ IDEA
+
+Elasticsearch builds using Java 14. When importing into IntelliJ you will need
+to define an appropriate SDK. The convention is that **this SDK should be named
+"14"** so that the project import will detect it automatically. For more details
+on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
+SDK definitions are global, so you can add the JDK from any project, or after
+project import. Importing with a missing JDK will still work, IntelliJ will
+simply report a problem and will refuse to build until resolved.
+
+You can import the Elasticsearch project into IntelliJ IDEA via:
+
+ - Select **File > Open**
+ - In the subsequent dialog navigate to the root `build.gradle` file
+ - In the subsequent dialog select **Open as Project**
+
+### Importing the project into Eclipse
+
+Elasticsearch builds using Gradle and Java 13. When importing into Eclipse you
+will either need to use an appropriate JDK to run Eclipse itself (e.g. by
+specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
+defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+**Advanced Options** > **Java home** to an appropriate version.
+
+IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
+           then you must build an entirely new workspace and `git clean -xdf` to
+           blow away *everything* that the gradle eclipse plugin made.
+
+ - Select **File > Import...**
+ - Select **Existing Gradle Project**
+ - Select **Next** then **Next** again
+ - Set the **Project root directory** to the root of your elasticsearch clone
+ - Click **Finish**
+
+This will spin for a long, long time but you'll see many errors about circular
+dependencies. Fix them:
+
+ - Select **Window > Preferences**
+ - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
+ - Set **Circular dependencies** to **Warning**
+ - Apply that and let the build spin away for a while
+
+Next you'll want to import our auto-formatter:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Formater**
+ - Click **Import**
+ - Import the file at **buildSrc/formatterConfig.xml**
+ - Make sure it is the **Active profile**
+
+Finally, set up import order:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Organize Imports**
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Apply that
+
+IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
+           As convenient as it'd be for the projects to always be perfect this
+           tends to add many many seconds to every branch change. Instead, you
+           should manually right click on a project and
+           **Gradle > Refresh Gradle Project** if the configuration is out of
+           date.
+
+As we add more subprojects you might have to re-import the gradle project (the
+first step) again. There is no need to blow away the existing projects before
+doing that.
+
+### REST Endpoint Conventions
+
+Elasticsearch typically uses singular nouns rather than plurals in URLs.
+For example:
+
+    /_ingest/pipeline
+    /_ingest/pipeline/{id}
+
+but not:
+
+    /_ingest/pipelines
+    /_ingest/pipelines/{id}
+
+You may find counterexamples, but new endpoints should use the singular
+form.
 
 ### Java Language Formatting Guidelines
 
@@ -164,8 +223,8 @@ Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
 formatter, using the [Spotless
 Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
 plugin. This plugin is configured on a project-by-project basis, via
-`build.gradle` in the root of the repository. So long as at least one
-project is configured, the formatting check can be run explicitly with:
+`build.gradle` in the root of the repository. The formatting check can be
+run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
@@ -188,20 +247,13 @@ Please follow these formatting guidelines:
   part of a file. Please format such sections sympathetically with the rest
   of the code, while keeping lines to maximum length of 76 characters.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
-  the build to fail. This can be done automatically by your IDE:
-   * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
-     two boxes labeled "`Number of (static )? imports needed for .*`". Set
-     their values to 99999 or some other absurdly high value.
-   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
-     There are two configuration options: `Class count to use import with
-     '*'` and `Names count to use static import with '*'`. Set their values
-     to 99999 or some other absurdly high value.
+  the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code
   with the `// tag::NAME` and `// end::NAME` directives, but note that
   these are intended for use in documentation, so please make it clear what
   you have done, and only do this where the benefit clearly outweighs the
   decrease in consistency.
-* Note that JavaDoc and block comments i.e. `/* ... */` are not formatted,
+* Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
 * There is an implicit rule that negative boolean expressions should use
   the form `foo == false` instead of `!foo` for better readability of the
@@ -209,9 +261,6 @@ Please follow these formatting guidelines:
   reviews as something to change.
 
 #### Editor / IDE Support
-
-Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
-directly.
 
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
@@ -227,15 +276,107 @@ from the command line.
 
 Sometimes Spotless will report a "misbehaving rule which can't make up its
 mind" and will recommend enabling the `paddedCell()` setting. If you
-enabled this settings and run the format check again,
+enabled this setting and run the format check again,
 Spotless will write files to
 `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
 different copies of the formatted files, so that you can see how they
 differ and infer what is the problem.
 
-The `paddedCell()` option is disabled for normal operation in order to
-detect any misbehaviour. You can enabled the option from the command line
-by running Gradle with `-Dspotless.paddedcell`.
+The `paddedCell()` option is disabled for normal operation so that any
+misbehaviour is detected, and not just suppressed. You can enabled the
+option from the command line by running Gradle with `-Dspotless.paddedcell`.
+
+### Javadoc
+
+Good Javadoc can help with navigating and understanding code. Elasticsearch
+has some guidelines around when to write Javadoc and when not to, but note
+that we don't want to be overly prescriptive. The intent of these guidelines
+is to be helpful, not to turn writing code into a chore.
+
+#### The short version
+
+   1. Always add Javadoc to new code.
+   2. Add Javadoc to existing code if you can.
+   3. Document the "why", not the "how", unless that's important to the
+      "why".
+   4. Don't document anything trivial or obvious (e.g. getters and
+      setters). In other words, the Javadoc should add some value.
+
+#### The long version
+
+   1. If you add a new Java package, please also add package-level
+      Javadoc that explains what the package is for. This can just be a
+      reference to a more foundational / parent package if appropriate. An
+      example would be a package hierarchy for a new feature or plugin -
+      the package docs could explain the purpose of the feature, any
+      caveats, and possibly some examples of configuration and usage.
+   2. New classes and interfaces must have class-level Javadoc that
+      describes their purpose. There are a lot of classes in the
+      Elasticsearch repository, and it's easier to navigate when you
+      can quickly find out what is the purpose of a class. This doesn't
+      apply to inner classes or interfaces, unless you expect them to be
+      explicitly used outside their parent class.
+   3. New public methods must have Javadoc, because they form part of the
+      contract between the class and its consumers. Similarly, new abstract
+      methods must have Javadoc because they are part of the contract
+      between a class and its subclasses. It's important that contributors
+      know why they need to implement a method, and the Javadoc should make
+      this clear. You don't need to document a method if it's overriding an
+      abstract method (either from an abstract superclass or an interface),
+      unless your implementation is doing something "unexpected" e.g. deviating
+      from the intent of the original method.
+   4. Following on from the above point, please add docs to existing public
+      methods if you are editing them, or to abstract methods if you can.
+   5. Non-public, non-abstract methods don't require Javadoc, but if you feel
+      that adding some would make it easier for other developers to
+      understand the code, or why it's written in a particular way, then please
+      do so.
+   6. Properties don't need to have Javadoc, but please add some if there's
+      something useful to say.
+   7. Javadoc should not go into low-level implementation details unless
+      this is critical to understanding the code e.g. documenting the
+      subtleties of the implementation of a private method. The point here
+      is that implementations will change over time, and the Javadoc is
+      less likely to become out-of-date if it only talks about the what is
+      the purpose of the code, not what it does.
+   8. Examples in Javadoc can be very useful, so feel free to add some if
+      you can reasonably do so i.e. if it takes a whole page of code to set
+      up an example, then Javadoc probably isn't the right place for it.
+      Longer or more elaborate examples are probably better suited
+      to the package docs.
+   9. Test methods are a good place to add Javadoc, because you can use it
+      to succinctly describe e.g. preconditions, actions and expectations
+      of the test, more easily that just using the test name alone. Please
+      consider documenting your tests in this way.
+   10. Sometimes you shouldn't add Javadoc:
+       1. Where it adds no value, for example where a method's
+          implementation is trivial such as with getters and setters, or a
+          method just delegates to another object.
+       2. However, you should still add Javadoc if there are caveats around
+          calling a method that are not immediately obvious from reading the
+          method's implementation in isolation.
+       3. You can omit Javadoc for simple classes, e.g. where they are a
+          simple container for some data. However, please consider whether a
+          reader might still benefit from some additional background, for
+          example about why the class exists at all.
+   11. Not all comments need to be Javadoc. Sometimes it will make more
+       sense to add comments in a method's body, for example due to important
+       implementation decisions or "gotchas". As a general guide, if some
+       information forms part of the contract between a method and its callers,
+       then it should go in the Javadoc, otherwise you might consider using
+       regular comments in the code. Remember as well that Elasticsearch
+       has extensive [user documentation](./docs), and it is not the role
+       of Javadoc to replace that.
+   12. Please still try to make class, method or variable names as
+       descriptive and concise as possible, as opposed to relying solely on
+       Javadoc to describe something.
+   13. Use `@link` and `@see` to add references, either to related
+       resources in the codebase or to relevant external resources.
+   14. If you need help writing Javadoc, just ask!
+
+Finally, use your judgement! Base your decisions on what will help other
+developers - including yourself, when you come back to some code
+3 months in the future, having forgotten how it works.
 
 ### License Headers
 
@@ -277,26 +418,9 @@ It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit
 checks if contributed code does not have the appropriate license headers.
 
-You may find it helpful to configure your IDE to automatically insert the
-appropriate license header depending on the part of the project to which you are
-contributing.
-
-#### IntelliJ: Copyright & Scope Profiles
-
-To have IntelliJ insert the correct license, it is necessary to create to copyright profiles.
-These may potentially be called `apache2` and `commercial`. These can be created in
-`Preferences/Settings->Editor->Copyright->Copyright Profiles`. To associate these profiles to
-their respective directories, two "Scopes" will need to be created. These can be created in
-`Preferences/Settings->Appearances & Behavior->Scopes`. When creating scopes, be sure to choose
-the `shared` scope type. Create a scope, `apache2`, with
-the associated pattern of `!file[group:x-pack]:*/`. This pattern will exclude all the files contained in
-the `x-pack` directory. The other scope, `commercial`, will have the inverse pattern of `file[group:x-pack]:*/`.
-The two scopes, together, should account for all the files in the project. To associate the scopes
-with their copyright-profiles, go into `Preferences/Settings->Editor>Copyright` and use the `+` to add
-the associations `apache2/apache2` and `commercial/commercial`.
-
-Configuring these options in IntelliJ can be quite buggy, so do not be alarmed if you have to open/close
-the settings window and/or restart IntelliJ to see your changes take effect.
+> **NOTE:** If you have imported the project into IntelliJ IDEA the project will
+> be automatically configured to add the correct license header to new source
+> files based on the source location.
 
 ### Creating A Distribution
 
@@ -309,7 +433,7 @@ cd elasticsearch/
 To build a darwin-tar distribution, run this command:
 
 ```sh
-./gradlew -p distribution/archives/darwin-tar assemble --parallel
+./gradlew -p distribution/archives/darwin-tar assemble
 ```
 
 You will find the distribution under:
@@ -319,8 +443,11 @@ To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
 
 ```sh
-./gradlew assemble --parallel
+./gradlew assemble
 ```
+
+> **NOTE:** Running the task above will fail if you don't have a available
+> Docker installation.
 
 The package distributions (Debian and RPM) can be found under:
 `./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
@@ -454,10 +581,6 @@ known as "transitive" dependencies".</dd>
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
-<dt>`bundle`</dt><dd>Only available in projects with the shadow plugin,
-dependencies with this configuration are bundled into the jar produced by the
-build. Since IDEs do not understand this configuration we rig them to treat
-dependencies in this configuration as `compile` dependencies.</dd>
 <dt>`testCompile`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
@@ -492,6 +615,4 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
-[shadow-plugin]: https://github.com/johnrengelman/shadow

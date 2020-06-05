@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -41,33 +40,28 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
-final class OutboundHandler {
+public final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
-    private final MeanMetric transmittedBytesMetric = new MeanMetric();
-
     private final String nodeName;
     private final Version version;
+    private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, ThreadPool threadPool, BigArrays bigArrays) {
+    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
         this.nodeName = nodeName;
         this.version = version;
+        this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
         SendContext sendContext = new SendContext(channel, () -> bytes, listener);
-        try {
-            internalSend(channel, sendContext);
-        } catch (IOException e) {
-            // This should not happen as the bytes are already serialized
-            throw new AssertionError(e);
-        }
+        internalSend(channel, sendContext);
     }
 
     /**
@@ -120,21 +114,16 @@ final class OutboundHandler {
         internalSend(channel, sendContext);
     }
 
-    private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
+    private void internalSend(TcpChannel channel, SendContext sendContext) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        BytesReference reference = sendContext.get();
         try {
-            channel.sendMessage(reference, sendContext);
+            channel.sendMessage(sendContext);
         } catch (RuntimeException ex) {
             sendContext.onFailure(ex);
             CloseableChannel.closeChannel(channel);
             throw ex;
         }
 
-    }
-
-    MeanMetric getTransmittedBytes() {
-        return transmittedBytesMetric;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -147,7 +136,7 @@ final class OutboundHandler {
 
     private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
 
-        private final OutboundMessage message;
+        private OutboundMessage message;
         private final BigArrays bigArrays;
         private volatile ReleasableBytesStreamOutput bytesStreamOutput;
 
@@ -158,8 +147,12 @@ final class OutboundHandler {
 
         @Override
         public BytesReference get() throws IOException {
-            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-            return message.serialize(bytesStreamOutput);
+            try {
+                bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+                return message.serialize(bytesStreamOutput);
+            } finally {
+                message = null;
+            }
         }
 
         @Override
@@ -168,10 +161,10 @@ final class OutboundHandler {
         }
     }
 
-    private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
+    public class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
 
         private final TcpChannel channel;
-        private final CheckedSupplier<BytesReference, IOException> messageSupplier;
+        private CheckedSupplier<BytesReference, IOException> messageSupplier;
         private final ActionListener<Void> listener;
         private final Releasable optionalReleasable;
         private long messageSize = -1;
@@ -189,10 +182,13 @@ final class OutboundHandler {
             this.optionalReleasable = optionalReleasable;
         }
 
+        @Override
         public BytesReference get() throws IOException {
             BytesReference message;
             try {
+                assert messageSupplier != null;
                 message = messageSupplier.get();
+                messageSupplier = null;
                 messageSize = message.length();
                 TransportLogger.logOutboundMessage(channel, message);
                 return message;
@@ -205,12 +201,13 @@ final class OutboundHandler {
         @Override
         protected void innerOnResponse(Void v) {
             assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
-            transmittedBytesMetric.inc(messageSize);
+            statsTracker.markBytesWritten(messageSize);
             closeAndCallback(() -> listener.onResponse(v));
         }
 
         @Override
         protected void innerOnFailure(Exception e) {
+            messageSupplier = null;
             if (NetworkExceptionHelper.isCloseConnectionException(e)) {
                 logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
             } else {

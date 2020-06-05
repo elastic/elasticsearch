@@ -1,12 +1,11 @@
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 
 description = 'JDBC driver for Elasticsearch'
 archivesBaseName = "x-pack-sql-jdbc"
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // does not depend on core, so only jdk and http signatures should be checked
   replaceSignatureFiles 'jdk-signatures'
 }
@@ -44,3 +43,8 @@ dependencyLicenses {
 shadowJar {
   relocate 'com.fasterxml', 'org.elasticsearch.fasterxml'
 }
+
+thirdPartyAudit.ignoreMissingClasses(
+  'com.fasterxml.jackson.databind.ObjectMapper',
+  'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+)

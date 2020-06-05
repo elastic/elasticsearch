@@ -106,6 +106,32 @@ sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elast
 -----------------------------------
 --
 
+[[installing-multiple-plugins]]
+=== Installing multiple plugins
+
+Multiple plugins can be installed in one invocation as follows:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install [plugin_id] [plugin_id] ... [plugin_id]
+-----------------------------------
+
+Each `plugin_id` can be any valid form for installing a single plugin (e.g., the
+name of a core plugin, or a custom URL).
+
+For instance, to install the core <<analysis-icu,ICU plugin>>, and
+<<repository-s3,S3 repository plugin>> run the following command:
+
+[source,shell]
+-----------------------------------
+sudo bin/elasticsearch-plugin install analysis-icu repository-s3
+-----------------------------------
+
+This command will install the versions of the plugins that matches your
+Elasticsearch version. The installation will be treated as a transaction, so
+that all the plugins will be installed, or none of the plugins will be installed
+if any installation fails.
+
 [[mandatory-plugins]]
 === Mandatory Plugins
 

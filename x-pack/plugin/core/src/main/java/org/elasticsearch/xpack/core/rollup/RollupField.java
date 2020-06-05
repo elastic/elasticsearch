@@ -70,7 +70,7 @@ public class RollupField {
      * @param extra The type of value this field is (VALUE, INTERVAL, etc)
      * @return formatted field name
      */
-    public static String formatFieldName(ValuesSourceAggregationBuilder<?, ?> source, String extra) {
+    public static String formatFieldName(ValuesSourceAggregationBuilder<?> source, String extra) {
         return source.field() + "." + source.getType() + "." + extra;
     }
 

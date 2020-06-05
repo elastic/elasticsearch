@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -38,16 +38,16 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private final ImmutableOpenMap<String, MappingMetaData> mappings;
+    private final ImmutableOpenMap<String, MappingMetadata> mappings;
 
-    public GetMappingsResponse(ImmutableOpenMap<String, MappingMetaData> mappings) {
+    public GetMappingsResponse(ImmutableOpenMap<String, MappingMetadata> mappings) {
         this.mappings = mappings;
     }
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, MappingMetaData> indexMapBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
             String index = in.readString();
             if (in.getVersion().before(Version.V_8_0_0)) {
@@ -56,40 +56,40 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 if (mappingCount == 1) {
                     String type = in.readString();
                     assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got [" + type + "]";
-                    indexMapBuilder.put(index, new MappingMetaData(in));
+                    indexMapBuilder.put(index, new MappingMetadata(in));
                 } else {
-                    indexMapBuilder.put(index, MappingMetaData.EMPTY_MAPPINGS);
+                    indexMapBuilder.put(index, MappingMetadata.EMPTY_MAPPINGS);
                 }
             } else {
                 boolean hasMapping = in.readBoolean();
-                indexMapBuilder.put(index, hasMapping ? new MappingMetaData(in) : MappingMetaData.EMPTY_MAPPINGS);
+                indexMapBuilder.put(index, hasMapping ? new MappingMetadata(in) : MappingMetadata.EMPTY_MAPPINGS);
             }
         }
         mappings = indexMapBuilder.build();
     }
 
-    public ImmutableOpenMap<String, MappingMetaData> mappings() {
+    public ImmutableOpenMap<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetaData> getMappings() {
+    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetaData> indexEntry : mappings) {
+        for (ObjectObjectCursor<String, MappingMetadata> indexEntry : mappings) {
             out.writeString(indexEntry.key);
             if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(indexEntry.value == MappingMetaData.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
+                out.writeVInt(indexEntry.value == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
+                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
                     indexEntry.value.writeTo(out);
                 }
             } else {
-                out.writeBoolean(indexEntry.value != MappingMetaData.EMPTY_MAPPINGS);
-                if (indexEntry.value != MappingMetaData.EMPTY_MAPPINGS) {
+                out.writeBoolean(indexEntry.value != MappingMetadata.EMPTY_MAPPINGS);
+                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
                     indexEntry.value.writeTo(out);
                 }
             }
@@ -98,7 +98,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (final ObjectObjectCursor<String, MappingMetaData> indexEntry : getMappings()) {
+        for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
             if (indexEntry.value != null) {
                 builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());

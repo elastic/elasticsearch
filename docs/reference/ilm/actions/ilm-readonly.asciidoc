@@ -1,0 +1,31 @@
+[role="xpack"]
+[[ilm-readonly]]
+=== Read only
+
+Phases allowed: warm.
+
+Makes the index <<dynamic-index-settings,read-only>>.
+
+[[ilm-read-only-options]]
+==== Options
+
+None.
+
+[[ilm-read-only-ex]]
+==== Example
+
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "readonly" : { }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

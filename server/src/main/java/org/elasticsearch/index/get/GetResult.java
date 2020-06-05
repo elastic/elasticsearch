@@ -65,8 +65,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     private long seqNo;
     private long primaryTerm;
     private boolean exists;
-    private Map<String, DocumentField> documentFields;
-    private Map<String, DocumentField> metaFields;
+    private final Map<String, DocumentField> documentFields;
+    private final Map<String, DocumentField> metaFields;
     private Map<String, Object> sourceAsMap;
     private BytesReference source;
     private byte[] sourceAsBytes;
@@ -93,8 +93,12 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                 Map<String, DocumentField> fields = readFields(in);
                 documentFields = new HashMap<>();
                 metaFields = new HashMap<>();
-                splitFieldsByMetadata(fields, documentFields, metaFields);
+                fields.forEach((fieldName, docField) ->
+                    (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(fieldName, docField));
             }
+        } else {
+            metaFields = Collections.emptyMap();
+            documentFields = Collections.emptyMap();
         }
     }
 
@@ -111,14 +115,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         this.version = version;
         this.exists = exists;
         this.source = source;
-        this.documentFields = documentFields;
-        if (this.documentFields == null) {
-            this.documentFields = emptyMap();
-        }
-        this.metaFields = metaFields;
-        if (this.metaFields == null) {
-            this.metaFields = emptyMap();
-        }
+        this.documentFields = documentFields == null ? emptyMap() : documentFields;
+        this.metaFields = metaFields == null ? emptyMap() : metaFields;
     }
 
     /**
@@ -389,10 +387,10 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     }
 
     private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields = null;
+        Map<String, DocumentField> fields;
         int size = in.readVInt();
         if (size == 0) {
-            fields = new HashMap<>();
+            fields = emptyMap();
         } else {
             fields = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
@@ -401,20 +399,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             }
         }
         return fields;
-    }
-
-    static void splitFieldsByMetadata(Map<String, DocumentField> fields, Map<String, DocumentField> outOther,
-                                       Map<String, DocumentField> outMetadata) {
-        if (fields == null) {
-            return;
-        }
-        for (Map.Entry<String, DocumentField> fieldEntry: fields.entrySet()) {
-            if (fieldEntry.getValue().isMetadataField()) {
-                outMetadata.put(fieldEntry.getKey(), fieldEntry.getValue());
-            } else {
-                outOther.put(fieldEntry.getKey(), fieldEntry.getValue());
-            }
-        }
     }
 
     @Override

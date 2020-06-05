@@ -25,8 +25,9 @@ import com.amazonaws.services.s3.model.S3Object;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +50,8 @@ class S3RetryingInputStream extends InputStream {
 
     private final S3BlobStore blobStore;
     private final String blobKey;
+    private final long start;
+    private final long end;
     private final int maxAttempts;
 
     private InputStream currentStream;
@@ -58,17 +61,33 @@ class S3RetryingInputStream extends InputStream {
     private boolean closed;
 
     S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
+        this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
+    }
+
+    // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
+    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
+        if (start < 0L) {
+            throw new IllegalArgumentException("start must be non-negative");
+        }
+        if (end < start || end == Long.MAX_VALUE) {
+            throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
+        }
         this.blobStore = blobStore;
         this.blobKey = blobKey;
         this.maxAttempts = blobStore.getMaxRetries() + 1;
+        this.start = start;
+        this.end = end;
         currentStream = openStream();
     }
 
     private InputStream openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            if (currentOffset > 0) {
-                getObjectRequest.setRange(currentOffset);
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
+            if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
+                assert start + currentOffset <= end :
+                    "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
+                getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
             }
             final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
             return s3Object.getObjectContent();
@@ -122,13 +141,20 @@ class S3RetryingInputStream extends InputStream {
 
     private void reopenStreamOrFail(IOException e) throws IOException {
         if (attempt >= maxAttempts) {
+            logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], giving up",
+                blobStore.bucket(), blobKey, start + currentOffset, attempt, maxAttempts), e);
             throw addSuppressedExceptions(e);
         }
         logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
-            blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
+            blobStore.bucket(), blobKey, start + currentOffset, attempt, maxAttempts), e);
         attempt += 1;
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
+        }
+        try {
+            Streams.consumeFully(currentStream);
+        } catch (Exception e2) {
+            logger.trace("Failed to fully consume stream on close", e);
         }
         IOUtils.closeWhileHandlingException(currentStream);
         currentStream = openStream();
@@ -136,6 +162,11 @@ class S3RetryingInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
+        try {
+            Streams.consumeFully(currentStream);
+        } catch (Exception e) {
+            logger.trace("Failed to fully consume stream on close", e);
+        }
         currentStream.close();
         closed = true;
     }

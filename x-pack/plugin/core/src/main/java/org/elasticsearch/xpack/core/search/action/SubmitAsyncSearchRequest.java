@@ -151,7 +151,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, toString(), parentTaskId, headers) {
+        return new CancellableTask(id, type, action, null, parentTaskId, headers) {
             @Override
             public boolean shouldCancelChildrenOnCancellation() {
                 // we cancel the underlying search action explicitly in the submit action
@@ -164,7 +164,7 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
                 return "waitForCompletionTimeout[" + waitForCompletionTimeout +
                     "], keepOnCompletion[" + keepOnCompletion +
                     "] keepAlive[" + keepAlive +
-                    "], request=" + request.getDescription();
+                    "], request=" + request.buildDescription();
             }
         };
     }
@@ -187,15 +187,5 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     @Override
     public int hashCode() {
         return Objects.hash(waitForCompletionTimeout, keepOnCompletion, keepAlive, request);
-    }
-
-    @Override
-    public String toString() {
-        return "SubmitAsyncSearchRequest{" +
-            "waitForCompletionTimeout=" + waitForCompletionTimeout +
-            ", keepOnCompletion=" + keepOnCompletion +
-            ", keepAlive=" + keepAlive +
-            ", request=" + request +
-            '}';
     }
 }

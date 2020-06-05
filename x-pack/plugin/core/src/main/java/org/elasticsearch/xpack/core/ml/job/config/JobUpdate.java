@@ -54,6 +54,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
             parser.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
             parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
             parser.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+            parser.declareObject(Builder::setPerPartitionCategorizationConfig, PerPartitionCategorizationConfig.STRICT_PARSER,
+                    AnalysisConfig.PER_PARTITION_CATEGORIZATION);
             parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
             parser.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
         }
@@ -76,6 +78,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
     private final List<String> categorizationFilters;
+    private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final Version modelSnapshotMinVersion;
@@ -89,6 +92,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
                       @Nullable Long modelSnapshotRetentionDays, @Nullable Long dailyModelSnapshotRetentionAfterDays,
                       @Nullable List<String> categorizationFilters,
+                      @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
                       @Nullable Version modelSnapshotMinVersion, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime,
                       @Nullable Boolean allowLazyOpen) {
@@ -104,6 +108,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
         this.categorizationFilters = categorizationFilters;
+        this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
@@ -134,6 +139,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
         } else {
             categorizationFilters = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
+        } else {
+            perPartitionCategorizationConfig = null;
+        }
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
         if (in.readBoolean()) {
@@ -153,7 +163,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        String[] groupsArray = groups == null ? null : groups.toArray(new String[groups.size()]);
+        String[] groupsArray = groups == null ? null : groups.toArray(new String[0]);
         out.writeOptionalStringArray(groupsArray);
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
@@ -170,6 +180,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {
             out.writeStringCollection(categorizationFilters);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(perPartitionCategorizationConfig);
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
@@ -237,6 +250,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return categorizationFilters;
     }
 
+    public PerPartitionCategorizationConfig getPerPartitionCategorizationConfig() {
+        return perPartitionCategorizationConfig;
+    }
+
     public Map<String, Object> getCustomSettings() {
         return customSettings;
     }
@@ -262,7 +279,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     }
 
     public boolean isAutodetectProcessUpdate() {
-        return modelPlotConfig != null || detectorUpdates != null || groups != null;
+        return modelPlotConfig != null || perPartitionCategorizationConfig != null || detectorUpdates != null || groups != null;
     }
 
     @Override
@@ -301,6 +318,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (categorizationFilters != null) {
             builder.field(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName(), categorizationFilters);
+        }
+        if (perPartitionCategorizationConfig != null) {
+            builder.field(AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName(), perPartitionCategorizationConfig);
         }
         if (customSettings != null) {
             builder.field(Job.CUSTOM_SETTINGS.getPreferredName(), customSettings);
@@ -358,6 +378,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (categorizationFilters != null) {
             updateFields.add(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName());
+        }
+        if (perPartitionCategorizationConfig != null) {
+            updateFields.add(AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName());
         }
         if (customSettings != null) {
             updateFields.add(Job.CUSTOM_SETTINGS.getPreferredName());
@@ -440,6 +463,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (categorizationFilters != null) {
             newAnalysisConfig.setCategorizationFilters(categorizationFilters);
         }
+        if (perPartitionCategorizationConfig != null) {
+            // Whether per-partition categorization is enabled cannot be changed, only the lower level details
+            if (perPartitionCategorizationConfig.isEnabled() !=
+                    currentAnalysisConfig.getPerPartitionCategorizationConfig().isEnabled()) {
+                throw ExceptionsHelper.badRequestException("analysis_config.per_partition_categorization.enabled cannot be updated");
+            }
+            newAnalysisConfig.setPerPartitionCategorizationConfig(perPartitionCategorizationConfig);
+        }
         if (customSettings != null) {
             builder.setCustomSettings(customSettings);
         }
@@ -477,6 +508,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
                 && (categorizationFilters == null
                         || Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
+                && (perPartitionCategorizationConfig == null
+                        || Objects.equals(perPartitionCategorizationConfig, job.getAnalysisConfig().getPerPartitionCategorizationConfig()))
                 && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
                 && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
                 && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
@@ -527,6 +560,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
                 && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
                 && Objects.equals(this.categorizationFilters, that.categorizationFilters)
+                && Objects.equals(this.perPartitionCategorizationConfig, that.perPartitionCategorizationConfig)
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                 && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
@@ -539,8 +573,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                categorizationFilters, customSettings, modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime,
-                allowLazyOpen);
+                categorizationFilters, perPartitionCategorizationConfig, customSettings, modelSnapshotId, modelSnapshotMinVersion,
+                jobVersion, clearJobFinishTime, allowLazyOpen);
     }
 
     public static class DetectorUpdate implements Writeable, ToXContentObject {
@@ -648,6 +682,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
         private List<String> categorizationFilters;
+        private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private Version modelSnapshotMinVersion;
@@ -719,6 +754,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setPerPartitionCategorizationConfig(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
+            this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
+            return this;
+        }
+
         public Builder setCustomSettings(Map<String, Object> customSettings) {
             this.customSettings = customSettings;
             return this;
@@ -762,8 +802,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays,
-                    categorizationFilters, customSettings, modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime,
-                    allowLazyOpen);
+                    categorizationFilters, perPartitionCategorizationConfig, customSettings, modelSnapshotId, modelSnapshotMinVersion,
+                    jobVersion, clearJobFinishTime, allowLazyOpen);
         }
     }
 }

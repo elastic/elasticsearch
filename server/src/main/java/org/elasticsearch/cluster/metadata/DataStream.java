@@ -134,7 +134,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
         args -> new DataStream((String) args[0], (String) args[1], (List<Index>) args[2], (Long) args[3]));
 
     static {

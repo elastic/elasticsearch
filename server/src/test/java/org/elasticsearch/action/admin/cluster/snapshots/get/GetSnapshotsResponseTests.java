@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.DataStreamTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -82,10 +81,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             String reason = randomBoolean() ? null : "reason";
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
-            snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"),
-                Collections.singletonList(DataStreamTests.randomInstance()), System.currentTimeMillis(), reason,
-                System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
-                SnapshotInfoTests.randomUserMetadata()));
+            snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), System.currentTimeMillis(), reason,
+                    System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
+                    SnapshotInfoTests.randomUserMetadata()));
 
         }
         return snapshots;

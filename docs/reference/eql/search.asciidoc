@@ -634,6 +634,23 @@ GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTo
 // TEST[skip: no access to search ID]
 ====
 
+You can use the <<delete-async-eql-search-api,delete async EQL search API>> to
+manually delete an async EQL search before the `keep_alive` period ends. If the
+search is still ongoing, this cancels the search request.
+
+.*Example*
+[%collapsible]
+====
+The following delete async EQL search API request deletes an async EQL search
+and its results.
+
+[source,console]
+----
+DELETE /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?keep_alive=5d
+----
+// TEST[skip: no access to search ID]
+====
+
 [discrete]
 [[eql-search-store-sync-eql-search]]
 === Store synchronous EQL searches
@@ -642,8 +659,7 @@ By default, the EQL search API only stores async searches that cannot be
 completed within the period set by the `wait_for_completion_timeout` parameter.
 
 To save the results of searches that complete during this period, set the
-`keep_on_completion` parameter to `true`. Note these saved searches are still
-subject to the storage retention period set by the `keep_alive` parameter.
+`keep_on_completion` parameter to `true`.
 
 [%collapsible]
 .*Example*
@@ -693,6 +709,13 @@ GET /_eql/search/FjlmbndxNmJjU0RPdExBTGg0elNOOEEaQk9xSjJBQzBRMldZa1VVQ2pPa01YUTo
 ----
 // TEST[skip: no access to search ID]
 ====
+
+Saved synchronous searches are still subject to the storage retention period set
+by the `keep_alive` parameter. After this period, the search and its saved
+results are deleted.
+
+You can also manually delete saved synchronous searches using the
+<<delete-async-eql-search-api,delete async EQL search API>>.
 
 [discrete]
 [[eql-search-case-sensitive]]

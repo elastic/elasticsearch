@@ -140,7 +140,7 @@ setting then the process is assumed to have failed. Defaults to `10s`. The minim
 value for this setting is `5s`.
 
 [[model-inference-circuit-breaker]]
-===== Machine learning circuit breaker settings
+==== {ml-cap} circuit breaker settings
 
 `breaker.model_inference.limit` (<<cluster-update-settings,Dynamic>>)
 Limit for model inference breaker, defaults to 40% of JVM heap.
@@ -154,7 +154,7 @@ See <<circuit-breaker>>.
 
 `breaker.model_inference.type`
 The underlying type of the circuit breaker. There are two valid options:
-`noop`, meaning the circuit breaker does nothing to prevent too much memory usage
+`noop`, meaning the circuit breaker does nothing to prevent too much memory usage,
 `memory`, meaning the circuit breaker tracks the memory used by inference models and
 could potentially break and prevent OutOfMemory errors.
 The default is `memory`.

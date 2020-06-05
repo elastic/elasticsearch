@@ -56,7 +56,7 @@ To accommodate this, {es} assigns nodes every role by default.
 A single node cluster is not resilient. If the the node fails, the cluster will
 stop working. Because there are no replicas in a one-node cluster, you cannot
 store your data redundantly. However, at least one replica is required for a
-<cluster-health,`green` cluster health status>>. To ensure your cluster can
+<<cluster-health,`green` cluster health status>>. To ensure your cluster can
 report a `green` status, set
 <<dynamic-index-settings,`index.number_of_replicas`>> to `0` on every index. If
 the node fails, you may need to restore an older copy of any lost indices from a
@@ -204,8 +204,9 @@ never become the master itself.
 
 The cluster will be resilient to the loss of any node as long as:
 
-- The cluster health status is `green. - There are at least two data nodes. -
-  Every index has at least one replica of each shard, in addition to the 
+- The <<cluster-health,cluster health status>> is `green`.
+- There are at least two data nodes. 
+- Every index has at least one replica of each shard, in addition to the 
   primary.
 - The cluster has at least three master-eligible nodes. At least two of these
   nodes are not voting-only, master-eligible nodes.
@@ -330,7 +331,7 @@ failure.
 
 The cluster will be resilient to the loss of any zone as long as:
 
-- The cluster health status is `green`.
+- The <<cluster-health,cluster health status>> is `green`.
 - There are at least two zones containing data nodes.
 - Every index has at least one replica of each shard, in addition to the 
   primary.

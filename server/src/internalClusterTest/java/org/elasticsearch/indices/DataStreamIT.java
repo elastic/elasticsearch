@@ -46,6 +46,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ObjectPath;
@@ -229,6 +230,9 @@ public class DataStreamIT extends ESIntegTestCase {
             "      \"properties\": {\n" +
             "        \"baz_field\": {\n" +
             "          \"type\": \"keyword\"\n" +
+            "        },\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
             "        }\n" +
             "      }\n" +
             "    }";
@@ -285,6 +289,46 @@ public class DataStreamIT extends ESIntegTestCase {
             () -> client().admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName + "-000001")).actionGet());
         expectThrows(IndexNotFoundException.class,
             () -> client().admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName + "-000002")).actionGet());
+    }
+
+    public void testTimeStampValidationNoFieldMapping() throws Exception {
+        // Adding a template without a mapping for timestamp field and expect template creation to fail.
+        PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
+        createTemplateRequest.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("logs-*"),
+                new Template(null, new CompressedXContent("{}"), null),
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp], but found no timestamp field"));
+    }
+
+    public void testTimeStampValidationInvalidFieldMapping() throws Exception {
+        // Adding a template with an invalid mapping for timestamp field and expect template creation to fail.
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"keyword\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
+        createTemplateRequest.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of("logs-*"),
+                new Template(null, new CompressedXContent(mapping), null),
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp] to be of types [[date, date_nanos]], " +
+            "but instead found type [keyword]"));
     }
 
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
@@ -425,7 +469,8 @@ public class DataStreamIT extends ESIntegTestCase {
         request.indexTemplate(
             new ComposableIndexTemplate(
                 List.of(pattern),
-                null,
+                new Template(null,
+                    new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
                 null, null, null, null,
                 new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName))
         );

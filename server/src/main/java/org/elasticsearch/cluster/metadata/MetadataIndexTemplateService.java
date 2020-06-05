@@ -71,6 +71,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV2Mappings;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -442,9 +444,18 @@ public class MetadataIndexTemplateService {
 
         validate(name, finalIndexTemplate);
         logger.info("adding index template [{}]", name);
-        return ClusterState.builder(currentState)
+        ClusterState newState = ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
             .build();
+        validateDataStreamTemplate(name, finalIndexTemplate, newState);
+        return newState;
+    }
+
+    private void validateDataStreamTemplate(String name, ComposableIndexTemplate finalIndexTemplate, ClusterState state) throws Exception {
+        String tsFieldName = finalIndexTemplate.getDataStreamTemplate().getTimestampField();
+        Map<String, Object> finalMapping = parseV2Mappings("{}", resolveMappings(state, name), xContentRegistry);
+        Map<?, ?> typelessMapping = (Map<?, ?>) finalMapping.get("_doc");
+        validateTimestampFieldMapping(tsFieldName,typelessMapping);
     }
 
     /**

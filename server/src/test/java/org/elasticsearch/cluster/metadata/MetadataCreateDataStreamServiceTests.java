@@ -25,12 +25,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -134,6 +136,34 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template"));
     }
 
+    public void testValidateTimestampFieldMapping() throws Exception {
+        String mapping = generateMapping("@timestamp", "date");
+        validateTimestampFieldMapping("@timestamp", MapperService.parseMapping(xContentRegistry(), mapping));
+        mapping = generateMapping("@timestamp", "date_nanos");
+        validateTimestampFieldMapping("@timestamp", MapperService.parseMapping(xContentRegistry(), mapping));
+    }
+
+    public void testValidateTimestampFieldMappingNoFieldMapping() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> validateTimestampFieldMapping("@timestamp", MapperService.parseMapping(xContentRegistry(), "{}")));
+        assertThat(e.getMessage(),
+            equalTo("expected timestamp field [@timestamp], but found no timestamp field"));
+
+        String mapping = generateMapping("@timestamp2", "date");
+        e = expectThrows(IllegalArgumentException.class,
+            () -> validateTimestampFieldMapping("@timestamp", MapperService.parseMapping(xContentRegistry(), mapping)));
+        assertThat(e.getMessage(),
+            equalTo("expected timestamp field [@timestamp], but found no timestamp field"));
+    }
+
+    public void testValidateTimestampFieldMappingInvalidFieldType() {
+        String mapping = generateMapping("@timestamp", "keyword");
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> validateTimestampFieldMapping("@timestamp", MapperService.parseMapping(xContentRegistry(), mapping)));
+        assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp] to be of types [[date, date_nanos]], " +
+            "but instead found type [keyword]"));
+    }
+
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean()))
@@ -147,6 +177,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                             .put(request.settings())
                             .build())
+                        .putMapping(generateMapping("@timestamp"))
                         .numberOfShards(1)
                         .numberOfReplicas(1)
                         .build(), false);
@@ -156,4 +187,17 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         return s;
     }
 
+    public static String generateMapping(String timestampFieldName) {
+        return generateMapping(timestampFieldName, "date");
+    }
+
+    static String generateMapping(String timestampFieldName, String type) {
+        return "{\n" +
+            "      \"properties\": {\n" +
+            "        \"" + timestampFieldName + "\": {\n" +
+            "          \"type\": \"" + type + "\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+    }
 }

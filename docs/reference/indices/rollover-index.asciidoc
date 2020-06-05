@@ -225,11 +225,32 @@ The API returns the following response:
 [[rollover-data-stream-ex]]
 ===== Roll over a data stream
 
+////
 [source,console]
 -----------------------------------
 PUT _index_template/template
 {
   "index_patterns": ["my-data-stream*"],
+
+}
+-----------------------------------
+// TEST
+////
+
+[source,console]
+-----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "date": {
+          "type": "date"
+        }
+      }
+    }
+  },
   "data_stream": {
     "timestamp_field": "@timestamp"
   }

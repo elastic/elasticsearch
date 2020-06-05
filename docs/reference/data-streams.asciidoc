@@ -20,7 +20,7 @@ template>> containing:
 
 * A name or wildcard pattern for the data stream in the `index_patterns` property.
 * A `data_stream` definition that contains the `timestamp_field` property.
-  The `timestamp_field` must be the primary timestamp field 
+  The `timestamp_field` must be the primary timestamp field
    for the data source. This field must be included in every
    document indexed to the data stream.
 
@@ -47,6 +47,15 @@ Create a composable template with a `data_stream` definition:
 PUT /_index_template/logs_template
 {
   "index_patterns": ["logs-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
   "data_stream": {
     "timestamp_field": "@timestamp"
   }

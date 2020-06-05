@@ -233,7 +233,7 @@ PUT _index_template/template
   "template": {
     "mappings": {
       "properties": {
-        "date": {
+        "@timestamp": {
           "type": "date"
         }
       }

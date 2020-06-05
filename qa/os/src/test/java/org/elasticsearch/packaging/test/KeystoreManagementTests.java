@@ -27,7 +27,6 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.nio.file.Files;

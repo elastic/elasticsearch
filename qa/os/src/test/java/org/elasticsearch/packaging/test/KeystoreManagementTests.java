@@ -121,7 +121,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     public void test20CreateKeystoreManually() throws Exception {
         rmKeystoreIfExists();
-        createKeystore();
+        createKeystore(null);
 
         final Installation.Executables bin = installation.executables();
         verifyKeystorePermissions();
@@ -153,8 +153,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "^|<>\\&exit"; // code insertion on Windows if special characters are not escaped
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
@@ -182,8 +181,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "keystorepass";
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
@@ -215,8 +213,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         String password = "keystorepass";
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
@@ -229,8 +226,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
         rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
+        createKeystore(password);
 
         assertPasswordProtectedKeystore();
 
@@ -388,7 +384,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
         return tempDirectory.resolve("elasticsearch.keystore");
     }
 
-    private void createKeystore() throws Exception {
+    /** Create a keystore. Provide a password to password-protect it, otherwise use null */
+    private void createKeystore(String password) throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
         bin.keystoreTool.run("create");
@@ -405,6 +402,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        if (password != null) {
+            setKeystorePassword(password);
         }
     }
 

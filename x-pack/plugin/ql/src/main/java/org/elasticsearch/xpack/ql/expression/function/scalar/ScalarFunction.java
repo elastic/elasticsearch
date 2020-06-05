@@ -115,6 +115,8 @@ public abstract class ScalarFunction extends Function {
                 dataType());
     }
 
+    // This method isn't actually used at the moment, since there is no grouping function (ie HISTOGRAM)
+    // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
         String template = basicTemplate(grouping);
         return new ScriptTemplate(processScript(template),

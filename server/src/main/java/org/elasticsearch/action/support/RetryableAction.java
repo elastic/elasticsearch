@@ -64,7 +64,7 @@ public abstract class RetryableAction<Response> {
         if (initialDelayMillis < 1) {
             throw new IllegalArgumentException("Initial delay was less than 1 millisecond: " + initialDelay);
         }
-        this.timeoutMillis = Math.max(timeoutValue.getMillis(), 1);
+        this.timeoutMillis = timeoutValue.getMillis();
         this.startMillis = threadPool.relativeTimeInMillis();
         this.finalListener = listener;
         this.executor = executor;
@@ -82,6 +82,7 @@ public abstract class RetryableAction<Response> {
             if (localRetryTask != null) {
                 localRetryTask.cancel();
             }
+            onFinished();
             finalListener.onFailure(e);
         }
     }
@@ -112,6 +113,9 @@ public abstract class RetryableAction<Response> {
 
     public abstract boolean shouldRetry(Exception e);
 
+    public void onFinished() {
+    }
+
     private class RetryingListener implements ActionListener<Response> {
 
         private static final int MAX_EXCEPTIONS = 4;
@@ -127,6 +131,7 @@ public abstract class RetryableAction<Response> {
         @Override
         public void onResponse(Response response) {
             if (isDone.compareAndSet(false, true)) {
+                onFinished();
                 finalListener.onResponse(response);
             }
         }
@@ -140,6 +145,7 @@ public abstract class RetryableAction<Response> {
                         TimeValue.timeValueMillis(elapsedMillis)), e);
                     addException(e);
                     if (isDone.compareAndSet(false, true)) {
+                        onFinished();
                         finalListener.onFailure(buildFinalException());
                     }
                 } else {
@@ -158,6 +164,7 @@ public abstract class RetryableAction<Response> {
             } else {
                 addException(e);
                 if (isDone.compareAndSet(false,true)) {
+                    onFinished();
                     finalListener.onFailure(buildFinalException());
                 }
             }

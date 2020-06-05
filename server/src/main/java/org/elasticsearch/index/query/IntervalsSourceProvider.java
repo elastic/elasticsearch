@@ -27,7 +27,6 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -795,8 +794,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), term);
             FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
                 fuzziness.asDistance(term), prefixLength, 128, transpositions);
-            CompiledAutomaton[] automata = fq.getAutomata();
-            source = Intervals.multiterm(automata[automata.length - 1], term);
+            source = Intervals.multiterm(fq.getAutomata(), term);
             if (useField != null) {
                 source = Intervals.fixField(useField, source);
             }

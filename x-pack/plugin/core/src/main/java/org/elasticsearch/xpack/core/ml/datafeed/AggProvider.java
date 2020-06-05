@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,14 +35,16 @@ class AggProvider implements Writeable, ToXContentObject {
     private Exception parsingException;
     private AggregatorFactories.Builder parsedAggs;
     private Map<String, Object> aggs;
+    private boolean rewroteAggs;
 
     static AggProvider fromXContent(XContentParser parser, boolean lenient) throws IOException {
         Map<String, Object> aggs = parser.mapOrdered();
         // NOTE: Always rewrite potentially old date histogram intervals.
         // This should occur in 8.x+ but not 7.x.
         // 7.x is BWC with versions that do not support the new date_histogram fields
+        boolean rewroteAggs = false;
         if (lenient) {
-            rewriteDateHistogramInterval(aggs, false);
+            rewroteAggs = rewriteDateHistogramInterval(aggs, false);
         }
         AggregatorFactories.Builder parsedAggs = null;
         Exception exception = null;
@@ -61,7 +64,7 @@ class AggProvider implements Writeable, ToXContentObject {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, ex);
             }
         }
-        return new AggProvider(aggs, parsedAggs, exception);
+        return new AggProvider(aggs, parsedAggs, exception, rewroteAggs);
     }
 
     @SuppressWarnings("unchecked")
@@ -99,23 +102,30 @@ class AggProvider implements Writeable, ToXContentObject {
             new AggProvider(
                 XContentObjectTransformer.aggregatorTransformer(NamedXContentRegistry.EMPTY).toMap(parsedAggs),
                 parsedAggs,
-                null);
+                null,
+                false);
     }
 
     static AggProvider fromStream(StreamInput in) throws IOException {
-        return new AggProvider(in.readMap(), in.readOptionalWriteable(AggregatorFactories.Builder::new), in.readException());
+        return new AggProvider(
+            in.readMap(),
+            in.readOptionalWriteable(AggregatorFactories.Builder::new),
+            in.readException(),
+            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false);
     }
 
-    AggProvider(Map<String, Object> aggs, AggregatorFactories.Builder parsedAggs, Exception parsingException) {
+    AggProvider(Map<String, Object> aggs, AggregatorFactories.Builder parsedAggs, Exception parsingException, boolean rewroteAggs) {
         this.aggs = Collections.unmodifiableMap(new LinkedHashMap<>(Objects.requireNonNull(aggs, "[aggs] must not be null")));
         this.parsedAggs = parsedAggs;
         this.parsingException = parsingException;
+        this.rewroteAggs = rewroteAggs;
     }
 
     AggProvider(AggProvider other) {
         this.aggs = new LinkedHashMap<>(other.aggs);
         this.parsedAggs = other.parsedAggs;
         this.parsingException = other.parsingException;
+        this.rewroteAggs = other.rewroteAggs;
     }
 
     @Override
@@ -123,6 +133,9 @@ class AggProvider implements Writeable, ToXContentObject {
         out.writeMap(aggs);
         out.writeOptionalWriteable(parsedAggs);
         out.writeException(parsingException);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(rewroteAggs);
+        }
     }
 
     public Exception getParsingException() {
@@ -135,6 +148,10 @@ class AggProvider implements Writeable, ToXContentObject {
 
     public Map<String, Object> getAggs() {
         return aggs;
+    }
+
+    public boolean isRewroteAggs() {
+        return rewroteAggs;
     }
 
     @Override
@@ -151,17 +168,38 @@ class AggProvider implements Writeable, ToXContentObject {
 
         return Objects.equals(this.aggs, that.aggs)
             && Objects.equals(this.parsedAggs, that.parsedAggs)
-            && Objects.equals(this.parsingException, that.parsingException);
+            && equalExceptionMessages(this.parsingException, that.parsingException)
+            && Objects.equals(this.rewroteAggs, that.rewroteAggs);
+    }
+
+    private static boolean equalExceptionMessages(Exception lft, Exception rgt) {
+        if (lft == rgt) {
+            return true;
+        }
+        if (lft == null || rgt == null) {
+            return false;
+        }
+        return Objects.equals(lft.getMessage(), rgt.getMessage());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggs, parsedAggs, parsingException);
+        return Objects.hash(aggs, parsedAggs, parsingException == null ? null : parsingException.getMessage(), rewroteAggs);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.map(aggs);
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return "AggProvider{" +
+            "parsingException=" + parsingException +
+            ", parsedAggs=" + parsedAggs +
+            ", aggs=" + aggs +
+            ", rewroteAggs=" + rewroteAggs +
+            '}';
     }
 }

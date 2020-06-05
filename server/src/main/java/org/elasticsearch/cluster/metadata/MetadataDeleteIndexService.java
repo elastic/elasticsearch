@@ -42,9 +42,10 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
-
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Deletes indices.
@@ -91,7 +92,21 @@ public class MetadataDeleteIndexService {
      */
     public ClusterState deleteIndices(ClusterState currentState, Set<Index> indices) {
         final Metadata meta = currentState.metadata();
-        final Set<Index> indicesToDelete = indices.stream().map(i -> meta.getIndexSafe(i).getIndex()).collect(toSet());
+        final Set<Index> indicesToDelete = new HashSet<>();
+        final Map<Index, DataStream> backingIndices = new HashMap<>();
+        for (Index index : indices) {
+            IndexMetadata im = meta.getIndexSafe(index);
+            IndexAbstraction.DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
+            if (parent != null) {
+                if (parent.getWriteIndex().equals(im)) {
+                    throw new IllegalArgumentException("index [" + index.getName() + "] is the write index for data stream [" +
+                        parent.getName() + "] and cannot be deleted");
+                } else {
+                    backingIndices.put(index, parent.getDataStream());
+                }
+            }
+            indicesToDelete.add(im.getIndex());
+        }
 
         // Check if index deletion conflicts with any running snapshots
         Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToDelete);
@@ -112,6 +127,10 @@ public class MetadataDeleteIndexService {
             routingTableBuilder.remove(indexName);
             clusterBlocksBuilder.removeIndexBlocks(indexName);
             metadataBuilder.remove(indexName);
+            if (backingIndices.containsKey(index)) {
+                DataStream parent = backingIndices.get(index);
+                metadataBuilder.put(parent.removeBackingIndex(index));
+            }
         }
         // add tombstones to the cluster state for each deleted index
         final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);

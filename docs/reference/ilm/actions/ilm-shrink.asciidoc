@@ -25,11 +25,11 @@ then converts the follower index into a regular index with the
 ==== Shrink options
 `number_of_shards`::
 (Required, integer) 
-The number of shards to shrink to. 
+Number of shards to shrink to. 
 Must be a factor of the number of shards in the source index.
 
 
-[[ilm-shrink-example]]
+[[ilm-shrink-ex]]
 ==== Example
  
 [source,console]

@@ -99,6 +99,8 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
                 BoostedTreeParams.builder().build(),
                 null,
                 100.0,
+                null,
+                null,
                 null))
             .buildForExplain();
 
@@ -115,6 +117,8 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
                 BoostedTreeParams.builder().build(),
                 null,
                 50.0,
+                null,
+                null,
                 null))
             .buildForExplain();
 

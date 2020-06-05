@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -369,6 +370,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
     }
 
+    public synchronized void applyNewSettings(SettingsConfig newSettings) {
+        getIndexer().applyNewSettings(newSettings);
+    }
+
     @Override
     protected void init(
         PersistentTasksService persistentTasksService,
@@ -538,7 +543,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     }
 
     synchronized void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool().executor(ThreadPool.Names.GENERIC), context));
+        indexer.set(indexerBuilder.build(getThreadPool(), ThreadPool.Names.GENERIC, context));
     }
 
     ThreadPool getThreadPool() {

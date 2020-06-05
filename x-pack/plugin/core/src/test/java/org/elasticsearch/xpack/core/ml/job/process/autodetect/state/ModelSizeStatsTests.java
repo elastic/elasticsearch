@@ -35,6 +35,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         assertEquals(0, stats.getFrequentCategoryCount());
         assertEquals(0, stats.getRareCategoryCount());
         assertEquals(0, stats.getDeadCategoryCount());
+        assertEquals(0, stats.getFailedCategoryCount());
         assertEquals(CategorizationStatus.OK, stats.getCategorizationStatus());
     }
 
@@ -105,6 +106,9 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         }
         if (randomBoolean()) {
             stats.setDeadCategoryCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setFailedCategoryCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             stats.setCategorizationStatus(randomFrom(CategorizationStatus.values()));

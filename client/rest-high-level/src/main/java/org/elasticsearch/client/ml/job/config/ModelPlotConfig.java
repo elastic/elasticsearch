@@ -30,22 +30,27 @@ public class ModelPlotConfig implements ToXContentObject {
 
     private static final ParseField TYPE_FIELD = new ParseField("model_plot_config");
     private static final ParseField ENABLED_FIELD = new ParseField("enabled");
-    public static final ParseField TERMS_FIELD = new ParseField("terms");
+    private static final ParseField TERMS_FIELD = new ParseField("terms");
+    private static final ParseField ANNOTATIONS_ENABLED_FIELD = new ParseField("annotations_enabled");
 
     public static final ConstructingObjectParser<ModelPlotConfig, Void> PARSER =
-        new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), true, a -> new ModelPlotConfig((boolean) a[0], (String) a[1]));
+        new ConstructingObjectParser<>(
+            TYPE_FIELD.getPreferredName(), true, a -> new ModelPlotConfig((boolean) a[0], (String) a[1], (Boolean) a[2]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ANNOTATIONS_ENABLED_FIELD);
     }
 
     private final boolean enabled;
     private final String terms;
+    private final boolean annotationsEnabled;
 
-    public ModelPlotConfig(boolean enabled, String terms) {
+    public ModelPlotConfig(boolean enabled, String terms, Boolean annotationsEnabled) {
         this.enabled = enabled;
         this.terms = terms;
+        this.annotationsEnabled = Boolean.TRUE.equals(annotationsEnabled);
     }
 
     @Override
@@ -55,6 +60,7 @@ public class ModelPlotConfig implements ToXContentObject {
         if (terms != null) {
             builder.field(TERMS_FIELD.getPreferredName(), terms);
         }
+        builder.field(ANNOTATIONS_ENABLED_FIELD.getPreferredName(), annotationsEnabled);
         builder.endObject();
         return builder;
     }
@@ -65,6 +71,10 @@ public class ModelPlotConfig implements ToXContentObject {
 
     public String getTerms() {
         return this.terms;
+    }
+
+    public boolean annotationsEnabled() {
+        return annotationsEnabled;
     }
 
     @Override
@@ -78,11 +88,11 @@ public class ModelPlotConfig implements ToXContentObject {
         }
 
         ModelPlotConfig that = (ModelPlotConfig) other;
-        return this.enabled == that.enabled && Objects.equals(this.terms, that.terms);
+        return this.enabled == that.enabled && Objects.equals(this.terms, that.terms) && this.annotationsEnabled == that.annotationsEnabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(enabled, terms);
+        return Objects.hash(enabled, terms, annotationsEnabled);
     }
 }

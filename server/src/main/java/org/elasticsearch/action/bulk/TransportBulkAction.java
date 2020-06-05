@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -164,9 +165,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean preferV2Templates = bulkRequest.preferV2Templates() == null ?
-                    IndexMetadata.PREFER_V2_TEMPLATES_SETTING.getDefault(Settings.EMPTY) : bulkRequest.preferV2Templates();
-                boolean indexRequestHasPipeline = resolvePipelines(actionRequest, indexRequest, preferV2Templates, metadata);
+                boolean indexRequestHasPipeline = resolvePipelines(actionRequest, indexRequest, metadata);
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
             }
 
@@ -237,7 +236,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else {
                 final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
                 for (String index : autoCreateIndices) {
-                    createIndex(index, bulkRequest.preferV2Templates(), bulkRequest.timeout(), new ActionListener<>() {
+                    createIndex(index, bulkRequest.timeout(), minNodeVersion, new ActionListener<>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
@@ -272,8 +271,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest,
-                                    final boolean preferV2Templates, final Metadata metadata) {
+    static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest, final Metadata metadata) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
             indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
@@ -313,7 +311,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 // templates to look for pipelines in either a matching V2 template (which takes
                 // precedence), or if a V2 template does not match, any V1 templates
                 String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
-                if (v2Template != null && preferV2Templates) {
+                if (v2Template != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                         defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
@@ -381,13 +379,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return autoCreateIndex.shouldAutoCreate(index, state);
     }
 
-    void createIndex(String index, Boolean preferV2Templates, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+    void createIndex(String index,
+                     TimeValue timeout,
+                     Version minNodeVersion,
+                     ActionListener<CreateIndexResponse> listener) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest();
         createIndexRequest.index(index);
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
-        createIndexRequest.preferV2Templates(preferV2Templates);
-        client.admin().indices().create(createIndexRequest, listener);
+        if (minNodeVersion.onOrAfter(Version.V_7_8_0)) {
+            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
+        } else {
+            client.admin().indices().create(createIndexRequest, listener);
+        }
     }
 
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,
@@ -410,7 +414,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * */
     private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
-        private final BulkRequest bulkRequest;
+        private BulkRequest bulkRequest; // set to null once all requests are sent out
         private final AtomicArray<BulkItemResponse> responses;
         private final long startTimeNanos;
         private final ClusterStateObserver observer;
@@ -429,6 +433,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         @Override
         protected void doRun() {
+            assert bulkRequest != null;
             final ClusterState clusterState = observer.setAndGetObservedState();
             if (handleBlockExceptions(clusterState)) {
                 return;
@@ -547,6 +552,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                 });
             }
+            bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
         }
 
         private boolean handleBlockExceptions(ClusterState state) {
@@ -645,7 +651,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Index resolveIfAbsent(DocWriteRequest<?> request) {
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request);
+                boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
+                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request, includeDataStreams);
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;

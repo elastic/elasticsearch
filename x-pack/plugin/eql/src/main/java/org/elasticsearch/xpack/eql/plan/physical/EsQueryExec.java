@@ -50,7 +50,7 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public void execute(EqlSession session, ActionListener<Results> listener) {
-        new Querier(session).query(output, queryContainer, index, listener);
+        new Querier(session).query(queryContainer, index, listener);
     }
 
     @Override

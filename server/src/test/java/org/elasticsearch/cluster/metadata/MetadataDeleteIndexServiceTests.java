@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -36,9 +38,17 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.core.IsNull;
+import org.junit.Before;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -46,8 +56,18 @@ import static org.mockito.Mockito.when;
 
 
 public class MetadataDeleteIndexServiceTests extends ESTestCase {
-    private final AllocationService allocationService = mock(AllocationService.class);
-    private final MetadataDeleteIndexService service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
+    private AllocationService allocationService;
+    private MetadataDeleteIndexService service;
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        allocationService = mock(AllocationService.class);
+        when(allocationService.reroute(any(ClusterState.class), any(String.class)))
+            .thenAnswer(mockInvocation -> mockInvocation.getArguments()[0]);
+        service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
+    }
 
     public void testDeleteMissing() {
         Index index = new Index("missing", "doesn't matter");
@@ -90,6 +110,35 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         // Make sure we actually attempted to reroute
         verify(allocationService).reroute(any(ClusterState.class), any(String.class));
+    }
+
+    public void testDeleteBackingIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(2, 5);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        ClusterState before = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+
+        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
+
+        Index indexToDelete = before.metadata().index(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
+        ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
+
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
+        assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
+        assertThat(after.metadata().getIndices().get(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
+    }
+
+    public void testDeleteCurrentWriteIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(1, 5);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        ClusterState before = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
+
+        Index indexToDelete = before.metadata().index(DataStream.getBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
+
+        assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +
+            dataStreamName + "] and cannot be deleted"));
     }
 
     private ClusterState clusterState(String index) {

@@ -113,8 +113,6 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                     LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(oldKey, docCount, null, format);
                     bucket.bucketOrd = newBucketOrd;
                     buckets.add(bucket);
-
-                    consumeBucketsAndMaybeBreak(1);
                 } else {
                     // Make a note when one of the ords has been deleted
                     deletionCount += 1;
@@ -137,18 +135,13 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0;
         List<LongRareTerms.Bucket> buckets = buildSketch();
-        runDeferredCollections(buckets.stream().mapToLong(b -> b.bucketOrd).toArray());
-
-        // Finalize the buckets
-        for (LongRareTerms.Bucket bucket : buckets) {
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-        }
+        buildSubAggsForBuckets(buckets, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
 
         CollectionUtil.introSort(buckets, ORDER.comparator());
-        return new LongRareTerms(name, ORDER, metadata(), format, buckets, maxDocCount, filter);
+        return new InternalAggregation[] {new LongRareTerms(name, ORDER, metadata(), format, buckets, maxDocCount, filter)};
     }
 
     @Override

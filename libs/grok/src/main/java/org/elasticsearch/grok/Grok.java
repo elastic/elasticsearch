@@ -61,6 +61,7 @@ public final class Grok {
             GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
 
     private static final Map<String, String> builtinPatterns;
+    private static final int MAX_TO_REGEX_ITERATIONS = 100_000; //sanity limit
 
     static {
         try {
@@ -163,17 +164,23 @@ public final class Grok {
      * @return named regex expression
      */
     public String toRegex(String grokPattern) {
-        byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
-        Matcher matcher = GROK_PATTERN_REGEX.matcher(grokPatternBytes);
+        StringBuilder res = new StringBuilder();
+        for (int i = 0; i < MAX_TO_REGEX_ITERATIONS; i++) {
+            byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
+            Matcher matcher = GROK_PATTERN_REGEX.matcher(grokPatternBytes);
 
-        int result;
-        try {
-            matcherWatchdog.register(matcher);
-            result = matcher.search(0, grokPatternBytes.length, Option.NONE);
-        } finally {
-            matcherWatchdog.unregister(matcher);
-        }
-        if (result >= 0) {
+            int result;
+            try {
+                matcherWatchdog.register(matcher);
+                result = matcher.search(0, grokPatternBytes.length, Option.NONE);
+            } finally {
+                matcherWatchdog.unregister(matcher);
+            }
+
+            if (result < 0) {
+                return res.append(grokPattern).toString();
+            }
+
             Region region = matcher.getEagerRegion();
             String namedPatternRef = groupMatch(NAME_GROUP, region, grokPattern);
             String subName = groupMatch(SUBNAME_GROUP, region, grokPattern);
@@ -181,7 +188,6 @@ public final class Grok {
             @SuppressWarnings("unused")
             String definition = groupMatch(DEFINITION_GROUP, region, grokPattern);
             String patternName = groupMatch(PATTERN_GROUP, region, grokPattern);
-
             String pattern = patternBank.get(patternName);
             if (pattern == null) {
                 throw new IllegalArgumentException("Unable to find pattern [" + patternName + "] in Grok's pattern dictionary");
@@ -189,22 +195,20 @@ public final class Grok {
             if (pattern.contains("%{" + patternName + "}") || pattern.contains("%{" + patternName + ":")) {
                 throw new IllegalArgumentException("circular reference in pattern back [" + patternName + "]");
             }
-
             String grokPart;
             if (namedCaptures && subName != null) {
                 grokPart = String.format(Locale.US, "(?<%s>%s)", namedPatternRef, pattern);
-            } else if (!namedCaptures) {
-                grokPart = String.format(Locale.US, "(?<%s>%s)", patternName + "_" + String.valueOf(result), pattern);
-            } else {
+            } else if (namedCaptures) {
                 grokPart = String.format(Locale.US, "(?:%s)", pattern);
+            } else {
+                grokPart = String.format(Locale.US, "(?<%s>%s)", patternName + "_" + result, pattern);
             }
-
             String start = new String(grokPatternBytes, 0, result, StandardCharsets.UTF_8);
             String rest = new String(grokPatternBytes, region.end[0], grokPatternBytes.length - region.end[0], StandardCharsets.UTF_8);
-            return start + toRegex(grokPart + rest);
+            grokPattern = grokPart + rest;
+            res.append(start);
         }
-
-        return grokPattern;
+        throw new IllegalArgumentException("Can not convert grok patterns to regular expression");
     }
 
     /**

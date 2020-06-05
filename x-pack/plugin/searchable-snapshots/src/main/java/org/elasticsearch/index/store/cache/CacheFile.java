@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 
@@ -282,5 +283,10 @@ public class CacheFile {
             future.completeExceptionally(e);
         }
         return future;
+    }
+
+    public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
+        ensureOpen();
+        return tracker.getAbsentRangeWithin(start, end);
     }
 }

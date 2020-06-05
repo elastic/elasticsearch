@@ -457,7 +457,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (localIndices == null) {
             return Index.EMPTY_ARRAY; //don't search on any local index (happens when only remote indices were specified)
         }
-        return indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions,
+        return indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, true,
             timeProvider.getAbsoluteStartMillis(), localIndices.indices());
     }
 

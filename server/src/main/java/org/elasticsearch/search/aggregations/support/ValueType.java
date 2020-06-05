@@ -113,6 +113,8 @@ public enum ValueType implements Writeable {
             case "string":  return STRING;
             case "double":
             case "float":   return DOUBLE;
+            case "number":
+            case "numeric":
             case "long":
             case "integer":
             case "short":

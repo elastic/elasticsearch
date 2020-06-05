@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -55,7 +56,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     private final Logger queryLogger;
     private final Logger fetchLogger;
 
-    private static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
+    static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.warn", TimeValue.timeValueNanos(-1),
             TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
@@ -80,16 +81,14 @@ public final class SearchSlowLog implements SearchOperationListener {
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING =
         Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.trace", TimeValue.timeValueNanos(-1),
             TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL =
-        new Setting<>(INDEX_SEARCH_SLOWLOG_PREFIX + ".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, Property.Dynamic,
-            Property.IndexScope);
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public SearchSlowLog(IndexSettings indexSettings) {
-
-        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query." + indexSettings.getUUID());
-        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch." + indexSettings.getUUID());
+        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+        Loggers.setLevel(this.fetchLogger, Level.TRACE);
+        Loggers.setLevel(this.queryLogger, Level.TRACE);
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
             this::setQueryWarnThreshold);
@@ -116,14 +115,6 @@ public final class SearchSlowLog implements SearchOperationListener {
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING,
             this::setFetchTraceThreshold);
         this.fetchTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING).nanos();
-
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_LEVEL, this::setLevel);
-        setLevel(indexSettings.getValue(INDEX_SEARCH_SLOWLOG_LEVEL));
-    }
-
-    private void setLevel(SlowLogLevel level) {
-        Loggers.setLevel(queryLogger, level.name());
-        Loggers.setLevel(fetchLogger, level.name());
     }
 
     @Override
@@ -256,8 +247,4 @@ public final class SearchSlowLog implements SearchOperationListener {
         return fetchTraceThreshold;
     }
 
-    SlowLogLevel getLevel() {
-        assert queryLogger.getLevel().equals(fetchLogger.getLevel());
-        return SlowLogLevel.parse(queryLogger.getLevel().name());
-    }
 }

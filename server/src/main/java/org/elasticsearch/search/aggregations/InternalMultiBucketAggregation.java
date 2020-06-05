@@ -152,8 +152,12 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public final InternalAggregation reducePipelines(
             InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
         assert reduceContext.isFinalReduce();
-        List<B> materializedBuckets = reducePipelineBuckets(reduceContext, pipelineTree);
-        return super.reducePipelines(create(materializedBuckets), reduceContext, pipelineTree);
+        InternalAggregation reduced = this;
+        if (pipelineTree.hasSubTrees()) {
+            List<B> materializedBuckets = reducePipelineBuckets(reduceContext, pipelineTree);
+            reduced = create(materializedBuckets);
+        }
+        return super.reducePipelines(reduced, reduceContext, pipelineTree);
     }
 
     @Override

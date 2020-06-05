@@ -16,7 +16,7 @@ example, `jumping` and `jumpiness` can both be stemmed to `jumpi`. While `jumpi`
 isn't a real English word, it doesn't matter for search; if all variants of a
 word are reduced to the same root form, they will match correctly.
 
-[[temmer-token-filters]]
+[[stemmer-token-filters]]
 ==== Stemmer token filters
 
 In {es}, stemming is handled by stemmer <<analyzer-anatomy-token-filters,token

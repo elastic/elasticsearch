@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-public class RankFeatureMetaFieldTypeTests extends FieldTypeTestCase {
+public class RankFeatureMetaFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {

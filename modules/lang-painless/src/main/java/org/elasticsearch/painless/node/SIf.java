@@ -19,11 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.IfNode;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
 import java.util.Objects;
@@ -49,10 +51,11 @@ public class SIf extends AStatement {
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        AExpression.Output conditionOutput = condition.analyze(classNode, scriptRoot, scope, conditionInput);
-        condition.cast(conditionInput, conditionOutput);
+        AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+                conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
-        if (condition instanceof EBoolean) {
+        if (condition.getChildIf(EBoolean.class) != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -72,7 +75,7 @@ public class SIf extends AStatement {
         output.statementCount = ifblockOutput.statementCount;
 
         IfNode ifNode = new IfNode();
-        ifNode.setConditionNode(condition.cast(conditionOutput));
+        ifNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         ifNode.setBlockNode((BlockNode)ifblockOutput.statementNode);
         ifNode.setLocation(location);
 

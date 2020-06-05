@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
-import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -94,7 +94,6 @@ public class ModelLoadingService implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final InferenceAuditor auditor;
     private final ByteSizeValue maxCacheSize;
-    private final NamedXContentRegistry namedXContentRegistry;
     private final String localNode;
 
     public ModelLoadingService(TrainedModelProvider trainedModelProvider,
@@ -111,7 +110,6 @@ public class ModelLoadingService implements ClusterStateListener {
         this.auditor = auditor;
         this.modelStatsService = modelStatsService;
         this.shouldNotAudit = new HashSet<>();
-        this.namedXContentRegistry = namedXContentRegistry;
         this.localModelCache = CacheBuilder.<String, LocalModel>builder()
             .setMaximumWeight(this.maxCacheSize.getBytes())
             .weigher((id, localModel) -> localModel.ramBytesUsed())
@@ -151,16 +149,17 @@ public class ModelLoadingService implements ClusterStateListener {
             // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
             // by a simulated pipeline
             logger.trace(() -> new ParameterizedMessage("[{}] not actively loading, eager loading without cache", modelId));
-            provider.getTrainedModel(modelId, true, ActionListener.wrap(
-                trainedModelConfig -> {
-                    trainedModelConfig.ensureParsedDefinition(namedXContentRegistry);
+            provider.getTrainedModelForInference(modelId, ActionListener.wrap(
+                configAndInferenceDef -> {
+                    TrainedModelConfig trainedModelConfig = configAndInferenceDef.v1();
+                    InferenceDefinition inferenceDefinition = configAndInferenceDef.v2();
                     InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
-                        inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
+                        inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
                         trainedModelConfig.getInferenceConfig();
                     modelActionListener.onResponse(new LocalModel(
                         trainedModelConfig.getModelId(),
                         localNode,
-                        trainedModelConfig.getModelDefinition(),
+                        inferenceDefinition,
                         trainedModelConfig.getInput(),
                         trainedModelConfig.getDefaultFieldMap(),
                         inferenceConfig,
@@ -206,10 +205,10 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private void loadModel(String modelId) {
-        provider.getTrainedModel(modelId, true, ActionListener.wrap(
-            trainedModelConfig -> {
+        provider.getTrainedModelForInference(modelId, ActionListener.wrap(
+            configAndInferenceDef -> {
                 logger.debug(() -> new ParameterizedMessage("[{}] successfully loaded model", modelId));
-                handleLoadSuccess(modelId, trainedModelConfig);
+                handleLoadSuccess(modelId, configAndInferenceDef);
             },
             failure -> {
                 logger.warn(new ParameterizedMessage("[{}] failed to load model", modelId), failure);
@@ -218,16 +217,17 @@ public class ModelLoadingService implements ClusterStateListener {
         ));
     }
 
-    private void handleLoadSuccess(String modelId, TrainedModelConfig trainedModelConfig) throws IOException {
+    private void handleLoadSuccess(String modelId,
+                                   Tuple<TrainedModelConfig, InferenceDefinition> configAndInferenceDef) {
         Queue<ActionListener<Model>> listeners;
-        trainedModelConfig.ensureParsedDefinition(namedXContentRegistry);
+        TrainedModelConfig trainedModelConfig = configAndInferenceDef.v1();
         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
             inferenceConfigFromTargetType(trainedModelConfig.getModelDefinition().getTrainedModel().targetType()) :
             trainedModelConfig.getInferenceConfig();
         LocalModel loadedModel = new LocalModel(
             trainedModelConfig.getModelId(),
             localNode,
-            trainedModelConfig.getModelDefinition(),
+            configAndInferenceDef.v2(),
             trainedModelConfig.getInput(),
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
@@ -324,7 +324,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
             // Populate loadingListeners key so we know that we are currently loading the model
             for (String modelId : allReferencedModelKeys) {
-                loadingListeners.put(modelId, new ArrayDeque<>());
+                loadingListeners.computeIfAbsent(modelId, (s) -> new ArrayDeque<>());
             }
         } // synchronized (loadingListeners)
         if (logger.isTraceEnabled()) {
@@ -418,6 +418,27 @@ public class ModelLoadingService implements ClusterStateListener {
                 return ClassificationConfig.EMPTY_PARAMS;
             default:
                 throw ExceptionsHelper.badRequestException("unsupported target type [{}]", targetType);
+        }
+    }
+
+    /**
+     * Register a listener for notification when a model is loaded.
+     *
+     * This method is primarily intended for testing (hence package private)
+     * and shouldn't be required outside of testing.
+     *
+     * @param modelId Model Id
+     * @param modelLoadedListener To be notified
+     */
+    void addModelLoadedListener(String modelId, ActionListener<Model> modelLoadedListener) {
+        synchronized (loadingListeners) {
+            loadingListeners.compute(modelId, (modelKey, listenerQueue) -> {
+                    if (listenerQueue == null) {
+                        return addFluently(new ArrayDeque<>(), modelLoadedListener);
+                    } else {
+                        return addFluently(listenerQueue, modelLoadedListener);
+                    }
+                });
         }
     }
 }

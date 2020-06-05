@@ -9,10 +9,18 @@
 
 // end::notable-breaking-changes[]
 
-[float]
-==== Change to API to add voting configuration exclusions
-
+.The voting configuration exclusions API endpoint has changed.
+[%collapsible]
+====
+*Details* +
 The `POST /_cluster/voting_config_exclusions/{node_filter}` API has been
 removed in favour of `POST /_cluster/voting_config_exclusions?node_names=...`
 and `POST /_cluster/voting_config_exclusions?node_ids=...` which allow you to
 specify the names or IDs of the nodes to exclude.
+
+*Impact* +
+Use `POST /_cluster/voting_config_exclusions?node_ids=...` and specify the nodes
+to exclude instead of using a node filter. Requests submitted to the
+`/_cluster/voting_config_exclusions/{node_filter}` endpoint will return an
+error.
+====

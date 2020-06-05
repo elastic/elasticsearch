@@ -38,9 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.DECORATE_FIELDS;
-import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.MATCH_FIELD;
-import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -49,6 +46,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BasicEnrichTests extends ESSingleNodeTestCase {
+
+    static final String SOURCE_INDEX_NAME = "users";
+    static final String MATCH_FIELD = "email";
+    static final String[] DECORATE_FIELDS = new String[] { "address", "city", "country" };
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

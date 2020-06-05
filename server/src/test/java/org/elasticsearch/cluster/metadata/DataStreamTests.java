@@ -78,4 +78,24 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(newWriteIndex));
     }
+
+    public void testRemoveBackingIndex() {
+        int numBackingIndices = randomIntBetween(2, 32);
+        int indexToRemove = randomIntBetween(1, numBackingIndices - 1);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int k = 1; k <= numBackingIndices; k++) {
+            indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
+        }
+        DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream updated = original.removeBackingIndex(indices.get(indexToRemove - 1));
+        assertThat(updated.getName(), equalTo(original.getName()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
+        assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
+        assertThat(updated.getIndices().size(), equalTo(numBackingIndices - 1));
+        for (int k = 0; k < (numBackingIndices - 1); k++) {
+            assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
+        }
+    }
 }

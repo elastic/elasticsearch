@@ -142,8 +142,7 @@ public class MetadataIndexStateService {
         SortedMap<String, IndexAbstraction> lookup = clusterService.state().metadata().getIndicesLookup();
         for (Index index : concreteIndices) {
             IndexAbstraction ia = lookup.get(index.getName());
-            if (ia != null && ia.getParentDataStream() != null &&
-                ia.getParentDataStream().getWriteIndex().getIndex().getName().equals(index.getName())) {
+            if (ia != null && ia.getParentDataStream() != null && ia.getParentDataStream().getWriteIndex().getIndex().equals(index)) {
                 writeIndices.add(index.getName());
             }
         }

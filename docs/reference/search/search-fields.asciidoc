@@ -103,10 +103,50 @@ needed.
 {es} supports some alternative methods for returning fields that help avoid
 these downsides:
 
-* The <<request-body-search-docvalue-fields, `docvalue_fields`>>
-parameter allows for loading fields from their doc values. This can be a good
-choice when returning a fairly small number of fields that support doc values,
-such as keywords and dates.
+* You can use the <<search-docvalue-fields,`docvalue_fields`>> parameter to
+return doc values for one or more fields. This can be a good choice when
+returning a fairly small number of fields that support doc values, such as
+<<keyword,keywords>> or <<date,dates>> .
++
+.*Example*
+[%collapsible]
+====
+The following search API request uses the `docvalue_fields` parameter to return
+doc values for the following fields:
+
+* Fields with names starting with `my_ip`
+* `my_keyword_field`
+* Fields with names ending with `_date_field`
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "docvalue_fields": [
+    "my_ip*",                     <1>
+    {
+      "field": "my_keyword_field" <2>
+    },
+    {
+      "field": "*_date_field",
+      "format": "epoch_millis"    <3>
+    }
+  ]
+}
+--------------------------------------------------
+
+<1> Wildcard patten used to match field names, specified as a string.
+<2> Wildcard patten used to match field names, specified as an object.
+<3> With the object notation, you can use the `format` parameter to specify a 
+    format for the field's returned doc values. <<date,Date fields>> support a 
+    <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
+    https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
+    pattern]. Other field datatypes do not support the `format` parameter.
+====
+
 * It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
 <<request-body-search-stored-fields, `stored_fields`>> parameter to return

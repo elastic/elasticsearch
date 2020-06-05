@@ -247,6 +247,47 @@ If `true`, returns document version as part of a hit. Defaults to `false`.
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
 
+[[search-docvalue-fields]]
+`docvalue_fields`::
+(Optional, array of strings and objects)
+Array of wildcard (`*`) patterns. The request returns doc values for field names
+matching these patterns in the `hits.fields` property of the response.
++
+You can specify items in the array as a string or object. See <<search-fields>>.
++
+.Properties of `docvalue_fields` objects
+[%collapsible]
+====
+`field`::
+(Required, string)
+Wildcard pattern. The request returns doc values for field names matching this
+pattern.
+
+`format`::
+(Optional, string)
+Format in which the doc values are returned.
++
+For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+`format`>>. For <<number,numeric fields>> fields, you can specify a
+https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
+pattern].
++
+For other field datatypes, this parameter is not supported.
+====
++
+WARNING: <<doc-values,Doc values>> are enabled on supported fields by default.
+However, they can be disabled using the <<doc-values,`doc_values`>> mapping
+parameter. If the `docvalue_fields` parameter specifies a field without a doc
+value, the search request attempts to load the value from the
+<<modules-fielddata,field data cache>>. This causes the field's terms to be
+loaded into memory, resulting in higher memory consumption.
++
+You cannot use the `docvalue_fields` parameter to return doc values
+for nested objects. If you specify a pattern containing a nested object, the
+request returns an empty array (`[ ]`) for the field. To access nested fields,
+use the <<request-body-search-inner-hits, `inner_hits`>> parameter's
+`docvalue_fields` property.
+
 [[request-body-search-explain]]
 `explain`::
 (Optional, boolean) If `true`, returns detailed information about score
@@ -457,6 +498,34 @@ returned document.
 `_source`::
 (object)
 Original JSON body passed for the document at index time.
++
+If the <<search-docvalue-fields,`docvalue_fields`>> parameter is specified and
+the `source` parameter is not specified, this property is not returned.
++
+.Properties of `_source`
+[%collapsible%open]
+======
+`<field>`::
+Key is the field name. Value is the JSON value passed for the field at index
+time.
+======
+
+`fields`::
+(object)
+Contains doc values for fields specified using the
+<<search-docvalue-fields,`docvalue_fields`>> parameter. This property is only
+returned if `docvalue_fields` is specified in the search request.
++
+.Properties of `fields`
+[%collapsible%open]
+======
+`<field>`::
+(array)
+Key is the field name. Value is the doc value for the field.
++
+If no doc values are available for the field, the value is an empty array
+(`[ ]`).
+======
 =====
 ====
 

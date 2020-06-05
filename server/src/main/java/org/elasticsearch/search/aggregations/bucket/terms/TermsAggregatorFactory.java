@@ -324,8 +324,21 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               boolean showTermDocCountError,
                               Map<String, Object> metadata) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
-                return new StringTermsAggregator(name, factories, valuesSource, order, format, bucketCountThresholds, filter,
-                        context, parent, subAggCollectMode, showTermDocCountError, metadata);
+                return new MapStringTermsAggregator(
+                    name,
+                    factories,
+                    a -> a.new StandardTermsResults(),
+                    valuesSource,
+                    order,
+                    format,
+                    bucketCountThresholds,
+                    filter,
+                    context,
+                    parent,
+                    subAggCollectMode,
+                    showTermDocCountError,
+                    metadata
+                );
             }
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {

@@ -95,7 +95,7 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
 
     public void testPartitionFieldWithTerms() throws Exception {
         Job.Builder job = jobWithPartitionUser("model-plots-it-test-partition-field-with-terms");
-        job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3"));
+        job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
         registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
@@ -117,7 +117,7 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
 
     public void testByFieldWithTerms() throws Exception {
         Job.Builder job = jobWithByUser("model-plots-it-test-by-field-with-terms");
-        job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3"));
+        job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
         registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";

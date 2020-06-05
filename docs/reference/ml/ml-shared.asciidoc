@@ -1118,11 +1118,9 @@ Settings related to how categorization interacts with partition fields.
 end::per-partition-categorization[]
 
 tag::per-partition-categorization-enabled[]
-If true, categorization is done separately for each value of the
-`partition_field_name` field. The default value is false. This setting can be
-set only when you create the job; it cannot be updated. This setting may only be
-true if every detector in the job that refers to `mlcategory` (the
-categorization output field) has the same value for `partition_field_name`.
+To enable this setting, you must also set the partition_field_name property to
+the same value in every detector that uses the keyword mlcategory. Otherwise,
+job creation fails.
 end::per-partition-categorization-enabled[]
 
 tag::per-partition-categorization-stop-on-warn[]

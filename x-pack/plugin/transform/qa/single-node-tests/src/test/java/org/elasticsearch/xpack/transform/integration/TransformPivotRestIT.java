@@ -67,10 +67,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
 
         // at random test the old deprecated roles, to be removed in 9.0.0
-        if (randomBoolean()) {
-            setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
-        } else {
+        if (useDeprecatedEndpoints() && randomBoolean()) {
             setupUser(TEST_USER_NAME, Arrays.asList("data_frame_transforms_admin", DATA_ACCESS_ROLE));
+        } else {
+            setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
         }
     }
 

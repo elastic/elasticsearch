@@ -113,6 +113,11 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }

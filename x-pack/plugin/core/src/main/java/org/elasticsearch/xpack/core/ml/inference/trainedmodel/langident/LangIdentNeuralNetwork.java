@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTra
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModel;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.utils.Statistics.softMax;
 
-public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, LenientlyParsedTrainedModel {
+public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, LenientlyParsedTrainedModel, InferenceModel {
 
     public static final ParseField NAME = new ParseField("lang_ident_neural_network");
     public static final ParseField EMBEDDED_VECTOR_FEATURE_NAME = new ParseField("embedded_vector_feature_name");
@@ -149,6 +150,23 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     }
 
     @Override
+    public InferenceResults infer(double[] embeddedVector, InferenceConfig config) {
+        throw new UnsupportedOperationException("[lang_ident] does not support nested inference");
+    }
+
+    @Override
+    public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
+        if (newFeatureIndexMapping != null && newFeatureIndexMapping.isEmpty() == false) {
+            throw new UnsupportedOperationException("[lang_ident] does not support nested inference");
+        }
+    }
+
+    @Override
+    public String[] getFeatureNames() {
+        return new String[] {embeddedVectorFeatureName};
+    }
+
+    @Override
     public TargetType targetType() {
         return TargetType.CLASSIFICATION;
     }
@@ -169,11 +187,6 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
     @Override
     public boolean supportsFeatureImportance() {
         return false;
-    }
-
-    @Override
-    public Map<String, double[]> featureImportance(Map<String, Object> fields, Map<String, String> featureDecoder) {
-        throw new UnsupportedOperationException("[lang_ident] does not support feature importance");
     }
 
     @Override

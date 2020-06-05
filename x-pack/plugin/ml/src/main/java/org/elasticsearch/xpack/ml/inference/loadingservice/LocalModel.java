@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WA
 
 public class LocalModel implements Model {
 
-    private final TrainedModelDefinition trainedModelDefinition;
+    private final InferenceDefinition trainedModelDefinition;
     private final String modelId;
     private final String nodeId;
     private final Set<String> fieldNames;
@@ -43,7 +43,7 @@ public class LocalModel implements Model {
 
     public LocalModel(String modelId,
                       String nodeId,
-                      TrainedModelDefinition trainedModelDefinition,
+                      InferenceDefinition trainedModelDefinition,
                       TrainedModelInput input,
                       Map<String, String> defaultFieldMap,
                       InferenceConfig modelInferenceConfig,
@@ -75,7 +75,7 @@ public class LocalModel implements Model {
 
     @Override
     public String getResultsType() {
-        switch (trainedModelDefinition.getTrainedModel().targetType()) {
+        switch (trainedModelDefinition.getTargetType()) {
             case CLASSIFICATION:
                 return ClassificationInferenceResults.NAME;
             case REGRESSION:
@@ -83,7 +83,7 @@ public class LocalModel implements Model {
             default:
                 throw ExceptionsHelper.badRequestException("Model [{}] has unsupported target type [{}]",
                     modelId,
-                    trainedModelDefinition.getTrainedModel().targetType());
+                    trainedModelDefinition.getTargetType());
         }
     }
 
@@ -111,10 +111,12 @@ public class LocalModel implements Model {
             statsAccumulator.incInference();
             currentInferenceCount.increment();
 
+            // Needs to happen before collapse as defaultFieldMap might resolve fields to their appropriate name
             Model.mapFieldsIfNecessary(fields, defaultFieldMap);
 
+            Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
             boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
-            if (fieldNames.stream().allMatch(f -> MapHelper.dig(f, fields) == null)) {
+            if (flattenedFields.isEmpty()) {
                 statsAccumulator.incMissingFields();
                 if (shouldPersistStats) {
                     persistStats(false);
@@ -122,7 +124,7 @@ public class LocalModel implements Model {
                 listener.onResponse(new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
                 return;
             }
-            InferenceResults inferenceResults = trainedModelDefinition.infer(fields, update.apply(inferenceConfig));
+            InferenceResults inferenceResults = trainedModelDefinition.infer(flattenedFields, update.apply(inferenceConfig));
             if (shouldPersistStats) {
                 persistStats(false);
             }

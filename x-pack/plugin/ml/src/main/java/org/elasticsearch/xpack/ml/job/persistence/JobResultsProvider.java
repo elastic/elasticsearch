@@ -1294,7 +1294,7 @@ public class JobResultsProvider {
             .setScript(new Script("ctx._source.forecast_status='failed';" +
                 "ctx._source.forecast_messages=['" + JOB_FORECAST_NATIVE_PROCESS_KILLED + "']"));
 
-        client.execute(UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateByQueryAction.INSTANCE, request, ActionListener.wrap(
             response -> {
                 LOGGER.info("[{}] set [{}] forecasts to failed", jobId, response.getUpdated());
                 if (response.getBulkFailures().size() > 0) {

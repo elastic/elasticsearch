@@ -125,7 +125,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
     private void registerGeoShapeGridAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoHashGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, metadata) -> {
+                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
                 if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -135,7 +135,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeHashGridAggregator agg = new GeoShapeHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, metadata);
+                        aggregationContext, parent, collectsFromSingleBucket, metadata);
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;
@@ -145,7 +145,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
         builder.register(GeoTileGridAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
             (GeoGridAggregatorSupplier) (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, metadata) -> {
+                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
                 if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -155,7 +155,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, metadata);
+                        aggregationContext, parent, collectsFromSingleBucket, metadata);
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;

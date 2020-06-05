@@ -83,6 +83,7 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -211,7 +212,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             MappingUpdatedAction.INDICES_MAX_IN_FLIGHT_UPDATES_SETTING,
             Metadata.SETTING_READ_ONLY_SETTING,
             Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
-            Metadata.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+            ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
             RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
             RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,

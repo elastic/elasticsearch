@@ -423,6 +423,41 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         return lenient ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
     }
 
+    /**
+     * Rewrites the transform config according to the latest format, for example moving deprecated
+     * settings to its new place.
+     *
+     * @param transformConfig original config
+     * @return a rewritten transform config if a rewrite was necessary, otherwise the given transformConfig
+     */
+    public static TransformConfig rewriteForUpdate(final TransformConfig transformConfig) {
+
+        // quick checks for deprecated features, if none found just return the original
+        if (transformConfig.getPivotConfig() == null || transformConfig.getPivotConfig().getMaxPageSearchSize() == null) {
+            return transformConfig;
+        }
+
+        Builder builder = new Builder(transformConfig);
+
+        if (transformConfig.getPivotConfig() != null && transformConfig.getPivotConfig().getMaxPageSearchSize() != null) {
+            // create a new pivot config but set maxPageSearchSize to null
+            PivotConfig newPivotConfig = new PivotConfig(
+                transformConfig.getPivotConfig().getGroupConfig(),
+                transformConfig.getPivotConfig().getAggregationConfig(),
+                null
+            );
+            builder.setPivotConfig(newPivotConfig);
+
+            Integer maxPageSearchSizeDeprecated = transformConfig.getPivotConfig().getMaxPageSearchSize();
+            Integer maxPageSearchSize = transformConfig.getSettings().getMaxPageSearchSize() != null
+                ? transformConfig.getSettings().getMaxPageSearchSize()
+                : maxPageSearchSizeDeprecated;
+
+            builder.setSettings(new SettingsConfig(maxPageSearchSize, transformConfig.getSettings().getDocsPerSecond()));
+        }
+        return builder.setVersion(Version.CURRENT).build();
+    }
+
     public static class Builder {
         private String id;
         private SourceConfig source;

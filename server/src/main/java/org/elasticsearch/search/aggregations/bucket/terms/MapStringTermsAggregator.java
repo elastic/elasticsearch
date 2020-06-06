@@ -133,7 +133,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return buildEmptyTermsAggregation();
+        return resultStrategy.buildEmptyResult();
     }
 
     @Override

@@ -335,5 +335,5 @@ POST test/_update/1
 // TEST[continued]
 [NOTE]
 ====
-Using pipelines with `doc_as_upsert` is not possible.
+Using <<ingest,ingest pipelines>> with `doc_as_upsert` is not supported.
 ====

@@ -274,8 +274,8 @@ The API returns the following response:
 {
   "acknowledged": true,
   "shards_acknowledged": true,
-  "old_index": "my-data-stream-000001", <1>
-  "new_index": "my-data-stream-000002", <2>
+  "old_index": ".ds-my-data-stream-000001", <1>
+  "new_index": ".ds-my-data-stream-000002", <2>
   "rolled_over": true, <3>
   "dry_run": false, <4>
   "conditions": { <5>

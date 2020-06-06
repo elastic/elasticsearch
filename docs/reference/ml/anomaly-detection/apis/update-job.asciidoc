@@ -198,6 +198,24 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-terms]
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-retention-days]
 
+//Begin per_partition_categorization
+`per_partition_categorization`:::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
++
+.Properties of `per_partition_categorization`
+[%collapsible%open]
+====
+`enabled`:::
+(boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
+
+`stop_on_warn`:::
+(boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
+====
+//End per_partition_categorization
+
 `renormalization_window_days`::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=renormalization-window-days]

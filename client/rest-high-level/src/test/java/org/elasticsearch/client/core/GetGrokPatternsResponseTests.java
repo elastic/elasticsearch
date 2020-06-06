@@ -20,14 +20,18 @@
 package org.elasticsearch.client.core;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.elasticsearch.client.*;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,40 +40,24 @@ import java.util.logging.Logger;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public final class GetGrokPatternsResponseTests extends AbstractResponseTestCase<GetGrokPatternsResponseTests.TestGrokPatternResponse, GetGrokPatternsResponse> {
+public final class GetGrokPatternsResponseTests extends ESTestCase{
+    public void testFromXContent() throws IOException {
+        GetGrokPatternsRequest request = new GetGrokPatternsRequest();
+        final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY,
+            new UsernamePasswordCredentials("elastic", "password"));
 
-    @Override
-    protected TestGrokPatternResponse createServerTestInstance(XContentType xContentType) {
-        Map<String, String> grokPatterns = new HashMap<>();
-        grokPatterns.put("key", "value");
-        return new TestGrokPatternResponse(grokPatterns);
-    }
+        RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200))
+            .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+                @Override
+                public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                    return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+                }
+            });
 
-    @Override
-    protected GetGrokPatternsResponse doParseToClientInstance(XContentParser parser) throws IOException {
-        return GetGrokPatternsResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected void assertInstances(TestGrokPatternResponse serverTestInstance, GetGrokPatternsResponse clientInstance) {
-        assertThat(clientInstance.getGrokPatterns(), equalTo(Map.of("key", "value")));
-    }
-
-    class TestGrokPatternResponse implements ToXContent {
-        private final Map<String, String> grokPatterns;
-
-        TestGrokPatternResponse(Map<String, String> grokPatterns){
-            this.grokPatterns = grokPatterns;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("patterns");
-            builder.map(grokPatterns);
-            builder.endObject();
-            return builder;
-        }
+        RestHighLevelClient client = new RestHighLevelClient(builder);
+        GetGrokPatternsResponse response = client.getGrokPatterns(request, RequestOptions.DEFAULT);
+        System.out.println("My most desired reponse: " + response);
     }
 }
 

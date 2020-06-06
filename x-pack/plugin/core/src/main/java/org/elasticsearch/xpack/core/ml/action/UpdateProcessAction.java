@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -110,9 +109,7 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
-            }
+            perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
             if (in.readBoolean()) {
                 detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
             }
@@ -124,9 +121,7 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalWriteable(modelPlotConfig);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalWriteable(perPartitionCategorizationConfig);
-            }
+            out.writeOptionalWriteable(perPartitionCategorizationConfig);
             boolean hasDetectorUpdates = detectorUpdates != null;
             out.writeBoolean(hasDetectorUpdates);
             if (hasDetectorUpdates) {

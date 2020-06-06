@@ -139,11 +139,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         } else {
             categorizationFilters = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
-        } else {
-            perPartitionCategorizationConfig = null;
-        }
+        perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
         if (in.readBoolean()) {
@@ -181,9 +177,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (categorizationFilters != null) {
             out.writeStringCollection(categorizationFilters);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(perPartitionCategorizationConfig);
-        }
+        out.writeOptionalWriteable(perPartitionCategorizationConfig);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         if (jobVersion != null) {

@@ -10,12 +10,12 @@ IMPORTANT: If the rollover action is used on a <<ccr-put-follow,follower index>>
 policy execution waits until the leader index rolls over (or is
 <<skipping-rollover, otherwise marked complete>>), 
 then converts the follower index into a regular index with the 
-<<ilm-unfollow-action,the Unfollow action>>.
+<<ilm-unfollow-action, Unfollow action>>.
 
 For a managed index to be rolled over: 
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my_index-000001`).
-* `index.lifecycle.rollover_alias` must be configured as the alias to roll over. 
+* The `index.lifecycle.rollover_alias` must be configured as the alias to roll over. 
 * The index must be the <<<<indices-rollover-is-write-index, write index>> for the alias.
 
 For example, if `my_index-000001` has the alias `my_data`, 

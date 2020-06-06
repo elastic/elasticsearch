@@ -741,6 +741,8 @@ public class IngestServiceTests extends ESTestCase {
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final long newVersion = randomLong();
         final String versionType = randomFrom("internal", "external", "external_gt", "external_gte");
+        final long ifSeqNo = randomNonNegativeLong();
+        final long ifPrimaryTerm = randomNonNegativeLong();
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.Metadata metadata : IngestDocument.Metadata.values()) {
@@ -748,6 +750,10 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), newVersion);
                 } else if (metadata == IngestDocument.Metadata.VERSION_TYPE) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), versionType);
+                } else if (metadata == IngestDocument.Metadata.IF_SEQ_NO) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), ifSeqNo);
+                } else if (metadata == IngestDocument.Metadata.IF_PRIMARY_TERM) {
+                    ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
@@ -773,6 +779,8 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(indexRequest.routing(), equalTo("update_routing"));
         assertThat(indexRequest.version(), equalTo(newVersion));
         assertThat(indexRequest.versionType(), equalTo(VersionType.fromString(versionType)));
+        assertThat(indexRequest.ifSeqNo(), equalTo(ifSeqNo));
+        assertThat(indexRequest.ifPrimaryTerm(), equalTo(ifPrimaryTerm));
     }
 
     public void testExecuteFailure() throws Exception {

@@ -83,7 +83,7 @@ public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
 
-    private static Setting.AffixSettingDependency TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
+    private static Setting.AffixSettingDependency HTTP_TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
         @Override
         public Setting.AffixSetting<String> getSetting() {
             return Exporter.TYPE_SETTING;
@@ -169,14 +169,14 @@ public class HttpExporter extends Exporter {
                     },
                     Property.Dynamic,
                     Property.NodeScope),
-                TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
 
     /**
      * Master timeout associated with bulk requests.
      */
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for initiating a connection.
      */
@@ -184,7 +184,8 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Timeout used for reading from the connection.
      */
@@ -192,7 +193,8 @@ public class HttpExporter extends Exporter {
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
                 "connection.read_timeout",
-                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope),
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Username for basic auth.
      */
@@ -236,7 +238,7 @@ public class HttpExporter extends Exporter {
                         Property.Dynamic,
                         Property.NodeScope,
                         Property.Filtered),
-                    TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Secure password for basic auth.
      */
@@ -245,7 +247,7 @@ public class HttpExporter extends Exporter {
             "xpack.monitoring.exporters.",
             "auth.secure_password",
             key -> SecureSetting.secureString(key, null),
-            TYPE_DEPENDENCY);
+            HTTP_TYPE_DEPENDENCY);
     /**
      * The SSL settings.
      *
@@ -256,7 +258,7 @@ public class HttpExporter extends Exporter {
                 "xpack.monitoring.exporters.",
                 "ssl",
                 (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered),
-                TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
 
     /**
      * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
@@ -277,13 +279,13 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope),
-                    TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */
     public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","sniff.enabled",
-                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
@@ -306,7 +308,7 @@ public class HttpExporter extends Exporter {
                         },
                         Property.Dynamic,
                         Property.NodeScope),
-                    TYPE_DEPENDENCY);
+                HTTP_TYPE_DEPENDENCY);
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
@@ -318,19 +320,19 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * A boolean setting to enable or disable whether to create placeholders for the old templates.
      */
     public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
-                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
     public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), TYPE_DEPENDENCY);
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope), HTTP_TYPE_DEPENDENCY);
 
     /**
      * Minimum supported version of the remote monitoring cluster (same major).

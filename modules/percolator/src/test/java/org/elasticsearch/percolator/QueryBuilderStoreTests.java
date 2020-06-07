@@ -36,10 +36,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
-import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -51,6 +49,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -74,8 +73,6 @@ public class QueryBuilderStoreTests extends ESTestCase {
             IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
             config.setMergePolicy(NoMergePolicy.INSTANCE);
             Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-            BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(
-                new Mapper.BuilderContext(settings, new ContentPath(0)));
 
             Version version = Version.CURRENT;
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
@@ -85,7 +82,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                     ParseContext.Document document = new ParseContext.Document();
                     when(parseContext.doc()).thenReturn(document);
                     PercolatorFieldMapper.createQueryBuilderField(version,
-                        fieldMapper, queryBuilders[i], parseContext);
+                        "query", queryBuilders[i], parseContext);
                     indexWriter.addDocument(document);
                 }
             }
@@ -94,16 +91,15 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(queryShardContext.indexVersionCreated()).thenReturn(version);
             when(queryShardContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(queryShardContext.getXContentRegistry()).thenReturn(xContentRegistry());
-            when(queryShardContext.getForField(fieldMapper.fieldType()))
-                .thenReturn(new BytesBinaryIndexFieldData(new Index("index", "uuid"), fieldMapper.name(), CoreValuesSourceType.BYTES));
+            when(queryShardContext.getForField(any(MappedFieldType.class)))
+                .thenReturn(new BytesBinaryIndexFieldData(new Index("index", "uuid"),
+                    PercolatorFieldMapper.queryBuilderFieldName("query"), CoreValuesSourceType.BYTES));
             when(queryShardContext.fieldMapper(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
-                KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-                ft.setName(fieldName);
-                ft.freeze();
-                return ft;
+                return new KeywordFieldMapper.KeywordFieldType(fieldName);
             });
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), queryShardContext);
+            PercolateQuery.QueryStore queryStore
+                = PercolateQueryBuilder.createStore(PercolatorFieldMapper.queryBuilderFieldName("query"), queryShardContext);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 LeafReaderContext leafContext = indexReader.leaves().get(0);

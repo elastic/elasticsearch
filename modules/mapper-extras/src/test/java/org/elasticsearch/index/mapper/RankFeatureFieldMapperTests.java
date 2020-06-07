@@ -47,8 +47,8 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeature
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
         addModifier("positive_score_impact", false, (a, b) -> {
-            a.fieldType().setPositiveScoreImpact(true);
-            b.fieldType().setPositiveScoreImpact(false);
+            a.positiveScoreImpact(true);
+            b.positiveScoreImpact(false);
         });
     }
 

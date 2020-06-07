@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -44,16 +46,16 @@ public class TokenCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "token_count";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
     }
 
     public static class Builder extends FieldMapper.Builder<Builder> {
         private NamedAnalyzer analyzer;
+        private Integer nullValue;
         private boolean enablePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, new FieldType());
             builder = this;
         }
 
@@ -75,11 +77,17 @@ public class TokenCountFieldMapper extends FieldMapper {
             return enablePositionIncrements;
         }
 
+        public Builder nullValue(Integer nullValue) {
+            this.nullValue = nullValue;
+            return this;
+        }
+
         @Override
         public TokenCountFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new TokenCountFieldMapper(name, fieldType, defaultFieldType,
-                    context.indexSettings(), analyzer, enablePositionIncrements, multiFieldsBuilder.build(this, context), copyTo);
+            return new TokenCountFieldMapper(name, fieldType,
+                new NumberFieldMapper.NumberFieldType(buildFullName(context), NumberFieldMapper.NumberType.INTEGER),
+                context.indexSettings(), analyzer, enablePositionIncrements, nullValue,
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -114,14 +122,17 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
     }
 
-    private NamedAnalyzer analyzer;
-    private boolean enablePositionIncrements;
+    private final NamedAnalyzer analyzer;
+    private final boolean enablePositionIncrements;
+    private final Integer nullValue;
 
-    protected TokenCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-            Settings indexSettings, NamedAnalyzer analyzer, boolean enablePositionIncrements, MultiFields multiFields, CopyTo copyTo) {
+    protected TokenCountFieldMapper(String simpleName, FieldType fieldType, MappedFieldType defaultFieldType,
+            Settings indexSettings, NamedAnalyzer analyzer, boolean enablePositionIncrements, Integer nullValue,
+                                    MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.analyzer = analyzer;
         this.enablePositionIncrements = enablePositionIncrements;
+        this.nullValue = nullValue;
     }
 
     @Override
@@ -133,20 +144,20 @@ public class TokenCountFieldMapper extends FieldMapper {
             value = context.parser().textOrNull();
         }
 
-        if (value == null && fieldType().nullValue() == null) {
+        if (value == null && nullValue == null) {
             return;
         }
 
         final int tokenCount;
         if (value == null) {
-            tokenCount = (Integer) fieldType().nullValue();
+            tokenCount = nullValue;
         } else {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
         boolean docValued = fieldType().hasDocValues();
-        boolean stored = fieldType().stored();
+        boolean stored = fieldType.stored();
         context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, indexed, docValued, stored));
     }
 
@@ -202,8 +213,15 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        this.analyzer = ((TokenCountFieldMapper) other).analyzer;
-        this.enablePositionIncrements = ((TokenCountFieldMapper) other).enablePositionIncrements;
+        if (Objects.equals(this.analyzer, ((TokenCountFieldMapper)other).analyzer) == false) {
+            conflicts.add("mapper [" + name() + "] has a different [analyzer] setting");
+        }
+        if (this.enablePositionIncrements != ((TokenCountFieldMapper)other).enablePositionIncrements) {
+            conflicts.add("mapper [" + name() + "] has a different [enable_position_increments] setting");
+        }
+        if (Objects.equals(this.nullValue, ((TokenCountFieldMapper)other).nullValue)) {
+            conflicts.add("mapper [" + name() + "] has a different [null_value] setting");
+        }
     }
 
     @Override

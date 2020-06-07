@@ -458,7 +458,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }
 
-        if (!(fieldType instanceof PercolatorFieldMapper.FieldType)) {
+        if (!(fieldType instanceof PercolatorFieldMapper.PercolatorFieldType)) {
             throw new QueryShardException(context, "expected field [" + field +
                 "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]");
         }
@@ -502,7 +502,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             excludeNestedDocuments = false;
         }
 
-        PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
+        PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
         String name = this.name != null ? this.name : pft.name();
         QueryShardContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);;
@@ -549,13 +549,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType,
+    static PercolateQuery.QueryStore createStore(String queryBuilderFieldName,
                                                  QueryShardContext context) {
         Version indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
             LeafReader leafReader = ctx.reader();
-            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(queryBuilderFieldType.name());
+            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(queryBuilderFieldName);
             if (binaryDocValues == null) {
                 return docId -> null;
             }

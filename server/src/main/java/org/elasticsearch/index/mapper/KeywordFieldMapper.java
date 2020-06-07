@@ -84,6 +84,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(field, term, ft);
         }
 
+        public KeywordField(String field, BytesRef term) {
+            super(field, term, Defaults.FIELD_TYPE);
+        }
+
     }
 
     public static class Builder extends FieldMapper.Builder<Builder> {

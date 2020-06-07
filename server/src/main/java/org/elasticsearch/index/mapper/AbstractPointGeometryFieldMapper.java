@@ -55,7 +55,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     public abstract static class Builder<T extends Builder<T, FT>,
             FT extends AbstractPointGeometryFieldType> extends AbstractGeometryFieldMapper.Builder<T, FT> {
 
-        private ParsedPoint nullValue;
+        protected ParsedPoint nullValue;
 
         public Builder(String name, FieldType fieldType) {
             super(name, fieldType);
@@ -145,6 +145,10 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         if (nullValue != null) {
             builder.field(Names.NULL_VALUE.getPreferredName(), nullValue);
         }
+    }
+
+    public ParsedPoint getNullValue() {
+        return nullValue;
     }
 
     protected abstract ParsedPoint newParsedPoint();

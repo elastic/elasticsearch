@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -44,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.function.Function;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCase {
 
@@ -302,6 +305,45 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> verify loading repository data from newly mounted repository throws RepositoryException");
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
+    }
+
+    public void testFailDeleteOnMissingShardGeneration() throws InterruptedException {
+        Path repo = randomRepoPath();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs", repo);
+
+        createIndex("test-idx-1", "test-idx-2");
+        logger.info("--> indexing some data");
+        indexRandom(true, client().prepareIndex("test-idx-1").setSource("foo", "bar"),
+                client().prepareIndex("test-idx-2").setSource("foo", "bar"));
+
+        for (String snapshot : Arrays.asList("test-snapshot-1", "test-snapshot-2")) {
+            logger.info("--> creating snapshot [{}]", snapshot);
+            CreateSnapshotResponse createSnapshotResponse = client().admin().cluster()
+                    .prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).get();
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+                    equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        }
+
+        final BlobStoreRepository repository = (BlobStoreRepository)
+                internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        final IndexId indexId = repositoryData.resolveIndexId("test-idx-1");
+        final String generation = repositoryData.shardGenerations().getShardGen(indexId, 0);
+        assertThat(generation, notNullValue());
+        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->
+                repository.shardContainer(indexId, 0).deleteBlobsIgnoringIfNotExists(
+                        Collections.singletonList(BlobStoreRepository.INDEX_FILE_PREFIX + generation)))));
+
+        expectThrows(RepositoryException.class,
+                () -> client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snapshot-1").execute().actionGet());
+
+        logger.info("--> make sure repository data has not been changed");
+        assertThat(getRepositoryData(repository), is(repositoryData));
+
+        logger.info("--> deleting all the snapshots to cleanup the repository");
+        client().admin().cluster().prepareDeleteSnapshot(repoName, "*").get();
     }
 
     private void assertRepositoryBlocked(Client client, String repo, String existingSnapshot) {

@@ -767,9 +767,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             logger.warn(
                                 () -> new ParameterizedMessage("{} failed to delete shard data for shard [{}][{}]",
                                     snapshotIds, indexId.getName(), finalShardId), ex);
-                            // Just passing null here to count down the listener instead of failing it, the stale data left behind
-                            // here will be retried in the next delete or repository cleanup
-                            allShardsListener.onResponse(null);
+                            if (useUUIDs) {
+                                // Do not keep going here and fail the delete if we are using shard generations to avoid doing writes on
+                                // top of a potentially corrupted repository.
+                                allShardsListener.onFailure(
+                                        new RepositoryException(metadata.name(), "Failed to delete shard metadata", ex));
+                            } else {
+                                // We can just keep going here when not yet tracking shard generations in the RepositoryData since at this
+                                // point the new RepositoryData has been written already. Throwing here would accomplish nothing but block
+                                // subsequent cleanup steps. So we simply pass null here to count down the listener instead of failing it,
+                                // the stale data left behind here will be retried in the next delete or repository cleanup.
+                                allShardsListener.onResponse(null);
+                            }
                         }
                     });
                 }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -46,10 +48,12 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             PARSER.declareFloat(Request::setRequestsPerSecond, REQUESTS_PER_SECOND);
             PARSER.declareString((obj, value) -> obj.setTimeout(TimeValue.parseTimeValue(value, TIMEOUT.getPreferredName())),
                 TIMEOUT);
+            PARSER.declareString(Request::setJobId, Job.ID);
         }
 
         private Float requestsPerSecond;
         private TimeValue timeout;
+        private String jobId = Metadata.ALL;
 
         public Request() {}
 
@@ -67,6 +71,9 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 this.requestsPerSecond = null;
                 this.timeout = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO BWC for V_7_9_0
+                jobId = in.readString();
+            }
         }
 
         public Float getRequestsPerSecond() {
@@ -77,6 +84,10 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             return timeout;
         }
 
+        public String getJobId() {
+            return jobId;
+        }
+
         public Request setRequestsPerSecond(Float requestsPerSecond) {
             this.requestsPerSecond = requestsPerSecond;
             return this;
@@ -84,6 +95,11 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public Request setTimeout(TimeValue timeout) {
             this.timeout = timeout;
+            return this;
+        }
+
+        public Request setJobId(String jobId) {
+            this.jobId = jobId;
             return this;
         }
 
@@ -103,12 +119,13 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(requestsPerSecond, request.requestsPerSecond)
+                && Objects.equals(jobId, request.jobId)
                 && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(requestsPerSecond, timeout);
+            return Objects.hash(requestsPerSecond, timeout, jobId);
         }
 
         @Override
@@ -117,6 +134,9 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
                 out.writeOptionalFloat(requestsPerSecond);
                 out.writeOptionalTimeValue(timeout);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO BWC for V_7_9_0
+                out.writeString(jobId);
             }
         }
     }

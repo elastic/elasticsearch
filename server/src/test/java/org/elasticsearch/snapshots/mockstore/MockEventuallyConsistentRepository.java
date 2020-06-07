@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -203,6 +204,15 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                     }
                     throw new AssertionError("Inconsistent read on [" + blobPath + ']');
                 }
+            }
+
+            @Override
+            public InputStream readBlob(String blobName, long position, long length) throws IOException {
+                final InputStream stream = readBlob(blobName);
+                if (position > 0) {
+                    stream.skip(position);
+                }
+                return Streams.limitStream(stream, length);
             }
 
             private List<BlobStoreAction> relevantActions(String blobPath) {

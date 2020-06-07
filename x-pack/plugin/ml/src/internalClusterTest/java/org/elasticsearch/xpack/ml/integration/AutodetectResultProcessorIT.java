@@ -216,7 +216,9 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
         assertResultsAreSame(influencers, persistedInfluencers);
 
-        QueryPage<CategoryDefinition> persistedDefinition = getCategoryDefinition(categoryDefinition.getCategoryId());
+        QueryPage<CategoryDefinition> persistedDefinition =
+            getCategoryDefinition(randomBoolean() ? categoryDefinition.getCategoryId() : null,
+                randomBoolean() ? categoryDefinition.getPartitionFieldValue() : null);
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
 
@@ -597,11 +599,12 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         return resultHolder.get();
     }
 
-    private QueryPage<CategoryDefinition> getCategoryDefinition(long categoryId) throws Exception {
+    private QueryPage<CategoryDefinition> getCategoryDefinition(Long categoryId, String partitionFieldValue) throws Exception {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<CategoryDefinition>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobResultsProvider.categoryDefinitions(JOB_ID, categoryId, false, null, null, r -> {
+        jobResultsProvider.categoryDefinitions(JOB_ID, categoryId, partitionFieldValue, false, (categoryId == null) ? 0 : null,
+            (categoryId == null) ? 100 : null, r -> {
             resultHolder.set(r);
             latch.countDown();
         }, e -> {

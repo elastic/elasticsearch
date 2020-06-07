@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -865,12 +866,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
+                createTestShardLimitService(randomIntBetween(1, 1000)),
                 new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry,
                 Collections.emptyList(),
-                true);
+                true
+        );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(null, createIndexService,
                 new AliasValidator(), null,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry);
@@ -920,12 +923,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 indicesService,
                 null,
                 null,
+                createTestShardLimitService(randomIntBetween(1, 1000)),
                 new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
                 IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
                 null,
                 xContentRegistry(),
                 Collections.emptyList(),
-                true);
+                true
+        );
         return new MetadataIndexTemplateService(
                 clusterService, createIndexService, new AliasValidator(), indicesService,
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS), xContentRegistry());

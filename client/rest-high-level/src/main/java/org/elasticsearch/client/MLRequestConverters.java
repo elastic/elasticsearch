@@ -712,6 +712,9 @@ final class MLRequestConverters {
         if (deleteRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteRequest.getForce()));
         }
+        if (deleteRequest.getTimeout() != null) {
+            params.withTimeout(deleteRequest.getTimeout());
+        }
         request.addParameters(params.asMap());
 
         return request;

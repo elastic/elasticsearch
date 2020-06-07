@@ -98,4 +98,14 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
         }
     }
+
+    public void testDefaultBackingIndexName() {
+        // this test does little more than flag that changing the default naming convention for backing indices
+        // will also require changing a lot of hard-coded values in REST tests and docs
+        long backingIndexNum = randomLongBetween(1, 1000001);
+        String dataStreamName = randomAlphaOfLength(6);
+        String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum);
+        String expectedBackingIndexName = String.format(Locale.ROOT, ".ds-%s-%06d", dataStreamName, backingIndexNum);
+        assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
+    }
 }

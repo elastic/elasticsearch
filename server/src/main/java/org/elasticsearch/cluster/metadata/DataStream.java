@@ -37,6 +37,8 @@ import java.util.Objects;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
+    public static final String BACKING_INDEX_PREFIX = ".ds-";
+
     private final String name;
     private final String timeStampField;
     private final List<Index> indices;
@@ -109,7 +111,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation) {
-        return String.format(Locale.ROOT, ".ds-%s-%06d", dataStreamName, generation);
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
     }
 
     public DataStream(StreamInput in) throws IOException {

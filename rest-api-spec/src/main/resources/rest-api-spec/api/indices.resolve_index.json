@@ -8,13 +8,12 @@
     "url":{
       "paths":[
         {
-          "path":"/_resolve/index/{index}",
+          "path":"/_resolve/index/{name}",
           "methods":[
-            "GET",
-            "POST"
+            "GET"
           ],
           "parts":{
-            "index":{
+            "name":{
               "type":"list",
               "description":"A comma-separated list of names or wildcard expressions"
             }

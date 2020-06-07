@@ -7,6 +7,3 @@
   - do:
       indices.resolve_index:
         name: data*
-        body:
-          timestamp_field: "@timestamp"
-  - is_true: acknowledged

@@ -19,6 +19,11 @@
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
+
+restResources {
+  sourceSetName 'test'
+}
 
 esplugin {
   name 'painless-whitelist'

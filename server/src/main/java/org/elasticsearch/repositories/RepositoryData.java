@@ -427,8 +427,12 @@ public final class RepositoryData {
 
     /**
      * Reads an instance of {@link RepositoryData} from x-content, loading the snapshots and indices metadata.
+     *
+     * @param fixBrokenShardGens set to {@code true} to filter out broken shard generations read from the {@code parser} via
+     *                           {@link ShardGenerations#fixShardGeneration}. Used to disable fixing broken generations when reading
+     *                           from cached bytes that we trust to not contain broken generations.
      */
-    public static RepositoryData snapshotsFromXContent(final XContentParser parser, long genId) throws IOException {
+    public static RepositoryData snapshotsFromXContent(XContentParser parser, long genId, boolean fixBrokenShardGens) throws IOException {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<String, Version> snapshotVersions = new HashMap<>();
@@ -532,7 +536,13 @@ public final class RepositoryData {
                         assert indexId != null;
                         indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
                         for (int i = 0; i < gens.size(); i++) {
-                            shardGenerations.put(indexId, i, gens.get(i));
+                            String parsedGen = gens.get(i);
+                            if (fixBrokenShardGens) {
+                                parsedGen = ShardGenerations.fixShardGeneration(parsedGen);
+                            }
+                            if (parsedGen != null) {
+                                shardGenerations.put(indexId, i, parsedGen);
+                            }
                         }
                     }
                 } else if (MIN_VERSION.equals(field)) {

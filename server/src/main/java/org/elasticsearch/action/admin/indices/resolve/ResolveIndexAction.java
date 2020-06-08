@@ -610,6 +610,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         String[] aliasNames = StreamSupport.stream(
                             Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keysIt(), 0), false)
                             .toArray(String[]::new);
+                        Arrays.sort(aliasNames);
 
                         List<String> attributes = new ArrayList<>();
                         attributes.add(index.getWriteIndex().getState() == IndexMetadata.State.OPEN ? "open" : "closed");
@@ -620,6 +621,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         if (isFrozen) {
                             attributes.add("frozen");
                         }
+                        attributes.sort(String::compareTo);
 
                         indices.add(new ResolvedIndex(
                             index.getName(),
@@ -630,13 +632,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case ALIAS:
                         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
                         String[] indexNames = alias.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
+                        Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(alias.getName(), indexNames));
                         break;
                     case DATA_STREAM:
                         IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;
+                        String[] backingIndices = dataStream.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
+                        Arrays.sort(backingIndices);
                         dataStreams.add(new ResolvedDataStream(
                             dataStream.getName(),
-                            dataStream.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new),
+                            backingIndices,
                             dataStream.getDataStream().getTimeStampField()));
                         break;
                     default:

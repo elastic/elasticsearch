@@ -1,8 +1,6 @@
 ---
-"Resolve index with indices, aliases, and data streams":
+setup:
   - skip:
-      version: " - 7.99.99"
-      reason: not backported yet
       features: allowed_warnings
 
   - do:
@@ -27,12 +25,14 @@
   - do:
       indices.create_data_stream:
         name: simple-data-stream1
-  - is_true: acknowledged
 
   - do:
       indices.create_data_stream:
         name: simple-data-stream2
-  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream2"
 
   - do:
       indices.create:
@@ -44,10 +44,116 @@
             test_clias: {}
 
   - do:
-      indices.resolve_index:
-        name: data*
+      indices.create:
+        index: test_index2
+        body:
+          aliases:
+            test_alias: {}
 
-        # frozen, closed, hidden indices
+  - do:
+      indices.close:
+        index: test_index2
+
+  - do:
+      indices.create:
+        index: test_index3
+        body:
+          aliases:
+            test_blias: {}
+
+---
+"Resolve index with indices, aliases, and data streams":
+  - skip:
+      version: " - 7.99.99"
+      reason: not backported yet
+
+  - do:
+      indices.resolve_index:
+        name: '*'
+
+  - match: {indices.0.name: test_index1}
+  - match: {indices.0.aliases.0: test_alias}
+  - match: {indices.0.aliases.1: test_blias}
+  - match: {indices.0.aliases.2: test_clias}
+  - match: {indices.0.attributes.0: open}
+  - match: {indices.1.name: test_index3}
+  - match: {indices.1.aliases.0: test_blias}
+  - match: {indices.1.attributes.0: open}
+  - match: {aliases.0.name: test_alias}
+  - match: {aliases.0.indices.0: test_index1}
+  - match: {aliases.0.indices.1: test_index2}
+  - match: {aliases.1.name: test_blias}
+  - match: {aliases.1.indices.0: test_index1}
+  - match: {aliases.1.indices.1: test_index3}
+  - match: {aliases.2.name: test_clias}
+  - match: {aliases.2.indices.0: test_index1}
+  - match: {data_streams.0.name: simple-data-stream1}
+  - match: {data_streams.0.backing_indices.0: .ds-simple-data-stream1-000001}
+  - match: {data_streams.0.timestamp_field: "@timestamp"}
+  - match: {data_streams.1.name: simple-data-stream2}
+  - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
+  - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
+  - match: {data_streams.1.timestamp_field: "@timestamp2"}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+---
+"Resolve index with hidden and closed indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: not backported yet
+
+  - do:
+      indices.resolve_index:
+        name: '*'
+        expand_wildcards: [all]
+
+  - match: {indices.0.name: .ds-simple-data-stream1-000001}
+  - match: {indices.0.attributes.0: hidden}
+  - match: {indices.0.attributes.1: open}
+  - match: {indices.0.data_stream: simple-data-stream1}
+  - match: {indices.1.name: .ds-simple-data-stream2-000001}
+  - match: {indices.1.attributes.0: hidden}
+  - match: {indices.1.attributes.1: open}
+  - match: {indices.1.data_stream: simple-data-stream2}
+  - match: {indices.2.name: .ds-simple-data-stream2-000002}
+  - match: {indices.2.attributes.0: hidden}
+  - match: {indices.2.attributes.1: open}
+  - match: {indices.2.data_stream: simple-data-stream2}
+  - match: {indices.3.name: test_index1}
+  - match: {indices.3.aliases.0: test_alias}
+  - match: {indices.3.aliases.1: test_blias}
+  - match: {indices.3.aliases.2: test_clias}
+  - match: {indices.3.attributes.0: open}
+  - match: {indices.4.name: test_index2}
+  - match: {indices.4.aliases.0: test_alias}
+  - match: {indices.4.attributes.0: closed}
+  - match: {indices.5.name: test_index3}
+  - match: {indices.5.aliases.0: test_blias}
+  - match: {indices.5.attributes.0: open}
+  - match: {aliases.0.name: test_alias}
+  - match: {aliases.0.indices.0: test_index1}
+  - match: {aliases.0.indices.1: test_index2}
+  - match: {aliases.1.name: test_blias}
+  - match: {aliases.1.indices.0: test_index1}
+  - match: {aliases.1.indices.1: test_index3}
+  - match: {aliases.2.name: test_clias}
+  - match: {aliases.2.indices.0: test_index1}
+  - match: {data_streams.0.name: simple-data-stream1}
+  - match: {data_streams.0.backing_indices.0: .ds-simple-data-stream1-000001}
+  - match: {data_streams.0.timestamp_field: "@timestamp"}
+  - match: {data_streams.1.name: simple-data-stream2}
+  - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
+  - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
+  - match: {data_streams.1.timestamp_field: "@timestamp2"}
 
   - do:
       indices.delete_data_stream:

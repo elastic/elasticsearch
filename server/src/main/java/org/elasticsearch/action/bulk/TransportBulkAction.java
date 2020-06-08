@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -90,6 +91,9 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
@@ -162,6 +166,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+            prohibitAppendOnlyWritesInBackingIndices(actionRequest, metadata);
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
@@ -271,6 +276,44 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
+    static void prohibitAppendOnlyWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+        if (writeRequest.index().startsWith(".ds-") == false) {
+            // This is definitively not a backing index of data stream, skip further checking
+            return;
+        }
+
+        // Extract data stream name and check if a composable template with a data stream definition would match with it:
+        int indexOfLastDash = writeRequest.index().lastIndexOf('-');
+        if (indexOfLastDash == -1 || indexOfLastDash == 3) {
+            return;
+        }
+        String dataStreamName = writeRequest.index().substring(4, indexOfLastDash);
+        String templateId = findV2Template(metadata, dataStreamName, false);
+        if (templateId == null) {
+            return;
+        }
+        ComposableIndexTemplate template = metadata.templatesV2().get(templateId);
+        if (template.getDataStreamTemplate() == null) {
+            return;
+        }
+
+        // At this point with write op is targeting a data stream directly,so
+        // checking if write op is append-only and if so fail.
+        // (Updates and deletes are allowed to target a backing index)
+
+        DocWriteRequest.OpType opType = writeRequest.opType();
+        // CREATE op_type is considered append-only and
+        // INDEX op_type is considered append-only when no if_primary_term and if_seq_no is specified.
+        // (the latter maybe an update, but at this stage we can't determine that. In order to determine
+        // that an engine level change is needed and for now this check is sufficient.)
+        if (opType == DocWriteRequest.OpType.CREATE ||
+            (opType == DocWriteRequest.OpType.INDEX && writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM &&
+                writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO)) {
+            throw new IllegalArgumentException("append-only write targeting backing indices is disallowed," +
+                "target corresponding data stream instead");
+        }
+    }
+
     static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest, final Metadata metadata) {
         if (indexRequest.isPipelineResolved() == false) {
             final String requestPipeline = indexRequest.getPipeline();
@@ -310,7 +353,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 // the index does not exist yet (and this is a valid request), so match index
                 // templates to look for pipelines in either a matching V2 template (which takes
                 // precedence), or if a V2 template does not match, any V1 templates
-                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
+                String v2Template = findV2Template(metadata, indexRequest.index(), false);
                 if (v2Template != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
                     if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {

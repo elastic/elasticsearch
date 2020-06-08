@@ -150,11 +150,11 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
     public void testResultEvaluatedOnDataStream() throws IOException {
         String dataStreamName = "test-datastream";
-        IndexMetadata originalIndexMeta = IndexMetadata.builder(dataStreamName + "-000001")
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        IndexMetadata rolledIndexMeta= IndexMetadata.builder(dataStreamName + "-000002")
+        IndexMetadata rolledIndexMeta= IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
             .settings(settings(Version.CURRENT).put("index.write.wait_for_active_shards", "3"))
             .numberOfShards(1).numberOfReplicas(3).build();
 

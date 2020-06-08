@@ -964,13 +964,14 @@ public class MetadataTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
             containsString("index, alias, and data stream names need to be unique, but the following duplicates were found [" +
-                dataStreamName + " (alias of [" + DataStream.getBackingIndexName(dataStreamName, 1) + "]) conflicts with data stream]"));
+                dataStreamName + " (alias of [" + DataStream.getDefaultBackingIndexName(dataStreamName, 1) +
+                "]) conflicts with data stream]"));
     }
 
     public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata validIdx = createFirstBackingIndex(dataStreamName).build();
-        final String conflictingIndex = DataStream.getBackingIndexName(dataStreamName, 2);
+        final String conflictingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata invalidIdx = createBackingIndex(dataStreamName, 2).build();
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
@@ -984,7 +985,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
         final String dataStreamName = "my-data-stream";
-        final String conflictingName = DataStream.getBackingIndexName(dataStreamName, 2);
+        final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName)
             .putAlias(new AliasMetadata.Builder(conflictingName))
             .build();
@@ -1005,7 +1006,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder();
         for (int k = 1; k <= numBackingIndices; k++) {
             lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, lastBackingIndexNum))
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, lastBackingIndexNum))
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -1047,7 +1048,8 @@ public class MetadataTests extends ESTestCase {
             assertThat(value.isHidden(), is(false));
             assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(value.getIndices().size(), equalTo(ds.getIndices().size()));
-            assertThat(value.getWriteIndex().getIndex().getName(), equalTo(name + "-00000" + ds.getIndices().size()));
+            assertThat(value.getWriteIndex().getIndex().getName(),
+                equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
         }
     }
 
@@ -1119,7 +1121,7 @@ public class MetadataTests extends ESTestCase {
             expectThrows(IllegalStateException.class, () -> validateDataStreams(indicesLookup, dataStreamMetadata));
         assertThat(illegalStateException.getMessage(),
             is("data stream [foo-datastream] could create backing indices that conflict with 1 existing index(s) or alias(s) " +
-                "including 'foo-datastream-000020'"));
+                "including '" + index.getName() + "'"));
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
@@ -1158,7 +1160,7 @@ public class MetadataTests extends ESTestCase {
         for (int i = 1; i <= generations; i++) {
             IndexMetadata idx;
             if (i % 2 == 0 && i < generations) {
-                idx = IndexMetadata.builder("shrink-" + DataStream.getBackingIndexName(dataStreamName, i))
+                idx = IndexMetadata.builder("shrink-" + DataStream.getDefaultBackingIndexName(dataStreamName, i))
                     .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
@@ -1249,7 +1251,7 @@ public class MetadataTests extends ESTestCase {
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
         for (int k = 1; k <= numIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName("index", lastIndexNum))
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -1264,7 +1266,7 @@ public class MetadataTests extends ESTestCase {
         int lastBackingIndexNum = 0;
         for (int k = 1; k <= numBackingIndices; k++) {
             lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, lastBackingIndexNum))
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, lastBackingIndexNum))
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)

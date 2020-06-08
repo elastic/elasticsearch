@@ -195,15 +195,21 @@ public class MetadataIndexTemplateService {
 
         validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
 
+        // Collect all the composable (index) templates that use this component template, we'll use
+        // this for validating that they're still going to be valid after this component template
+        // has been updated
+        final Map<String, ComposableIndexTemplate> templatesUsingComponent = currentState.metadata().templatesV2().entrySet().stream()
+            .filter(e -> e.getValue().composedOf().contains(name))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
         // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
         if (create == false && finalSettings != null) {
             // if the CT is specifying the `index.hidden` setting it cannot be part of any global template
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(finalSettings)) {
-                Map<String, ComposableIndexTemplate> existingTemplates = currentState.metadata().templatesV2();
                 List<String> globalTemplatesThatUseThisComponent = new ArrayList<>();
-                for (Map.Entry<String, ComposableIndexTemplate> entry : existingTemplates.entrySet()) {
+                for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
                     ComposableIndexTemplate templateV2 = entry.getValue();
-                    if (templateV2.composedOf().contains(name) && templateV2.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
+                    if (templateV2.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
                         // global templates don't support configuring the `index.hidden` setting so we don't need to resolve the settings as
                         // no other component template can remove this setting from the resolved settings, so just invalidate this update
                         globalTemplatesThatUseThisComponent.add(entry.getKey());
@@ -233,6 +239,32 @@ public class MetadataIndexTemplateService {
             stringMappings == null ? null : new CompressedXContent(stringMappings), template.template().aliases());
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(finalTemplate, template.version(), template.metadata());
         validate(name, finalComponentTemplate);
+
+        if (templatesUsingComponent.size() > 0) {
+            ClusterState tempStateWithComponentTemplateAdded = ClusterState.builder(currentState)
+                .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
+                .build();
+            Exception validationFailure = null;
+            for (Map.Entry<String, ComposableIndexTemplate> entry : templatesUsingComponent.entrySet()) {
+                final String composableTemplateName = entry.getKey();
+                final ComposableIndexTemplate composableTemplate = entry.getValue();
+                try {
+                    validateCompositeTemplate(tempStateWithComponentTemplateAdded, composableTemplateName,
+                        composableTemplate, indicesService, xContentRegistry);
+                } catch (Exception e) {
+                    if (validationFailure == null) {
+                        validationFailure = new IllegalArgumentException("updating component template [" + name +
+                            "] results in invalid composable template [" + composableTemplateName + "] after templates are merged", e);
+                    } else {
+                        validationFailure.addSuppressed(e);
+                    }
+                }
+            }
+            if (validationFailure != null) {
+                throw validationFailure;
+            }
+        }
+
         logger.info("adding component template [{}]", name);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
@@ -422,7 +454,6 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             String stringMappings = mappings == null ? null : mappings.string();
-            validateTemplate(finalSettings, stringMappings, indicesService, xContentRegistry);
 
             // Mappings in index templates don't include _doc, so update the mappings to include this single type
             if (stringMappings != null) {
@@ -441,6 +472,17 @@ public class MetadataIndexTemplateService {
         }
 
         validate(name, finalIndexTemplate);
+
+        // Finally, right before adding the template, we need to ensure that the composite settings,
+        // mappings, and aliases are valid after it's been composed with the component templates
+        try {
+            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("composable template [" + name +
+                "] template after composition " +
+                (finalIndexTemplate.composedOf().size() > 0 ? "with component templates " + finalIndexTemplate.composedOf() + " " : "") +
+                "is invalid", e);
+        }
         logger.info("adding index template [{}]", name);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
@@ -803,7 +845,6 @@ public class MetadataIndexTemplateService {
             return List.of();
         }
         final Map<String, ComponentTemplate> componentTemplates = state.metadata().componentTemplates();
-        // TODO: more fine-grained merging of component template mappings, ie, merge fields as distint entities
         List<CompressedXContent> mappings = template.composedOf().stream()
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
@@ -908,6 +949,76 @@ public class MetadataIndexTemplateService {
         // of precedence (with the index template first)
         Collections.reverse(aliases);
         return Collections.unmodifiableList(aliases);
+    }
+
+    /**
+     * Given a state and a composable template, validate that the final composite template
+     * generated by the composable template and all of its component templates contains valid
+     * settings, mappings, and aliases.
+     */
+    private static void validateCompositeTemplate(final ClusterState state,
+                                                  final String templateName,
+                                                  final ComposableIndexTemplate template,
+                                                  final IndicesService indicesService,
+                                                  final NamedXContentRegistry xContentRegistry) throws Exception {
+        final ClusterState stateWithTemplate = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).put(templateName, template))
+            .build();
+
+        final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+        Settings resolvedSettings = resolveSettings(stateWithTemplate.metadata(), templateName);
+
+        // use the provided values, otherwise just pick valid dummy values
+        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(resolvedSettings);
+        int dummyShards = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
+        int shardReplicas = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+
+
+        // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
+        Settings finalResolvedSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(resolvedSettings)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
+
+        // Validate index metadata (settings)
+        final ClusterState stateWithIndex = ClusterState.builder(stateWithTemplate)
+            .metadata(Metadata.builder(stateWithTemplate.metadata())
+                .put(IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings))
+                .build())
+            .build();
+        final IndexMetadata tmpIndexMetadata = stateWithIndex.metadata().index(temporaryIndexName);
+        indicesService.withTempIndexService(tmpIndexMetadata,
+            tempIndexService -> {
+                // Validate aliases
+                MetadataCreateIndexService.resolveAndValidateAliases(temporaryIndexName, Collections.emptySet(),
+                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName), stateWithIndex.metadata(),
+                    new AliasValidator(),
+                    // the context is only used for validation so it's fine to pass fake values for the
+                    // shard id and the current timestamp
+                    xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
+
+                // Parse mappings to ensure they are valid after being composed
+                List<CompressedXContent> mappings = resolveMappings(stateWithIndex, templateName);
+                final Map<String, Object> finalMappings;
+                try {
+                    finalMappings = MetadataCreateIndexService.parseV2Mappings("{}", mappings, xContentRegistry);
+
+                    MapperService dummyMapperService = tempIndexService.mapperService();
+                    if (finalMappings.isEmpty() == false) {
+                        assert finalMappings.size() == 1 : finalMappings;
+                        // TODO: Eventually change this to:
+                        // dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+                        dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MergeReason.MAPPING_UPDATE);
+                    }
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
+                }
+                return null;
+            });
     }
 
     private static void validateTemplate(Settings validateSettings, String mappings,

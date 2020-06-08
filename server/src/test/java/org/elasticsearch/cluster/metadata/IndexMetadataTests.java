@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -329,6 +330,33 @@ public class IndexMetadataTests extends ESTestCase {
             e.getMessage(),
             equalTo(
                 "Failed to parse value [" + numberOfReplicas + "] for setting [index.number_of_replicas] must be >= 0"));
+    }
+
+    public void testParseIndexNameReturnsCounter() {
+        assertThat(parseIndexNameCounter("logs-000003"), is(3));
+        assertThat(parseIndexNameCounter("shrink-logs-000003"), is(3));
+    }
+
+    public void testParseIndexNameSupportsDateMathPattern() {
+        assertThat(parseIndexNameCounter("<logs-{now/d}-1>"), is(1));
+    }
+
+    public void testParseIndexNameThrowExceptionWhenNoSeparatorIsPresent() {
+        try {
+            parseIndexNameCounter("testIndexNameWithoutDash");
+            fail("expected to fail as the index name contains no - separator");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("no - separator found in index name [testIndexNameWithoutDash]"));
+        }
+    }
+
+    public void testParseIndexNameCannotFormatNumber() {
+        try {
+            parseIndexNameCounter("testIndexName-000a2");
+            fail("expected to fail as the index name doesn't end with digits");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
+        }
     }
 
 }

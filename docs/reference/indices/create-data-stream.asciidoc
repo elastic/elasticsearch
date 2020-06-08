@@ -23,18 +23,32 @@ addressed directly, data streams are integrated with the
 <<index-lifecycle-management, index lifecycle management (ILM)>> to facilitate
 the management of the time series data contained in their backing indices.
 
+A data stream can only be created if the namespace it targets has a component
+template exists with a `data_stream` definition.
+
+[source,console]
+-----------------------------------
+PUT _index_template/template
+{
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
+}
+-----------------------------------
+// TEST
+
 [source,console]
 --------------------------------------------------
 PUT _data_stream/my-data-stream
-{
-  "timestamp_field": "@timestamp"
-}
 --------------------------------------------------
+// TEST[continued]
 
 ////
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
+DELETE /_index_template/template
 -----------------------------------
 // TEST[continued]
 ////
@@ -70,12 +84,4 @@ Data stream names must meet the following criteria:
 - Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters
 will count towards the 255 limit faster)
 --
-
-[[indices-create-data-stream-api-request-body]]
-==== {api-request-body-title}
-
-`timestamp_field`::
-(Required, string) The name of the timestamp field. This field must be present
-in all documents indexed into the data stream and must be of type
-<<date, `date`>> or <<date_nanos, `date_nanos`>>.
 

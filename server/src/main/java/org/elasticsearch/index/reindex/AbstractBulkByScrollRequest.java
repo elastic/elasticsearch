@@ -187,6 +187,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (maxDocs < 0) {
             throw new IllegalArgumentException("[max_docs] parameter cannot be negative, found [" + maxDocs + "]");
         }
+        if (maxDocs < slices) {
+            throw new IllegalArgumentException("[max_docs] should be >= [slices]");
+        }
         this.maxDocs = maxDocs;
         return self();
     }

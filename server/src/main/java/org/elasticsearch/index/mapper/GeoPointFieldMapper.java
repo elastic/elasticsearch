@@ -32,7 +32,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.query.VectorGeoPointShapeQueryProcessor;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,11 +44,10 @@ import java.util.Map;
  *
  * Uses lucene 6 LatLonPoint encoding
  */
-public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends GeoPoint>, List<? extends GeoPoint>>
-        implements ArrayValueMapperParser {
+public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<? extends GeoPoint>, List<? extends GeoPoint>> {
     public static final String CONTENT_TYPE = "geo_point";
 
-    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldMapper, GeoPointFieldType> {
+    public static class Builder extends AbstractPointGeometryFieldMapper.Builder<Builder, GeoPointFieldType> {
         public Builder(String name) {
             super(name, new GeoPointFieldType(), new GeoPointFieldType());
             builder = this;
@@ -192,13 +190,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new AbstractLatLonPointIndexFieldData.Builder();
+            return new AbstractLatLonPointIndexFieldData.Builder(CoreValuesSourceType.GEOPOINT);
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.GEOPOINT;
-        }
     }
 
     protected static class ParsedGeoPoint extends GeoPoint implements ParsedPoint {

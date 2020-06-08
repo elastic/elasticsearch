@@ -220,6 +220,10 @@ public class AutodetectCommunicator implements Closeable {
                 autodetectProcess.writeUpdateModelPlotMessage(update.getModelPlotConfig());
             }
 
+            if (update.getPerPartitionCategorizationConfig() != null) {
+                autodetectProcess.writeUpdatePerPartitionCategorizationMessage(update.getPerPartitionCategorizationConfig());
+            }
+
             // Filters have to be written before detectors
             if (update.getFilter() != null) {
                 autodetectProcess.writeUpdateFiltersMessage(Collections.singletonList(update.getFilter()));

@@ -594,14 +594,12 @@ public class GetActionIT extends ESIntegTestCase {
         String field = "field1.field2.field3.field4";
         GetResponse getResponse = client().prepareGet("my-index", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
         getResponse = client().prepareGet("my-index", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
@@ -629,7 +627,6 @@ public class GetActionIT extends ESIntegTestCase {
 
         getResponse = client().prepareGet("my-index", "1").setStoredFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));
-        assertThat(getResponse.getField(field).isMetadataField(), equalTo(false));
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));

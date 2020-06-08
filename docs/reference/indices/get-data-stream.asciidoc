@@ -9,10 +9,15 @@ Returns information about one or more data streams.
 ////
 [source,console]
 -----------------------------------
-PUT /_data_stream/my-data-stream
+PUT _index_template/template
 {
-  "timestamp_field" : "@timestamp"
+  "index_patterns": ["my-data-stream*"],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  }
 }
+
+PUT /_data_stream/my-data-stream
 -----------------------------------
 // TESTSETUP
 ////
@@ -21,20 +26,21 @@ PUT /_data_stream/my-data-stream
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
+DELETE /_index_template/template
 -----------------------------------
 // TEARDOWN
 ////
 
 [source,console]
 --------------------------------------------------
-GET _data_streams/my-data-stream
+GET _data_stream/my-data-stream
 --------------------------------------------------
 // TEST[skip_shard_failures]
 
 [[get-data-stream-api-request]]
 ==== {api-request-title}
 
-`GET _data_streams/<data-stream>`
+`GET _data_stream/<data-stream>`
 
 
 [[get-data-stream-api-path-params]]
@@ -55,7 +61,7 @@ retrieve.
 
 [source,console]
 --------------------------------------------------
-GET _data_streams/my-data-stream*
+GET _data_stream/my-data-stream*
 --------------------------------------------------
 // TEST[continued]
 // TEST[skip_shard_failures]
@@ -70,11 +76,11 @@ The API returns the following response:
     "timestamp_field" : "@timestamp", <2>
     "indices" : [ <3>
       {
-        "index_name" : "my-data-stream-000001",
+        "index_name" : ".ds-my-data-stream-000001",
         "index_uuid" : "DXAE-xcCQTKF93bMm9iawA"
       },
       {
-        "index_name" : "my-data-stream-000002",
+        "index_name" : ".ds-my-data-stream-000002",
         "index_uuid" : "Wzxq0VhsQKyPxHhaK3WYAg"
       }
     ],

@@ -90,7 +90,7 @@ public class TransportDeleteAsyncSearchAction extends HandledTransportAction<Del
                             logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchId.getEncoded()), exc);
                             listener.onFailure(exc);
                         }
-                    })));
+                    })), "cancelled by user");
         } else {
             // the task was not found (already cancelled, already completed, or invalid id?)
             // we fail if the response is not found in the index

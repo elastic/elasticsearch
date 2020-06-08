@@ -58,7 +58,7 @@ determines a value for each of the undefined parameters.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [role="child_attributes"]
 [[ml-put-dfanalytics-request-body]]
@@ -100,12 +100,12 @@ understand the function of these parameters.
 =====
 `class_assignment_objective`::::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
 `dependent_variable`::::
 (Required, string)
 +
-include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
 categorical (`ip` or `keyword`), or boolean. There must be no more than 30
@@ -113,23 +113,23 @@ different values in this field.
 
 `eta`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `feature_bag_fraction`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_trees`::::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_classes`::::
 (Optional, integer)
@@ -145,15 +145,15 @@ By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 `training_percent`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 //End classification
 =====
 //Begin outlier_detection
@@ -167,27 +167,27 @@ The configuration information necessary to perform
 =====
 `compute_feature_influence`::::
 (Optional, boolean) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
   
 `feature_influence_threshold`:::: 
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
 `method`::::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=method]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=method]
   
 `n_neighbors`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=n-neighbors]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
   
 `outlier_fraction`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
   
 `standardization_enabled`::::
 (Optional, boolean) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //End outlier_detection
 =====
 //Begin regression
@@ -207,38 +207,41 @@ understand the function of these parameters.
 `dependent_variable`::::
 (Required, string)
 +
-include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric.
 
 `eta`::::
 (Optional, double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `feature_bag_fraction`::::
 (Optional, double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `loss_function`::::
 (Optional, string)
-The loss function used during regression. Available options are `mse` (mean squared error),
-`msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber loss). Defaults to `mse`.
+The loss function used during {regression}. Available options are `mse` (mean 
+squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber 
+loss). Defaults to `mse`. Refer to 
+{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses] 
+to learn more.
 
 `loss_function_parameter`::::
 (Optional, double)
-A strictly positive number that is used as a parameter to the `loss_function`.
+A positive number that is used as a parameter to the `loss_function`.
 
 `max_trees`::::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
@@ -248,15 +251,15 @@ By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 `training_percent`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 =====
 //End regression
 ====
@@ -318,11 +321,11 @@ analysis.
 
 `description`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
 `dest`::
 (Required, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dest]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dest]
   
 `model_memory_limit`::
 (Optional, string)

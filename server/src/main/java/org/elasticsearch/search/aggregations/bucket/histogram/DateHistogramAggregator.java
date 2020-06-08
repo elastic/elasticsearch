@@ -25,7 +25,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -34,12 +33,14 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
@@ -62,13 +63,13 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final long minDocCount;
     private final ExtendedBounds extendedBounds;
 
-    private final LongHash bucketOrds;
+    private final LongKeyedBucketOrds bucketOrds;
 
     DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, Rounding.Prepared preparedRounding,
             BucketOrder order, boolean keyed,
             long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource valuesSource,
             DocValueFormat formatter, SearchContext aggregationContext,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
+            Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.rounding = rounding;
@@ -81,7 +82,7 @@ class DateHistogramAggregator extends BucketsAggregator {
         this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.formatter = formatter;
 
-        bucketOrds = new LongHash(1, aggregationContext.bigArrays());
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
     }
 
     @Override
@@ -93,30 +94,26 @@ class DateHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
-            public void collect(int doc, long bucket) throws IOException {
-                assert bucket == 0;
+            public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
+                    int valuesCount = values.docValueCount();
 
                     long previousRounded = Long.MIN_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
-                        // We can use shardRounding here, which is sometimes more efficient
-                        // if daylight saving times are involved.
                         long rounded = preparedRounding.round(value);
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
                         }
-                        long bucketOrd = bucketOrds.add(rounded);
+                        long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
                         if (bucketOrd < 0) { // already seen
                             bucketOrd = -1 - bucketOrd;
                             collectExistingBucket(sub, doc, bucketOrd);
@@ -161,5 +158,10 @@ class DateHistogramAggregator extends BucketsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        add.accept("total_buckets", bucketOrds.size());
     }
 }

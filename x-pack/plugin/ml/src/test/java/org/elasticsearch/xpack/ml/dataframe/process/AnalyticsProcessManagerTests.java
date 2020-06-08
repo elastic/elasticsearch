@@ -110,7 +110,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         resultsPersisterService = mock(ResultsPersisterService.class);
 
         processManager = new AnalyticsProcessManager(client, executorServiceForJob, executorServiceForProcess, processFactory, auditor,
-            trainedModelProvider, resultsPersisterService);
+            trainedModelProvider, resultsPersisterService, 1);
     }
 
     public void testRunJob_TaskIsStopping() {

@@ -34,7 +34,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 
 public final class ScriptFieldsPhase implements FetchSubPhase {
@@ -72,11 +71,8 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                     }
                     throw e;
                 }
-                if (hit.fieldsOrNull() == null) {
-                    hit.fields(new HashMap<>(2));
-                }
                 String scriptFieldName = scriptFields.get(i).name();
-                DocumentField hitField = hit.getFields().get(scriptFieldName);
+                DocumentField hitField = hit.field(scriptFieldName);
                 if (hitField == null) {
                     final List<Object> values;
                     if (value instanceof Collection) {
@@ -85,7 +81,8 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                         values = Collections.singletonList(value);
                     }
                     hitField = new DocumentField(scriptFieldName, values);
-                    hit.setField(scriptFieldName, hitField);
+                    // script fields are never meta-fields
+                    hit.setDocumentField(scriptFieldName, hitField);
 
                 }
             }

@@ -27,11 +27,11 @@ Retrieves information about model snapshots.
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `<snapshot_id>`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 +
 --
 If you do not specify this optional parameter, the API returns information about
@@ -121,7 +121,7 @@ side effect of the way categorization has no prior training.)
 
 `failed_category_count`:::
 (long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=failed-category-count]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=failed-category-count]
 
 `frequent_category_count`:::
 (long) The number of categories that match more than 1% of categorized
@@ -129,7 +129,7 @@ documents.
 
 `job_id`:::
 (string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `log_time`:::
 (date) The timestamp that the `model_size_stats` were recorded, according to
@@ -185,7 +185,7 @@ separately for each detector and partition.
 
 `retain`::
 (boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=retain]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 `snapshot_id`::
 (string) A numerical character string that uniquely identifies the model

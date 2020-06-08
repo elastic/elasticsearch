@@ -64,6 +64,7 @@ import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -911,7 +912,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            containsString("mapping fields [field2] cannot be replaced during template composition"));
+            anyOf(containsString("mapping fields [field2] cannot be replaced during template composition"),
+                containsString("Can't merge a non object mapping [field2] with an object mapping [field2]")));
     }
 
     /**
@@ -975,7 +977,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(e.getCause().getCause());
         assertThat(e.getCause().getCause().getMessage(),
-            containsString("mapping fields [field2] cannot be replaced during template composition"));
+            anyOf(containsString("mapping fields [field2] cannot be replaced during template composition"),
+                containsString("mapper [field2] of different type, current_type [text], merged_type [ObjectMapper]")));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

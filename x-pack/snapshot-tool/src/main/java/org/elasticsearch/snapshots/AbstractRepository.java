@@ -75,7 +75,7 @@ public abstract class AbstractRepository {
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
-                return RepositoryData.snapshotsFromXContent(parser, indexFileGeneration);
+                return RepositoryData.snapshotsFromXContent(parser, indexFileGeneration, true);
             }
         } catch (IOException e) {
             terminal.println("Failed to read " + snapshotsIndexBlobName + " file");

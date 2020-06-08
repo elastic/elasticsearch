@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse.resultsByIndexUUID;
@@ -37,6 +38,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ListDanglingIndicesResponseTests extends ESTestCase {
+
+    public static final String UUID_1 = UUID.randomUUID().toString();
+    public static final String UUID_2 = UUID.randomUUID().toString();
 
     /**
      * Checks that {@link ListDanglingIndicesResponse#resultsByIndexUUID(List)} handles the
@@ -54,13 +58,13 @@ public class ListDanglingIndicesResponseTests extends ESTestCase {
         final DiscoveryNode node = mock(DiscoveryNode.class);
         when(node.getId()).thenReturn("some-node-id");
 
-        final var danglingIndexInfo = List.of(new DanglingIndexInfo("some-node-id", "some-index", "deadb33f", 123456L));
+        final var danglingIndexInfo = List.of(new DanglingIndexInfo("some-node-id", "some-index", UUID_1, 123456L));
         final var nodes = List.of(new NodeListDanglingIndicesResponse(node, danglingIndexInfo));
 
         final var aggregated = new ArrayList<>(resultsByIndexUUID(nodes));
         assertThat(aggregated, hasSize(1));
 
-        final var expected = new AggregatedDanglingIndexInfo("deadb33f", "some-index", 123456L);
+        final var expected = new AggregatedDanglingIndexInfo(UUID_1, "some-index", 123456L);
         expected.getNodeIds().add("some-node-id");
         assertThat(aggregated.get(0), equalTo(expected));
     }
@@ -75,8 +79,8 @@ public class ListDanglingIndicesResponseTests extends ESTestCase {
         when(node1.getId()).thenReturn("node-id-1");
         when(node2.getId()).thenReturn("node-id-2");
 
-        final var danglingIndexInfo1 = List.of(new DanglingIndexInfo("node-id-1", "some-index", "deadb33f", 123456L));
-        final var danglingIndexInfo2 = List.of(new DanglingIndexInfo("node-id-2", "some-index", "deadb33f", 123456L));
+        final var danglingIndexInfo1 = List.of(new DanglingIndexInfo("node-id-1", "some-index", UUID_1, 123456L));
+        final var danglingIndexInfo2 = List.of(new DanglingIndexInfo("node-id-2", "some-index", UUID_1, 123456L));
         final var nodes = List.of(
             new NodeListDanglingIndicesResponse(node1, danglingIndexInfo1),
             new NodeListDanglingIndicesResponse(node2, danglingIndexInfo2)
@@ -85,7 +89,7 @@ public class ListDanglingIndicesResponseTests extends ESTestCase {
         final var aggregated = new ArrayList<>(resultsByIndexUUID(nodes));
         assertThat(aggregated, hasSize(1));
 
-        final var expected = new AggregatedDanglingIndexInfo("deadb33f", "some-index", 123456L);
+        final var expected = new AggregatedDanglingIndexInfo(UUID_1, "some-index", 123456L);
         expected.getNodeIds().add("node-id-1");
         expected.getNodeIds().add("node-id-2");
         assertThat(aggregated.get(0), equalTo(expected));
@@ -100,8 +104,8 @@ public class ListDanglingIndicesResponseTests extends ESTestCase {
         when(node1.getId()).thenReturn("node-id-1");
 
         final var danglingIndexInfo = List.of(
-            new DanglingIndexInfo("node-id-1", "some-index", "deadb33f", 123456L),
-            new DanglingIndexInfo("node-id-1", "some-other-index", "cafebabe", 7891011L)
+            new DanglingIndexInfo("node-id-1", "some-index", UUID_1, 123456L),
+            new DanglingIndexInfo("node-id-1", "some-other-index", UUID_2, 7891011L)
         );
 
         final var nodes = List.of(new NodeListDanglingIndicesResponse(node1, danglingIndexInfo));
@@ -109,8 +113,8 @@ public class ListDanglingIndicesResponseTests extends ESTestCase {
         final var aggregated = new ArrayList<>(resultsByIndexUUID(nodes));
         assertThat(aggregated, hasSize(2));
 
-        var info1 = new AggregatedDanglingIndexInfo("deadb33f", "some-index", 123456L);
-        var info2 = new AggregatedDanglingIndexInfo("cafebabe", "some-other-index", 7891011L);
+        var info1 = new AggregatedDanglingIndexInfo(UUID_1, "some-index", 123456L);
+        var info2 = new AggregatedDanglingIndexInfo(UUID_2, "some-other-index", 7891011L);
         info1.getNodeIds().add("node-id-1");
         info2.getNodeIds().add("node-id-1");
 
@@ -127,8 +131,8 @@ public class ListDanglingIndicesResponseTests extends ESTestCase {
         when(node1.getId()).thenReturn("node-id-1");
         when(node2.getId()).thenReturn("node-id-2");
 
-        final var danglingIndexInfo1 = List.of(new DanglingIndexInfo("node-id-1", "some-index", "deadb33f", 123456L));
-        final var danglingIndexInfo2 = List.of(new DanglingIndexInfo("node-id-2", "some-other-index", "cafebabe", 7891011L));
+        final var danglingIndexInfo1 = List.of(new DanglingIndexInfo("node-id-1", "some-index", UUID_1, 123456L));
+        final var danglingIndexInfo2 = List.of(new DanglingIndexInfo("node-id-2", "some-other-index", UUID_2, 7891011L));
         final var nodes = List.of(
             new NodeListDanglingIndicesResponse(node1, danglingIndexInfo1),
             new NodeListDanglingIndicesResponse(node2, danglingIndexInfo2)
@@ -137,8 +141,8 @@ public class ListDanglingIndicesResponseTests extends ESTestCase {
         final var aggregated = new ArrayList<>(resultsByIndexUUID(nodes));
         assertThat(aggregated, hasSize(2));
 
-        var info1 = new AggregatedDanglingIndexInfo("deadb33f", "some-index", 123456L);
-        var info2 = new AggregatedDanglingIndexInfo("cafebabe", "some-other-index", 7891011L);
+        var info1 = new AggregatedDanglingIndexInfo(UUID_1, "some-index", 123456L);
+        var info2 = new AggregatedDanglingIndexInfo(UUID_2, "some-other-index", 7891011L);
         info1.getNodeIds().add("node-id-1");
         info2.getNodeIds().add("node-id-2");
 

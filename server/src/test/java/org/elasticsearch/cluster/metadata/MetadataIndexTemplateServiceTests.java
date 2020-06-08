@@ -64,10 +64,12 @@ import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateInvalidNumberOfShards() {
@@ -670,7 +672,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testResolveMappings() throws Exception {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
+    public void testResolveConflictingMappings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
@@ -736,6 +739,67 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 Collections.singletonMap("field", Collections.singletonMap("type", "keyword"))))));
     }
 
+    public void testResolveMappings() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field1\": {\n" +
+                "          \"type\": \"keyword\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        state = service.addComponentTemplate(state, true, "ct_high", ct1);
+        state = service.addComponentTemplate(state, true, "ct_low", ct2);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
+            new Template(null,
+                new CompressedXContent("{\n" +
+                    "    \"properties\": {\n" +
+                    "      \"field3\": {\n" +
+                    "        \"type\": \"integer\"\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }"), null),
+            Arrays.asList("ct_low", "ct_high"), 0L, 1L, null);
+        state = service.addIndexTemplateV2(state, true, "my-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(3));
+        List<Map<String, Object>> parsedMappings = mappings.stream()
+            .map(m -> {
+                try {
+                    return MapperService.parseMapping(new NamedXContentRegistry(Collections.emptyList()), m.string());
+                } catch (Exception e) {
+                    logger.error(e);
+                    fail("failed to parse mappings: " + m.string());
+                    return null;
+                }
+            })
+            .collect(Collectors.toList());
+
+        assertThat(parsedMappings.get(0),
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field2", Collections.singletonMap("type", "text"))))));
+        assertThat(parsedMappings.get(1),
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field1", Collections.singletonMap("type", "keyword"))))));
+        assertThat(parsedMappings.get(2),
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field3", Collections.singletonMap("type", "integer"))))));
+    }
+
     public void testResolveSettings() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -792,6 +856,129 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(Arrays.asList(a3, a1, a2)));
+    }
+
+    /**
+     * Tests that we check that settings/mappings/etc are valid even after template composition,
+     * when adding/updating a composable index template
+     */
+    public void  testIndexTemplateFailsToOverrideComponentTemplateMappingField() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"object\",\n" +
+                "          \"properties\": {\n" +
+                "            \"foo\": {\n" +
+                "              \"type\": \"integer\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field1\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        state = service.addComponentTemplate(state, true, "c1", ct1);
+        state = service.addComponentTemplate(state, true, "c2", ct2);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
+            new Template(null, new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null),
+            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null);
+
+        final ClusterState finalState = state;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> service.addIndexTemplateV2(finalState, randomBoolean(), "my-template", it));
+
+        assertThat(e.getMessage(),
+            matchesRegex("composable template \\[my-template\\] template after composition with component templates .+ is invalid"));
+
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(),
+            containsString("invalid composite mappings for [my-template]"));
+
+        assertNotNull(e.getCause().getCause());
+        assertThat(e.getCause().getCause().getMessage(),
+            anyOf(containsString("mapping fields [field2] cannot be replaced during template composition"),
+                containsString("Can't merge a non object mapping [field2] with an object mapping [field2]")));
+    }
+
+    /**
+     * Tests that we check that settings/mappings/etc are valid even after template composition,
+     * when updating a component template
+     */
+    public void testUpdateComponentTemplateFailsIfResolvedIndexTemplatesWouldBeInvalid() throws Exception {
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"object\",\n" +
+                "          \"properties\": {\n" +
+                "            \"foo\": {\n" +
+                "              \"type\": \"integer\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field1\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+        state = service.addComponentTemplate(state, true, "c1", ct1);
+        state = service.addComponentTemplate(state, true, "c2", ct2);
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
+            new Template(null, null, null),
+            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null);
+
+        // Great, the templates aren't invalid
+        state = service.addIndexTemplateV2(state, randomBoolean(), "my-template", it);
+
+        ComponentTemplate changedCt2 = new ComponentTemplate(new Template(null,
+            new CompressedXContent("{\n" +
+                "      \"properties\": {\n" +
+                "        \"field2\": {\n" +
+                "          \"type\": \"text\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }"), null), null, null);
+
+        final ClusterState finalState = state;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> service.addComponentTemplate(finalState, false, "c2", changedCt2));
+
+        assertThat(e.getMessage(),
+            containsString("updating component template [c2] results in invalid " +
+                "composable template [my-template] after templates are merged"));
+
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(),
+            containsString("invalid composite mappings for [my-template]"));
+
+        assertNotNull(e.getCause().getCause());
+        assertThat(e.getCause().getCause().getMessage(),
+            anyOf(containsString("mapping fields [field2] cannot be replaced during template composition"),
+                containsString("mapper [field2] of different type, current_type [text], merged_type [ObjectMapper]")));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

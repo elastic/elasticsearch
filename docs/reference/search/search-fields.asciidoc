@@ -5,9 +5,8 @@
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
 provided when indexing the document. If you only need certain fields in the
-search response, you can use the
-<<request-body-search-source-filtering,`_source`>> parameter to restrict what
-parts of the source are returned. This is called _source filtering_.
+search response, you can use the `_source` parameter to restrict what parts of
+the source are returned. This is called _source filtering_.
 
 .*Example*
 [%collapsible]

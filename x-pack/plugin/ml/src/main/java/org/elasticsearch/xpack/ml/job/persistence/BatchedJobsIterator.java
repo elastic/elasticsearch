@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.persistence.BatchedDocumentsIterator;
@@ -23,13 +23,17 @@ import java.io.InputStream;
 
 public class BatchedJobsIterator extends BatchedDocumentsIterator<Job.Builder> {
 
-    public BatchedJobsIterator(OriginSettingClient client, String index) {
+    private final String jobIdExpression;
+
+    public BatchedJobsIterator(OriginSettingClient client, String index, String jobIdExpression) {
         super(client, index);
+        this.jobIdExpression = jobIdExpression;
     }
 
     @Override
     protected QueryBuilder getQuery() {
-        return new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
+        String [] tokens = Strings.tokenizeToStringArray(jobIdExpression, ",");
+        return JobConfigProvider.buildJobWildcardQuery(tokens, true);
     }
 
     @Override

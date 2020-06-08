@@ -236,7 +236,7 @@ public class RelocationIT extends ESIntegTestCase {
             }
             logger.info("--> done relocations");
             logger.info("--> waiting for indexing threads to stop ...");
-            indexer.stop();
+            indexer.stopAndAwaitStopped();
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");

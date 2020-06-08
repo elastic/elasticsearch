@@ -127,7 +127,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> {} docs indexed", totalNumDocs);
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
-            indexer.stop();
+            indexer.stopAndAwaitStopped();
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
@@ -182,7 +182,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> {} docs indexed", totalNumDocs);
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
-            indexer.stop();
+            indexer.stopAndAwaitStopped();
             logger.info("--> indexing threads stopped");
 
             logger.info("--> refreshing the index");
@@ -260,7 +260,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                     .setWaitForNoRelocatingShards(true));
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
-            indexer.stop();
+            indexer.stopAndAwaitStopped();
             logger.info("--> indexing threads stopped");
 
             assertNoTimeout(client().admin().cluster().prepareHealth()
@@ -301,7 +301,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             }
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
-            indexer.stop();
+            indexer.stopAndAwaitStopped();
 
             logger.info("--> indexing threads stopped");
             logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");

@@ -406,6 +406,11 @@ public class HistogramFieldMapper extends FieldMapper {
         }
     }
 
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
     /** re-usable {@link HistogramValue} implementation */
     private static class InternalHistogramValue extends HistogramValue {
         double value;

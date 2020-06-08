@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -504,7 +504,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     private IndexableField textField(String name, String value) {
-        return new Field(name, value, new FieldType());
+        return new TextField(name, value, Field.Store.NO);
     }
 
     private IndexableField geoPointField(String name, double lat, double lon) {

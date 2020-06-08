@@ -91,6 +91,11 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
     }
 
     @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("doc_values");
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(MapperExtrasPlugin.class);
     }
@@ -98,8 +103,9 @@ public class SearchAsYouTypeFieldMapperTests extends FieldMapperTestCase<SearchA
     @Override
     protected SearchAsYouTypeFieldMapper.Builder newBuilder() {
         return new SearchAsYouTypeFieldMapper.Builder("sayt")
-            .indexAnalyzer(new NamedAnalyzer("analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()))
-            .searchAnalyzer(new NamedAnalyzer("analyzer", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchQuoteAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
     }
 
     public void testIndexing() throws IOException {

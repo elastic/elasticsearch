@@ -41,12 +41,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     private static final String NAME = "a_field";
-    private static final String PREFIX_NAME = NAME + "._index_prefix";
 
     @Override
     protected SearchAsYouTypeFieldType createDefaultFieldType(String name, Map<String, String> meta) {
         final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(name, true, meta, true);
-        fieldType.setPrefixField(new PrefixFieldType(NAME, PREFIX_NAME, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
+        fieldType.setPrefixField(new PrefixFieldType(NAME, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
         fieldType.setShingleFields(new ShingleFieldType[] { new ShingleFieldType(fieldType.name(), 2, true) });
         return fieldType;
     }
@@ -79,7 +78,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedField
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
         assertThat(fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockShardContext()),
-            equalTo(new ConstantScoreQuery(new TermQuery(new Term(PREFIX_NAME, withinBoundsTerm)))));
+            equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm)))));
 
         // our defaults don't allow a situation where a term can be too small
 

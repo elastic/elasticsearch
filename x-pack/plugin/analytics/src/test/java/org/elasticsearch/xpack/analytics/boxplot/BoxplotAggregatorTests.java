@@ -217,7 +217,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             }, (Consumer<InternalBoxplot>) boxplot -> {
                 fail("Should have thrown exception");
             }, fieldType));
-        assertEquals(e.getMessage(), "Field [not_a_number] of type [keyword(indexed,tokenized)] " +
+        assertEquals(e.getMessage(), "Field [not_a_number] of type [keyword] " +
             "is not supported for aggregation [boxplot]");
     }
 

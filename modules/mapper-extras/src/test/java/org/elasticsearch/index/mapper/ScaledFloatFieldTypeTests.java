@@ -46,7 +46,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase<MappedFieldType
 
     @Override
     protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new ScaledFloatFieldMapper.ScaledFloatFieldType(name, true, meta, 100);
+        return new ScaledFloatFieldMapper.ScaledFloatFieldType(name, true, true, meta, 100);
     }
 
     public void testTermQuery() {

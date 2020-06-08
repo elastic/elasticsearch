@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -122,7 +121,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
     }
 
-    private final NamedAnalyzer analyzer;
+    private NamedAnalyzer analyzer;
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
 
@@ -155,7 +154,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType().isSearchable();
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType.stored();
         context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, indexed, docValued, stored));
@@ -213,15 +212,14 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        if (Objects.equals(this.analyzer, ((TokenCountFieldMapper)other).analyzer) == false) {
-            conflicts.add("mapper [" + name() + "] has a different [analyzer] setting");
-        }
+        // TODO we should ban updating analyzers as well
         if (this.enablePositionIncrements != ((TokenCountFieldMapper)other).enablePositionIncrements) {
             conflicts.add("mapper [" + name() + "] has a different [enable_position_increments] setting");
         }
-        if (Objects.equals(this.nullValue, ((TokenCountFieldMapper)other).nullValue)) {
+        if (Objects.equals(this.nullValue, ((TokenCountFieldMapper)other).nullValue) == false) {
             conflicts.add("mapper [" + name() + "] has a different [null_value] setting");
         }
+        this.analyzer = ((TokenCountFieldMapper)other).analyzer;
     }
 
     @Override

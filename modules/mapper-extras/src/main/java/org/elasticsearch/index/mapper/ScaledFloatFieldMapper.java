@@ -139,7 +139,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (scalingFactorSet == false) {
                 throw new IllegalArgumentException("Field [" + name + "] misses required parameter [scaling_factor]");
             }
-            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed, meta, scalingFactor);
+            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed, hasDocValues, meta, scalingFactor);
             return new ScaledFloatFieldMapper(name, fieldType, type, ignoreMalformed(context),
                     coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
@@ -181,13 +181,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final double scalingFactor;
 
-        public ScaledFloatFieldType(String name, boolean indexed, Map<String, String> meta, double scalingFactor) {
-            super(name, indexed, true, meta);
+        public ScaledFloatFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta, double scalingFactor) {
+            super(name, indexed, hasDocValues, meta);
             this.scalingFactor = scalingFactor;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
-            this(name, true, Collections.emptyMap(), scalingFactor);
+            this(name, true, true, Collections.emptyMap(), scalingFactor);
         }
 
         ScaledFloatFieldType(ScaledFloatFieldType other) {
@@ -426,7 +426,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType().isSearchable();
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType.stored();
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored);
@@ -464,7 +464,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
         }
-
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }

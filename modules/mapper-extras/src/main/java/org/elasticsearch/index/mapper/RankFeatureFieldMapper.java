@@ -203,6 +203,11 @@ public class RankFeatureFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         if (positiveScoreImpact != ((RankFeatureFieldMapper)other).positiveScoreImpact) {
             conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");

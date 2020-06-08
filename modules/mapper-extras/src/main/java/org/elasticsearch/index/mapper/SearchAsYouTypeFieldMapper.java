@@ -148,15 +148,26 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Builder docValues(boolean docValues) {
+            if (docValues) {
+                throw new IllegalArgumentException("mapper [" + name() + "] of type [search_as_you_type] does not support doc values");
+            }
+            return this;
+        }
+
+        @Override
         public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
 
             boolean hasNorms = fieldType.omitNorms() == false;
             SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), indexed, meta, hasNorms);
+            ft.setIndexAnalyzer(indexAnalyzer);
+            ft.setSearchAnalyzer(searchAnalyzer);
+            ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
+            ft.setSimilarity(similarity);
 
             // set up the prefix field
             final String fullName = buildFullName(context);
-            final String prefixFieldName = fullName + PREFIX_FIELD_SUFFIX;
-            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
+            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             // wrap the root field's index analyzer with shingles and edge ngrams
             final SearchAsYouTypeAnalyzer prefixIndexWrapper =
                 SearchAsYouTypeAnalyzer.withShingleAndPrefix(indexAnalyzer.analyzer(), maxShingleSize);
@@ -166,7 +177,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
             prefixFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper));
             prefixFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, prefixSearchWrapper));
-            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(fieldType, prefixFieldType, context.indexSettings());
+            FieldType prefixft = new FieldType(fieldType);
+            prefixft.setStoreTermVectors(false);
+            prefixft.setOmitNorms(true);
+            prefixft.setStored(false);
+            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType, context.indexSettings());
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize - 1];
@@ -188,7 +203,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                     new NamedAnalyzer(searchQuoteAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchQuoteWrapper));
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
-                shingleFieldMappers[i] = new ShingleFieldMapper(fieldType, shingleFieldType, context.indexSettings());
+                FieldType shingleft = new FieldType(fieldType);
+                shingleft.setStored(false);
+                shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType, context.indexSettings());
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
@@ -369,8 +386,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final int maxChars;
         final String parentField;
 
-        PrefixFieldType(String parentField, String name, int minChars, int maxChars) {
-            super(parentField + "." + name, true, false, Collections.emptyMap());
+        PrefixFieldType(String parentField, int minChars, int maxChars) {
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -672,6 +689,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             for (int i = 0; i < m.shingleFields.length; i++) {
                 this.shingleFields[i] = (ShingleFieldMapper) this.shingleFields[i].merge(m.shingleFields[i]);
             }
+        }
+        if (Objects.equals(this.fieldType().similarity(), other.fieldType().similarity()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [similarity] settings");
         }
     }
 

@@ -760,7 +760,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "    }"), null), null, null);
         state = service.addComponentTemplate(state, true, "ct_high", ct1);
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"),
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
             new Template(null,
                 new CompressedXContent("{\n" +
                     "    \"properties\": {\n" +
@@ -769,7 +769,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     "      }\n" +
                     "    }\n" +
                     "  }"), null),
-            List.of("ct_low", "ct_high"), 0L, 1L, null, null);
+            Arrays.asList("ct_low", "ct_high"), 0L, 1L, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<CompressedXContent> mappings = MetadataIndexTemplateService.resolveMappings(state, "my-template");
@@ -779,7 +779,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         List<Map<String, Object>> parsedMappings = mappings.stream()
             .map(m -> {
                 try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    return MapperService.parseMapping(new NamedXContentRegistry(Collections.emptyList()), m.string());
                 } catch (Exception e) {
                     logger.error(e);
                     fail("failed to parse mappings: " + m.string());
@@ -789,11 +789,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .collect(Collectors.toList());
 
         assertThat(parsedMappings.get(0),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field2", Collections.singletonMap("type", "text"))))));
         assertThat(parsedMappings.get(1),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field1", Collections.singletonMap("type", "keyword"))))));
         assertThat(parsedMappings.get(2),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field3", Map.of("type", "integer"))))));
+            equalTo(Collections.singletonMap("_doc",
+                Collections.singletonMap("properties", Collections.singletonMap("field3", Collections.singletonMap("type", "integer"))))));
     }
 
     public void testResolveSettings() throws Exception {
@@ -885,7 +888,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "    }"), null), null, null);
         state = service.addComponentTemplate(state, true, "c1", ct1);
         state = service.addComponentTemplate(state, true, "c2", ct2);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"),
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
             new Template(null, new CompressedXContent("{\n" +
                 "      \"properties\": {\n" +
                 "        \"field2\": {\n" +
@@ -893,7 +896,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "        }\n" +
                 "      }\n" +
                 "    }"), null),
-            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null);
+            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null);
 
         final ClusterState finalState = state;
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -942,9 +945,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "    }"), null), null, null);
         state = service.addComponentTemplate(state, true, "c1", ct1);
         state = service.addComponentTemplate(state, true, "c2", ct2);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"),
+        ComposableIndexTemplate it = new ComposableIndexTemplate(Arrays.asList("i*"),
             new Template(null, null, null),
-            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null);
+            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null);
 
         // Great, the templates aren't invalid
         state = service.addIndexTemplateV2(state, randomBoolean(), "my-template", it);

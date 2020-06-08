@@ -1112,7 +1112,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, Arrays.asList("ct2", "ct1"), null, null, null, null);
+            null, Arrays.asList("ct2", "ct1"), null, null, null);
 
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)

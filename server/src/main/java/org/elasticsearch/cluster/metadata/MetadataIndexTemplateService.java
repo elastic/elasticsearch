@@ -948,16 +948,12 @@ public class MetadataIndexTemplateService {
 
                 // Parse mappings to ensure they are valid after being composed
                 List<CompressedXContent> mappings = resolveMappings(stateWithIndex, templateName);
-                final Map<String, Object> finalMappings;
                 try {
-                    finalMappings = MetadataCreateIndexService.parseV2Mappings("{}", mappings, xContentRegistry);
-
                     MapperService dummyMapperService = tempIndexService.mapperService();
-                    if (finalMappings.isEmpty() == false) {
-                        assert finalMappings.size() == 1 : finalMappings;
+                    for (CompressedXContent mapping : mappings) {
                         // TODO: Eventually change this to:
                         // dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-                        dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MergeReason.MAPPING_UPDATE);
+                        dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.MAPPING_UPDATE);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

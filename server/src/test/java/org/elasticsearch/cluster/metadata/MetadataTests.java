@@ -1147,7 +1147,7 @@ public class MetadataTests extends ESTestCase {
         Index index = standaloneIndexConflictingWithBackingIndices.getIndex();
         indicesLookup.put(index.getName(), new IndexAbstraction.Index(standaloneIndexConflictingWithBackingIndices, null));
 
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(org.elasticsearch.common.collect.Map.of(dataStreamName, dataStream));
 
         IllegalStateException illegalStateException =
             expectThrows(IllegalStateException.class, () -> validateDataStreams(indicesLookup, dataStreamMetadata));
@@ -1223,7 +1223,7 @@ public class MetadataTests extends ESTestCase {
                 indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
             }
         }
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(org.elasticsearch.common.collect.Map.of(dataStreamName, dataStream));
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system

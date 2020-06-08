@@ -286,7 +286,8 @@ supported:
 
 [source,console]
 --------------------------------------------------
-POST /test/_doc
+POST /test/doc1
+{
   "location": [
     {
       "coordinates": [46.25,20.14],
@@ -303,7 +304,8 @@ POST /test/_doc
 
 [source,console]
 --------------------------------------------------
-POST /test/_doc
+POST /test/doc1
+{
   "location": 
     {
       "coordinates": [[46.25,20.14],[47.49,19.04]],

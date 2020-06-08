@@ -19,8 +19,9 @@ import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -45,6 +45,7 @@ import static java.util.Collections.emptyList;
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private final UnresolvedRelation RELATION = new UnresolvedRelation(Source.EMPTY, null, "", false, "");
+    private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(Source.EMPTY);
 
     public LogicalPlanBuilder(ParserParams params) {
         super(params);
@@ -55,7 +56,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private Attribute fieldTieBreaker() {
-        return params.fieldTieBreaker() != null ? new UnresolvedAttribute(Source.EMPTY, params.fieldTieBreaker()) : null;
+        return params.fieldTieBreaker() != null ? new UnresolvedAttribute(Source.EMPTY, params.fieldTieBreaker()) : UNSPECIFIED_FIELD;
     }
 
     @Override
@@ -86,7 +87,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         orders.add(new Order(source, fieldTimestamp(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
         // make sure to add the tieBreaker as well
         Attribute tieBreaker = fieldTieBreaker();
-        if (tieBreaker != null) {
+        if (Expressions.isPresent(tieBreaker)) {
             orders.add(new Order(source, tieBreaker, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
         }
 
@@ -134,16 +135,19 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private KeyedFilter defaultUntil(Source source) {
         // no until declared means no results
-        // create a dummy keyed filter
-        String notUsed = "<not-used>";
-        Attribute tsField = new FieldAttribute(source, notUsed, new UnsupportedEsField(notUsed, notUsed));
-        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), tsField, tsField);
+        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), UNSPECIFIED_FIELD, UNSPECIFIED_FIELD);
     }
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
         LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
-        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp(), fieldTieBreaker()));
+        List<Attribute> output = CollectionUtils.combine(keys, fieldTimestamp());
+        
+        Attribute fieldTieBreaker = fieldTieBreaker();
+        if (Expressions.isPresent(fieldTieBreaker)) {
+            output = CollectionUtils.combine(output, fieldTieBreaker);
+        }
+        LogicalPlan child = new Project(source(ctx), eventQuery, output);
         return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTieBreaker());
     }
 

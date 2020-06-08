@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -67,7 +68,7 @@ public class ExecutionManager implements QueryClient {
             List<Attribute> keys = listOfKeys.get(i);
             // fields
             HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
-            HitExtractor tbExtractor = hitExtractor(tieBreaker, extractorRegistry);
+            HitExtractor tbExtractor = Expressions.isPresent(tieBreaker) ? hitExtractor(tieBreaker, extractorRegistry) : null;
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
 
             PhysicalPlan query = plans.get(i);

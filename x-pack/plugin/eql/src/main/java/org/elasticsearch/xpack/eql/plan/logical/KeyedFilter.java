@@ -58,7 +58,7 @@ public class KeyedFilter extends UnaryPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(keys) && timestamp.resolved() && (tieBreaker == null || tieBreaker.resolved());
+        return Resolvables.resolved(keys) && timestamp.resolved() && tieBreaker.resolved();
     }
 
     @Override
@@ -79,7 +79,7 @@ public class KeyedFilter extends UnaryPlan {
 
         return Objects.equals(keys, other.keys)
                 && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tieBreaker, other.tieBreaker)                
+                && Objects.equals(tieBreaker, other.tieBreaker)
                 && Objects.equals(child(), other.child());
     }
 }

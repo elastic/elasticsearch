@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.plan.logical;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -75,7 +76,7 @@ public class Join extends LogicalPlan {
         List<Attribute> out = new ArrayList<>();
 
         out.add(timestamp);
-        if (tieBreaker != null) {
+        if (Expressions.isPresent(tieBreaker)) {
             out.add(tieBreaker);
         }
 
@@ -87,7 +88,7 @@ public class Join extends LogicalPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return timestamp.resolved() && (tieBreaker == null || tieBreaker.resolved()) && until.resolved() && Resolvables.resolved(queries);
+        return timestamp.resolved() && tieBreaker.resolved() && until.resolved() && Resolvables.resolved(queries);
     }
 
     public List<KeyedFilter> queries() {

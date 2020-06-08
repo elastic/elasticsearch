@@ -66,7 +66,7 @@ public class SequenceExec extends PhysicalPlan {
     public List<Attribute> output() {
         List<Attribute> attrs = new ArrayList<>();
         attrs.add(timestamp);
-        if (tieBreaker != null) {
+        if (Expressions.isPresent(tieBreaker)) {
             attrs.add(tieBreaker);
         }
         for (List<? extends NamedExpression> ne : keys) {

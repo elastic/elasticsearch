@@ -355,6 +355,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
             try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
                 out.setVersion(indexVersion);
+                out.writeVInt(1);
+                out.writeVInt(1);   // TODO remove these, legacy cruft from when we used BinaryFieldMapper to write
                 out.writeNamedWriteable(queryBuilder);
                 byte[] queryBuilderAsBytes = stream.toByteArray();
                 context.doc().add(new BinaryDocValuesField(qbField, new BytesRef(queryBuilderAsBytes)));
@@ -364,7 +366,6 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     void processQuery(Query query, ParseContext context) {
         ParseContext.Document doc = context.doc();
-        PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
         Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
         result = QueryAnalyzer.analyze(query, indexVersion);
@@ -500,4 +501,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         return bytes;
     }
 
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
 }

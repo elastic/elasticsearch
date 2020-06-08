@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -146,8 +147,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
-                SignificantTerms terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                SignificantStringTerms terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
 
+                assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(1, terms.getBuckets().size());
                 assertNull(terms.getBucketByKey("even"));
                 assertNull(terms.getBucketByKey("common"));
@@ -156,6 +158,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 // Search even
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), sigAgg, textFieldType);
 
+                assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(1, terms.getBuckets().size());
                 assertNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("common"));
@@ -164,6 +167,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 // Search odd with regex includeexcludes
                 sigAgg.includeExclude(new IncludeExclude("o.d", null));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(1, terms.getBuckets().size());
                 assertNotNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("common"));
@@ -176,6 +180,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 sigAgg.includeExclude(new IncludeExclude(oddStrings, evenStrings));
                 sigAgg.significanceHeuristic(SignificanceHeuristicTests.getRandomSignificanceheuristic());
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(1, terms.getBuckets().size());
                 assertNotNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("weird"));
@@ -185,6 +190,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
                 sigAgg.includeExclude(new IncludeExclude(evenStrings, oddStrings));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                assertThat(terms.getSubsetSize(), equalTo(5L));
                 assertEquals(0, terms.getBuckets().size());
                 assertNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("weird"));
@@ -240,6 +246,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 // Search "odd"
                 SignificantLongTerms terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigNumAgg, longFieldType);
                 assertEquals(1, terms.getBuckets().size());
+                assertThat(terms.getSubsetSize(), equalTo(5L));
 
                 assertNull(terms.getBucketByKey(Long.toString(EVEN_VALUE)));
                 assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
@@ -247,6 +254,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), sigNumAgg, longFieldType);
                 assertEquals(1, terms.getBuckets().size());
+                assertThat(terms.getSubsetSize(), equalTo(5L));
 
                 assertNull(terms.getBucketByKey(Long.toString(ODD_VALUE)));
                 assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
@@ -379,6 +387,172 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testAllDocsWithoutStringFieldviaGlobalOrds() throws IOException {
+        testAllDocsWithoutStringField("global_ordinals");
+    }
+
+    public void testAllDocsWithoutStringFieldViaMap() throws IOException {
+        testAllDocsWithoutStringField("map");
+    }
+
+    /**
+     * Make sure that when the field is mapped but there aren't any values
+     * for it we return a properly shaped "empty" result. In particular, the
+     * {@link InternalMappedSignificantTerms#getSubsetSize()} needs to be set
+     * to the number of matching documents.
+     */
+    private void testAllDocsWithoutStringField(String executionHint) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                writer.addDocument(new Document());
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
+                        .executionHint(executionHint);
+                    SignificantStringTerms result = search(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
+                    assertThat(result.getSubsetSize(), equalTo(1L));
+                }
+            }
+        }
+    }
+
+    /**
+     * Make sure that when the field is mapped but there aren't any values
+     * for it we return a properly shaped "empty" result. In particular, the
+     * {@link InternalMappedSignificantTerms#getSubsetSize()} needs to be set
+     * to the number of matching documents.
+     */
+    public void testAllDocsWithoutNumericField() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                writer.addDocument(new Document());
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
+                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request, longField("f"));
+                    assertThat(result.getSubsetSize(), equalTo(1L));
+                }
+            }
+        }
+    }
+
+    public void testSomeDocsWithoutStringFieldviaGlobalOrds() throws IOException {
+        testSomeDocsWithoutStringField("global_ordinals");
+    }
+
+    public void testSomeDocsWithoutStringFieldViaMap() throws IOException {
+        testSomeDocsWithoutStringField("map");
+    }
+
+    /**
+     * Make sure that when the field a segment doesn't contain the field we
+     * still include the count of its matching documents
+     * in {@link InternalMappedSignificantTerms#getSubsetSize()}.
+     */
+    private void testSomeDocsWithoutStringField(String executionHint) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document d = new Document();
+                d.add(new SortedDocValuesField("f", new BytesRef("f")));
+                writer.addDocument(d);
+                writer.flush();
+                writer.addDocument(new Document());
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f")
+                        .executionHint(executionHint);
+                    SignificantStringTerms result = search(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
+                    assertThat(result.getSubsetSize(), equalTo(2L));
+                }
+            }
+        }
+    }
+
+    /**
+     * Make sure that when the field a segment doesn't contain the field we
+     * still include the count of its matching documents
+     * in {@link InternalMappedSignificantTerms#getSubsetSize()}.
+     */
+    public void testSomeDocsWithoutNumericField() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField("f", 1));
+                writer.addDocument(d);
+                writer.addDocument(new Document());
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
+                    SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request, longField("f"));
+                    assertThat(result.getSubsetSize(), equalTo(2L));
+                }
+            }
+        }
+    }
+
+    public void testThreeLayerStringViaGlobalOrds() throws IOException {
+        threeLayerStringTestCase("global_ordinals");
+    }
+
+    public void testThreeLayerStringViaMap() throws IOException {
+        threeLayerStringTestCase("map");
+    }
+
+    private void threeLayerStringTestCase(String executionHint) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < 10; i++) {
+                    for (int j = 0; j < 10; j++) {
+                        for (int k = 0; k < 10; k++) {
+                            Document d = new Document();
+                            d.add(new SortedDocValuesField("i", new BytesRef(Integer.toString(i))));
+                            d.add(new SortedDocValuesField("j", new BytesRef(Integer.toString(j))));
+                            d.add(new SortedDocValuesField("k", new BytesRef(Integer.toString(k))));
+                            writer.addDocument(d);
+                        }
+                    }
+                }
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    SignificantTermsAggregationBuilder kRequest = new SignificantTermsAggregationBuilder("k").field("k")
+                        .executionHint(executionHint);
+                    SignificantTermsAggregationBuilder jRequest = new SignificantTermsAggregationBuilder("j").field("j")
+                        .executionHint(executionHint)
+                        .subAggregation(kRequest);
+                    SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("i").field("i")
+                        .executionHint(executionHint)
+                        .subAggregation(jRequest);
+                    SignificantStringTerms result = search(
+                        searcher,
+                        new MatchAllDocsQuery(),
+                        request,
+                        keywordField("i"),
+                        keywordField("j"),
+                        keywordField("k")
+                    );
+                    assertThat(result.getSubsetSize(), equalTo(1000L));
+                    for (int i = 0; i < 10; i++) {
+                        SignificantStringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
+                        assertThat(iBucket.getDocCount(), equalTo(100L));
+                        SignificantStringTerms jAgg = iBucket.getAggregations().get("j");
+                        assertThat(jAgg.getSubsetSize(), equalTo(100L));
+                        for (int j = 0; j < 10; j++) {
+                            SignificantStringTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
+                            assertThat(jBucket.getDocCount(), equalTo(10L));
+                            SignificantStringTerms kAgg = jBucket.getAggregations().get("k");
+                            assertThat(kAgg.getSubsetSize(), equalTo(10L));
+                            for (int k = 0; k < 10; k++) {
+                                SignificantStringTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
+                                assertThat(jAgg.getSubsetSize(), equalTo(100L));
+                                assertThat(kBucket.getDocCount(), equalTo(1L));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testThreeLayerLong() throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -400,14 +574,17 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                             .subAggregation(new SignificantTermsAggregationBuilder("k").field("k")));
                     SignificantLongTerms result = search(searcher, new MatchAllDocsQuery(), request,
                         longField("i"), longField("j"), longField("k"));
+                    assertThat(result.getSubsetSize(), equalTo(1000L));
                     for (int i = 0; i < 10; i++) {
                         SignificantLongTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
                         assertThat(iBucket.getDocCount(), equalTo(100L));
                         SignificantLongTerms jAgg = iBucket.getAggregations().get("j");
+                        assertThat(jAgg.getSubsetSize(), equalTo(100L));
                         for (int j = 0; j < 10; j++) {
                             SignificantLongTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
                             assertThat(jBucket.getDocCount(), equalTo(10L));
                             SignificantLongTerms kAgg = jBucket.getAggregations().get("k");
+                            assertThat(kAgg.getSubsetSize(), equalTo(10L));
                             for (int k = 0; k < 10; k++) {
                                 SignificantLongTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
                                 assertThat(kBucket.getDocCount(), equalTo(1L));

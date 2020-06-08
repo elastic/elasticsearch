@@ -1160,7 +1160,7 @@ public class MetadataTests extends ESTestCase {
         for (int i = 1; i <= generations; i++) {
             IndexMetadata idx;
             if (i % 2 == 0 && i < generations) {
-                idx = IndexMetadata.builder("shrink-" + DataStream.getBackingIndexName(dataStreamName, i))
+                idx = IndexMetadata.builder("shrink-" + DataStream.getDefaultBackingIndexName(dataStreamName, i))
                     .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
                     .numberOfShards(1)
                     .numberOfReplicas(1)

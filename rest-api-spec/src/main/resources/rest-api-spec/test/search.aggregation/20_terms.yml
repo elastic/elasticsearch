@@ -724,7 +724,7 @@ setup:
         body: { "size" : 0, "aggs" : { "no_field_terms" : { "terms" : { "size": 1 } } } }
 
 ---
-"global ords profiler":
+"string profiler":
   - skip:
       version: " - 7.8.99"
       reason: debug information added in 7.9.0
@@ -773,6 +773,36 @@ setup:
   - gt:    { profile.shards.0.aggregations.0.debug.segments_with_single_valued_ords: 0 }
   - match: { profile.shards.0.aggregations.0.debug.segments_with_multi_valued_ords: 0 }
   - match: { profile.shards.0.aggregations.0.debug.has_filter: false }
+  - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
+  - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                collect_mode: breadth_first
+                execution_hint: map
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { aggregations.str_terms.buckets.2.max_number.value: 1 }
+  - match: { profile.shards.0.aggregations.0.type: MapStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.deferred_aggregators: [ max_number ] }
+  - match: { profile.shards.0.aggregations.0.debug.result_strategy: terms }
   - match: { profile.shards.0.aggregations.0.children.0.type: MaxAggregator }
   - match: { profile.shards.0.aggregations.0.children.0.description: max_number }
 

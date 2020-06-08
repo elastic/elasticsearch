@@ -370,4 +370,6 @@ gradle.projectsEvaluated {
 if (BuildParams.inFipsJvm) {
   // We don't support the IDP in FIPS-140 mode, so no need to run tests
   test.enabled = false
+  // We run neither integTests nor unit tests in FIPS-140 mode
+  testingConventions.enabled = false
 }

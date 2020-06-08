@@ -1376,7 +1376,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
 
-            validateDataStreams(indicesLookup);
+            validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1452,39 +1452,41 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return indicesLookup;
         }
 
-        private void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup) {
-            DataStreamMetadata dsMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
+        /**
+         * Validates there isn't any index with a name that would clash with the future backing indices of the existing data streams.
+         *
+         * For eg. if data stream `foo` has backing indices [`foo-000001`, `foo-000002`] and the indices lookup contains indices
+         * `foo-000001`, `foo-000002` and `foo-000006` this will throw an IllegalStateException (as attempting to rollover the `foo` data
+         * stream from generation 5 to 6 will not be possible)
+         *
+         * @param indicesLookup the indices in the system (this includes the data streams backing indices)
+         * @param dsMetadata    the data streams in the system
+         */
+        static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
-                    SortedMap<String, IndexAbstraction> potentialConflicts =
-                        indicesLookup.subMap(ds.getName() + "-", ds.getName() + "."); // '.' is the char after '-'
-                    if (potentialConflicts.size() != 0) {
-                        List<String> indexNames = ds.getIndices().stream().map(Index::getName).collect(Collectors.toList());
-                        List<String> conflicts = new ArrayList<>();
-                        for (Map.Entry<String, IndexAbstraction> entry : potentialConflicts.entrySet()) {
-                            // This validation is meant to prevent the case where rolling over a backing index will conflict with an
-                            // existing index (ie. data stream `foo` reaches generation 3 and wants to rollover to generation 4, but
-                            // index `foo-000004` was manually created in the meantime).
-                            // Backing indices can be shrunk so we expect some of them to have the `shrink-` prefix.
-                            // We'll allow adding a data stream that has backing indices with prefixed names even if the
-                            // previous non-prefixed backing index exists and is not part of the data stream anymore
-                            // For eg. adding a data stream with backing indices
-                            //    [shrink-foo-000001, foo-000002]
-                            // is valid, even if index `foo-000001` still exists (it will likely be deleted shortly)
-                            // This is the reason why we check if backing indices names `endWith` an existing index name (ie.
-                            // `shrink-foo-000001` ends with standalone index name `foo-000001` so we'll treat it as a valid backing
-                            // index name)
-                            if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX ||
-                                indexNames.stream().noneMatch(name -> name.endsWith(entry.getKey()))) {
-                                conflicts.add(entry.getKey());
-                            }
-                        }
+                    Map<String, IndexAbstraction> conflicts =
+                        indicesLookup.subMap(ds.getName() + "-", ds.getName() + ".") // '.' is the char after '-'
+                            .entrySet().stream()
+                            .filter(entry -> {
+                                if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+                                    return true;
+                                } else {
+                                    int indexNameCounter;
+                                    try {
+                                        indexNameCounter = IndexMetadata.parseIndexNameCounter(entry.getKey());
+                                    } catch (IllegalArgumentException e) {
+                                        // index name is not in the %s-%d+ format so it will not crash with backing indices
+                                        return false;
+                                    }
+                                    return indexNameCounter > ds.getGeneration();
+                                }
+                            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-                        if (conflicts.size() > 0) {
-                            throw new IllegalStateException("data stream [" + ds.getName() +
-                                "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
-                                " including '" + conflicts.get(0) + "'");
-                        }
+                    if (conflicts.size() > 0) {
+                        throw new IllegalStateException("data stream [" + ds.getName() +
+                            "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
+                            " including '" + conflicts.keySet().iterator().next() + "'");
                     }
                 }
             }

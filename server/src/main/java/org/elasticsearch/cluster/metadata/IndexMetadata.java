@@ -1619,4 +1619,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         return factor;
     }
+
+    /**
+     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
+     * Eg.
+     * - For "logs-000002" it'll return 2
+     * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
+     * @throws IllegalArgumentException if the index doesn't contain a "-" separator or if the last token after the separator is not a
+     * number
+     */
+    public static int parseIndexNameCounter(String indexName) {
+        int numberIndex = indexName.lastIndexOf("-");
+        if (numberIndex == -1) {
+            throw new IllegalArgumentException("no - separator found in index name [" + indexName + "]");
+        }
+        try {
+            return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
+                indexName.length()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
+        }
+    }
 }

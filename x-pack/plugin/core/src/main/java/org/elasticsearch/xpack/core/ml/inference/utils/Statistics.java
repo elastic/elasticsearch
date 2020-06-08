@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.core.ml.inference.utils;
 
 import org.elasticsearch.common.Numbers;
 
-import java.util.Arrays;
-
 public final class Statistics {
 
     private Statistics(){}
@@ -23,7 +21,12 @@ public final class Statistics {
      */
     public static double[] softMax(double[] values) {
         double expSum = 0.0;
-        double max = Arrays.stream(values).filter(Statistics::isValid).max().orElse(Double.NaN);
+        double max = Double.NEGATIVE_INFINITY;
+        for (double val : values) {
+            if (isValid(val)) {
+                max = Math.max(max, val);
+            }
+        }
         if (isValid(max) == false) {
             throw new IllegalArgumentException("no valid values present");
         }

@@ -1,8 +1,8 @@
 ---
 "Get backing indices for data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
       features: allowed_warnings
 
   - do:
@@ -30,11 +30,11 @@
 
   - do:
       indices.get:
-        index: ['data-stream1-000001', 'test_index']
+        index: ['.ds-data-stream1-000001', 'test_index']
 
-  - is_true: data-stream1-000001.settings
-  - is_true: data-stream1-000001.data_stream
-  - match: { data-stream1-000001.data_stream: data-stream1 }
+  - is_true: \.ds-data-stream1-000001.settings
+  - is_true: \.ds-data-stream1-000001.data_stream
+  - match: { \.ds-data-stream1-000001.data_stream: data-stream1 }
   - is_true: test_index.settings
   - is_false: test_index.data_stream
 

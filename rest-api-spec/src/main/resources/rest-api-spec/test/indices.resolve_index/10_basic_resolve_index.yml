@@ -1,0 +1,60 @@
+---
+"Resolve index with indices, aliases, and data streams":
+  - skip:
+      version: " - 7.99.99"
+      reason: not backported yet
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          data_stream:
+            timestamp_field: '@timestamp'
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-data-stream2]
+          data_stream:
+            timestamp_field: '@timestamp2'
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
+            test_clias: {}
+
+  - do:
+      indices.resolve_index:
+        name: data*
+
+        # frozen, closed, hidden indices
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged

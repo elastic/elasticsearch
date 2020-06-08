@@ -619,9 +619,13 @@ public final class RepositoryData {
                         assert indexId != null;
                         indexSnapshots.put(indexId, Collections.unmodifiableList(snapshotIds));
                         for (int i = 0; i < gens.size(); i++) {
-                            final String parsedGen = gens.get(i);
-                            shardGenerations.put(
-                                    indexId, i, fixBrokenShardGens ? ShardGenerations.fixShardGeneration(parsedGen) : parsedGen);
+                            String parsedGen = gens.get(i);
+                            if (fixBrokenShardGens) {
+                                parsedGen = ShardGenerations.fixShardGeneration(parsedGen);
+                            }
+                            if (parsedGen != null) {
+                                shardGenerations.put(indexId, i, parsedGen);
+                            }
                         }
                     }
                 } else if (INDEX_METADATA_IDENTIFIERS.equals(field)) {

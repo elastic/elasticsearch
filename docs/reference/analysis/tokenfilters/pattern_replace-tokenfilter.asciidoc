@@ -127,8 +127,8 @@ The following <<indices-create-index,create index API>> request
 configures a new <<analysis-custom-analyzer,custom analyzer>> using a custom
 `pattern_replace` filter, `my_pattern_replace_filter`.
 
-The `my_pattern_replace_filter` filter uses the regular expression `\\p{Sc}` to
-match and remove currency symbols, such as `£`, `€`, or `$`. The filter's `all`
+The `my_pattern_replace_filter` filter uses the regular expression `[£|€]` to
+match and remove the currency symbols `£` and `€`. The filter's `all`
 parameter is `false`, meaning only the first matching symbol in each token is
 removed.
 
@@ -149,7 +149,7 @@ PUT /my_index
       "filter": {
         "my_pattern_replace_filter": {
           "type": "pattern_replace",
-          "pattern": "\\p{Sc}",
+          "pattern": "[£|€]",
           "replacement": "",
           "all": false
         }

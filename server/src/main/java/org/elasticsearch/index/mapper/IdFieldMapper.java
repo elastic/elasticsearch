@@ -30,6 +30,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -118,6 +119,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         private IdFieldType() {
             super(NAME, true, false, Collections.emptyMap());
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         protected IdFieldType(IdFieldType ref) {

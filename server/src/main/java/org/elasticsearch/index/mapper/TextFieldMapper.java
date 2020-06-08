@@ -923,7 +923,9 @@ public class TextFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-
+        if (includeDefaults || (mappedFieldType.isSearchable() && fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
+        }
         if (includeDefaults || fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
             builder.field("term_vector", termVectorOptionsToString(fieldType));
         }

@@ -396,8 +396,7 @@ public class CompletionFieldMapper extends FieldMapper {
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             checkCompletionContextsLimit(context);
-            String name = buildFullName(context);
-            CompletionFieldType ft = new CompletionFieldType(name, meta);
+            CompletionFieldType ft = new CompletionFieldType(buildFullName(context), meta);
             ft.setContextMappings(contextMappings);
             ft.setPreservePositionIncrements(preservePositionIncrements);
             ft.setPreserveSep(preserveSeparators);

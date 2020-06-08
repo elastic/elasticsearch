@@ -573,7 +573,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return CONTENT_TYPE;
+        return fieldType().resolution.type();
     }
 
     @Override

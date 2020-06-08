@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -44,10 +45,15 @@ public class FakeStringFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "fake_string";
 
+    public static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+    }
+
     public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
-            super(name, new FieldType());
+            super(name, FIELD_TYPE);
             builder = this;
         }
 
@@ -82,6 +88,8 @@ public class FakeStringFieldMapper extends FieldMapper {
 
         public FakeStringFieldType(String name) {
             super(name, true, true, Collections.emptyMap());
+            setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
+            setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
         }
 
         protected FakeStringFieldType(FakeStringFieldType ref) {
@@ -152,7 +160,6 @@ public class FakeStringFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        doXContentAnalyzers(builder, includeDefaults);
     }
 
 }

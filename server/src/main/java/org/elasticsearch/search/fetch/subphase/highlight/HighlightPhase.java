@@ -109,7 +109,7 @@ public class HighlightPhase implements FetchSubPhase {
                 }
                 HighlighterContext highlighterContext = new HighlighterContext(fieldType.name(),
                     field, fieldType, shardTarget, context, highlight, hitContext, highlightQuery,
-                    context.getMapperService().getLuceneFieldType(fieldName));
+                    context.getMapperService().getLuceneFieldType(fieldType.name()));
 
                 if ((highlighter.canHighlight(highlighterContext.luceneFieldType) == false) && fieldNameContainsWildcards) {
                     // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight

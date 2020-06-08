@@ -906,6 +906,7 @@ public class NumberFieldMapper extends FieldMapper {
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
             super(name, isSearchable, hasDocValues, meta);
             this.type = Objects.requireNonNull(type);
+            this.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);     // allows number fields in significant text aggs - do we need this?
             this.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);    // allows match queries on number fields
         }
 

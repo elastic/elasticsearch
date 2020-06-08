@@ -119,6 +119,10 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         addModifier("index_prefixes", false, (a, b) -> {
             a.indexPrefixes(2, 4);
         });
+        addModifier("index_options", false, (a, b) -> {
+            a.indexOptions(IndexOptions.DOCS_AND_FREQS);
+            b.indexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        });
     }
 
     @Override
@@ -256,6 +260,10 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         String mapping = Strings.toString(mappingBuilder.endObject().endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        String serialized = Strings.toString(mapper);
+        assertThat(serialized, containsString("\"offsets\":{\"type\":\"text\",\"index_options\":\"offsets\"}"));
+        assertThat(serialized, containsString("\"freqs\":{\"type\":\"text\",\"index_options\":\"freqs\"}"));
+        assertThat(serialized, containsString("\"docs\":{\"type\":\"text\",\"index_options\":\"docs\"}"));
 
         XContentBuilder jsonDoc = XContentFactory.jsonBuilder().startObject();
         for (String option : supportedOptions.keySet()) {

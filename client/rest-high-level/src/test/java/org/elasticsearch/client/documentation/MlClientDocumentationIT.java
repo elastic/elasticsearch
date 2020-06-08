@@ -590,7 +590,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <6>
                 .setGroups(Arrays.asList("job-group-1")) // <7>
                 .setResultsRetentionDays(10L) // <8>
-                .setModelPlotConfig(new ModelPlotConfig(true, null)) // <9>
+                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <9>
                 .setModelSnapshotRetentionDays(7L) // <10>
                 .setCustomSettings(customSettings) // <11>
                 .setRenormalizationWindowDays(3L) // <12>
@@ -3090,9 +3090,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("my-analytics-config"); // <1>
             // end::delete-data-frame-analytics-request
 
-            //tag::delete-data-frame-analytics-request-force
+            //tag::delete-data-frame-analytics-request-options
             request.setForce(false); // <1>
-            //end::delete-data-frame-analytics-request-force
+            request.setTimeout(TimeValue.timeValueMinutes(1)); // <2>
+            //end::delete-data-frame-analytics-request-options
 
             // tag::delete-data-frame-analytics-execute
             AcknowledgedResponse response = client.machineLearning().deleteDataFrameAnalytics(request, RequestOptions.DEFAULT);

@@ -49,7 +49,7 @@ using a comma-separated list of model IDs or a wildcard expression.
 
 `<model_id>`::
 (Optional, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
 [[ml-get-inference-query-params]]
@@ -57,7 +57,7 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=model-id]
 
 `allow_no_match`::
 (Optional, boolean) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `decompress_definition`::
 (Optional, boolean)
@@ -66,7 +66,7 @@ Specifies whether the included model definition should be returned as a JSON map
 
 `from`::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=from]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 
 `include_model_definition`::
 (Optional, boolean)
@@ -76,11 +76,11 @@ provided. Otherwise, a bad request is returned.
 
 `size`::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=size]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
 `tags`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=tags]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=tags]
 
 `for_export`::
 (Optional, boolean)

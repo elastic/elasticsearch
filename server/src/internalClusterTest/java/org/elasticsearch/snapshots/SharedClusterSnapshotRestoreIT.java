@@ -3276,7 +3276,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SnapshotInfo snapshotInfo = waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(60));
         assertEquals(1, snapshotInfo.shardFailures().size());
         assertEquals(0, snapshotInfo.shardFailures().get(0).shardId());
-        assertThat(snapshotInfo.shardFailures().get(0).reason(), containsString("IndexShardSnapshotFailedException: Aborted"));
+        assertThat(snapshotInfo.shardFailures().get(0).reason(), is("aborted"));
     }
 
     public void testSnapshotSucceedsAfterSnapshotFailure() throws Exception {

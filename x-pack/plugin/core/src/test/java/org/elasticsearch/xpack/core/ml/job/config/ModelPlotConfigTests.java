@@ -21,6 +21,14 @@ public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotC
         assertThat(modelPlotConfig.annotationsEnabled(), is(true));
     }
 
+    public void testAnnotationEnabledDefaultsToEnabled() {
+        ModelPlotConfig modelPlotConfig = new ModelPlotConfig(false, null, null);
+        assertThat(modelPlotConfig.annotationsEnabled(), is(false));
+
+        modelPlotConfig = new ModelPlotConfig(true, null, null);
+        assertThat(modelPlotConfig.annotationsEnabled(), is(true));
+    }
+
     @Override
     protected ModelPlotConfig createTestInstance() {
         return createRandomized();

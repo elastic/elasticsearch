@@ -6,6 +6,6 @@
 
   - do:
       indices.resolve_index:
-        name: '*'
+        name: '*,my_remote_cluster:*'
 
   - match: {indices.0.name: test_index1_does_not_match}

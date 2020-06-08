@@ -923,7 +923,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      * Tests that we check that settings/mappings/etc are valid even after template composition,
      * when adding/updating a composable index template
      */
-    public void testInvalidComposableCompositeTemplate() throws Exception {
+    public void  testIndexTemplateFailsToOverrideComponentTemplateMappingField() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
@@ -976,7 +976,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      * Tests that we check that settings/mappings/etc are valid even after template composition,
      * when updating a component template
      */
-    public void testInvalidComponentCompositeTemplate() throws Exception {
+    public void testUpdateComponentTemplateFailsIfResolvedIndexTemplatesWouldBeInvalid() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 

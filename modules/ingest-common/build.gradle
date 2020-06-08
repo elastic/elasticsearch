@@ -27,7 +27,6 @@ dependencies {
   compileOnly project(':modules:lang-painless')
   compile project(':libs:elasticsearch-grok')
   compile project(':libs:elasticsearch-dissect')
-  compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
 }
 
 restResources {

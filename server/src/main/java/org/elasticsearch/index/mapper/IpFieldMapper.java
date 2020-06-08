@@ -426,7 +426,7 @@ public class IpFieldMapper extends FieldMapper {
         super.doXContentBody(builder, includeDefaults, params);
 
         if (nullValue != null) {
-            builder.field("null_value", nullValue.getHostAddress());
+            builder.field("null_value", InetAddresses.toAddrString(nullValue));
         }
 
         if (includeDefaults || ignoreMalformed.explicit()) {

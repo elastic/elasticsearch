@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.FilteredIntervalsSource;
 import org.apache.lucene.queries.intervals.IntervalIterator;
@@ -645,13 +643,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (this.analyzer != null) {
                 analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
             }
-            FieldType ft = context.getMapperService().getLuceneFieldType(fieldType.name());
             IntervalsSource source;
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                ft = context.getMapperService().getLuceneFieldType(fieldType.name());
-                checkPositions(fieldType.name(), ft);
+                checkPositions(fieldType);
                 if (this.analyzer == null) {
                     analyzer = fieldType.searchAnalyzer();
                 }
@@ -659,16 +655,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 source = Intervals.fixField(useField, Intervals.wildcard(normalizedTerm));
             }
             else {
-                checkPositions(fieldType.name(), ft);
+                checkPositions(fieldType);
                 BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), pattern);
                 source = Intervals.wildcard(normalizedTerm);
             }
             return source;
         }
 
-        private void checkPositions(String field, FieldType type) {
-            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + field + "] with no positions indexed");
+        private void checkPositions(MappedFieldType type) {
+            if (type.hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }
 
@@ -784,17 +780,16 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             if (this.analyzer != null) {
                 analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
             }
-            FieldType ft = context.getMapperService().getLuceneFieldType(fieldType.name());
             IntervalsSource source;
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
                 assert fieldType != null;
-                checkPositions(fieldType.name(), ft);
+                checkPositions(fieldType);
                 if (this.analyzer == null) {
                     analyzer = fieldType.searchAnalyzer();
                 }
             }
-            checkPositions(fieldType.name(), ft);
+            checkPositions(fieldType);
             BytesRef normalizedTerm = analyzer.normalize(fieldType.name(), term);
             FuzzyQuery fq = new FuzzyQuery(new Term(fieldType.name(), normalizedTerm),
                 fuzziness.asDistance(term), prefixLength, 128, transpositions);
@@ -805,9 +800,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             return source;
         }
 
-        private void checkPositions(String field, FieldType type) {
-            if (type.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                throw new IllegalArgumentException("Cannot create intervals over field [" + field + "] with no positions indexed");
+        private void checkPositions(MappedFieldType type) {
+            if (type.hasPositions() == false) {
+                throw new IllegalArgumentException("Cannot create intervals over field [" + type.name() + "] with no positions indexed");
             }
         }
 

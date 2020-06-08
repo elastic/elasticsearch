@@ -241,6 +241,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         SearchAsYouTypeFieldType(String name, boolean indexed, Map<String, String> meta, boolean hasNorms) {
             super(name, indexed, false, meta);
             this.hasNorms = hasNorms;
+            this.hasPositions = true;
         }
 
         SearchAsYouTypeFieldType(SearchAsYouTypeFieldType other) {

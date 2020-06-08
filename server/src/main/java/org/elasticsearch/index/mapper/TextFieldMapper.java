@@ -417,10 +417,6 @@ public class TextFieldMapper extends FieldMapper {
             return length >= minChars - 1 && length <= maxChars;
         }
 
-        boolean hasPositions() {
-            return hasPositions;
-        }
-
         void doXContent(XContentBuilder builder) throws IOException {
             builder.startObject("index_prefixes");
             builder.field("min_chars", minChars);
@@ -558,7 +554,6 @@ public class TextFieldMapper extends FieldMapper {
         private int fielddataMinSegmentSize;
         private PrefixFieldType prefixFieldType;
         private boolean indexPhrases = false;
-        private final boolean hasPositions;
 
         public TextFieldType(String name, boolean indexed, boolean hasPositions, Map<String, String> meta) {
             super(name, indexed, false, meta);

@@ -181,6 +181,9 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public FlatObjectFieldMapper build(BuilderContext context) {
             MappedFieldType ft = new RootFlatObjectFieldType(buildFullName(context), indexed, hasDocValues, meta, splitQueriesOnWhitespace);
+            if (eagerGlobalOrdinals) {
+                ft.setEagerGlobalOrdinals(true);
+            }
             return new FlatObjectFieldMapper(name, fieldType, ft, ignoreAbove, depthLimit, nullValue, context.indexSettings());
         }
     }
@@ -231,7 +234,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                         boolean splitQueriesOnWhitespace, Map<String, String> meta) {
             super(name, indexed, hasDocValues, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            if (splitQueriesOnWhitespace == false) {
+                setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            } else {
+                setSearchAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
+            }
             this.key = key;
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
@@ -247,9 +254,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         private KeyedFlatObjectFieldType(String name, String key, RootFlatObjectFieldType ref) {
-            super(ref);
-            this.key = key;
-            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
+            this(name, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -630,15 +635,18 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-
+        if (includeDefaults || mappedFieldType.isSearchable() && fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
+        }
         if (includeDefaults || depthLimit != Defaults.DEPTH_LIMIT) {
             builder.field("depth_limit", depthLimit);
         }
-
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
-
+        if (includeDefaults || fieldType().eagerGlobalOrdinals()) {
+            builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
+        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }

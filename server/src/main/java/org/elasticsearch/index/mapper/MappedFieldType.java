@@ -67,6 +67,7 @@ public abstract class MappedFieldType {
     private NamedAnalyzer indexAnalyzer;
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
+    protected boolean hasPositions;
     private SimilarityProvider similarity;
     private boolean eagerGlobalOrdinals;
     private Map<String, String> meta;
@@ -82,6 +83,7 @@ public abstract class MappedFieldType {
         this.similarity = ref.similarity();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
         this.meta = ref.meta;
+        this.hasPositions = ref.hasPositions;
     }
 
     public MappedFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
@@ -147,6 +149,10 @@ public abstract class MappedFieldType {
 
     public void setBoost(float boost) {
         this.boost = boost;
+    }
+
+    public boolean hasPositions() {
+        return hasPositions;
     }
 
     public boolean hasDocValues() {

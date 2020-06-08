@@ -58,7 +58,7 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return Set.of("store");
+        return Set.of("store", "analyzer", "similarity");
     }
 
     @Override

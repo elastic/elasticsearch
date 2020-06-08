@@ -53,7 +53,8 @@ PUT /_index_template/logs_template
 }
 -----------------------------------
 
-Start indexing data to a target matching composable template's wildcard pattern:
+Start indexing data to a target matching the composable template's wildcard
+pattern:
 
 [source,console]
 ----

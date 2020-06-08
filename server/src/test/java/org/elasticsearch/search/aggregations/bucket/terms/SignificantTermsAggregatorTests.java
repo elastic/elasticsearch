@@ -395,11 +395,15 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         testAllDocsWithoutStringField("map");
     }
 
+    /**
+     * Make sure that when the field is mapped but there aren't any values
+     * for it we return a properly shaped "empty" result. In particular, the
+     * {@link InternalMappedSignificantTerms#getSubsetSize()} needs to be set
+     * to the number of matching documents.
+     */
     private void testAllDocsWithoutStringField(String executionHint) throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-                Document d = new Document();
-                d.add(new SortedDocValuesField("f", new BytesRef("f")));
                 writer.addDocument(new Document());
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
@@ -412,10 +416,15 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * Make sure that when the field is mapped but there aren't any values
+     * for it we return a properly shaped "empty" result. In particular, the
+     * {@link InternalMappedSignificantTerms#getSubsetSize()} needs to be set
+     * to the number of matching documents.
+     */
     public void testAllDocsWithoutNumericField() throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
-                Document d = new Document();
                 writer.addDocument(new Document());
                 try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
                     IndexSearcher searcher = newIndexSearcher(reader);
@@ -435,6 +444,11 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         testSomeDocsWithoutStringField("map");
     }
 
+    /**
+     * Make sure that when the field a segment doesn't contain the field we
+     * still include the count of its matching documents
+     * in {@link InternalMappedSignificantTerms#getSubsetSize()}.
+     */
     private void testSomeDocsWithoutStringField(String executionHint) throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -454,6 +468,11 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * Make sure that when the field a segment doesn't contain the field we
+     * still include the count of its matching documents
+     * in {@link InternalMappedSignificantTerms#getSubsetSize()}.
+     */
     public void testSomeDocsWithoutNumericField() throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {

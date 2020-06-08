@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceRes
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
@@ -28,18 +26,22 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.mockito.ArgumentMatcher;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,13 +60,13 @@ public class LocalModelTests extends ESTestCase {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         String modelId = "classification_model";
-        List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
-        TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
+        InferenceDefinition definition = InferenceDefinition.builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
-            .setTrainedModel(buildClassification(false))
+            .setTrainedModel(buildClassificationInference(false))
             .build();
 
-        Model model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
@@ -73,7 +75,7 @@ public class LocalModelTests extends ESTestCase {
             modelStatsService);
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
-            put("field.bar", 0.5);
+            put("field", Collections.singletonMap("bar", 0.5));
             put("categorical", "dog");
         }};
 
@@ -89,9 +91,9 @@ public class LocalModelTests extends ESTestCase {
         assertThat(model.getLatestStatsAndReset().getInferenceCount(), equalTo(1L));
 
         // Test with labels
-        definition = new TrainedModelDefinition.Builder()
+        definition = InferenceDefinition.builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
-            .setTrainedModel(buildClassification(true))
+            .setTrainedModel(buildClassificationInference(true))
             .build();
         model = new LocalModel(modelId,
             "test-node",
@@ -130,9 +132,9 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
-        TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
+        InferenceDefinition definition = InferenceDefinition.builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
-            .setTrainedModel(buildClassification(true))
+            .setTrainedModel(buildClassificationInference(true))
             .build();
 
         Model model = new LocalModel(modelId,
@@ -186,11 +188,11 @@ public class LocalModelTests extends ESTestCase {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
-        TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
+        InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
-            .setTrainedModel(buildRegression())
+            .setTrainedModel(buildRegressionInference())
             .build();
-        Model model = new LocalModel("regression_model",
+        LocalModel model = new LocalModel("regression_model",
             "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
@@ -212,9 +214,9 @@ public class LocalModelTests extends ESTestCase {
         TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
-        TrainedModelDefinition trainedModelDefinition = new TrainedModelDefinition.Builder()
+        InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
-            .setTrainedModel(buildRegression())
+            .setTrainedModel(buildRegressionInference())
             .build();
         Model model = new LocalModel(
             "regression_model",
@@ -242,9 +244,9 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
-        TrainedModelDefinition definition = new TrainedModelDefinition.Builder()
+        InferenceDefinition definition = InferenceDefinition.builder()
             .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
-            .setTrainedModel(buildClassification(false))
+            .setTrainedModel(buildClassificationInference(false))
             .build();
 
         Model model = new LocalModel(modelId,
@@ -277,16 +279,16 @@ public class LocalModelTests extends ESTestCase {
         }), anyBoolean());
     }
 
-    private static <T extends InferenceConfig> SingleValueInferenceResults getSingleValue(Model model,
-                                                                                          Map<String, Object> fields,
-                                                                                          InferenceConfigUpdate config)
+    private static SingleValueInferenceResults getSingleValue(Model model,
+                                                              Map<String, Object> fields,
+                                                              InferenceConfigUpdate config)
         throws Exception {
         return (SingleValueInferenceResults)getInferenceResult(model, fields, config);
     }
 
-    private static <T extends InferenceConfig> InferenceResults getInferenceResult(Model model,
-                                                                                   Map<String, Object> fields,
-                                                                                   InferenceConfigUpdate config) throws Exception {
+    private static InferenceResults getInferenceResult(Model model,
+                                                       Map<String, Object> fields,
+                                                       InferenceConfigUpdate config) throws Exception {
         PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();
         model.infer(fields, config, future);
         return future.get();
@@ -297,6 +299,10 @@ public class LocalModelTests extends ESTestCase {
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
         return oneHotEncoding;
+    }
+
+    public static InferenceModel buildClassificationInference(boolean includeLables) throws IOException {
+        return serializeFromTrainedModel((Ensemble)buildClassification(includeLables));
     }
 
     public static TrainedModel buildClassification(boolean includeLabels) {
@@ -343,6 +349,10 @@ public class LocalModelTests extends ESTestCase {
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
             .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 2))
             .build();
+    }
+
+    public static InferenceModel buildRegressionInference() throws IOException {
+        return serializeFromTrainedModel((Ensemble)buildRegression());
     }
 
     public static TrainedModel buildRegression() {

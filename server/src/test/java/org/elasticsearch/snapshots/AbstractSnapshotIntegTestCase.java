@@ -92,6 +92,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         skipRepoConsistencyCheckReason = reason;
     }
 
+    protected RepositoryData getRepositoryData(String repository) {
+        return getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository));
+    }
+
     protected RepositoryData getRepositoryData(Repository repository) {
         return PlainActionFuture.get(repository::getRepositoryData);
     }
@@ -134,7 +138,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
-    public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
+    public static void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
         MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
@@ -215,7 +219,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+    public static void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
         final boolean blocked = waitUntil(() -> {
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
                 MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);

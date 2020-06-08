@@ -86,6 +86,7 @@ public class TestSearchContext extends SearchContext {
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     ContextIndexSearcher searcher;
+    int from;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
@@ -432,12 +433,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public int from() {
-        return 0;
+        return from;
     }
 
     @Override
     public SearchContext from(int from) {
-        return null;
+        this.from = from;
+        return this;
     }
 
     @Override

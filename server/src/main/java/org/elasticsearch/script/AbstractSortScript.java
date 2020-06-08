@@ -40,13 +40,13 @@ abstract class AbstractSortScript implements ScorerAware {
             new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("sort-script_doc",
+                deprecationLogger.deprecate("sort-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an sort-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
             "_doc", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("sort-script__doc",
+                deprecationLogger.deprecate("sort-script__doc",
                         "Accessing variable [doc] via [params._doc] from within an sort-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;

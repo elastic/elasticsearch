@@ -478,13 +478,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                         builder.addReplica();
                     }
                 } else if (currentNumberOfReplicas > numberOfReplicas) {
-                    int delta = currentNumberOfReplicas - numberOfReplicas;
-                    if (delta <= 0) {
-                        // ignore, can't remove below the current one...
-                    } else {
-                        for (int i = 0; i < delta; i++) {
-                            builder.removeReplica();
-                        }
+                    for (int i = 0; i < (currentNumberOfReplicas - numberOfReplicas); i++) {
+                        builder.removeReplica();
                     }
                 }
                 indicesRouting.put(index, builder.build());

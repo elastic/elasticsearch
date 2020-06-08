@@ -67,10 +67,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
 
         // at random test the old deprecated roles, to be removed in 9.0.0
-        if (randomBoolean()) {
-            setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
-        } else {
+        if (useDeprecatedEndpoints() && randomBoolean()) {
             setupUser(TEST_USER_NAME, Arrays.asList("data_frame_transforms_admin", DATA_ACCESS_ROLE));
+        } else {
+            setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
         }
     }
 
@@ -1083,12 +1083,15 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             "hits.hits._source.tile",
             searchResult
         )).get(0);
-        assertThat(actualObj.get("type"), equalTo("BBOX"));
-        List<List<Double>> coordinates = (List<List<Double>>) actualObj.get("coordinates");
+        assertThat(actualObj.get("type"), equalTo("polygon"));
+        List<List<Double>> coordinates = ((List<List<List<Double>>>) actualObj.get("coordinates")).get(0);
         assertThat(coordinates, is(not(nullValue())));
-        assertThat(coordinates, hasSize(2));
+        assertThat(coordinates, hasSize(5));
         assertThat(coordinates.get(0), hasSize(2));
         assertThat(coordinates.get(1), hasSize(2));
+        assertThat(coordinates.get(2), hasSize(2));
+        assertThat(coordinates.get(3), hasSize(2));
+        assertThat(coordinates.get(4), hasSize(2));
     }
 
     public void testPivotWithWeightedAvgAgg() throws Exception {

@@ -1,8 +1,8 @@
 ---
 "Put index template":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
       features: allowed_warnings
 
   - do:
@@ -34,7 +34,7 @@
         index: logs-foobar
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: logs-foobar-000001 }
+  - match: { hits.hits.0._index: .ds-logs-foobar-000001 }
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
@@ -43,7 +43,7 @@
   - match: { 0.name: logs-foobar }
   - match: { 0.timestamp_field: 'timestamp' }
   - length: { 0.indices: 1 }
-  - match: { 0.indices.0.index_name: 'logs-foobar-000001' }
+  - match: { 0.indices.0.index_name: '.ds-logs-foobar-000001' }
 
   - do:
       indices.delete_data_stream:

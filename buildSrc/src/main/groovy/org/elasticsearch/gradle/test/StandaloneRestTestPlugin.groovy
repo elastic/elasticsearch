@@ -62,10 +62,9 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(TestClustersPlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
-        BuildPlugin.configureRepositories(project)
+        ElasticsearchJavaPlugin.configureRepositories(project)
         ElasticsearchJavaPlugin.configureTestTasks(project)
         ElasticsearchJavaPlugin.configureInputNormalization(project)
-        BuildPlugin.configureFips140(project)
         ElasticsearchJavaPlugin.configureCompile(project)
 
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
@@ -96,6 +95,5 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         idea.module.scopes.put('TEST', [plus: [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]] as Map<String, Collection<Configuration>>)
 
         PrecommitTasks.create(project, false)
-        project.tasks.named('check').configure { it.dependsOn(project.tasks.named('precommit')) }
     }
 }

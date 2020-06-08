@@ -152,6 +152,8 @@ public abstract class GradleUtils {
             task.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             task.setClasspath(testSourceSet.getRuntimeClasspath());
+            // make the new test run after unit tests
+            task.mustRunAfter(project.getTasks().named("test"));
         });
 
         Configuration testCompileConfig = project.getConfigurations().getByName(testSourceSet.getCompileClasspathConfigurationName());

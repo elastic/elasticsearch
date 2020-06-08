@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -172,12 +174,17 @@ public class GeoTileGroupSource extends SingleGroupSource {
         assert key instanceof String;
         Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
         final Map<String, Object> geoShape = new HashMap<>();
-        geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), "BBOX");
+        geoShape.put(ShapeParser.FIELD_TYPE.getPreferredName(), PolygonBuilder.TYPE.shapeName());
         geoShape.put(
             ShapeParser.FIELD_COORDINATES.getPreferredName(),
-            Arrays.asList(
-                new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },
-                new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() }
+            Collections.singletonList(
+                Arrays.asList(
+                    new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },
+                    new Double[] { rectangle.getMinLon(), rectangle.getMinLat() },
+                    new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },
+                    new Double[] { rectangle.getMaxLon(), rectangle.getMaxLat() },
+                    new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() }
+                )
             )
         );
         return geoShape;

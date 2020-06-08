@@ -52,10 +52,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -962,13 +964,14 @@ public class MetadataTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
             containsString("index, alias, and data stream names need to be unique, but the following duplicates were found [" +
-                dataStreamName + " (alias of [" + DataStream.getBackingIndexName(dataStreamName, 1) + "]) conflicts with data stream]"));
+                dataStreamName + " (alias of [" + DataStream.getDefaultBackingIndexName(dataStreamName, 1) +
+                "]) conflicts with data stream]"));
     }
 
     public void testBuilderRejectsDataStreamWithConflictingBackingIndices() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata validIdx = createFirstBackingIndex(dataStreamName).build();
-        final String conflictingIndex = DataStream.getBackingIndexName(dataStreamName, 2);
+        final String conflictingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata invalidIdx = createBackingIndex(dataStreamName, 2).build();
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
@@ -982,7 +985,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testBuilderRejectsDataStreamWithConflictingBackingAlias() {
         final String dataStreamName = "my-data-stream";
-        final String conflictingName = DataStream.getBackingIndexName(dataStreamName, 2);
+        final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName)
             .putAlias(new AliasMetadata.Builder(conflictingName))
             .build();
@@ -1003,7 +1006,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder();
         for (int k = 1; k <= numBackingIndices; k++) {
             lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, lastBackingIndexNum))
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, lastBackingIndexNum))
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -1045,7 +1048,8 @@ public class MetadataTests extends ESTestCase {
             assertThat(value.isHidden(), is(false));
             assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(value.getIndices().size(), equalTo(ds.getIndices().size()));
-            assertThat(value.getWriteIndex().getIndex().getName(), equalTo(name + "-00000" + ds.getIndices().size()));
+            assertThat(value.getWriteIndex().getIndex().getName(),
+                equalTo(DataStream.getDefaultBackingIndexName(name, ds.getGeneration())));
         }
     }
 
@@ -1078,6 +1082,138 @@ public class MetadataTests extends ESTestCase {
         assertTrue(Metadata.isGlobalStateEquals(orig, fromStreamMeta));
     }
 
+    public void testValidateDataStreamsNoConflicts() {
+        Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
+        // don't expect any exception when validating a system without indices that would conflict with future backing indices
+        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+    }
+
+    public void testValidateDataStreamsThrowsExceptionOnConflict() {
+        String dataStreamName = "foo-datastream";
+        int generations = 10;
+        List<IndexMetadata> backingIndices = new ArrayList<>(generations);
+        for (int i = 1; i <= generations; i++) {
+            IndexMetadata idx = createBackingIndex(dataStreamName, i).build();
+            backingIndices.add(idx);
+        }
+        DataStream dataStream = new DataStream(
+            dataStreamName,
+            "ts",
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
+            backingIndices.size()
+        );
+
+        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
+        // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method and would fail
+        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+        for (IndexMetadata indexMeta : backingIndices) {
+            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+        }
+
+        // add the offending index to the indices lookup
+        IndexMetadata standaloneIndexConflictingWithBackingIndices = createBackingIndex(dataStreamName, 2 * generations).build();
+        Index index = standaloneIndexConflictingWithBackingIndices.getIndex();
+        indicesLookup.put(index.getName(), new IndexAbstraction.Index(standaloneIndexConflictingWithBackingIndices, null));
+
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
+
+        IllegalStateException illegalStateException =
+            expectThrows(IllegalStateException.class, () -> validateDataStreams(indicesLookup, dataStreamMetadata));
+        assertThat(illegalStateException.getMessage(),
+            is("data stream [foo-datastream] could create backing indices that conflict with 1 existing index(s) or alias(s) " +
+                "including '" + index.getName() + "'"));
+    }
+
+    public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {
+        String dataStreamName = "foo-datastream";
+        Metadata metadata = Metadata.builder(createIndices(10, 10, dataStreamName).metadata)
+            .put(
+                new IndexMetadata.Builder(dataStreamName + "-index-without-counter")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            )
+            .put(
+                new IndexMetadata.Builder(dataStreamName + randomAlphaOfLength(10))
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+
+            )
+            .put(
+                new IndexMetadata.Builder(randomAlphaOfLength(10))
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+
+            )
+            .build();
+        // don't expect any exception when validating against non-backing indinces that don't conform to the backing indices naming
+        // convention
+        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
+    }
+
+    public void testValidateDataStreamsAllowsPrefixedBackingIndices() {
+        String dataStreamName = "foo-datastream";
+        int generations = 10;
+        List<IndexMetadata> backingIndices = new ArrayList<>(generations);
+        for (int i = 1; i <= generations; i++) {
+            IndexMetadata idx;
+            if (i % 2 == 0 && i < generations) {
+                idx = IndexMetadata.builder("shrink-" + DataStream.getDefaultBackingIndexName(dataStreamName, i))
+                    .settings(ESTestCase.settings(Version.CURRENT).put("index.hidden", true))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .build();
+            } else {
+                idx = createBackingIndex(dataStreamName, i).build();
+            }
+            backingIndices.add(idx);
+        }
+        DataStream dataStream = new DataStream(
+            dataStreamName,
+            "ts",
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
+            backingIndices.size()
+        );
+
+        IndexAbstraction.DataStream dataStreamAbstraction = new IndexAbstraction.DataStream(dataStream, backingIndices);
+        // manually building the indices lookup as going through Metadata.Builder#build would trigger the validate method already
+        SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
+        for (IndexMetadata indexMeta : backingIndices) {
+            indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+        }
+
+        for (int i = 1; i <= generations; i++) {
+            // for the indices that we added in the data stream with a "shrink-" prefix, add the non-prefixed indices to the lookup
+            if (i % 2 == 0 && i < generations) {
+                IndexMetadata indexMeta = createBackingIndex(dataStreamName, i).build();
+                indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
+            }
+        }
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
+
+        // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
+        // data stream backing indices naming pattern, indices are already in the system
+        validateDataStreams(indicesLookup, dataStreamMetadata);
+    }
+
+
+    public void testValidateDataStreamsForNullDataStreamMetadata() {
+        Metadata metadata = Metadata.builder().put(
+            IndexMetadata.builder("foo-index")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+        ).build();
+
+        try {
+            validateDataStreams(metadata.getIndicesLookup(), null);
+        } catch (Exception e) {
+            fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
+        }
+    }
+
     public static Metadata randomMetadata() {
         Metadata.Builder md = Metadata.builder()
             .put(buildIndexMetadata("index", "alias", randomBoolean() ? null : randomBoolean()).build(), randomBoolean())
@@ -1098,7 +1234,7 @@ public class MetadataTests extends ESTestCase {
             .indexGraveyard(IndexGraveyardTests.createRandom())
             .version(randomNonNegativeLong())
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
-            .put("index_template_v2_" + randomAlphaOfLength(3), IndexTemplateV2Tests.randomInstance());
+            .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
         DataStream randomDataStream = DataStreamTests.randomInstance();
         for (Index index : randomDataStream.getIndices()) {
@@ -1115,7 +1251,7 @@ public class MetadataTests extends ESTestCase {
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
         for (int k = 1; k <= numIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName("index", lastIndexNum))
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -1130,7 +1266,7 @@ public class MetadataTests extends ESTestCase {
         int lastBackingIndexNum = 0;
         for (int k = 1; k <= numBackingIndices; k++) {
             lastBackingIndexNum = randomIntBetween(lastBackingIndexNum + 1, lastBackingIndexNum + 50);
-            IndexMetadata im = IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, lastBackingIndexNum))
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, lastBackingIndexNum))
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(1)

@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -193,9 +194,18 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX
         transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
-            final TransformConfig config = configAndVersion.v1();
+            final TransformConfig oldConfig = configAndVersion.v1();
+            final TransformConfig config = TransformConfig.rewriteForUpdate(oldConfig);
+
             // If it is a noop don't bother even writing the doc, save the cycles, just return here.
-            if (update.isNoop(config)) {
+            // skip when:
+            // - config is in the latest index
+            // - rewrite did not change the config
+            // - update is not making any changes
+            if (config.getVersion() != null
+                && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)
+                && config.equals(oldConfig)
+                && update.isNoop(config)) {
                 listener.onResponse(new Response(config));
                 return;
             }
@@ -213,8 +223,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 if (transformTask != null
                     && transformTask.getState() instanceof TransformState
                     && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
-                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)
-                ) {
+                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
                     request.setNodes(transformTask.getExecutorNode());
                     updateListener = ActionListener.wrap(updateResponse -> {
                         request.setConfig(updateResponse.getConfig());

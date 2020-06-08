@@ -10,6 +10,15 @@ that here the interval can be specified using date/time expressions. Time-based
 data requires special support because time-based intervals are not always a
 fixed length.
 
+Like the histogram, values are rounded *down* into the closest bucket. For
+example, if the interval is a calendar day, `2020-01-03T07:00:01Z` is rounded to
+`2020-01-03T00:00:00Z`. Values are rounded as follows:
+
+[source,java]
+----
+bucket_key = Math.floor(value / interval) * interval)
+----
+
 [[calendar_and_fixed_intervals]]
 ==== Calendar and fixed intervals
 
@@ -47,60 +56,60 @@ will be removed in the future.
 ===== Calendar intervals
 
 Calendar-aware intervals are configured with the `calendar_interval` parameter.
-Calendar intervals can only be specified in "singular" quantities of the unit
-(`1d`, `1M`, etc). Multiples, such as `2d`, are not supported and will throw an exception.
+You can specify calendar intervals using the unit name, such as `month`, or as a
+single unit quantity, such as `1M`. For example, `day` and `1d` are equivalent.
+Multiple quantities, such as `2d`, are not supported.
 
-The accepted units for calendar intervals are:
+The accepted calendar intervals are:
 
-minute (`m`, `1m`) ::
+`minute`, `1m` ::
+
 All minutes begin at 00 seconds.
-
 One minute is the interval between 00 seconds of the first minute and 00
-seconds of the following minute in the specified timezone, compensating for any
+seconds of the following minute in the specified time zone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the
 hour is the same at the start and end.
 
-hour (`h`, `1h`) ::
-All hours begin at 00 minutes and 00 seconds.
+`hour`, `1h` ::
 
+All hours begin at 00 minutes and 00 seconds.
 One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
-minutes of the following hour in the specified timezone, compensating for any
+minutes of the following hour in the specified time zone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the hour
 is the same at the start and end.
 
+`day`, `1d` ::
 
-day (`d`, `1d`) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
-
 One day (1d) is the interval between the start of the day and the start of
-of the following day in the specified timezone, compensating for any intervening
+of the following day in the specified time zone, compensating for any intervening
 time changes.
 
-week (`w`, `1w`) ::
+`week`, `1w` ::
 
 One week is the interval between the start day_of_week:hour:minute:second
 and the same day of the week and time of the following week in the specified
-timezone.
+time zone.
 
-month (`M`, `1M`) ::
+`month`, `1M` ::
 
 One month is the interval between the start day of the month and time of
 day and the same day of the month and time of the following month in the specified
-timezone, so that the day of the month and time of day are the same at the start
+time zone, so that the day of the month and time of day are the same at the start
 and end.
 
-quarter (`q`, `1q`) ::
+`quarter`, `1q` ::
 
-One quarter (1q) is the interval between the start day of the month and
+One quarter is the interval between the start day of the month and
 time of day and the same day of the month and time of day three months later,
 so that the day of the month and time of day are the same at the start and end. +
 
-year (`y`, `1y`) ::
+`year`, `1y` ::
 
-One year (1y) is the interval between the start day of the month and time of
+One year is the interval between the start day of the month and time of
 day and the same day of the month and time of day the following year in the
-specified timezone, so that the date and time are the same at the start and end. +
+specified time zone, so that the date and time are the same at the start and end. +
 
 [[calendar_interval_examples]]
 ===== Calendar interval examples
@@ -167,7 +176,7 @@ Fixed intervals are configured with the `fixed_interval` parameter.
 
 In contrast to calendar-aware intervals, fixed intervals are a fixed number of SI
 units and never deviate, regardless of where they fall on the calendar. One second
-is always composed of 1000ms. This allows fixed intervals to be specified in
+is always composed of `1000ms`. This allows fixed intervals to be specified in
 any multiple of the supported units.
 
 However, it means fixed intervals cannot express other units such as months,
@@ -176,23 +185,24 @@ a calendar interval like month or quarter will throw an exception.
 
 The accepted units for fixed intervals are:
 
-milliseconds (ms) ::
+milliseconds (`ms`) ::
+A single millisecond. This is a very, very small interval.
 
-seconds (s) ::
-Defined as 1000 milliseconds each
+seconds (`s`) ::
+Defined as 1000 milliseconds each.
 
-minutes (m) ::
+minutes (`m`) ::
+Defined as 60 seconds each (60,000 milliseconds).
 All minutes begin at 00 seconds.
-Defined as 60 seconds each (60,000 milliseconds)
 
-hours (h) ::
+hours (`h`) ::
+Defined as 60 minutes each (3,600,000 milliseconds).
 All hours begin at 00 minutes and 00 seconds.
-Defined as 60 minutes each (3,600,000 milliseconds)
 
-days (d) ::
+days (`d`) ::
+Defined as 24 hours (86,400,000 milliseconds).
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
-Defined as 24 hours (86,400,000 milliseconds)
 
 [[fixed_interval_examples]]
 ===== Fixed interval examples
@@ -262,7 +272,7 @@ Widely distributed applications must also consider vagaries such as countries th
 start and stop daylight savings time at 12:01 A.M., so end up with one minute of 
 Sunday followed by an additional 59 minutes of Saturday once a year, and countries
 that decide to move across the international date line. Situations like
-that can make irregular timezone offsets seem easy. 
+that can make irregular time zone offsets seem easy. 
 
 As always, rigorous testing, especially around time-change events, will ensure
 that your time interval specification is
@@ -339,15 +349,30 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-===== Timezone
+===== Time zone
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+{es} stores date-times in Coordinated Universal Time (UTC). By default, all bucketing and
 rounding is also done in UTC. Use the `time_zone` parameter to indicate
-that bucketing should use a different timezone.
+that bucketing should use a different time zone.
 
-You can specify timezones as either an ISO 8601 UTC offset (e.g. `+01:00` or
-`-08:00`)  or as a timezone ID as specified in the IANA timezone database,
-such as`America/Los_Angeles`.
+For example, if the interval is a calendar day and the time zone is
+`America/New_York` then `2020-01-03T01:00:01Z` is :
+# Converted to `2020-01-02T18:00:01`
+# Rounded down to `2020-01-02T00:00:00`
+# Then converted back to UTC to produce `2020-01-02T05:00:00:00Z`
+# Finally, when the bucket is turned into a string key it is printed in
+  `America/New_York` so it'll display as `"2020-01-02T00:00:00"`.
+
+It looks like:
+
+[source,java]
+----
+bucket_key = localToUtc(Math.floor(utcToLocal(value) / interval) * interval))
+----
+
+You can specify time zones as an ISO 8601 UTC offset (e.g. `+01:00` or
+`-08:00`) or as an IANA time zone ID,
+such as `America/Los_Angeles`.
 
 Consider the following example:
 
@@ -376,7 +401,7 @@ GET my_index/_search?size=0
 }
 ---------------------------------
 
-If you don't specify a timezone, UTC is used. This would result in both of these
+If you don't specify a time zone, UTC is used. This would result in both of these
 documents being placed into the same day bucket, which starts at midnight UTC
 on 1 October 2015:
 
@@ -399,7 +424,7 @@ on 1 October 2015:
 ---------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-If you specify a `time_zone` of `-01:00`, midnight in that timezone is one hour
+If you specify a `time_zone` of `-01:00`, midnight in that time zone is one hour
 before midnight UTC:
 
 [source,console]
@@ -447,17 +472,17 @@ second document falls into the bucket for 1 October 2015:
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 <1> The `key_as_string` value represents midnight on each day
-    in the specified timezone.
+    in the specified time zone.
 
-WARNING: When using time zones that follow DST (daylight savings time) changes,
-buckets close to the moment when those changes happen can have slightly different
-sizes than you would expect from the used `interval`.
+WARNING: Many time zones shift their clocks for daylight savings time. Buckets
+close to the moment when those changes happen can have slightly different sizes
+than you would expect from the `calendar_interval` or `fixed_interval`.
 For example, consider a DST start in the `CET` time zone: on 27 March 2016 at 2am,
-clocks were turned forward 1 hour to 3am local time. If you use `day` as `interval`,
-the bucket covering that day will only hold data for 23 hours instead of the usual
-24 hours for other buckets. The same is true for shorter intervals, like 12h,
-where you'll have only a 11h bucket on the morning of 27 March when the DST shift
-happens.
+clocks were turned forward 1 hour to 3am local time. If you use `day` as the
+`calendar_interval`, the bucket covering that day will only hold data for 23
+hours instead of the usual 24 hours for other buckets. The same is true for
+shorter intervals, like a `fixed_interval` of `12h`, where you'll have only a 11h
+bucket on the morning of 27 March when the DST shift happens.
 
 [[search-aggregations-bucket-datehistogram-offset]]
 ===== Offset

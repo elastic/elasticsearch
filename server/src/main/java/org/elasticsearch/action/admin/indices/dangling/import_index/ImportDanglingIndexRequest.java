@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.dangling.import_index;
 
-import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -32,7 +33,7 @@ import java.util.Objects;
  * by its UUID. The {@link #acceptDataLoss} flag must also be
  * explicitly set to true, or later validation will fail.
  */
-public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingIndexRequest> {
+public class ImportDanglingIndexRequest extends AcknowledgedRequest<ImportDanglingIndexRequest> {
     private final String indexUUID;
     private final boolean acceptDataLoss;
 
@@ -42,8 +43,13 @@ public class ImportDanglingIndexRequest extends BaseNodesRequest<ImportDanglingI
         this.acceptDataLoss = in.readBoolean();
     }
 
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
+
     public ImportDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
-        super(new String[0]);
+        super();
         this.indexUUID = Objects.requireNonNull(indexUUID, "indexUUID cannot be null");
         this.acceptDataLoss = acceptDataLoss;
     }

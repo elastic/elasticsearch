@@ -122,6 +122,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         importRequest.addParameter("accept_data_loss", "true");
         // Ensure this parameter is accepted
         importRequest.addParameter("timeout", "20s");
+        importRequest.addParameter("master_timeout", "20s");
         final Response importResponse = restClient.performRequest(importRequest);
         assertThat(importResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
 

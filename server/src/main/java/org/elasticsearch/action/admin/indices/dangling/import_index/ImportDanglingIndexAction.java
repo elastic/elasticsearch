@@ -20,16 +20,17 @@
 package org.elasticsearch.action.admin.indices.dangling.import_index;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 /**
  * Represents a request to import a particular dangling index.
  */
-public class ImportDanglingIndexAction extends ActionType<ImportDanglingIndexResponse> {
+public class ImportDanglingIndexAction extends ActionType<AcknowledgedResponse> {
 
     public static final ImportDanglingIndexAction INSTANCE = new ImportDanglingIndexAction();
     public static final String NAME = "cluster:admin/indices/dangling/import";
 
     private ImportDanglingIndexAction() {
-        super(NAME, ImportDanglingIndexResponse::new);
+        super(NAME, AcknowledgedResponse::new);
     }
 }

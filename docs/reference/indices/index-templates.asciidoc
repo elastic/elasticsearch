@@ -66,9 +66,6 @@ PUT _index_template/template_1
       "number_of_shards": 1
     },
     "mappings": {
-      "_source": {
-        "enabled": false
-      },
       "properties": {
         "host_name": {
           "type": "keyword"

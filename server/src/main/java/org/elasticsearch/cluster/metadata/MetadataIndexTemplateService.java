@@ -965,61 +965,60 @@ public class MetadataIndexTemplateService {
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
             .build();
 
-        Index createdIndex = null;
         final String temporaryIndexName = "validate-template-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
-        try {
-            Settings resolvedSettings = resolveSettings(stateWithTemplate.metadata(), templateName);
+        Settings resolvedSettings = resolveSettings(stateWithTemplate.metadata(), templateName);
 
-            // use the provided values, otherwise just pick valid dummy values
-            int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(resolvedSettings);
-            int dummyShards = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS,
-                dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
-            int shardReplicas = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        // use the provided values, otherwise just pick valid dummy values
+        int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(resolvedSettings);
+        int dummyShards = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
+        int shardReplicas = resolvedSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
 
 
-            //create index service for parsing and validating "mappings"
-            Settings dummySettings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(resolvedSettings)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
-                .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .build();
+        // Create the final aggregate settings, which will be used to create the temporary index metadata to validate everything
+        Settings finalResolvedSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(resolvedSettings)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
+            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .build();
 
-            // Validate index metadata (settings)
-            final ClusterState stateWithIndex = ClusterState.builder(stateWithTemplate)
-                .metadata(Metadata.builder(stateWithTemplate.metadata())
-                    .put(IndexMetadata.builder(temporaryIndexName).settings(dummySettings))
-                    .build())
-                .build();
-            final IndexMetadata tmpIndexMetadata = stateWithIndex.metadata().index(temporaryIndexName);
-            IndexService dummyIndexService = indicesService.createIndex(tmpIndexMetadata, Collections.emptyList(), false);
-            createdIndex = dummyIndexService.index();
+        // Validate index metadata (settings)
+        final ClusterState stateWithIndex = ClusterState.builder(stateWithTemplate)
+            .metadata(Metadata.builder(stateWithTemplate.metadata())
+                .put(IndexMetadata.builder(temporaryIndexName).settings(finalResolvedSettings))
+                .build())
+            .build();
+        final IndexMetadata tmpIndexMetadata = stateWithIndex.metadata().index(temporaryIndexName);
+        indicesService.withTempIndexService(tmpIndexMetadata,
+            tempIndexService -> {
+                // Validate aliases
+                MetadataCreateIndexService.resolveAndValidateAliases(temporaryIndexName, Collections.emptySet(),
+                    MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName), stateWithIndex.metadata(),
+                    new AliasValidator(),
+                    // the context is only used for validation so it's fine to pass fake values for the
+                    // shard id and the current timestamp
+                    xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
 
-            // Validate aliases
-            MetadataCreateIndexService.resolveAndValidateAliases(temporaryIndexName, Collections.emptySet(),
-                MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName), stateWithIndex.metadata(),
-                new AliasValidator(),
-                // the context is only used for validation so it's fine to pass fake values for the
-                // shard id and the current timestamp
-                xContentRegistry, dummyIndexService.newQueryShardContext(0, null, () -> 0L, null));
+                // Parse mappings to ensure they are valid after being composed
+                List<CompressedXContent> mappings = resolveMappings(stateWithIndex, templateName);
+                final Map<String, Object> finalMappings;
+                try {
+                    finalMappings = MetadataCreateIndexService.parseV2Mappings("{}", mappings, xContentRegistry);
 
-            // Parse mappings to ensure they are valid after being composed
-            List<CompressedXContent> mappings = resolveMappings(stateWithIndex, templateName);
-            Map<String, Object> finalMappings = MetadataCreateIndexService.parseV2Mappings("{}", mappings, xContentRegistry);
-            MapperService dummyMapperService = dummyIndexService.mapperService();
-            if (finalMappings.isEmpty() == false) {
-                assert finalMappings.size() == 1 : finalMappings;
-                // TODO: Eventually change this to:
-                // dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-                dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MergeReason.MAPPING_UPDATE);
-            }
-
-        } finally {
-            if (createdIndex != null) {
-                indicesService.removeIndex(createdIndex, NO_LONGER_ASSIGNED, "created for validating template addition");
-            }
-        }
+                    MapperService dummyMapperService = tempIndexService.mapperService();
+                    if (finalMappings.isEmpty() == false) {
+                        assert finalMappings.size() == 1 : finalMappings;
+                        // TODO: Eventually change this to:
+                        // dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+                        dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MergeReason.MAPPING_UPDATE);
+                    }
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
+                }
+                return null;
+            });
     }
 
     private static void validateTemplate(Settings validateSettings, String mappings,

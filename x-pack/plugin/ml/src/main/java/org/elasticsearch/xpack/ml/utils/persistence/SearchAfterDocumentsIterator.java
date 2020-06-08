@@ -6,41 +6,41 @@
 
 package org.elasticsearch.xpack.ml.utils.persistence;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
 /**
+ * An iterator useful to fetch a large number of documents of type T
+ * and iterate through them in batches of 10,000.
  *
+ * In terms of functionality this is very similar to {@link BatchedDocumentsIterator}
+ * the difference being that this uses search after rather than scroll.
+ *
+ * Search after has the advantage that the scroll context does not have to be kept
+ * alive so if processing each batch takes a long time search after should be
+ * preferred to scroll.
  */
-public abstract class SearchAfterBatchedDocumentsIterator<T> {
+public abstract class SearchAfterDocumentsIterator<T> {
 
-    private static final Logger logger = LogManager.getLogger(SearchAfterBatchedDocumentsIterator.class);
-
-    private static final int BATCH_SIZE = 10000;
+    private static final int BATCH_SIZE = 10_000;
 
     private final OriginSettingClient client;
     private final String index;
     private volatile long count;
     private volatile long totalHits;
 
-    protected SearchAfterBatchedDocumentsIterator(OriginSettingClient client, String index) {
+    protected SearchAfterDocumentsIterator(OriginSettingClient client, String index) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
         this.totalHits = -1;
@@ -77,25 +77,33 @@ public abstract class SearchAfterBatchedDocumentsIterator<T> {
         if (totalHits == -1) {
             searchResponse = initSearch();
         } else {
-            searchResponse = client.searchScroll(searchScrollRequest).actionGet();
+            searchResponse = doSearch(searchAfterFields());
         }
         return mapHits(searchResponse);
     }
 
     private SearchResponse initSearch() {
+        SearchResponse searchResponse = doSearch(null);
+        totalHits = searchResponse.getHits().getTotalHits().value;
+        return searchResponse;
+    }
+
+    private SearchResponse doSearch(Object [] searchAfterValues) {
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        searchRequest.source(new SearchSourceBuilder()
+        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
             .size(BATCH_SIZE)
             .query(getQuery())
             .fetchSource(shouldFetchSource())
             .trackTotalHits(true)
-            .searchAfter()
             .sort(sortField()));
 
-        SearchResponse searchResponse = client.search(searchRequest).actionGet();
-        totalHits = searchResponse.getHits().getTotalHits().value;
-        return searchResponse;
+        if (searchAfterValues != null) {
+            sourceBuilder.searchAfter(searchAfterValues);
+        }
+
+        searchRequest.source(sourceBuilder);
+        return client.search(searchRequest).actionGet();
     }
 
     private Deque<T> mapHits(SearchResponse searchResponse) {
@@ -109,6 +117,10 @@ public abstract class SearchAfterBatchedDocumentsIterator<T> {
             }
         }
         count += hits.length;
+
+        if (hits.length > 0) {
+            extractSearchAfterFields(hits[hits.length - 1]);
+        }
 
         return results;
     }
@@ -147,4 +159,11 @@ public abstract class SearchAfterBatchedDocumentsIterator<T> {
       * @return The search after fields
      */
     protected abstract Object[] searchAfterFields();
+
+    /**
+     * Extract the fields used in search after from the search hit.
+     * The values are stashed and later returned by {@link #searchAfterFields()}
+     * @param lastSearchHit The last search hit in the previous search response
+     */
+    protected abstract void extractSearchAfterFields(SearchHit lastSearchHit);
 }

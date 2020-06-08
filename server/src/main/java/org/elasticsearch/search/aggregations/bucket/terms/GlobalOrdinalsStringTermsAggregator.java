@@ -545,7 +545,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (valueCount == 0) { // no context in this reader
                 InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
                 for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                    results[ordIdx] = buildEmptyResult();
+                    results[ordIdx] = buildNoValuesResult(owningBucketOrds[ordIdx]);
                 }
                 return results;
             }
@@ -657,6 +657,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * shard.
          */
         abstract R buildEmptyResult();
+
+        /**
+         * Build an "empty" result for a particular bucket ordinal. Called when
+         * there aren't any values for the field on this shard.
+         */
+        abstract R buildNoValuesResult(long owningBucketOrdinal);
     }
     interface BucketUpdater<TB extends InternalMultiBucketAggregation.InternalBucket> {
         void updateBucket(TB spare, long globalOrd, long bucketOrd, long docCount) throws IOException;
@@ -728,6 +734,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         StringTerms buildEmptyResult() {
             return buildEmptyTermsAggregation();
+        }
+
+        @Override
+        StringTerms buildNoValuesResult(long owningBucketOrdinal) {
+            return buildEmptyResult();
         }
 
         @Override
@@ -836,7 +847,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(subsetSize, significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(0, significanceHeuristic);
+        }
+
+        @Override
+        SignificantStringTerms buildNoValuesResult(long owningBucketOrdinal) {
+            return buildEmptySignificantTermsAggregation(subsetSizes.get(owningBucketOrdinal), significanceHeuristic);
         }
 
         @Override

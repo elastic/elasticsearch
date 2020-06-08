@@ -468,7 +468,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(subsetSize, significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(0, significanceHeuristic);
         }
 
         @Override

@@ -990,7 +990,7 @@ end::model-plot-config[]
 
 tag::model-plot-config-annotations-enabled[]
 If true, enables calculation and storage of the model change annotations
-for each entity that is being analyzed. By default, this is not enabled.
+for each entity that is being analyzed. Defaults to `enabled`.
 end::model-plot-config-annotations-enabled[]
 
 tag::model-plot-config-enabled[]

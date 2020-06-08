@@ -1047,7 +1047,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
         assertNotNull(state.metadata().componentTemplates().get("foo"));
-        assertThat(state.metadata().componentTemplates().get("foo"), equalTo(componentTemplate));
 
         assertThat(metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate), equalTo(state));
     }
@@ -1059,7 +1058,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
 
         assertNotNull(state.metadata().templatesV2().get("foo"));
-        assertTemplatesEqual(state.metadata().templatesV2().get("foo"), template);
 
         assertThat(metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template), equalTo(state));
     }

@@ -41,11 +41,14 @@ public class FieldValueRetriever {
     private final List<FieldContext> fieldContexts;
 
     public static FieldValueRetriever create(MapperService mapperService,
-                                             Collection<String> fieldPatterns) {
+                                             Collection<FieldAndFormat> fieldAndFormats) {
         DocumentFieldMappers fieldMappers = mapperService.documentMapper().mappers();
         List<FieldContext> fields = new ArrayList<>();
 
-        for (String fieldPattern : fieldPatterns) {
+        for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
+            String fieldPattern = fieldAndFormat.field;
+            String format = fieldAndFormat.format;
+
             Collection<String> concreteFields = mapperService.simpleMatchToFullName(fieldPattern);
             for (String field : concreteFields) {
                 if (fieldMappers.getMapper(field) != null) {

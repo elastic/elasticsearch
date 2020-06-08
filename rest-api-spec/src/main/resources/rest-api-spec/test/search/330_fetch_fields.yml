@@ -46,6 +46,41 @@ setup:
   - match: { hits.hits.0.fields.integer_range.0.lte: 42 }
 
 ---
+"Test date formatting":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: date
+              format: "yyyy/MM/dd"
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+
+  - match: { hits.hits.0.fields.date.0: "1990/12/29" }
+
+---
 "Test disable source":
   - do:
       indices.create:

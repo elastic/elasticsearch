@@ -172,7 +172,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<FieldAndFormat> docValueFields;
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
-    private List<String> fetchFields;
+    private List<FieldAndFormat> fetchFields;
 
     private AggregatorFactories.Builder aggregations;
 
@@ -249,7 +249,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         trackTotalHitsUpTo = in.readOptionalInt();
 
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            fetchFields = in.readOptionalStringList();
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
         }
     }
 
@@ -307,7 +309,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalInt(trackTotalHitsUpTo);
 
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalStringCollection(fetchFields);
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
         }
     }
 
@@ -840,7 +845,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Gets the fields to load and return as part of the search request.
      */
-    public List<String> fetchFields() {
+    public List<FieldAndFormat> fetchFields() {
         return fetchFields;
     }
 
@@ -848,10 +853,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a field to load and return as part of the search request.
      */
     public SearchSourceBuilder fetchField(String fieldName) {
+        return fetchField(fieldName, null);
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     */
+    public SearchSourceBuilder fetchField(String fieldName, @Nullable String format) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(fieldName);
+        fetchFields.add(new FieldAndFormat(fieldName, format));
         return this;
     }
 
@@ -1153,7 +1165,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        fetchFields.add(parser.text());
+                        fetchFields.add(FieldAndFormat.fromXContent(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

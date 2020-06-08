@@ -356,8 +356,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
 
-    static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long)((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
-    static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
+    private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long)((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
     // This is for performance testing.  It's not exposed to the end user.
     // Recompile if you want to compare performance with C++ tokenization.
     public static final boolean CATEGORIZATION_TOKENIZATION_IN_JAVA = true;

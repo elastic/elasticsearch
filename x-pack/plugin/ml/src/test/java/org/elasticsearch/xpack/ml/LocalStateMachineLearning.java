@@ -10,14 +10,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -32,22 +30,22 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT;
-import static org.elasticsearch.xpack.ml.MachineLearning.DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD;
 import static org.elasticsearch.xpack.ml.MachineLearning.TRAINED_MODEL_CIRCUIT_BREAKER_NAME;
 
-public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin implements CircuitBreakerPlugin {
+public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
     public LocalStateMachineLearning(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
+        MachineLearning plugin = new MachineLearning(settings, configPath){
 
-        plugins.add(new MachineLearning(settings, configPath){
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();
             }
-        });
+        };
+        plugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
+        plugins.add(plugin);
         plugins.add(new Monitoring(settings) {
             @Override
             protected SSLService getSslService() {
@@ -72,24 +70,6 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin im
             protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
         });
         plugins.add(new MockedRollupPlugin());
-    }
-
-    @Override
-    public BreakerSettings getCircuitBreaker(Settings settings) {
-        return BreakerSettings.updateFromSettings(
-            new BreakerSettings(
-                TRAINED_MODEL_CIRCUIT_BREAKER_NAME,
-                DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT,
-                DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD,
-                CircuitBreaker.Type.NOOP,
-                CircuitBreaker.Durability.TRANSIENT
-            ),
-            settings);
-    }
-
-    @Override
-    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
-
     }
 
     /**

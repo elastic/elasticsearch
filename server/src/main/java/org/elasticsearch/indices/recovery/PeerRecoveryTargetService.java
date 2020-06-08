@@ -628,8 +628,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             if (cause instanceof ConnectTransportException) {
                 logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
                     recoverySettings.retryDelayNetwork(), cause.getMessage());
-                // TODO: Change after backport
-                if (request.sourceNode().getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (request.sourceNode().getVersion().onOrAfter(Version.V_7_9_0)) {
                     reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 } else {
                     retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(),

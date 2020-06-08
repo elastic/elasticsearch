@@ -42,6 +42,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 restResources {
+  sourceSetName 'test'
   restApi {
     includeCore '*'
   }

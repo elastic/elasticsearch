@@ -32,6 +32,7 @@ public class RestResourcesExtension {
 
     final RestResourcesSpec restApi;
     final RestResourcesSpec restTests;
+    private String sourceSetName = "yamlRestTest";
 
     @Inject
     public RestResourcesExtension(ObjectFactory objects) {
@@ -47,23 +48,22 @@ public class RestResourcesExtension {
         spec.execute(restTests);
     }
 
+    public void sourceSetName(String sourceSetName) {
+        this.sourceSetName = sourceSetName;
+    }
+
+    public String getSourceSetName() {
+        return this.sourceSetName;
+    }
+
     static class RestResourcesSpec {
 
         private final ListProperty<String> includeCore;
         private final ListProperty<String> includeXpack;
-        private String sourceSetName = "yamlRestTest";
 
         RestResourcesSpec(ObjectFactory objects) {
             includeCore = objects.listProperty(String.class);
             includeXpack = objects.listProperty(String.class);
-        }
-
-        public void sourceSetName(String sourceSetName) {
-            this.sourceSetName = sourceSetName;
-        }
-
-        public String getSourceSetName() {
-            return this.sourceSetName;
         }
 
         public void includeCore(String... include) {

@@ -8,6 +8,7 @@ test.enabled = false
 jarHell.enabled = false
 
 restResources {
+  sourceSetName 'test'
   restTests {
     includeCore '*'
   }

@@ -10,6 +10,7 @@ dependencies {
 }
 
 restResources {
+  sourceSetName 'test'
   restApi {
     includeCore '_common'
     includeXpack 'autoscaling'

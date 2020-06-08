@@ -27,6 +27,7 @@ apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
 
 restResources {
+  sourceSetName 'test'
   restTests {
     includeCore '*'
   }

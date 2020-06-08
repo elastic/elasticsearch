@@ -9,6 +9,7 @@ dependencies {
 }
 
 restResources {
+  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'indices', 'index', 'snapshot'
     includeXpack 'ilm', 'slm'

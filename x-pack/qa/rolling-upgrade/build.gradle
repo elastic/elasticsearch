@@ -12,6 +12,7 @@ dependencies {
 }
 
 restResources {
+  sourceSetName 'test'
   restApi {
     includeCore '*'
     includeXpack '*'

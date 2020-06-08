@@ -3,6 +3,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 restResources {
+  sourceSetName 'test'
   restApi {
     includeCore '_common', 'indices', 'index'
     includeXpack 'enrich'

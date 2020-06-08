@@ -22,6 +22,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 restResources {
+  sourceSetName 'test'
   restTests {
     includeCore '*'
   }

@@ -8,6 +8,7 @@ dependencies {
 }
 
 restResources {
+  sourceSetName 'test'
   restApi {
     includeXpack 'watcher'
   }

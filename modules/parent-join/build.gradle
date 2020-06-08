@@ -23,7 +23,8 @@ esplugin {
 }
 
 restResources {
+  sourceSetName 'test'
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search' 
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search'
   }
 }

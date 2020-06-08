@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.test.rest;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -114,8 +113,12 @@ public class CopyRestTestsTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        assert getSourceSetWithJavaTestFallback().isPresent() : "could not find source set [" + sourceSetName + "]";
-        return new File(getSourceSetWithJavaTestFallback().get().getOutput().getResourcesDir(), REST_TEST_PREFIX);
+        return new File(
+            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+                .getOutput()
+                .getResourcesDir(),
+            REST_TEST_PREFIX
+        );
     }
 
     @TaskAction
@@ -140,7 +143,7 @@ public class CopyRestTestsTask extends DefaultTask {
                 project.copy(c -> {
                     c.from(project.zipTree(coreConfig.getSingleFile()));
                     // this ends up as the same dir as outputDir
-                    c.into(Objects.requireNonNull(getSourceSetWithJavaTestFallback().orElseThrow().getOutput().getResourcesDir()));
+                    c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
@@ -156,11 +159,6 @@ public class CopyRestTestsTask extends DefaultTask {
                 c.include(xpackPatternSet.getIncludes());
             });
         }
-    }
-
-    // TODO: remove this in favor of getSourceSet once all modules and plugins have been converted to yamlRestTest source sets
-    private Optional<SourceSet> getSourceSetWithJavaTestFallback() {
-        return getSourceSet().or(() -> Util.getJavaTestSourceSet(getProject()));
     }
 
     private Optional<SourceSet> getSourceSet() {

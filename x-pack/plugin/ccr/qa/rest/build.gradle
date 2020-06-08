@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 restResources {
+  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'info'
     includeXpack 'ccr'

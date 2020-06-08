@@ -8,6 +8,7 @@ dependencies {
 
 // bring in graph rest test suite
 restResources {
+  sourceSetName 'test'
   restApi {
     includeCore '_common', 'cluster', 'indices', 'index'
     includeXpack 'graph'

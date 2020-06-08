@@ -273,6 +273,11 @@ GET /_xpack/usage
       "string_stats_usage" : 0,
       "moving_percentiles_usage" : 0
     }
+  },
+  "searchable_snapshots" : {
+    "available" : true,
+    "enabled" : true,
+    "indices_count" : 0
   }
 }
 ------------------------------------------------------------

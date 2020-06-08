@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -103,6 +103,14 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
         assertEquals(count > 0 ? aggregation.getStdDeviationSampling() : 0 , parsed.getStdDeviationSampling(), 0);
         assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER) : 0 , parsed.getStdDeviationBound(Bounds.LOWER), 0);
         assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER) : 0 , parsed.getStdDeviationBound(Bounds.UPPER), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_POPULATION) : 0 ,
+            parsed.getStdDeviationBound(Bounds.LOWER_POPULATION), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_POPULATION) : 0 ,
+            parsed.getStdDeviationBound(Bounds.UPPER_POPULATION), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.LOWER_SAMPLING) : 0 ,
+            parsed.getStdDeviationBound(Bounds.LOWER_SAMPLING), 0);
+        assertEquals(count > 0 ? aggregation.getStdDeviationBound(Bounds.UPPER_SAMPLING) : 0 ,
+            parsed.getStdDeviationBound(Bounds.UPPER_SAMPLING), 0);
         // also as_string values are only rendered for count != 0
         if (count > 0) {
             assertEquals(aggregation.getSumOfSquaresAsString(), parsed.getSumOfSquaresAsString());
@@ -114,6 +122,14 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             assertEquals(aggregation.getStdDeviationSamplingAsString(), parsed.getStdDeviationSamplingAsString());
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER), parsed.getStdDeviationBoundAsString(Bounds.LOWER));
             assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER), parsed.getStdDeviationBoundAsString(Bounds.UPPER));
+            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION),
+                parsed.getStdDeviationBoundAsString(Bounds.LOWER_POPULATION));
+            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION),
+                parsed.getStdDeviationBoundAsString(Bounds.UPPER_POPULATION));
+            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING),
+                parsed.getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING));
+            assertEquals(aggregation.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING),
+                parsed.getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING));
         }
     }
 

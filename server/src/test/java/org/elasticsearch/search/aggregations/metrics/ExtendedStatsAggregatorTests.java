@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -104,6 +104,14 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_SAMPLING), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_SAMPLING), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             }
         );
@@ -177,6 +185,14 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
                     stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), TOLERANCE);
                 assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER, stats.getSigma()),
                     stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_POPULATION, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_POPULATION), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.LOWER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER_SAMPLING), TOLERANCE);
+                assertEquals(expected.stdDevBound(ExtendedStats.Bounds.UPPER_SAMPLING, stats.getSigma()),
+                    stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER_SAMPLING), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             }
         );
@@ -282,10 +298,21 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         }
 
         double stdDevBound(ExtendedStats.Bounds bounds, double sigma) {
-            if (bounds == ExtendedStats.Bounds.UPPER) {
-                return (sum / count) + (Math.sqrt(variance()) * sigma);
-            } else {
-                return (sum / count) - (Math.sqrt(variance()) * sigma);
+            switch (bounds) {
+                case UPPER:
+                    return (sum / count) + (Math.sqrt(variance()) * sigma);
+                case UPPER_POPULATION:
+                    return (sum / count) + (Math.sqrt(variancePopulation()) * sigma);
+                case UPPER_SAMPLING:
+                    return (sum / count) + (Math.sqrt(varianceSampling()) * sigma);
+                case LOWER:
+                    return (sum / count) - (Math.sqrt(variance()) * sigma);
+                case LOWER_POPULATION:
+                    return (sum / count) - (Math.sqrt(variancePopulation()) * sigma);
+                case LOWER_SAMPLING:
+                    return (sum / count) - (Math.sqrt(varianceSampling()) * sigma);
+                default:
+                    throw new IllegalArgumentException("Unknown bound " + bounds);
             }
         }
 

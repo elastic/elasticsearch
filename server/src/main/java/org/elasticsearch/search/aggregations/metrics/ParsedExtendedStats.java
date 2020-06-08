@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -29,8 +29,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats.Fields;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
 
@@ -43,6 +47,11 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     protected double stdDeviationSampling;
     protected double stdDeviationBoundUpper;
     protected double stdDeviationBoundLower;
+    protected double stdDeviationBoundUpperPopulation;
+    protected double stdDeviationBoundLowerPopulation;
+    protected double stdDeviationBoundUpperSampling;
+    protected double stdDeviationBoundLowerSampling;
+
     protected double sum;
     protected double avg;
 
@@ -86,14 +95,45 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
         return stdDeviationSampling;
     }
 
-    private void setStdDeviationBounds(Tuple<Double, Double> bounds) {
-        this.stdDeviationBoundLower = bounds.v1();
-        this.stdDeviationBoundUpper = bounds.v2();
+    private void setStdDeviationBounds(List<Double> bounds) {
+        int i = 0;
+        this.stdDeviationBoundUpper = bounds.get(i++);
+        this.stdDeviationBoundLower = bounds.get(i++);
+        this.stdDeviationBoundUpperPopulation = bounds.get(i++);
+        this.stdDeviationBoundLowerPopulation = bounds.get(i++);
+        this.stdDeviationBoundUpperSampling = bounds.get(i++);
+        this.stdDeviationBoundLowerSampling = bounds.get(i);
+
     }
 
     @Override
     public double getStdDeviationBound(Bounds bound) {
-        return (bound.equals(Bounds.LOWER)) ? stdDeviationBoundLower : stdDeviationBoundUpper;
+        switch (bound) {
+            case UPPER:
+                return stdDeviationBoundUpper;
+            case UPPER_POPULATION:
+                return stdDeviationBoundUpperPopulation;
+            case UPPER_SAMPLING:
+                return stdDeviationBoundUpperSampling;
+            case LOWER:
+                return stdDeviationBoundLower;
+            case LOWER_POPULATION:
+                return stdDeviationBoundLowerPopulation;
+            case LOWER_SAMPLING:
+                return stdDeviationBoundLowerSampling;
+            default:
+                throw new IllegalArgumentException("Unknown bounds type " + bound);
+        }
+    }
+
+    private void setStdDeviationBoundsAsString(List<String> boundsAsString) {
+        int i = 0;
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper", boundsAsString.get(i++));
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower", boundsAsString.get(i++));
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_population", boundsAsString.get(i++));
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_population", boundsAsString.get(i++));
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_sampling", boundsAsString.get(i++));
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_sampling", boundsAsString.get(i));
     }
 
     @Override
@@ -111,17 +151,29 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
         return valueAsString.getOrDefault(Fields.STD_DEVIATION_SAMPLING_AS_STRING, Double.toString(stdDeviationSampling));
     }
 
-    private void setStdDeviationBoundsAsString(Tuple<String, String> boundsAsString) {
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower", boundsAsString.v1());
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper", boundsAsString.v2());
-    }
-
     @Override
     public String getStdDeviationBoundAsString(Bounds bound) {
-        if (bound.equals(Bounds.LOWER)) {
-            return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower", Double.toString(stdDeviationBoundLower));
-        } else {
-            return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper", Double.toString(stdDeviationBoundUpper));
+        switch (bound) {
+            case UPPER:
+                return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper",
+                    Double.toString(stdDeviationBoundUpper));
+            case UPPER_POPULATION:
+                return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_population",
+                    Double.toString(stdDeviationBoundUpperPopulation));
+            case UPPER_SAMPLING:
+                return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_sampling",
+                    Double.toString(stdDeviationBoundUpperSampling));
+            case LOWER:
+                return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower",
+                    Double.toString(stdDeviationBoundLower));
+            case LOWER_POPULATION:
+                return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_population",
+                    Double.toString(stdDeviationBoundLowerPopulation));
+            case LOWER_SAMPLING:
+                return valueAsString.getOrDefault(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_sampling",
+                    Double.toString(stdDeviationBoundLowerSampling));
+            default:
+                throw new IllegalArgumentException("Unknown bounds type " + bound);
         }
     }
 
@@ -159,6 +211,10 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
             {
                 builder.field(Fields.UPPER, getStdDeviationBound(Bounds.UPPER));
                 builder.field(Fields.LOWER, getStdDeviationBound(Bounds.LOWER));
+                builder.field(Fields.UPPER_POPULATION, getStdDeviationBound(Bounds.UPPER_POPULATION));
+                builder.field(Fields.LOWER_POPULATION, getStdDeviationBound(Bounds.LOWER_POPULATION));
+                builder.field(Fields.UPPER_SAMPLING, getStdDeviationBound(Bounds.UPPER_SAMPLING));
+                builder.field(Fields.LOWER_SAMPLING, getStdDeviationBound(Bounds.LOWER_SAMPLING));
             }
             builder.endObject();
             if (valueAsString.containsKey(Fields.SUM_OF_SQRS_AS_STRING)) {
@@ -173,6 +229,10 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
                 {
                     builder.field(Fields.UPPER, getStdDeviationBoundAsString(Bounds.UPPER));
                     builder.field(Fields.LOWER, getStdDeviationBoundAsString(Bounds.LOWER));
+                    builder.field(Fields.UPPER_POPULATION, getStdDeviationBoundAsString(Bounds.UPPER_POPULATION));
+                    builder.field(Fields.LOWER_POPULATION, getStdDeviationBoundAsString(Bounds.LOWER_POPULATION));
+                    builder.field(Fields.UPPER_SAMPLING, getStdDeviationBoundAsString(Bounds.UPPER_SAMPLING));
+                    builder.field(Fields.LOWER_SAMPLING, getStdDeviationBoundAsString(Bounds.LOWER_SAMPLING));
                 }
                 builder.endObject();
             }
@@ -188,6 +248,10 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
             {
                 builder.nullField(Fields.UPPER);
                 builder.nullField(Fields.LOWER);
+                builder.nullField(Fields.UPPER_POPULATION);
+                builder.nullField(Fields.LOWER_POPULATION);
+                builder.nullField(Fields.UPPER_SAMPLING);
+                builder.nullField(Fields.LOWER_SAMPLING);
             }
             builder.endObject();
         }
@@ -197,20 +261,33 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     private static final ObjectParser<ParsedExtendedStats, Void> PARSER = new ObjectParser<>(ParsedExtendedStats.class.getSimpleName(),
             true, ParsedExtendedStats::new);
 
-    private static final ConstructingObjectParser<Tuple<Double, Double>, Void> STD_BOUNDS_PARSER = new ConstructingObjectParser<>(
-            ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS", true, args -> new Tuple<>((Double) args[0], (Double) args[1]));
+    private static final ConstructingObjectParser<List<Double>, Void> STD_BOUNDS_PARSER = new ConstructingObjectParser<>(
+        ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS", true, args -> Arrays.stream(args).map(d -> (Double) d).collect(
+            Collectors.toList()));
 
-    private static final ConstructingObjectParser<Tuple<String, String>, Void> STD_BOUNDS_AS_STRING_PARSER = new ConstructingObjectParser<>(
-            ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS_AS_STRING", true,
-            args -> new Tuple<>((String) args[0], (String) args[1]));
+    private static final ConstructingObjectParser<List<String>, Void> STD_BOUNDS_AS_STRING_PARSER = new ConstructingObjectParser<>(
+        ParsedExtendedStats.class.getSimpleName() + "_STD_BOUNDS_AS_STRING", true, args -> Arrays.stream(args).map(d -> (String) d).collect(
+        Collectors.toList()));
 
     static {
         STD_BOUNDS_PARSER.declareField(constructorArg(), (parser, context) -> parseDouble(parser, 0),
-                new ParseField(Fields.LOWER), ValueType.DOUBLE_OR_NULL);
+            new ParseField(Fields.UPPER), ValueType.DOUBLE_OR_NULL);
         STD_BOUNDS_PARSER.declareField(constructorArg(), (parser, context) -> parseDouble(parser, 0),
-                new ParseField(Fields.UPPER), ValueType.DOUBLE_OR_NULL);
-        STD_BOUNDS_AS_STRING_PARSER.declareString(constructorArg(), new ParseField(Fields.LOWER));
+                new ParseField(Fields.LOWER), ValueType.DOUBLE_OR_NULL);
+        STD_BOUNDS_PARSER.declareField(optionalConstructorArg(), (parser, context) -> parseDouble(parser, 0),
+            new ParseField(Fields.UPPER_POPULATION), ValueType.DOUBLE_OR_NULL);
+        STD_BOUNDS_PARSER.declareField(optionalConstructorArg(), (parser, context) -> parseDouble(parser, 0),
+            new ParseField(Fields.LOWER_POPULATION), ValueType.DOUBLE_OR_NULL);
+        STD_BOUNDS_PARSER.declareField(optionalConstructorArg(), (parser, context) -> parseDouble(parser, 0),
+            new ParseField(Fields.UPPER_SAMPLING), ValueType.DOUBLE_OR_NULL);
+        STD_BOUNDS_PARSER.declareField(optionalConstructorArg(), (parser, context) -> parseDouble(parser, 0),
+            new ParseField(Fields.LOWER_SAMPLING), ValueType.DOUBLE_OR_NULL);
         STD_BOUNDS_AS_STRING_PARSER.declareString(constructorArg(), new ParseField(Fields.UPPER));
+        STD_BOUNDS_AS_STRING_PARSER.declareString(constructorArg(), new ParseField(Fields.LOWER));
+        STD_BOUNDS_AS_STRING_PARSER.declareString(optionalConstructorArg(), new ParseField(Fields.UPPER_POPULATION));
+        STD_BOUNDS_AS_STRING_PARSER.declareString(optionalConstructorArg(), new ParseField(Fields.LOWER_POPULATION));
+        STD_BOUNDS_AS_STRING_PARSER.declareString(optionalConstructorArg(), new ParseField(Fields.UPPER_SAMPLING));
+        STD_BOUNDS_AS_STRING_PARSER.declareString(optionalConstructorArg(), new ParseField(Fields.LOWER_SAMPLING));
         declareExtendedStatsFields(PARSER);
     }
 

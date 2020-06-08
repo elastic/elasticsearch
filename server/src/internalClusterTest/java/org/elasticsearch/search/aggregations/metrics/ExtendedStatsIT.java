@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -126,9 +126,12 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(Double.isNaN(stats.getStdDeviationPopulation()), is(true));
         assertThat(Double.isNaN(stats.getStdDeviationSampling()), is(true));
         assertThat(Double.isNaN(stats.getAvg()), is(true));
-        assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
-        assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
-    }
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER_POPULATION)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER_POPULATION)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER_SAMPLING)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER_SAMPLING)), is(true));}
 
     @Override
     public void testUnmapped() throws Exception {
@@ -154,8 +157,12 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertThat(stats.getStdDeviation(), equalTo(Double.NaN));
         assertThat(stats.getStdDeviationPopulation(), equalTo(Double.NaN));
         assertThat(stats.getStdDeviationSampling(), equalTo(Double.NaN));
-        assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
-        assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER_POPULATION)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER_POPULATION)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER_SAMPLING)), is(true));
+        assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER_SAMPLING)), is(true));
     }
 
     public void testPartiallyUnmapped() {
@@ -176,7 +183,10 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         assertEquals(s1.getSumOfSquares(), s2.getSumOfSquares(), 1e-10);
         assertEquals(s1.getStdDeviationBound(Bounds.LOWER), s2.getStdDeviationBound(Bounds.LOWER), 1e-10);
         assertEquals(s1.getStdDeviationBound(Bounds.UPPER), s2.getStdDeviationBound(Bounds.UPPER), 1e-10);
-    }
+        assertEquals(s1.getStdDeviationBound(Bounds.LOWER_POPULATION), s2.getStdDeviationBound(Bounds.LOWER_POPULATION), 1e-10);
+        assertEquals(s1.getStdDeviationBound(Bounds.UPPER_POPULATION), s2.getStdDeviationBound(Bounds.UPPER_POPULATION), 1e-10);
+        assertEquals(s1.getStdDeviationBound(Bounds.LOWER_SAMPLING), s2.getStdDeviationBound(Bounds.LOWER_SAMPLING), 1e-10);
+        assertEquals(s1.getStdDeviationBound(Bounds.UPPER_SAMPLING), s2.getStdDeviationBound(Bounds.UPPER_SAMPLING), 1e-10);}
 
     @Override
     public void testSingleValuedField() throws Exception {
@@ -706,8 +716,12 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             assertThat(Double.isNaN(stats.getStdDeviationPopulation()), is(true));
             assertThat(Double.isNaN(stats.getStdDeviationSampling()), is(true));
             assertThat(Double.isNaN(stats.getAvg()), is(true));
-            assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
-            assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER_POPULATION)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER_POPULATION)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.UPPER_SAMPLING)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(Bounds.LOWER_SAMPLING)), is(true));
         }
     }
 
@@ -752,13 +766,22 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             assertThat(extendedStats.getVarianceSampling(), equalTo(Double.NaN));
             assertThat(extendedStats.getStdDeviationBound(Bounds.LOWER), equalTo(Double.NaN));
             assertThat(extendedStats.getStdDeviationBound(Bounds.UPPER), equalTo(Double.NaN));
-
+            assertThat(extendedStats.getStdDeviationBound(Bounds.LOWER_POPULATION), equalTo(Double.NaN));
+            assertThat(extendedStats.getStdDeviationBound(Bounds.UPPER_POPULATION), equalTo(Double.NaN));
+            assertThat(extendedStats.getStdDeviationBound(Bounds.LOWER_SAMPLING), equalTo(Double.NaN));
+            assertThat(extendedStats.getStdDeviationBound(Bounds.UPPER_SAMPLING), equalTo(Double.NaN));
         }
     }
 
     private void checkUpperLowerBounds(ExtendedStats stats, double sigma) {
         assertThat(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER), equalTo(stats.getAvg() + (stats.getStdDeviation() * sigma)));
         assertThat(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER), equalTo(stats.getAvg() - (stats.getStdDeviation() * sigma)));
+        assertThat(stats.getStdDeviationBound(Bounds.UPPER_POPULATION), equalTo(stats.getAvg() +
+            (stats.getStdDeviationPopulation() * sigma)));
+        assertThat(stats.getStdDeviationBound(Bounds.LOWER_POPULATION), equalTo(stats.getAvg() -
+            (stats.getStdDeviationPopulation() * sigma)));
+        assertThat(stats.getStdDeviationBound(Bounds.UPPER_SAMPLING), equalTo(stats.getAvg() + (stats.getStdDeviationSampling() * sigma)));
+        assertThat(stats.getStdDeviationBound(Bounds.LOWER_SAMPLING), equalTo(stats.getAvg() - (stats.getStdDeviationSampling() * sigma)));
     }
 
     /**

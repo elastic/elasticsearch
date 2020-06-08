@@ -1,0 +1,3 @@
+
+== HTTP settings
+include::{es-repo-dir}/modules/http.asciidoc[http-cors-max-age]

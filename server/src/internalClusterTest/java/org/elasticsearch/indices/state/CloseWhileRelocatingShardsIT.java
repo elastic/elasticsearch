@@ -112,6 +112,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     logger.debug("creating index {} with background indexing", indexName);
                     final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), -1, 1);
                     indexers.put(indexName, indexer);
+                    indexer.setFailureAssertion(t -> assertException(t, indexName));
                     waitForDocs(1, indexer);
             }
             docsPerIndex.put(indexName, (long) nbDocs);
@@ -225,20 +226,15 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 thread.join();
             }
 
+            // stop indexers first without waiting for stop to not redundantly index on some while waiting for another one to stop
+            for (BackgroundIndexer indexer : indexers.values()) {
+                indexer.stop();
+            }
             for (Map.Entry<String, BackgroundIndexer> entry : indexers.entrySet()) {
                 final BackgroundIndexer indexer = entry.getValue();
-                indexer.setAssertNoFailuresOnStop(false);
-                indexer.stop();
-
+                indexer.awaitStopped();
                 final String indexName = entry.getKey();
                 docsPerIndex.computeIfPresent(indexName, (key, value) -> value + indexer.totalIndexedDocs());
-
-                final Throwable[] failures = indexer.getFailures();
-                if (failures != null) {
-                    for (Throwable failure : failures) {
-                        assertException(failure, indexName);
-                    }
-                }
             }
 
             for (String index : indices) {

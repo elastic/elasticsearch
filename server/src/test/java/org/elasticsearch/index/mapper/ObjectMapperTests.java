@@ -181,6 +181,113 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
     }
 
+    public void testFieldReplacementForIndexTemplates() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+
+        String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field2")
+                            .field("type", "integer")
+                        .endObject()
+                        .startObject("field3")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        DocumentMapper mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent(update), MergeReason.INDEX_TEMPLATE);
+
+        String expected = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                    .startObject("object")
+                        .startObject("properties")
+                            .startObject("field1")
+                                .field("type", "keyword")
+                            .endObject()
+                            .startObject("field2")
+                                .field("type", "integer")
+                            .endObject()
+                            .startObject("field3")
+                                .field("type", "text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        assertEquals(expected, mapper.mappingSource().toString());
+    }
+
+    public void testDisallowFieldReplacementForIndexTemplates() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "object")
+                        .endObject()
+                        .startObject("field2")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MergeReason.INDEX_TEMPLATE);
+
+        String firstUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field2")
+                            .field("type", "nested")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstUpdate), MergeReason.INDEX_TEMPLATE));
+        assertThat(e.getMessage(), containsString("Can't merge a non object mapping [object.field2] with an object mapping"));
+
+        String secondUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("object")
+                    .startObject("properties")
+                        .startObject("field1")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        e = expectThrows(IllegalArgumentException.class, () -> mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondUpdate), MergeReason.INDEX_TEMPLATE));
+        assertThat(e.getMessage(), containsString("Can't merge a non object mapping [object.field1] with an object mapping"));
+    }
+
     public void testEmptyName() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()

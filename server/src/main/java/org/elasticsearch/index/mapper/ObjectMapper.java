@@ -438,7 +438,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         return true;
     }
-
+    
     @Override
     public ObjectMapper merge(Mapper mergeWith) {
         return merge(mergeWith, MergeReason.MAPPING_UPDATE);
@@ -446,8 +446,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
         if (!(mergeWith instanceof ObjectMapper)) {
-            throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name()
-                + "] with an object mapping [" + name() + "]");
+            throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
@@ -477,11 +476,24 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
             Mapper merged;
             if (mergeIntoMapper == null) {
-                // no mapping, simply add it
                 merged = mergeWithMapper;
+            } else if (mergeIntoMapper instanceof ObjectMapper) {
+                ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
+                merged = objectMapper.merge(mergeWithMapper, reason);
             } else {
-                // root mappers can only exist here for backcompat, and are merged in Mapping
-                merged = mergeIntoMapper.merge(mergeWithMapper);
+                assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
+                if (mergeWithMapper instanceof ObjectMapper) {
+                    throw new IllegalArgumentException("Can't merge a non object mapping [" +
+                        mergeWithMapper.name() + "] with an object mapping");
+                }
+
+                // If we're merging template mappings when creating an index, then a field definition always
+                // replaces an existing one.
+                if (reason == MergeReason.INDEX_TEMPLATE) {
+                    merged = mergeWithMapper;
+                } else {
+                    merged = mergeIntoMapper.merge(mergeWithMapper);
+                }
             }
             putMapper(merged);
         }

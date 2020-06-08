@@ -70,7 +70,6 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = BuildParams.minimumRuntimeVersion
         project.extensions.getByType(JavaPluginExtension).targetCompatibility = BuildParams.minimumRuntimeVersion
 
-        //TODO: remove the creation of a "test" source set once all REST tests have their own source sets.
         // only setup tests to build
         SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)
         SourceSet testSourceSet = sourceSets.create('test')

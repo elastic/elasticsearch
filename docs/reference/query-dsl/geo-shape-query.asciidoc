@@ -52,7 +52,7 @@ POST /example/_doc?refresh
 // TESTSETUP
 
 
-The following query will find the point using the {es}'s `envelope` GeoJSON 
+The following query will find the point using {es}'s `envelope` GeoJSON 
 extension:
 
 [source,console]
@@ -172,8 +172,8 @@ GET /example_points/_search
 
 The query also supports using a shape which has already been indexed in another 
 index. This is particularly useful for when you have a pre-defined list of 
-shapes which are useful to your application and you want to reference this using 
-a logical name (for example 'New Zealand') rather than having to provide their 
+shapes and you want to reference the list using 
+a logical name (for example 'New Zealand') rather than having to provide 
 coordinates each time. In this situation, it is only necessary to provide:
 
 * `id` - The ID of the document that containing the pre-indexed shape.

@@ -46,6 +46,8 @@ apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
 apply from: 'gradle/local-distribution.gradle'
+apply from: 'gradle/fips.gradle'
+apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -53,8 +55,6 @@ allprojects {
   version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
-
-BuildPlugin.configureRepositories(project)
 
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
@@ -174,8 +174,8 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/57827" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -374,43 +374,6 @@ allprojects {
   tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
   // otherwise the eclipse merging is *super confusing*
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
-}
-
-// we need to add the same --debug-jvm option as
-// the real RunTask has, so we can pass it through
-class Run extends DefaultTask {
-  boolean debug = false
-
-  @Option(
-    option = "debug-jvm",
-    description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
-  )
-  public void setDebug(boolean enabled) {
-    project.project(':distribution').run.debug = enabled
-  }
-
-  @Option(
-    option = "data-dir",
-    description = "Override the base data directory used by the testcluster"
-  )
-  public void setDataDir(String dataDirStr) {
-    project.project(':distribution').run.dataDir = dataDirStr
-  }
-
-  @Option(
-    option = "keystore-password",
-    description = "Set the elasticsearch keystore password"
-  )
-  public void setKeystorePassword(String password) {
-    project.project(':distribution').run.keystorePassword = password
-  }
-}
-
-tasks.register("run", Run) {
-  dependsOn ':distribution:run'
-  description = 'Runs elasticsearch in the foreground'
-  group = 'Verification'
-  impliesSubProjects = true
 }
 
 wrapper {

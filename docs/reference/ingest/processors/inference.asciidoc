@@ -42,11 +42,11 @@ Regression configuration for inference.
 
 `results_field`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `num_top_feature_importance_values`::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
 
 [discrete]
@@ -57,23 +57,23 @@ Classification configuration for inference.
 
 `num_top_classes`::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
 
 `num_top_feature_importance_values`::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
 
 `results_field`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `top_classes_results_field`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
 
 `prediction_field_type`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
 
 [discrete]
 [[inference-processor-config-example]]

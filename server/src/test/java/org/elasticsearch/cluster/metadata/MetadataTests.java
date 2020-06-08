@@ -1082,12 +1082,8 @@ public class MetadataTests extends ESTestCase {
 
     public void testValidateDataStreamsNoConflicts() {
         Metadata metadata = createIndices(5, 10, "foo-datastream").metadata;
-        try {
-            validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
-        } catch (Exception e) {
-            fail("did not expect exception when validating a system without indices that would conflict with future backing indices: "
-                + e.getMessage());
-        }
+        // don't expect any exception when validating a system without indices that would conflict with future backing indices
+        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsThrowsExceptionOnConflict() {
@@ -1150,11 +1146,9 @@ public class MetadataTests extends ESTestCase {
 
             )
             .build();
-        try {
-            validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
-        } catch (Exception e) {
-            fail("did not expect exception when validating a system without conflicting indices: " + e.getMessage());
-       }
+        // don't expect any exception when validating against non-backing indinces that don't conform to the backing indices naming
+        // convention
+        validateDataStreams(metadata.getIndicesLookup(), (DataStreamMetadata) metadata.customs().get(DataStreamMetadata.TYPE));
     }
 
     public void testValidateDataStreamsAllowsPrefixedBackingIndices() {
@@ -1197,13 +1191,9 @@ public class MetadataTests extends ESTestCase {
         }
         DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
 
-        try {
-            validateDataStreams(indicesLookup, dataStreamMetadata);
-        } catch (Exception e) {
-            fail("prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, " +
-                "matching the data stream backing indices naming pattern, indices are already in the system. did not expecte exception " +
-                "but got: " + e.getMessage());
-        }
+        // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
+        // data stream backing indices naming pattern, indices are already in the system
+        validateDataStreams(indicesLookup, dataStreamMetadata);
     }
 
 

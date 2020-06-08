@@ -5,15 +5,18 @@
  */
 package org.elasticsearch.xpack.eql.parser;
 
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.EventFilterContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.IntegerLiteralContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinTermContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.NumberContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceParamsContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceTermContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SubqueryContext;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
@@ -139,15 +142,20 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys) {
-        List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
-        LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
+        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
+    }
+
+    private KeyedFilter keyedFilter(List<Attribute> joinKeys, ParseTree ctx, JoinKeysContext joinCtx, SubqueryContext subqueryCtx) {
+        List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
+        LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
+
         List<Attribute> output = CollectionUtils.combine(keys, fieldTimestamp());
-        
         Attribute fieldTieBreaker = fieldTieBreaker();
         if (Expressions.isPresent(fieldTieBreaker)) {
             output = CollectionUtils.combine(output, fieldTieBreaker);
         }
         LogicalPlan child = new Project(source(ctx), eventQuery, output);
+
         return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTieBreaker());
     }
 
@@ -199,10 +207,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx.FORK()), "sequence fork is unsupported");
         }
 
-        List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(ctx.by));
-        LogicalPlan eventQuery = visitEventFilter(ctx.subquery().eventFilter());
-        LogicalPlan child = new Project(source(ctx), eventQuery, CollectionUtils.combine(keys, fieldTimestamp(), fieldTieBreaker()));
-        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTieBreaker());
+        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery());
     }
 
     @Override

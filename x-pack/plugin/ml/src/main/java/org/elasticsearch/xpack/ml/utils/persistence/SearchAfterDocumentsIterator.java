@@ -31,7 +31,7 @@ import java.util.Objects;
  * alive so if processing each batch takes a long time search after should be
  * preferred to scroll.
  */
-public abstract class SearchAfterDocumentsIterator<T> {
+public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator<T> {
 
     private static final int BATCH_SIZE = 10_000;
 
@@ -54,6 +54,7 @@ public abstract class SearchAfterDocumentsIterator<T> {
      * @return {@code true} if the iteration has more elements or the first
      * search has not been run
      */
+    @Override
     public boolean hasNext() {
         return count != totalHits;
     }
@@ -68,6 +69,7 @@ public abstract class SearchAfterDocumentsIterator<T> {
      * @return a {@code Deque} with the next batch of documents
      * @throws NoSuchElementException if the iteration has no more elements
      */
+    @Override
     public Deque<T> next() {
         if (!hasNext()) {
             throw new NoSuchElementException();

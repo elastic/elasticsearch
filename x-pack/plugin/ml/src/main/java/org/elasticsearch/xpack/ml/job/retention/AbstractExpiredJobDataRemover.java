@@ -7,18 +7,23 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedJobsIterator;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.SearchAfterJobsIterator;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
+import org.elasticsearch.xpack.ml.utils.persistence.BatchedIterator;
 
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -34,7 +39,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     private final String jobIdExpression;
     protected final OriginSettingClient client;
 
-    AbstractExpiredJobDataRemover(String jobIdExpression, OriginSettingClient client) {
+    AbstractExpiredJobDataRemover(String jobIdExpression, OriginSettingClient client, Supplier<Iterator<Job>> jobIteratorFactory) {
         this.jobIdExpression = jobIdExpression;
         this.client = client;
     }
@@ -46,7 +51,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         removeData(newJobIterator(), requestsPerSecond, listener, isTimedOutSupplier);
     }
 
-    private void removeData(WrappedBatchedJobsIterator jobIterator,
+    private void removeData(Iterator<Job> jobIterator,
                             float requestsPerSecond,
                             ActionListener<Boolean> listener,
                             Supplier<Boolean> isTimedOutSupplier) {
@@ -86,9 +91,15 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         ));
     }
 
-    private WrappedBatchedJobsIterator newJobIterator() {
-        BatchedJobsIterator jobsIterator = new BatchedJobsIterator(client, AnomalyDetectorsIndex.configIndexName(), jobIdExpression);
-        return new WrappedBatchedJobsIterator(jobsIterator);
+    private Iterator<Job> newJobIterator() {
+        if (Strings.isAllOrWildcard(new String[]{jobIdExpression})) {
+            SearchAfterJobsIterator jobsIterator = new SearchAfterJobsIterator(client, AnomalyDetectorsIndex.configIndexName());
+            return new WrappedBatchedJobsIterator(jobsIterator);
+        } else {
+
+
+            return null;
+        }
     }
 
     abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener);
@@ -156,10 +167,10 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      * multiple batches.
      */
     private static class WrappedBatchedJobsIterator implements Iterator<Job> {
-        private final BatchedJobsIterator batchedIterator;
+        private final BatchedIterator<Job.Builder> batchedIterator;
         private VolatileCursorIterator<Job> currentBatch;
 
-        WrappedBatchedJobsIterator(BatchedJobsIterator batchedIterator) {
+        WrappedBatchedJobsIterator(BatchedIterator<Job.Builder> batchedIterator) {
             this.batchedIterator = batchedIterator;
         }
 
@@ -191,6 +202,29 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
         private VolatileCursorIterator<Job> createBatchIteratorFromBatch(Deque<Job.Builder> builders) {
             List<Job> jobs = builders.stream().map(Job.Builder::build).collect(Collectors.toList());
             return new VolatileCursorIterator<>(jobs);
+        }
+    }
+
+    private static class SingleBatchIterator implements BatchedIterator<Job.Builder> {
+
+        private JobConfigProvider configProvider;
+        private String jobId;
+
+        private SingleBatchIterator(String jobId) {
+            this.jobId = jobId;
+            this.configProvider = new JobConfigProvider(client)
+        }
+
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public Deque<Job.Builder> next() {
+            configProvider.expandJobs(jobId, true, ActionListener.wrap(
+
+            ));
         }
     }
 }

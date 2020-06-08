@@ -100,18 +100,14 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size);
         for (LongObjectPagedHashMap.Cursor<List<InternalGeoGridBucket>> cursor : buckets) {
             List<InternalGeoGridBucket> sameCellBuckets = cursor.value;
-            InternalGeoGridBucket removed = ordered.insertWithOverflow(reduceBucket(sameCellBuckets, reduceContext));
-            if (removed != null) {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
-            } else {
-                reduceContext.consumeBucketsAndMaybeBreak(1);
-            }
+            ordered.insertWithOverflow(reduceBucket(sameCellBuckets, reduceContext));
         }
         buckets.close();
         InternalGeoGridBucket[] list = new InternalGeoGridBucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
+        reduceContext.consumeBucketsAndMaybeBreak(list.length);
         return create(getName(), requiredSize, Arrays.asList(list), getMetadata());
     }
 

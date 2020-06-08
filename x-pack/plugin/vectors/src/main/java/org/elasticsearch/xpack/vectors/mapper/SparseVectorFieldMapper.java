@@ -77,7 +77,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
                 throw new IllegalArgumentException(ERROR_MESSAGE);
             } else {
-                deprecationLogger.deprecatedAndMaybeLog("sparse_vector", ERROR_MESSAGE_7X);
+                deprecationLogger.deprecate("sparse_vector", ERROR_MESSAGE_7X);
                 return new Builder(name);
             }
         }

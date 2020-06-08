@@ -1,4 +1,4 @@
-/*
+/* @notice
   Copyright (c) 1998-2010 AOL Inc.
 
   Licensed under the Apache License, Version 2.0 (the "License");

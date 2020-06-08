@@ -285,3 +285,5 @@ GET /*/_search
 ====
 
 include::request/from-size.asciidoc[]
+
+include::search-fields.asciidoc[]

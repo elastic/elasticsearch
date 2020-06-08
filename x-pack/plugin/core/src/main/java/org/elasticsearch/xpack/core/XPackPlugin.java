@@ -311,7 +311,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         if (Files.exists(config) == false) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
-                deprecationLogger.deprecatedAndMaybeLog("config_file_path",
+                deprecationLogger.deprecate("config_file_path",
                     "Config file [" + name + "] is in a deprecated location. Move from " +
                     legacyConfig.toString() + " to " + config.toString());
                 return legacyConfig;

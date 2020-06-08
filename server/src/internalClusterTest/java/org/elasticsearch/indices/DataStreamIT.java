@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIn
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -45,8 +46,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
@@ -74,6 +79,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DataStreamIT extends ESIntegTestCase {
 
@@ -210,6 +217,76 @@ public class DataStreamIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * The composable template that matches with the data stream name should always be used for backing indices.
+     * It is possible that a backing index doesn't match with a template or a different template, but in order
+     * to avoid confusion, the template matching with the corresponding data stream name should be used.
+     */
+    public void testComposableTemplateOnlyMatchingWithDataStreamName() throws Exception {
+        String dataStreamName = "logs-foobar";
+
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"baz_field\": {\n" +
+            "          \"type\": \"keyword\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
+        request.indexTemplate(
+            new ComposableIndexTemplate(
+                List.of(dataStreamName), // use no wildcard, so that backing indices don't match just by name
+                new Template(null,
+                    new CompressedXContent(mapping), null),
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+        );
+        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        int numDocs = randomIntBetween(2, 16);
+        indexDocs(dataStreamName, numDocs);
+        verifyDocs(dataStreamName, numDocs, 1, 1);
+
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getName(), equalTo(dataStreamName));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getTimeStampField(), equalTo("@timestamp"));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getIndices().get(0).getName(), equalTo(dataStreamName + "-000001"));
+
+        GetIndexResponse getIndexResponse =
+            client().admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName)).actionGet();
+        assertThat(getIndexResponse.getSettings().get(dataStreamName + "-000001"), notNullValue());
+        assertThat(getIndexResponse.getSettings().get(dataStreamName + "-000001").getAsBoolean("index.hidden", null), is(true));
+        assertThat(ObjectPath.eval("properties.baz_field.type",
+            getIndexResponse.mappings().get(dataStreamName + "-000001").getSourceAsMap()), equalTo("keyword"));
+
+        RolloverResponse rolloverResponse = client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get();
+        assertThat(rolloverResponse.getNewIndex(), equalTo(dataStreamName + "-000002"));
+        assertTrue(rolloverResponse.isRolledOver());
+
+        getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName + "-000002")).actionGet();
+        assertThat(getIndexResponse.getSettings().get(dataStreamName + "-000002"), notNullValue());
+        assertThat(getIndexResponse.getSettings().get(dataStreamName + "-000002").getAsBoolean("index.hidden", null), is(true));
+        assertThat(ObjectPath.eval("properties.baz_field.type",
+            getIndexResponse.mappings().get(dataStreamName + "-000002").getSourceAsMap()), equalTo("keyword"));
+
+        int numDocs2 = randomIntBetween(2, 16);
+        indexDocs(dataStreamName, numDocs2);
+        verifyDocs(dataStreamName, numDocs + numDocs2, 1, 2);
+
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(dataStreamName);
+        client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
+        getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
+
+        expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName + "-000001")).actionGet());
+        expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().getIndex(new GetIndexRequest().indices(dataStreamName + "-000002")).actionGet());
+    }
+
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
         createIndexTemplate("id", "logs-*", "ts");
         String dataStreamName = "logs-foobar";
@@ -312,7 +389,13 @@ public class DataStreamIT extends ESIntegTestCase {
                 .opType(DocWriteRequest.OpType.CREATE)
                 .source("{}", XContentType.JSON));
         }
-        client().bulk(bulkRequest).actionGet();
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getFailureMessage(), nullValue());
+            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
+            assertThat(itemResponse.getIndex(), startsWith(dataStream + "-00000"));
+        }
         client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 

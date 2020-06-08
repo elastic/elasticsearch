@@ -18,4 +18,11 @@ Mapping::
 Deprecations::
 * Remove undocumented endpoints of hot threads API {pull}55109[#55109]
 
+Slow loggers::
+* `index.indexing.slowlog.level` and `index.search.slowlog.level` are removed. These settings can be worked around
+by using appropriate thresholds. If for instance we want to simulate `index.indexing.slowlog.level` = `INFO` then
+all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1` {pull}57591[#57591]
+
+
 coming[8.0.0]

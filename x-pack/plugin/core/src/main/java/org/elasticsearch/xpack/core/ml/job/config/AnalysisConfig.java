@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -135,11 +134,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         categorizationFieldName = in.readOptionalString();
         categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            perPartitionCategorizationConfig = new PerPartitionCategorizationConfig(in);
-        } else {
-            perPartitionCategorizationConfig = new PerPartitionCategorizationConfig();
-        }
+        perPartitionCategorizationConfig = new PerPartitionCategorizationConfig(in);
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
@@ -159,9 +154,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalWriteable(categorizationAnalyzerConfig);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            perPartitionCategorizationConfig.writeTo(out);
-        }
+        perPartitionCategorizationConfig.writeTo(out);
         out.writeOptionalTimeValue(latency);
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);

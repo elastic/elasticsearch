@@ -58,11 +58,11 @@ public class RestResourcesExtension {
             includeXpack = objects.listProperty(String.class);
         }
 
-        public void sourceSetName(String sourceSetName){
+        public void sourceSetName(String sourceSetName) {
             this.sourceSetName = sourceSetName;
         }
 
-        public String getSourceSetName(){
+        public String getSourceSetName() {
             return this.sourceSetName;
         }
 

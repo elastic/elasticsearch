@@ -302,7 +302,7 @@ YAML RESTS tests that include x-pack specific APIs need to explicitly declare
 which APIs are required through a similar `includeXpack` configuration.
 
 The REST tests are run automatically when executing the "./gradlew check" command. To run only the
-YAML REST tests use the following command:
+YAML REST tests use the following command (plugin and modules may also include YAML REST tests):
 
 ---------------------------------------------------------------------------
 ./gradlew :rest-api-spec:yamlRestTest

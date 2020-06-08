@@ -84,7 +84,8 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     @org.gradle.api.tasks.Optional
-    @Input String getSourceSetName(){
+    @Input
+    String getSourceSetName() {
         return sourceSetName;
     }
 
@@ -157,7 +158,7 @@ public class CopyRestTestsTask extends DefaultTask {
         }
     }
 
-    //TODO: remove this in favor of getSourceSet once all modules and plugins have been converted to yamlRestTest source sets
+    // TODO: remove this in favor of getSourceSet once all modules and plugins have been converted to yamlRestTest source sets
     private Optional<SourceSet> getSourceSetWithJavaTestFallback() {
         return getSourceSet().or(() -> Util.getJavaTestSourceSet(getProject()));
     }

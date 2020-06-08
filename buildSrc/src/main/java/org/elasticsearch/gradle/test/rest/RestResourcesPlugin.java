@@ -87,15 +87,16 @@ public class RestResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
-        //ensure that both restApi and restTests use the same sourceset
+        // ensure that both restApi and restTests use the same sourceset
         if (extension.restApi.getSourceSetName() == null && extension.restTests.getSourceSetName() != null) {
             extension.restApi.sourceSetName(extension.restTests.getSourceSetName());
         } else if (extension.restApi.getSourceSetName() != null && extension.restTests.getSourceSetName() == null) {
             extension.restTests.sourceSetName(extension.restApi.getSourceSetName());
-        } else if (extension.restApi.getSourceSetName() != null && extension.restTests.getSourceSetName() != null
+        } else if (extension.restApi.getSourceSetName() != null
+            && extension.restTests.getSourceSetName() != null
             && extension.restApi.getSourceSetName().equals(extension.restTests.getSourceSetName()) == false) {
-            throw new IllegalStateException("the same source set name must be used between the tests and api");
-        }
+                throw new IllegalStateException("the same source set name must be used between the tests and api");
+            }
 
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");

@@ -29,7 +29,6 @@ import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -66,9 +65,7 @@ public class YamlRestTestPlugin implements Plugin<Project> {
             .create(
                 SOURCE_SET_NAME,
                 RestIntegTestTask.class,
-                task -> {
-                    task.dependsOn(project.getTasks().getByName("copyRestApiSpecsTask"));
-                }
+                task -> { task.dependsOn(project.getTasks().getByName("copyRestApiSpecsTask")); }
             );
         yamlRestTestTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
         yamlRestTestTask.setDescription("Runs the YAML based REST tests against an external cluster");
@@ -77,8 +74,8 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         if (BuildParams.isInternal()) {
             project.getDependencies().add(SOURCE_SET_NAME + "Compile", project.project(":test:framework"));
         } else {
-            project.getDependencies().add(SOURCE_SET_NAME + "Compile",
-                "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
+            project.getDependencies()
+                .add(SOURCE_SET_NAME + "Compile", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
         }
 
         // setup the runner

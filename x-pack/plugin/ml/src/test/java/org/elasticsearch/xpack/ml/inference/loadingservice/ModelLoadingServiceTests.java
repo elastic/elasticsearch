@@ -391,11 +391,6 @@ public class ModelLoadingServiceTests extends ESTestCase {
             "test-node",
             circuitBreaker);
 
-        // We want to be notified when the models are loaded which happens in a background thread
-        ModelLoadedTracker loadedTracker = new ModelLoadedTracker(Arrays.asList(model1, model2));
-        for (String modelId : Arrays.asList(model1, model2)) {
-            modelLoadingService.addModelLoadedListener(modelId, loadedTracker.actionListener());
-        }
         modelLoadingService.addModelLoadedListener(model3, ActionListener.wrap(
             r -> fail("Should not have succeeded to load model as breaker should be reached"),
             e -> assertThat(e, instanceOf(CircuitBreakingException.class))

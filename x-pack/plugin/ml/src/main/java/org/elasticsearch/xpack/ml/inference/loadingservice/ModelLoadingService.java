@@ -121,7 +121,7 @@ public class ModelLoadingService implements ClusterStateListener {
             .build();
         clusterService.addListener(this);
         this.localNode = localNode;
-        this.trainedModelCircuitBreaker = trainedModelCircuitBreaker;
+        this.trainedModelCircuitBreaker = ExceptionsHelper.requireNonNull(trainedModelCircuitBreaker, "trainedModelCircuitBreaker");
     }
 
     /**

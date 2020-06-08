@@ -93,6 +93,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         skipRepoConsistencyCheckReason = reason;
     }
 
+    protected RepositoryData getRepositoryData(String repository) {
+        return getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository));
+    }
+
     protected RepositoryData getRepositoryData(Repository repository) {
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
         final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();

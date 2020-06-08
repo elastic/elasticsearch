@@ -156,11 +156,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
         // If a tombstone is created for a dangling index, we need to make sure that the
         // index is no longer considered dangling.
-        for (Index key : danglingIndices.keySet()) {
-            if (graveyard.containsIndex(key)) {
-                danglingIndices.remove(key);
-            }
-        }
+        danglingIndices.keySet().removeIf(graveyard::containsIndex);
 
         danglingIndices.putAll(findNewDanglingIndices(danglingIndices, metadata));
     }

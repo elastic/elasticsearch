@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
@@ -90,6 +91,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void disableRepoConsistencyCheck(String reason) {
         assertNotNull(reason);
         skipRepoConsistencyCheckReason = reason;
+    }
+
+    protected RepositoryData getRepositoryData(String repository) {
+        return getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository));
     }
 
     protected RepositoryData getRepositoryData(Repository repository) {
@@ -236,5 +241,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public static void unblockNode(final String repository, final String node) {
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
+    }
+
+    protected void createRepository(String repoName, String type, Path location) {
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository(repoName)
+                .setType(type)
+                .setSettings(Settings.builder().put("location", location)));
     }
 }

@@ -69,6 +69,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryException;
@@ -826,6 +827,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(155, ShardNotInPrimaryModeException.class);
         ids.put(156, RetentionLeaseInvalidRetainingSeqNoException.class);
         ids.put(157, IngestProcessorException.class);
+        ids.put(158, PeerRecoveryNotFound.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -1,0 +1,11 @@
+---
+"Resolve index with indices, aliases, and data streams":
+  - skip:
+      version: " - 7.99.99"
+      reason: not backported yet
+
+  - do:
+      indices.resolve_index:
+        name: '*'
+
+  - match: {indices.0.name: test_index1_does_not_match}

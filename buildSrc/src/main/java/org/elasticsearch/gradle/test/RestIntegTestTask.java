@@ -38,6 +38,7 @@ public class RestIntegTestTask extends DefaultTask {
 
     // TODO: refactor this so that work is not done in constructor and find usages and register them, not create them
     // See: https://docs.gradle.org/current/userguide/task_configuration_avoidance.html
+    // See: https://github.com/elastic/elasticsearch/issues/47804
     public RestIntegTestTask() {
         Project project = getProject();
         String name = getName();

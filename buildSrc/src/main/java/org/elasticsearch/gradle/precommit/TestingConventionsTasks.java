@@ -83,7 +83,7 @@ public class TestingConventionsTasks extends DefaultTask {
     @Input
     public Map<String, File> getTestClassNames() {
         if (testClassNames == null) {
-            testClassNames = Util.getTestSourceSet(getProject())
+            testClassNames = Util.getJavaTestSourceSet(getProject())
                 .get()
                 .getOutput()
                 .getClassesDirs()
@@ -159,7 +159,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
             final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
 
-            final Set<File> testSourceSetFiles = Util.getTestSourceSet(getProject()).get().getRuntimeClasspath().getFiles();
+            final Set<File> testSourceSetFiles = Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath().getFiles();
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet()
                 .stream()
                 .filter(entry -> testSourceSetFiles.containsAll(entry.getValue()))
@@ -354,7 +354,7 @@ public class TestingConventionsTasks extends DefaultTask {
         // the classes these don't influence the checks done by this task.
         // A side effect is that we could mark as up-to-date with missing dependencies, but these will be found when
         // running the tests.
-        return Util.getTestSourceSet(getProject()).get().getRuntimeClasspath();
+        return Util.getJavaTestSourceSet(getProject()).get().getRuntimeClasspath();
     }
 
     private Map<String, File> walkPathAndLoadClasses(File testRoot) {

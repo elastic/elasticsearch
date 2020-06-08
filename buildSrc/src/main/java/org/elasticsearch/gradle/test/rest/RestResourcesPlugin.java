@@ -87,6 +87,16 @@ public class RestResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         RestResourcesExtension extension = project.getExtensions().create(EXTENSION_NAME, RestResourcesExtension.class);
 
+        //ensure that both restApi and restTests use the same sourceset
+        if (extension.restApi.getSourceSetName() == null && extension.restTests.getSourceSetName() != null) {
+            extension.restApi.sourceSetName(extension.restTests.getSourceSetName());
+        } else if (extension.restApi.getSourceSetName() != null && extension.restTests.getSourceSetName() == null) {
+            extension.restTests.sourceSetName(extension.restApi.getSourceSetName());
+        } else if (extension.restApi.getSourceSetName() != null && extension.restTests.getSourceSetName() != null
+            && extension.restApi.getSourceSetName().equals(extension.restTests.getSourceSetName()) == false) {
+            throw new IllegalStateException("the same source set name must be used between the tests and api");
+        }
+
         // tests
         Configuration testConfig = project.getConfigurations().create("restTestConfig");
         Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
@@ -97,6 +107,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeCore.set(extension.restTests.getIncludeCore());
                 task.includeXpack.set(extension.restTests.getIncludeXpack());
                 task.coreConfig = testConfig;
+                task.sourceSetName = extension.restTests.getSourceSetName();
                 if (BuildParams.isInternal()) {
                     // core
                     Dependency restTestdependency = project.getDependencies()
@@ -127,6 +138,7 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 task.includeXpack.set(extension.restApi.getIncludeXpack());
                 task.dependsOn(copyRestYamlTestTask);
                 task.coreConfig = specConfig;
+                task.sourceSetName = extension.restApi.getSourceSetName();
                 if (BuildParams.isInternal()) {
                     Dependency restSpecDependency = project.getDependencies()
                         .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));

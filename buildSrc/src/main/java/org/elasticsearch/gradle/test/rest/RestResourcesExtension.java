@@ -51,10 +51,19 @@ public class RestResourcesExtension {
 
         private final ListProperty<String> includeCore;
         private final ListProperty<String> includeXpack;
+        private String sourceSetName = "yamlRestTest";
 
         RestResourcesSpec(ObjectFactory objects) {
             includeCore = objects.listProperty(String.class);
             includeXpack = objects.listProperty(String.class);
+        }
+
+        public void sourceSetName(String sourceSetName){
+            this.sourceSetName = sourceSetName;
+        }
+
+        public String getSourceSetName(){
+            return this.sourceSetName;
         }
 
         public void includeCore(String... include) {

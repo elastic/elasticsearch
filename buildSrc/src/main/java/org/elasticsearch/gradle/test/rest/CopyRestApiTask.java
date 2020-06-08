@@ -20,12 +20,14 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -56,6 +58,7 @@ public class CopyRestApiTask extends DefaultTask {
     private static final String REST_API_PREFIX = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
+    String sourceSetName = "yamlRestTest";
 
     Configuration coreConfig;
     Configuration xpackConfig;
@@ -81,6 +84,11 @@ public class CopyRestApiTask extends DefaultTask {
     @Input
     public ListProperty<String> getIncludeXpack() {
         return includeXpack;
+    }
+
+    @org.gradle.api.tasks.Optional
+    @Input String getSourceSetName(){
+        return sourceSetName;
     }
 
     @SkipWhenEmpty
@@ -111,8 +119,8 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        assert Util.getTestSourceSet(getProject()).isPresent();
-        return new File(Util.getTestSourceSet(getProject()).get().getOutput().getResourcesDir(), REST_API_PREFIX);
+        assert getSourceSetWithJavaTestFallback().isPresent() : "could not find source set [" + sourceSetName + "]";
+        return new File(getSourceSetWithJavaTestFallback().get().getOutput().getResourcesDir(), REST_API_PREFIX);
     }
 
     @TaskAction
@@ -135,7 +143,7 @@ public class CopyRestApiTask extends DefaultTask {
             project.copy(c -> {
                 c.from(project.zipTree(coreConfig.getSingleFile()));
                 // this ends up as the same dir as outputDir
-                c.into(Objects.requireNonNull(Util.getTestSourceSet(getProject()).orElseThrow().getOutput().getResourcesDir()));
+                c.into(Objects.requireNonNull(getSourceSetWithJavaTestFallback().orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
@@ -182,7 +190,7 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getTestSourceResourceDir() {
-        Optional<SourceSet> testSourceSet = Util.getTestSourceSet(getProject());
+        Optional<SourceSet> testSourceSet = getSourceSetWithJavaTestFallback();
         if (testSourceSet.isPresent()) {
             SourceSet testSources = testSourceSet.get();
             Set<File> resourceDir = testSources.getResources()
@@ -201,7 +209,19 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getTestOutputResourceDir() {
-        Optional<SourceSet> testSourceSet = Util.getTestSourceSet(getProject());
+        Optional<SourceSet> testSourceSet = getSourceSetWithJavaTestFallback();
         return testSourceSet.map(sourceSet -> sourceSet.getOutput().getResourcesDir()).orElse(null);
+    }
+
+    //TODO: remove this in favor of getSourceSet once all modules and plugins have been converted to yamlRestTest source sets
+    private Optional<SourceSet> getSourceSetWithJavaTestFallback() {
+        return getSourceSet().or(() -> Util.getJavaTestSourceSet(getProject()));
+    }
+
+    private Optional<SourceSet> getSourceSet() {
+        Project project = getProject();
+        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+            ? Optional.empty()
+            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
     }
 }

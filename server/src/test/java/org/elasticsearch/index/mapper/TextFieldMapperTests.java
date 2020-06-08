@@ -787,7 +787,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
             assertEquals(prefix.name(), "object.field._index_prefix");
-            FieldMapper mapper = (FieldMapper) indexService.mapperService().documentMapper().mappers().getMapper("object.field._index_prefix");
+            FieldMapper mapper
+                = (FieldMapper) indexService.mapperService().documentMapper().mappers().getMapper("object.field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
             assertFalse(mapper.fieldType.storeTermVectorOffsets());
         }

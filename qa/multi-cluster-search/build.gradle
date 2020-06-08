@@ -21,6 +21,11 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+restResources {
+  sourceSetName 'test'
+}
 
 dependencies {
   testCompile project(":client:rest-high-level")

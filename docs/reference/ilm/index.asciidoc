@@ -28,8 +28,8 @@ use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>
 * <<set-up-lifecycle-policy>>
 * <<index-lifecycle-error-handling>>
 * <<start-stop-ilm>>
-* <<ilm-configure-rollover>>
 * <<ilm-with-existing-indices>>
+* <<skipping-rollover>>
 * <<index-lifecycle-and-snapshots>>
 
 --
@@ -45,10 +45,10 @@ include::set-up-lifecycle-policy.asciidoc[]
 
 include::error-handling.asciidoc[]
 
-include::start-stop-ilm.asciidoc[]
-
-include::using-policies-rollover.asciidoc[]
+include::start-stop.asciidoc[]
 
 include::ilm-with-existing-indices.asciidoc[]
+
+include::ilm-skip-rollover.asciidoc[]
 
 include::ilm-and-snapshots.asciidoc[]

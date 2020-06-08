@@ -92,6 +92,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         skipRepoConsistencyCheckReason = reason;
     }
 
+    protected RepositoryData getRepositoryData(String repository) {
+        return getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository));
+    }
+
     protected RepositoryData getRepositoryData(Repository repository) {
         return PlainActionFuture.get(repository::getRepositoryData);
     }

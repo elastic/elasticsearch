@@ -37,6 +37,8 @@ import java.util.Objects;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
+    public static final String BACKING_INDEX_PREFIX = ".ds-";
+
     private final String name;
     private final String timeStampField;
     private final List<Index> indices;
@@ -48,7 +50,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.indices = indices;
         this.generation = generation;
         assert indices.size() > 0;
-        assert indices.get(indices.size() - 1).getName().equals(getBackingIndexName(name, generation));
+        assert indices.get(indices.size() - 1).getName().equals(getDefaultBackingIndexName(name, generation));
     }
 
     public DataStream(String name, String timeStampField, List<Index> indices) {
@@ -76,11 +78,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * the updated list of backing indices and incremented generation.
      *
      * @param newWriteIndex the new write backing index. Must conform to the naming convention for
-     *                      backing indices on data streams. See {@link #getBackingIndexName}.
+     *                      backing indices on data streams. See {@link #getDefaultBackingIndexName}.
      * @return new {@code DataStream} instance with the rollover operation applied
      */
     public DataStream rollover(Index newWriteIndex) {
-        assert newWriteIndex.getName().equals(getBackingIndexName(name, generation + 1));
+        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1));
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(newWriteIndex);
         return new DataStream(name, timeStampField, backingIndices, generation + 1);
@@ -101,15 +103,15 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
-     * Generates the name of the index that conforms to the naming convention for backing indices
+     * Generates the name of the index that conforms to the default naming convention for backing indices
      * on data streams given the specified data stream name and generation.
      *
      * @param dataStreamName name of the data stream
      * @param generation generation of the data stream
      * @return backing index name
      */
-    public static String getBackingIndexName(String dataStreamName, long generation) {
-        return String.format(Locale.ROOT, "%s-%06d", dataStreamName, generation);
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation) {
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
     }
 
     public DataStream(StreamInput in) throws IOException {

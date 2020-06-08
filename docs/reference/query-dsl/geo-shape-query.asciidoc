@@ -286,7 +286,7 @@ supported:
 
 [source,console]
 --------------------------------------------------
-PUT /test/doc1
+PUT /test/_doc/1
 {
   "location": [
     {

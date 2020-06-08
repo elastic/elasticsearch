@@ -140,7 +140,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
     public void testEvaluateConditionOnDataStreamTarget() {
         String dataStreamName = "test-datastream";
-        IndexMetadata indexMetadata = IndexMetadata.builder(dataStreamName + "-000001")
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 

@@ -120,7 +120,11 @@ And the following may be the response:
          "std_deviation_sampling": 248.3109609609156,
          "std_deviation_bounds": {
            "upper": 733.8234345962646,
-           "lower": -77.15676792959795
+           "lower": -77.15676792959795,
+           "upper_population" : 733.8234345962646,
+           "lower_population" : -77.15676792959795,
+           "upper_sampling" : 824.9552552551645,
+           "lower_sampling" : -168.28858858849787
          }
       }
    }

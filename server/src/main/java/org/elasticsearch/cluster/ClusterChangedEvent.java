@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -271,18 +272,24 @@ public class ClusterChangedEvent {
             }
         }
 
+        final IndexGraveyard currentGraveyard = currentMetadata.indexGraveyard();
+        final IndexGraveyard previousGraveyard = previousMetadata.indexGraveyard();
+
         // Look for new entries in the index graveyard, where there's no corresponding index in the
         // previous metadata. This indicates that a dangling index has been explicitly deleted, so
         // each node should make sure to delete any related data.
-        for (IndexGraveyard.Tombstone tombstone : currentMetadata.indexGraveyard().getTombstones()) {
-            final Index index = tombstone.getIndex();
-            final boolean isNewTombstone = previousMetadata.hasIndex(index) == false
-                && previousMetadata.indexGraveyard().containsIndex(index) == false;
-            if (isNewTombstone) {
+        if (currentGraveyard != previousGraveyard) {
+            final IndexGraveyardDiff indexGraveyardDiff = (IndexGraveyardDiff) currentGraveyard.diff(previousGraveyard);
+
+            final List<IndexGraveyard.Tombstone> added = indexGraveyardDiff.getAdded();
+
+            if (added.isEmpty() == false) {
                 if (deleted == null) {
                     deleted = new HashSet<>();
                 }
-                deleted.add(index);
+                for (IndexGraveyard.Tombstone tombstone : added) {
+                    deleted.add(tombstone.getIndex());
+                }
             }
         }
 

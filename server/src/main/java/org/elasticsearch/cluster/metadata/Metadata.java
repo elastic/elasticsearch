@@ -1475,7 +1475,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                                     int indexNameCounter;
                                     try {
                                         indexNameCounter = IndexMetadata.parseIndexNameCounter(entry.getKey());
-                                    } catch (Exception e) {
+                                    } catch (IllegalArgumentException e) {
                                         // index name is not in the %s-%d+ format so it will not crash with backing indices
                                         return false;
                                     }

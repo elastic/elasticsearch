@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -56,6 +55,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -63,7 +63,6 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -121,14 +120,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT,
             Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
-    //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
-    //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
-    private static final String[] SORTED_META_FIELDS = new String[]{
-        "_id", IgnoredFieldMapper.NAME, "_index", "_routing", "_size", "_timestamp", "_ttl", "_type"
-    };
-
-    private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
-
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
     static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no " +
         "longer be used. See [https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-7.0.html" +
@@ -146,6 +137,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
 
     private final DocumentMapperParser documentParser;
+    private final Version indexVersionCreated;
 
     private final MapperAnalyzerWrapper indexAnalyzer;
     private final MapperAnalyzerWrapper searchAnalyzer;
@@ -161,6 +153,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
                          Supplier<QueryShardContext> queryShardContextSupplier, BooleanSupplier idFieldDataEnabled) {
         super(indexSettings);
+        this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
@@ -812,14 +805,27 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * @return Whether a field is a metadata field.
+     * @return Whether a field is a metadata field
+     * Deserialization of SearchHit objects sent from pre 7.8 nodes and GetResults objects sent from pre 7.3 nodes,
+     * uses this method to divide fields into meta and document fields.
+     * TODO: remove in v 9.0
+     * @deprecated  Use an instance method isMetadataField instead
      */
-    public static boolean isMetadataField(String fieldName) {
-        return META_FIELDS.contains(fieldName);
+    @Deprecated
+    public static boolean isMetadataFieldStatic(String fieldName) {
+        if (IndicesModule.getBuiltInMetadataFields().contains(fieldName)) {
+            return true;
+        }
+        // if a node had Size Plugin installed, _size field should also be considered a meta-field
+        return fieldName.equals("_size");
     }
 
-    public static String[] getAllMetaFields() {
-        return Arrays.copyOf(SORTED_META_FIELDS, SORTED_META_FIELDS.length);
+    /**
+     * @return Whether a field is a metadata field.
+     * this method considers all mapper plugins
+     */
+    public boolean isMetadataField(String field) {
+        return mapperRegistry.isMetadataField(indexVersionCreated, field);
     }
 
     /**

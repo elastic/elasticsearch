@@ -46,6 +46,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.search.SearchHit.unknownMetaFieldConsumer;
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
@@ -362,7 +363,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("CompletionOptionParser",
-                    true, HashMap::new);
+                unknownMetaFieldConsumer, HashMap::new);
 
             static {
                 SearchHit.declareInnerHitsParseFields(PARSER);

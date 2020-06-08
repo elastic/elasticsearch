@@ -1,3 +1,5 @@
+apply plugin: 'elasticsearch.rest-resources'
+
 esplugin {
   description 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
   classname 'org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'

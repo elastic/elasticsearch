@@ -21,6 +21,8 @@ import org.elasticsearch.gradle.PropertyNormalization
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
+apply plugin: 'elasticsearch.rest-resources'
+
 esplugin {
   description 'Module for URL repository'
   classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'

@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'

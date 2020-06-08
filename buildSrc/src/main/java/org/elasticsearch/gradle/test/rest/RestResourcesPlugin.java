@@ -76,6 +76,7 @@ import java.util.Map;
  * Will copy any of the the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
  * Rest API specification.
  *
+ * Additionally you can specify which sourceSetName resources should be copied to. The default is the yamlRestTest source set.
  * @see CopyRestApiTask
  * @see CopyRestTestsTask
  */

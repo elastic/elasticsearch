@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
+apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
 
 esplugin {

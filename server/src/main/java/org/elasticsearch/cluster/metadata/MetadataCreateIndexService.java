@@ -585,9 +585,7 @@ public class MetadataCreateIndexService {
                 Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
                 Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
 
-                nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerTemplateNonProperties);
-                XContentHelper.mergeDefaults(innerTemplateNonProperties, nonProperties);
-                nonProperties = innerTemplateNonProperties;
+                nonProperties = mergeFailingOnReplacement(nonProperties, innerTemplateNonProperties);
 
                 if (maybeProperties != null) {
                     properties = mergeFailingOnReplacement(properties, maybeProperties);
@@ -600,9 +598,7 @@ public class MetadataCreateIndexService {
             Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
             Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
 
-            nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerRequestMappings);
-            XContentHelper.mergeDefaults(innerRequestNonProperties, nonProperties);
-            nonProperties = innerRequestNonProperties;
+            nonProperties = mergeFailingOnReplacement(nonProperties, innerRequestNonProperties);
 
             if (maybeRequestProperties != null) {
                 properties = mergeFailingOnReplacement(properties, maybeRequestProperties);

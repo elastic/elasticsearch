@@ -1121,7 +1121,7 @@ public class MetadataTests extends ESTestCase {
             expectThrows(IllegalStateException.class, () -> validateDataStreams(indicesLookup, dataStreamMetadata));
         assertThat(illegalStateException.getMessage(),
             is("data stream [foo-datastream] could create backing indices that conflict with 1 existing index(s) or alias(s) " +
-                "including 'foo-datastream-000020'"));
+                "including '" + index.getName() + "'"));
     }
 
     public void testValidateDataStreamsIgnoresIndicesWithoutCounter() {

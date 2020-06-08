@@ -695,12 +695,7 @@ public class MetadataCreateIndexService {
         Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
         Map<String, Object> results = new HashMap<>(first);
         Set<String> prefixes = second.keySet().stream().map(MetadataCreateIndexService::prefix).collect(Collectors.toSet());
-        List<String> matchedPrefixes = new ArrayList<>();
-        results.keySet().forEach(k -> {
-            if (prefixes.contains(prefix(k))) {
-                matchedPrefixes.add(k);
-            }
-        });
+        List<String> matchedPrefixes = results.keySet().stream().filter(k -> prefixes.contains(prefix(k))).collect(Collectors.toList());
         if (matchedPrefixes.size() > 0) {
             throw new IllegalArgumentException("mapping fields " + matchedPrefixes + " cannot be replaced during template composition");
         }

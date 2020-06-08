@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.UUID;
 
-import static org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep.parseIndexNameCounter;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -251,31 +250,5 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         assertThat(actualResultAsString,
             containsString("[" + step.getKey().getAction() + "] lifecycle action for index [index-000000] executed but " +
                 "index no longer exists"));
-    }
-
-    public void testParseIndexNameReturnsCounter() {
-        assertThat(parseIndexNameCounter("logs-000003"), is(3));
-    }
-
-    public void testParseIndexNameSupportsDateMathPattern() {
-        assertThat(parseIndexNameCounter("<logs-{now/d}-1>"), is(1));
-    }
-
-    public void testParseIndexNameThrowExceptionWhenNoSeparatorIsPresent() {
-        try {
-            parseIndexNameCounter("testIndexNameWithoutDash");
-            fail("expected to fail as the index name contains no - separator");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("no - separator found in index name [testIndexNameWithoutDash]"));
-        }
-    }
-
-    public void testParseIndexNameCannotFormatNumber() {
-        try {
-            parseIndexNameCounter("testIndexName-000a2");
-            fail("expected to fail as the index name doesn't end with digits");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
-        }
     }
 }

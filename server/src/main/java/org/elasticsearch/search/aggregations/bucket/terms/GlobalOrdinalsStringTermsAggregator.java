@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -109,8 +110,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         if (remapGlobalOrds) {
             this.collectionStrategy = new RemapGlobalOrds(collectsFromSingleBucket);
         } else {
-            // Dense ords don't know how to collect from many buckets
-            assert collectsFromSingleBucket;
+            if (false == collectsFromSingleBucket) {
+                throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
+            }
             this.collectionStrategy = new DenseGlobalOrds();
         }
     }

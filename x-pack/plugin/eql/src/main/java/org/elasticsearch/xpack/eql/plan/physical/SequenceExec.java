@@ -16,13 +16,13 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class SequenceExec extends PhysicalPlan {
 
@@ -37,14 +37,14 @@ public class SequenceExec extends PhysicalPlan {
                         PhysicalPlan until,
                         Attribute timestampField,
                         Attribute tieBreaker) {
-        this(source, CollectionUtils.combine(matches, until), CollectionUtils.combine(keys, singletonList(untilKeys)), timestampField, tieBreaker);
+        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestampField, tieBreaker);
     }
 
-    private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute timestampField, Attribute tieBreaker) {
+    private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute ts, Attribute tb) {
         super(source, children);
         this.keys = keys;
-        this.timestamp = timestampField;
-        this.tieBreaker = tieBreaker;
+        this.timestamp = ts;
+        this.tieBreaker = tb;
     }
 
     @Override

@@ -33,7 +33,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIE_BREAKER;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
@@ -44,7 +43,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;
-    private String tieBreakerField = FIELD_TIE_BREAKER;
+    private String tieBreakerField = null;
     private String eventCategoryField = FIELD_EVENT_CATEGORY;
     private String implicitJoinKeyField = FIELD_IMPLICIT_JOIN_KEY;
     private int fetchSize = FETCH_SIZE;
@@ -84,7 +83,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         timestampField = in.readString();
-        tieBreakerField = in.readString();
+        tieBreakerField = in.readOptionalString();
         eventCategoryField = in.readString();
         implicitJoinKeyField = in.readString();
         fetchSize = in.readVInt();
@@ -118,10 +117,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
         if (timestampField == null || timestampField.isEmpty()) {
             validationException = addValidationError("@timestamp field is null or empty", validationException);
-        }
-
-        if (tieBreakerField == null || tieBreakerField.isEmpty()) {
-            validationException = addValidationError("tie breaker field is null or empty", validationException);
         }
 
         if (eventCategoryField == null || eventCategoryField.isEmpty()) {
@@ -270,7 +265,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalNamedWriteable(filter);
         out.writeString(timestampField);
-        out.writeString(tieBreakerField);
+        out.writeOptionalString(tieBreakerField);
         out.writeString(eventCategoryField);
         out.writeString(implicitJoinKeyField);
         out.writeVInt(fetchSize);

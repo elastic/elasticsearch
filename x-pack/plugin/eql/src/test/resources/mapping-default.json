@@ -12,12 +12,7 @@
         "event" : {
             "properties" : {
                 "category" : {
-                    "type" : "alias",
-                    "path" : "event_type"
-                },
-                "sequence" : {
-                    "type" : "alias",
-                    "path" : "serial_event_id"
+                    "type" : "keyword"
                 }
             }
         },
@@ -45,12 +40,8 @@
         "subtype" : {
             "type" : "keyword"
         },
-        "timestamp" : {
-            "type" : "date"
-        },
         "@timestamp" : {
-            "type" : "alias",
-            "path" : "timestamp"
+            "type" : "date"
         },
         "user" : {
             "type" : "keyword"

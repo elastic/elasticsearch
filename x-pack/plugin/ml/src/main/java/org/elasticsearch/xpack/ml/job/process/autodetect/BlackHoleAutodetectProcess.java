@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -71,7 +72,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
         if (Arrays.asList(record).contains(MAGIC_FAILURE_VALUE)) {
             open = false;
             onProcessCrash.accept("simulated failure");
-            AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null);
+            AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null);
             results.add(result);
         }
     }
@@ -82,6 +83,10 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
+    }
+
+    @Override
+    public void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
     }
 
     @Override
@@ -104,7 +109,8 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     @Override
     public String flushJob(FlushJobParams params) throws IOException {
         FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, null);
-        AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, flushAcknowledgement);
+        AutodetectResult result =
+            new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null,flushAcknowledgement);
         results.add(result);
         return FLUSH_ID;
     }
@@ -121,7 +127,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     public void close() throws IOException {
         if (open) {
             Quantiles quantiles = new Quantiles(jobId, new Date(), "black hole quantiles");
-            AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null);
+            AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null, null);
             results.add(result);
             open = false;
         }

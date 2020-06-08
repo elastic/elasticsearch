@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 public class DocumentFieldMapperTests extends LuceneTestCase {
 
@@ -112,6 +113,11 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
 
         @Override
         protected void parseCreateField(ParseContext context) throws IOException {
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override

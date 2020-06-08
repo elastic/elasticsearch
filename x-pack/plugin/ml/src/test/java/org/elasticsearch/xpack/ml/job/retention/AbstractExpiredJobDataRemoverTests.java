@@ -51,8 +51,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
 
         private int getRetentionDaysCallCount = 0;
 
-        ConcreteExpiredJobDataRemover(OriginSettingClient client) {
-            super(client);
+        ConcreteExpiredJobDataRemover(String jobId, OriginSettingClient client) {
+            super(jobId, client);
         }
 
         @Override
@@ -69,7 +69,13 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
 
         @Override
-        protected void removeDataBefore(Job job, long latestTimeMs, long cutoffEpochMs, ActionListener<Boolean> listener) {
+        protected void removeDataBefore(
+            Job job,
+            float requestsPerSec,
+            long latestTimeMs,
+            long cutoffEpochMs,
+            ActionListener<Boolean> listener
+        ) {
             listener.onResponse(Boolean.TRUE);
         }
     }
@@ -87,15 +93,12 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         return createSearchResponse(toXContents, toXContents.size());
     }
 
-    @SuppressWarnings("unchecked")
-    static void givenJobs(Client client, List<Job> jobs) throws IOException {
-        SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
-
-        doAnswer(invocationOnMock -> {
-            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(response);
-            return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
+    static SearchResponse createSearchResponseFromHits(List<SearchHit> hits) {
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[] {}),
+            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchResponse searchResponse = mock(SearchResponse.class);
+        when(searchResponse.getHits()).thenReturn(searchHits);
+        return searchResponse;
     }
 
     private static SearchResponse createSearchResponse(List<? extends ToXContent> toXContents, int totalHits) throws IOException {
@@ -117,8 +120,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         mockSearchResponse(response);
 
         TestListener listener = new TestListener();
-        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(originSettingClient);
-        remover.remove(listener, () -> false);
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover("*", originSettingClient);
+        remover.remove(1.0f,listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -156,8 +159,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         TestListener listener = new TestListener();
-        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(originSettingClient);
-        remover.remove(listener, () -> false);
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover("*", originSettingClient);
+        remover.remove(1.0f,listener, () -> false);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(true));
@@ -180,8 +183,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         mockSearchResponse(response);
 
         TestListener listener = new TestListener();
-        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover(originSettingClient);
-        remover.remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+        ConcreteExpiredJobDataRemover remover = new ConcreteExpiredJobDataRemover("*", originSettingClient);
+        remover.remove(1.0f,listener, () -> attemptsLeft.getAndDecrement() <= 0);
 
         listener.waitToCompletion();
         assertThat(listener.success, is(false));

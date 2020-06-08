@@ -195,7 +195,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     }
 
-    public void testDeletesIssue7951() throws Exception {
+    public void testPopularTermManyDeletedDocs() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings, XContentType.JSON)
                 .setMapping("text", "type=keyword", CLASS_FIELD, "type=keyword"));
@@ -237,7 +237,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                                 significantTerms("sig_terms")
                                         .field(TEXT_FIELD)
                                         .minDocCount(1)));
-        }else
+        } else
         {
             request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(
@@ -477,8 +477,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .subAggregation(significantText("mySignificantTerms", TEXT_FIELD)
                             .significanceHeuristic(scriptHeuristic)
                             .minDocCount(1).shardSize(2).size(2)));
-        }else
-        {
+        } else {
             request = client().prepareSearch(INDEX_NAME)
                     .addAggregation(terms("class").field(CLASS_FIELD)
                             .subAggregation(significantTerms("mySignificantTerms")

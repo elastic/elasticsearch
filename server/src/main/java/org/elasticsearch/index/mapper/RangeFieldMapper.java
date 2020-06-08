@@ -45,7 +45,6 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -54,6 +53,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -77,7 +77,7 @@ public class RangeFieldMapper extends FieldMapper {
     static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
 
-    public static class Builder extends FieldMapper.Builder<Builder, RangeFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
         private Boolean coerce;
         private Locale locale = Locale.ROOT;
         private String pattern;
@@ -154,7 +154,7 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);
@@ -209,7 +209,7 @@ public class RangeFieldMapper extends FieldMapper {
         public RangeType rangeType() { return rangeType; }
 
         @Override
-        public MappedFieldType clone() {
+        public RangeFieldType clone() {
             return new RangeFieldType(this);
         }
 
@@ -231,12 +231,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new BinaryIndexFieldData.Builder();
-        }
-
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.RANGE;
+            return new BinaryIndexFieldData.Builder(CoreValuesSourceType.RANGE);
         }
 
         @Override
@@ -402,11 +397,10 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        RangeFieldMapper other = (RangeFieldMapper) mergeWith;
-        if (other.coerce.explicit()) {
-            this.coerce = other.coerce;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        RangeFieldMapper mergeWith = (RangeFieldMapper) other;
+        if (mergeWith.coerce.explicit()) {
+            this.coerce = mergeWith.coerce;
         }
     }
 

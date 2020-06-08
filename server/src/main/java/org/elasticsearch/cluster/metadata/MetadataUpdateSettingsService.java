@@ -19,8 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -45,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -70,16 +71,19 @@ public class MetadataUpdateSettingsService {
 
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
+    private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
 
     @Inject
     public MetadataUpdateSettingsService(ClusterService clusterService, AllocationService allocationService,
-                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService,
+                                         ShardLimitValidator shardLimitValidator, ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
+        this.shardLimitValidator = shardLimitValidator;
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request,
@@ -154,7 +158,7 @@ public class MetadataUpdateSettingsService {
                         int totalNewShards = Arrays.stream(request.indices())
                             .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
                             .sum();
-                        Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState);
+                        Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
                         if (error.isPresent()) {
                             ValidationException ex = new ValidationException();
                             ex.addValidationError(error.get());
@@ -201,8 +205,10 @@ public class MetadataUpdateSettingsService {
                              * including updating it to null, indicating that they want to use the default value. In this case, we again
                              * have to provide an explicit value for the setting to the default (one).
                              */
-                            if (indexSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == null) {
-                                indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+                            if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
+                                indexSettings.put(
+                                    IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY));
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(
@@ -228,8 +234,10 @@ public class MetadataUpdateSettingsService {
                              * including updating it to null, indicating that they want to use the default value. In this case, we again
                              * have to provide an explicit value for the setting to the default (one).
                              */
-                            if (indexSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == null) {
-                                indexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+                            if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettings) == false) {
+                                indexSettings.put(
+                                    IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(Settings.EMPTY));
                             }
                             Settings finalSettings = indexSettings.build();
                             indexScopedSettings.validate(

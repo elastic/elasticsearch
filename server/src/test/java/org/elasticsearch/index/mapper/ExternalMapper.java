@@ -36,6 +36,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
@@ -56,7 +57,7 @@ public class ExternalMapper extends FieldMapper {
         public static final String FIELD_SHAPE = "shape";
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, ExternalMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
@@ -84,7 +85,7 @@ public class ExternalMapper extends FieldMapper {
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            GeoPointFieldMapper pointMapper = latLonPointBuilder.build(context);
+            GeoPointFieldMapper pointMapper = (GeoPointFieldMapper) latLonPointBuilder.build(context);
             AbstractShapeGeometryFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
@@ -203,44 +204,13 @@ public class ExternalMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        // ignore this for now
-    }
-
-    @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        ExternalMapper update = (ExternalMapper) super.updateFieldType(fullNameToFieldType);
-        MultiFields multiFieldsUpdate = multiFields.updateFieldType(fullNameToFieldType);
-        BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
-        BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
-        GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
-        AbstractShapeGeometryFieldMapper shapeMapperUpdate =
-            (AbstractShapeGeometryFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
-        TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
-        if (update == this
-                && multiFieldsUpdate == multiFields
-                && binMapperUpdate == binMapper
-                && boolMapperUpdate == boolMapper
-                && pointMapperUpdate == pointMapper
-                && shapeMapperUpdate == shapeMapper
-                && stringMapperUpdate == stringMapper) {
-            return this;
-        }
-        if (update == this) {
-            update = (ExternalMapper) clone();
-        }
-        update.multiFields = multiFieldsUpdate;
-        update.binMapper = binMapperUpdate;
-        update.boolMapper = boolMapperUpdate;
-        update.pointMapper = pointMapperUpdate;
-        update.shapeMapper = shapeMapperUpdate;
-        update.stringMapper = stringMapperUpdate;
-        return update;
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         return Iterators.concat(super.iterator(), Arrays.asList(binMapper, boolMapper, pointMapper, shapeMapper, stringMapper).iterator());
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override

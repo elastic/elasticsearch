@@ -332,7 +332,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
             this.version = null;
             this.sourceToParse = source;
             this.dynamicMappers = new ArrayList<>();
-            this.maxAllowedNumNestedDocs = indexSettings.getValue(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
+            this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 

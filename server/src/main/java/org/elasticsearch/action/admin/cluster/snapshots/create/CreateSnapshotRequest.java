@@ -67,15 +67,12 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         implements IndicesRequest.Replaceable, ToXContentObject {
     public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 
-    private static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenHidden();
-
     private String snapshot;
 
     private String repository;
 
     private String[] indices = EMPTY_ARRAY;
-
-    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenHidden();
 
     private boolean partial = false;
 
@@ -476,7 +473,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             builder.endObject();
         }
         builder.field("include_global_state", includeGlobalState);
-        if (indicesOptions != null && DEFAULT_INDICES_OPTIONS.equals(indicesOptions) == false) {
+        if (indicesOptions != null) {
             indicesOptions.toXContent(builder, params);
         }
         builder.field("metadata", userMetadata);

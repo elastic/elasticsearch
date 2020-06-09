@@ -56,16 +56,16 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
     public void testPerformActionThrowsExceptionIfIndexIsNotPartOfDataStream() {
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
-        IndexMetadata.Builder sourceIndexMetadataBuilder =
+        IndexMetadata sourceIndexMetadata =
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadataBuilder).build()
+            Metadata.builder().put(sourceIndexMetadata, true).build()
         ).build();
 
         expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performAction(sourceIndexMetadataBuilder.build().getIndex(), clusterState));
+            () -> createRandomInstance().performAction(sourceIndexMetadata.getIndex(), clusterState));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {

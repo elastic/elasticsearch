@@ -181,14 +181,7 @@ public class DanglingIndicesState implements ClusterStateListener {
 
             for (IndexMetadata indexMetadata : indexMetadataList) {
                 Index index = indexMetadata.getIndex();
-                // Although deleting a dangling index through the API adds a tombstone to the graveyard, that process results in the
-                // dangling index files being deleted, so we don't expect to encounter a dangling index and a tombstone here when
-                // everything is working normally.
-                if (graveyard.containsIndex(index)) {
-                    logger.warn("[{}] cannot be imported as a dangling index, as an index with the same name and UUID exist in the "
-                        + "index tombstones. This situation is likely caused by copying over the data directory for an index "
-                        + "that was previously deleted.", indexMetadata.getIndex());
-                } else {
+                if (graveyard.containsIndex(index) == false) {
                     newIndices.put(index, stripAliases(indexMetadata));
                 }
             }

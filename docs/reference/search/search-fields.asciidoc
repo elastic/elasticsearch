@@ -1,6 +1,6 @@
 [discrete]
 [[search-fields]]
-=== Retrieve selected fields in a search
+=== Retrieve selected fields
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was

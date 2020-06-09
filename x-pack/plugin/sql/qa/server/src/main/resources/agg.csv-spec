@@ -1188,3 +1188,82 @@ GROUP BY gender ORDER BY gender;
 17811.071545718776|1.2151168881502939E11|3.1723426960671306E8|F
 15904.093950318531|1.699198993070239E11 |2.529402043805585E8 |M
 ;
+
+
+aggWithMinOfDatesAndCastAsDate
+schema::g:s|m:date
+SELECT gender g, MIN(CAST(birth_date AS DATE)) m FROM test_emp GROUP BY gender HAVING MIN(CAST(birth_date AS DATE)) < NOW() ORDER BY g;
+
+       g       |           m            
+---------------+------------------------
+null           |1953-01-23T00:00:00.000Z
+F              |1952-04-19T00:00:00.000Z
+M              |1952-02-27T00:00:00.000Z
+;
+
+aggWithMinOfDatetime
+schema::g:s|m:ts
+SELECT gender g, MIN(birth_date) m FROM test_emp GROUP BY gender HAVING m < NOW() ORDER BY gender;
+
+       g       |           m            
+---------------+------------------------
+null           |1953-01-23T00:00:00.000Z
+F              |1952-04-19T00:00:00.000Z
+M              |1952-02-27T00:00:00.000Z
+;
+
+aggWithMinOfDatetimeAndDate
+schema::g:s|mc:date|m:ts
+SELECT gender g, MIN(CAST(birth_date AS DATE)) mc, MIN(birth_date) m FROM test_emp GROUP BY gender HAVING MIN(CAST(birth_date AS DATE)) < NOW() AND MIN(birth_date) <= CURRENT_TIMESTAMP() ORDER BY g;
+
+       g       |           mc           |           m            
+---------------+------------------------+------------------------
+null           |1953-01-23T00:00:00.000Z|1953-01-23T00:00:00.000Z
+F              |1952-04-19T00:00:00.000Z|1952-04-19T00:00:00.000Z
+M              |1952-02-27T00:00:00.000Z|1952-02-27T00:00:00.000Z
+;
+
+aggWithMaxOfDatetime
+schema::g:s|m:ts
+SELECT gender g, MAX(birth_date) m FROM test_emp GROUP BY gender HAVING m < NOW() ORDER BY gender;
+
+       g       |           m            
+---------------+------------------------
+null           |1963-06-07T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z
+;
+
+aggWithMaxOfDate
+schema::g:s|m:date
+SELECT gender g, MAX(CAST(birth_date AS DATE)) m FROM test_emp GROUP BY gender HAVING m < CAST('2020-01-01' AS DATE) ORDER BY gender;
+
+       g       |           m            
+---------------+------------------------
+null           |1963-06-07T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z
+;
+
+aggWithMinMaxOfDatetime
+schema::g:s|mx:ts|mn:ts
+SELECT gender g, MAX(birth_date) mx, MIN(birth_date) mn FROM test_emp GROUP BY gender HAVING mn < NOW() AND mx > CAST('1950-01-01' AS DATE) ORDER BY gender;
+
+       g       |           mx           |           mn           
+---------------+------------------------+------------------------
+null           |1963-06-07T00:00:00.000Z|1953-01-23T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z|1952-04-19T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z|1952-02-27T00:00:00.000Z
+;
+
+aggWithMinMaxOfDate
+schema::g:s|mx:date|mn:date
+SELECT gender g, MAX(CAST(birth_date AS DATE)) mx, MIN(CAST(birth_date AS DATE)) mn FROM test_emp GROUP BY gender HAVING mn < CAST('2020-01-01' AS DATE) OR mx < CAST('1980-01-01T12:00:00' AS DATETIME) ORDER BY gender;
+
+       g       |           mx           |           mn           
+---------------+------------------------+------------------------
+null           |1963-06-07T00:00:00.000Z|1953-01-23T00:00:00.000Z
+F              |1964-10-18T00:00:00.000Z|1952-04-19T00:00:00.000Z
+M              |1965-01-03T00:00:00.000Z|1952-02-27T00:00:00.000Z
+;
+

@@ -18,7 +18,7 @@ needed.
 {es} supports some alternative methods for returning fields that help avoid
 these downsides:
 
-* The <<request-body-search-docvalue-fields, `docvalue_fields`>>
+* The <<docvalue-fields, `docvalue_fields`>>
 parameter allows for loading fields from their doc values. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.

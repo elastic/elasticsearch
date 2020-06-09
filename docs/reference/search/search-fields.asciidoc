@@ -166,7 +166,7 @@ GET /_search
 
 The `docvalue_fields` parameter have some limitations:
 
-* Doc values are enabled for supported fields by default. However, <<text,`text`
+* Doc values are stored for supported fields by default. However, <<text,`text`
 fields>> do not support doc values.
 
 *  If you use the `docvalue_fields` parameter to specify a field without a doc

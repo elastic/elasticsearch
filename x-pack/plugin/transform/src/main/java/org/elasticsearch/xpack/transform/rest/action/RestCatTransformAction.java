@@ -36,9 +36,6 @@ import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MAT
 
 public class RestCatTransformAction extends AbstractCatAction {
 
-    private static final Integer DEFAULT_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
-    private static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueMillis(60000);
-
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "_cat/transforms"), new Route(GET, "_cat/transforms/{" + TransformField.TRANSFORM_ID + "}"));
@@ -111,6 +108,7 @@ public class RestCatTransformAction extends AbstractCatAction {
             .addCell("transform_type", TableColumnAttributeBuilder.builder("batch or continuous transform").setAliases("tt").build())
             .addCell("frequency", TableColumnAttributeBuilder.builder("frequency of transform").setAliases("f").build())
             .addCell("max_page_search_size", TableColumnAttributeBuilder.builder("max page search size").setAliases("mpsz").build())
+            .addCell("docs_per_second", TableColumnAttributeBuilder.builder("docs per second").setAliases("dps").build())
             // Transform stats info
             .addCell(
                 "state",
@@ -195,6 +193,12 @@ public class RestCatTransformAction extends AbstractCatAction {
                 transformIndexerStats = stats.getIndexerStats();
             }
 
+            Integer maxPageSearchSize = config.getSettings() == null || config.getSettings().getMaxPageSearchSize() == null
+                ? config.getPivotConfig() == null || config.getPivotConfig().getMaxPageSearchSize() == null
+                    ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE
+                    : config.getPivotConfig().getMaxPageSearchSize()
+                : config.getSettings().getMaxPageSearchSize();
+
             table.startRow()
                 .addCell(config.getId())
                 .addCell(config.getCreateTime())
@@ -204,9 +208,13 @@ public class RestCatTransformAction extends AbstractCatAction {
                 .addCell(config.getDestination().getPipeline())
                 .addCell(config.getDescription())
                 .addCell(config.getSyncConfig() == null ? "batch" : "continuous")
-                .addCell(config.getFrequency() == null ? DEFAULT_TRANSFORM_FREQUENCY : config.getFrequency())
-                .addCell(config.getPivotConfig() == null || config.getPivotConfig().getMaxPageSearchSize() == null ?
-                            DEFAULT_MAX_PAGE_SEARCH_SIZE : config.getPivotConfig().getMaxPageSearchSize())
+                .addCell(config.getFrequency() == null ? Transform.DEFAULT_TRANSFORM_FREQUENCY : config.getFrequency())
+                .addCell(maxPageSearchSize)
+                .addCell(
+                    config.getSettings() == null || config.getSettings().getDocsPerSecond() == null
+                        ? "-"
+                        : config.getSettings().getDocsPerSecond()
+                )
                 .addCell(stats == null ? null : stats.getState())
                 .addCell(stats == null ? null : stats.getReason())
                 .addCell(checkpointingInfo == null ? null : checkpointingInfo.getChangesLastDetectedAt())

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.transform.Transform;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -49,7 +50,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class Pivot {
-    public static final int DEFAULT_INITIAL_PAGE_SIZE = 500;
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
@@ -122,14 +122,14 @@ public class Pivot {
      * per page the page size is a multiplier for the costs of aggregating bucket.
      *
      * The user may set a maximum in the {@link PivotConfig#getMaxPageSearchSize()}, but if that is not provided,
-     *    the default {@link Pivot#DEFAULT_INITIAL_PAGE_SIZE} is used.
+     *    the default {@link Transform#DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE} is used.
      *
      * In future we might inspect the configuration and base the initial size on the aggregations used.
      *
      * @return the page size
      */
     public int getInitialPageSize() {
-        return config.getMaxPageSearchSize() == null ? DEFAULT_INITIAL_PAGE_SIZE : config.getMaxPageSearchSize();
+        return config.getMaxPageSearchSize() == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : config.getMaxPageSearchSize();
     }
 
     public SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {

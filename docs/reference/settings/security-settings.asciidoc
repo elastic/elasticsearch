@@ -580,7 +580,7 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. If the `url` and the `user_search_dn`
+The domain name of Active Directory. If the `url` and the `user_search.base_dn`
 settings are not specified, the cluster can derive those values from this 
 setting. Required.
 

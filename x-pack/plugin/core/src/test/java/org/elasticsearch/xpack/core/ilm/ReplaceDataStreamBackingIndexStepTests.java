@@ -70,7 +70,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = dataStreamName + "-000001";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata =
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -87,14 +87,14 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
     public void testPerformActionThrowsExceptionIfTargetIndexIsMissing() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = dataStreamName + "-000001";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        String writeIndexName = dataStreamName + "-000002";
+        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
@@ -123,14 +123,14 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
     public void testPerformAction() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = dataStreamName + "-000001";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        String writeIndexName = dataStreamName + "-000002";
+        String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))

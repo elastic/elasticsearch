@@ -127,7 +127,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     public void testNoOpShrinkDoesntFailOnDataStreamWriteIndex() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = dataStreamName + "-000001";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -149,7 +149,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     public void testShrinkFailsOnDataStreamWriteIndex() {
         String dataStreamName = randomAlphaOfLength(10);
-        String indexName = dataStreamName + "-000001";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))

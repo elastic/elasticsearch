@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -24,7 +23,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
+import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.EndsWithFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -92,14 +93,16 @@ public class EndsWith extends CaseSensitiveScalarFunction {
     }
     
     protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate patternScript) {
-        ParamsBuilder params = paramsBuilder();
-
-        String template = formatTemplate("{eql}.endsWith(" + sourceScript.template() + "," + patternScript.template() + ",{})");
-        params.script(sourceScript.params())
-                .script(patternScript.params())
-                .variable(isCaseSensitive());
-
-        return new ScriptTemplate(template, params.build(), dataType());
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
+                "endsWith",
+                sourceScript.template(),
+                patternScript.template(),
+                "{}"),
+                paramsBuilder()
+                        .script(sourceScript.params())
+                        .script(patternScript.params())
+                        .variable(isCaseSensitive())
+                        .build(), dataType());
     }
 
     @Override

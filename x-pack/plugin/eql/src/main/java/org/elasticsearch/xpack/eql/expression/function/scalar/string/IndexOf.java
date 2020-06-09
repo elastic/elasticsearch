@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -26,7 +25,9 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
+import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.IndexOfFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
@@ -102,18 +103,18 @@ public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgu
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
-        ParamsBuilder params = paramsBuilder();
-
-        String template = formatTemplate("{eql}.indexOf(" + sourceScript.template() + ","
-                + substringScript.template() + ","
-                + startScript.template() + ",{})");
-
-        params.script(sourceScript.params())
-                .script(substringScript.params())
-                .script(startScript.params())
-                .variable(isCaseSensitive());
-
-        return new ScriptTemplate(template, params.build(), dataType());
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s)"),
+                "indexOf",
+                sourceScript.template(),
+                substringScript.template(),
+                startScript.template(),
+                "{}"),
+                paramsBuilder()
+                        .script(sourceScript.params())
+                        .script(substringScript.params())
+                        .script(startScript.params())
+                        .variable(isCaseSensitive())
+                        .build(), dataType());
     }
 
     @Override

@@ -64,10 +64,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
     private final TransportService transportService;
     private final ThreadPool threadPool;
-    private final PeerRecoverySourceService peerRecoverySourceService;
     private final long recoveryId;
     private final ShardId shardId;
-    final DiscoveryNode targetNode;
+    private final DiscoveryNode targetNode;
     private final RecoverySettings recoverySettings;
     private final Map<Object, RetryableAction<?>> onGoingRetryableActions = ConcurrentCollections.newConcurrentMap();
 
@@ -82,10 +81,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     private volatile boolean isCancelled = false;
 
     public RemoteRecoveryTargetHandler(long recoveryId, ShardId shardId, TransportService transportService,
-                                       PeerRecoverySourceService peerRecoverySourceService, DiscoveryNode targetNode,
-                                       RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
+                                       DiscoveryNode targetNode, RecoverySettings recoverySettings, Consumer<Long> onSourceThrottle) {
         this.transportService = transportService;
-        this.peerRecoverySourceService = peerRecoverySourceService;
         this.threadPool = transportService.getThreadPool();
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -101,6 +98,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();
         this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
+    }
+
+    public DiscoveryNode targetNode() {
+        return targetNode;
     }
 
     @Override
@@ -250,19 +251,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                                                                       TransportRequestOptions options, ActionListener<T> actionListener,
                                                                       Writeable.Reader<T> reader) {
         final Object key = new Object();
-        final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> {
-            // synchronizing on the action map here to only remove the retry tracking exactly once when the last key is removed
-            synchronized (onGoingRetryableActions) {
-                onGoingRetryableActions.remove(key);
-                if (onGoingRetryableActions.isEmpty()) {
-                    peerRecoverySourceService.removeRetryTracking(RemoteRecoveryTargetHandler.this);
-                }
-            }
-        });
+        final ActionListener<T> removeListener = ActionListener.runBefore(actionListener, () -> onGoingRetryableActions.remove(key));
         final TimeValue initialDelay = TimeValue.timeValueMillis(200);
         final TimeValue timeout = recoverySettings.internalActionRetryTimeout();
-        final RetryableAction<T> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener,
-                                                                         ThreadPool.Names.GENERIC) {
+        final RetryableAction<T> retryableAction = new RetryableAction<>(logger, threadPool, initialDelay, timeout, removeListener) {
 
             @Override
             public void tryAction(ActionListener<T> listener) {
@@ -272,12 +264,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                final boolean retry = retriesSupported && peerRecoverySourceService.clusterService().state().nodes().nodeExists(targetNode)
-                        && retryableException(e);
-                if (retry) {
-                    peerRecoverySourceService.trackRetry(RemoteRecoveryTargetHandler.this);
-                }
-                return retry;
+                return retriesSupported && retryableException(e);
             }
         };
         onGoingRetryableActions.put(key, retryableAction);

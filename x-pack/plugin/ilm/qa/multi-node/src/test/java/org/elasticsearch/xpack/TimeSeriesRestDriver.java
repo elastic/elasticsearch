@@ -20,13 +20,20 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -124,4 +131,42 @@ public final class TimeSeriesRestDriver {
         client.performRequest(createIndexTemplateRequest);
     }
 
+    public static void rolloverMaxOneDocCondition(RestClient client, String indexAbstractionName) throws IOException {
+        Request rolloverRequest = new Request("POST", "/" + indexAbstractionName + "/_rollover");
+        rolloverRequest.setJsonEntity("{\n" +
+            "  \"conditions\": {\n" +
+            "    \"max_docs\": \"1\"\n" +
+            "  }\n" +
+            "}"
+        );
+        client.performRequest(rolloverRequest);
+    }
+
+    public static void createFullPolicy(RestClient client, String policyName, TimeValue hotTime) throws IOException {
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, 1L));
+        Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "integTest-1,integTest-2"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, singletonMap("_name", "integTest-3"), null, null));
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("hot", new Phase("hot", hotTime, hotActions));
+        phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, phases);
+        // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "_ilm/policy/" + policyName);
+        request.setEntity(entity);
+        client.performRequest(request);
+    }
 }

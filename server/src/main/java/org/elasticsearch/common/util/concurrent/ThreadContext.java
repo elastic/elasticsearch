@@ -303,13 +303,6 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Returns the request headers, without the default headers
-     */
-    public Map<String, String> getRequestHeadersOnly() {
-        return Collections.unmodifiableMap(new HashMap<>(threadLocal.get().requestHeaders));
-    }
-
-    /**
      * Get a copy of all <em>response</em> headers.
      *
      * @return Never {@code null}.

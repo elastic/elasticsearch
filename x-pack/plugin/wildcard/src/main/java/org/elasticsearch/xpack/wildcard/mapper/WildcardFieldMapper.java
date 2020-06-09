@@ -821,6 +821,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
     private int ignoreAbove;
     private final String nullValue;
+    private final FieldType ngramFieldType;
 
     private WildcardFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                 int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
@@ -828,6 +829,9 @@ public class WildcardFieldMapper extends FieldMapper {
         super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
+        this.ngramFieldType = new FieldType(fieldType);
+        this.ngramFieldType.setTokenized(true);
+        this.ngramFieldType.freeze();;
         assert fieldType.indexOptions() == IndexOptions.DOCS;
     }
 
@@ -887,7 +891,7 @@ public class WildcardFieldMapper extends FieldMapper {
         // a) speed (less ngram variations to explore on disk and in RAM-based automaton) and
         // b) uses less disk space
         String ngramValue = addLineEndChars(WildcardFieldType.toLowerCase(value));
-        Field ngramField = new Field(fieldType().name(), ngramValue, fieldType);
+        Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
         fields.add(ngramField);
 
         CustomBinaryDocValuesField dvField = (CustomBinaryDocValuesField) parseDoc.getByKey(fieldType().name());

@@ -82,7 +82,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                     ParseContext.Document document = new ParseContext.Document();
                     when(parseContext.doc()).thenReturn(document);
                     PercolatorFieldMapper.createQueryBuilderField(version,
-                        "query", queryBuilders[i], parseContext);
+                        PercolatorFieldMapper.queryBuilderFieldName("query"), queryBuilders[i], parseContext);
                     indexWriter.addDocument(document);
                 }
             }

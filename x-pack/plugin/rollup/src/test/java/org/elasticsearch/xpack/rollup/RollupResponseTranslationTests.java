@@ -859,7 +859,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 .field("foo.avg." + RollupField.VALUE);
 
         MappedFieldType nrFTvalue = new NumberFieldMapper.NumberFieldType("foo", NumberFieldMapper.NumberType.LONG);
-        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("avg.foo", NumberFieldMapper.NumberType.LONG);
+        MappedFieldType rFTvalue = new NumberFieldMapper.NumberFieldType("foo.avg." + RollupField.VALUE,
+            NumberFieldMapper.NumberType.LONG);
 
         List<InternalAggregation> responses = doQueries(new MatchAllDocsQuery(),
                 iw -> {

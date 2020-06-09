@@ -68,7 +68,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public Builder dims(int dims) {
             if ((dims > MAX_DIMS_COUNT) || (dims < 1)) {
                 throw new MapperParsingException("The number of dimensions for field [" + name +
-                    "] should be in the range [1, " + MAX_DIMS_COUNT + "]");
+                    "] should be in the range [1, " + MAX_DIMS_COUNT + "] but was [" + dims + "]");
             }
             this.dims = dims;
             return this;
@@ -208,6 +208,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "] doesn't not support indexing multiple values for the same field in the same document");
         }
         context.doc().addWithKey(fieldType().name(), field);
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

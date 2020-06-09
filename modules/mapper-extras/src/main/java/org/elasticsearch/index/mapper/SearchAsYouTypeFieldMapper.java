@@ -392,6 +392,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
+            this.hasPositions = true;
         }
 
         PrefixFieldType(PrefixFieldType other) {
@@ -399,6 +400,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             this.minChars = other.minChars;
             this.maxChars = other.maxChars;
             this.parentField = other.parentField;
+            this.hasPositions = other.hasPositions;
         }
 
         boolean termLengthWithinBounds(int length) {
@@ -537,12 +539,14 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             super(name, true, false, Collections.emptyMap());
             this.shingleSize = shingleSize;
             this.hasNorms = hasNorms;
+            this.hasPositions = true;
         }
 
         ShingleFieldType(ShingleFieldType other) {
             super(other);
             this.shingleSize = other.shingleSize;
             this.hasNorms = other.hasNorms;
+            this.hasPositions = other.hasPositions;
             if (other.prefixFieldType != null) {
                 this.prefixFieldType = other.prefixFieldType.clone();
             }

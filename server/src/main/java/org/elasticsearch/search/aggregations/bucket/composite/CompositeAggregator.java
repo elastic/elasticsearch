@@ -273,18 +273,20 @@ final class CompositeAggregator extends BucketsAggregator {
             if (sourceConfigs[i].valuesSource() instanceof RoundingValuesSource) {
                 LongUnaryOperator round = ((RoundingValuesSource) sourceConfigs[i].valuesSource())::round;
                 final SortedNumericSortField delegate = (SortedNumericSortField) sort.getSort()[i];
-                sortFields[i] = new SortedNumericSortField(delegate.getField(), delegate.getType(), delegate.getReverse()) {
+                sortFields[i] = new SortedNumericSortField(delegate.getField(), delegate.getNumericType(), delegate.getReverse()) {
                     @Override
                     public boolean equals(Object obj) {
-                        if (obj == this) {
-                            return true;
-                        }
                         return delegate.equals(obj);
                     }
 
                     @Override
+                    public int hashCode() {
+                        return delegate.hashCode();
+                    }
+
+                    @Override
                     public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new FieldComparator.LongComparator(1, delegate.getField(), null) {
+                        return new FieldComparator.LongComparator(1, delegate.getField(), (Long) missingValue) {
                             @Override
                             protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                                 NumericDocValues dvs =  SortedNumericSelector.wrap(DocValues.getSortedNumeric(context.reader(), field),

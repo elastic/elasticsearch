@@ -124,7 +124,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = "logs-foo-000001";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
 
         assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));

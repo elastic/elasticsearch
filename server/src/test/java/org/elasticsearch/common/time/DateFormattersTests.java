@@ -41,6 +41,39 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
 
+    public void testCaseEquality() {
+        DateFormatter camelCaseFormatter = DateFormatter.forPattern("dateOptionalTime");
+        DateFormatter snakeCaseFormatter = DateFormatter.forPattern("date_optional_time");
+        assertThat(snakeCaseFormatter, equalTo(camelCaseFormatter));
+
+
+        camelCaseFormatter = DateFormatter.forPattern("date_optional_time||strict_date_optional_time");
+        snakeCaseFormatter = DateFormatter.forPattern("dateOptionalTime||strictDateOptionalTime");
+        assertThat(snakeCaseFormatter, equalTo(camelCaseFormatter));
+    }
+
+    public void testCamelAndSnakeFormats(){
+        assertThat(DateFormatter.forPattern("dateOptionalTime").pattern(), equalTo("date_optional_time"));
+        assertThat(DateFormatter.forPattern("date_optional_time").pattern(), equalTo("date_optional_time"));
+
+        assertThat(DateFormatter.forPattern("date_optional_time||strict_date_optional_time").pattern(),
+            equalTo("date_optional_time||strict_date_optional_time"));
+        assertThat(DateFormatter.forPattern("dateOptionalTime||strictDateOptionalTime").pattern(),
+            equalTo("date_optional_time||strict_date_optional_time"));
+
+        assertThat(DateFormatter.forPattern("8dateOptionalTime").pattern(), equalTo("8date_optional_time"));
+        assertThat(DateFormatter.forPattern("8date_optional_time").pattern(), equalTo("8date_optional_time"));
+
+        assertThat(DateFormatter.forPattern("8date_optional_time||strict_date_optional_time").pattern(),
+            equalTo("8date_optional_time||strict_date_optional_time"));
+        assertThat(DateFormatter.forPattern("8dateOptionalTime||strictDateOptionalTime").pattern(),
+            equalTo("8date_optional_time||strict_date_optional_time"));
+
+        //TODO slightly artificial testcase
+//        assertThat(DateFormatter.forPattern("'dateOptionalTime'").pattern(), equalTo("'dateOptionalTime'"));
+//        assertThat(DateFormatter.forPattern("'date_optional_time'").pattern(), equalTo("'date_optional_time'"));
+    }
+
     public void testWeekBasedDates() {
         assumeFalse("won't work in jdk8 " +
                 "because SPI mechanism is not looking at classpath - needs ISOCalendarDataProvider in jre's ext/libs",

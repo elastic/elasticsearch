@@ -137,11 +137,27 @@ public interface DateFormatter {
         // support the 6.x BWC compatible way of parsing java 8 dates
         String format = strip8Prefix(input);
         List<String> patterns = splitCombinedPatterns(format);
+
         List<DateFormatter> formatters = patterns.stream()
                                                  .map(DateFormatters::forPattern)
                                                  .collect(Collectors.toList());
-
+        input = toSnakeCase(input, patterns);
         return JavaDateFormatter.combined(input, formatters);
+    }
+
+    static String toSnakeCase(String input, List<String> patterns) {
+        String regex = "([a-z])([A-Z]+)";
+        String replacement = "$1_$2";
+
+        String snakeCased = patterns.stream()
+            .map(p -> p.replaceAll(regex, replacement))
+            .collect(Collectors.joining("||"))
+            .toLowerCase(Locale.ROOT);
+
+        if(input.startsWith("8")) {
+            return "8"+snakeCased;
+        }
+        return snakeCased;
     }
 
     static String strip8Prefix(String input) {

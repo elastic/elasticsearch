@@ -221,9 +221,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestChannel responseChannel = channel;
         try {
             if (handler.canTripCircuitBreaker()) {
-                inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+                inHttpFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
             } else {
-                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
+                inHttpFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // iff we could reserve bytes for the request we need to send the response also over this channel
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
@@ -508,7 +508,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (closed.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("Channel is already closed");
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+            inHttpFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
 
     }
@@ -517,4 +517,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // We always obtain a fresh breaker to reflect changes to the breaker configuration.
         return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
+
+    private static CircuitBreaker inHttpFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
+        // We always obtain a fresh breaker to reflect changes to the breaker configuration.
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_HTTP_REQUESTS);
+    }
+
 }

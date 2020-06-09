@@ -81,7 +81,7 @@ public class RestControllerTests extends ESTestCase {
     public void setup() {
         circuitBreakerService = new HierarchyCircuitBreakerService(
             Settings.builder()
-                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
+                .put(HierarchyCircuitBreakerService.IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
                 // We want to have reproducible results in this test, hence we disable real memory usage accounting
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
@@ -89,7 +89,7 @@ public class RestControllerTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         usageService = new UsageService();
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
-        inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+        inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_HTTP_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);

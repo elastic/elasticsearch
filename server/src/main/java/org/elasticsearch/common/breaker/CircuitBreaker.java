@@ -55,6 +55,11 @@ public interface CircuitBreaker {
      */
     String IN_FLIGHT_REQUESTS = "inflight_requests";
     /**
+     * The in-flight http request breaker tracks bytes allocated for reading and
+     * writing requests on the network layer.
+     */
+    String IN_FLIGHT_HTTP_REQUESTS = "in_flight_http_requests";
+    /**
      * The accounting breaker tracks things held in memory that is independent
      * of the request lifecycle. This includes memory used by Lucene for
      * segments.

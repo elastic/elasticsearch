@@ -98,6 +98,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    public static final Setting<ByteSizeValue> IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING =
+        Setting.memorySizeSetting("network.breaker.inflight_http_requests.limit", "100%", Property.Dynamic, Property.NodeScope);
+    public static final Setting<Double> IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING =
+        Setting.doubleSetting("network.breaker.inflight_http_requests.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
+    public static final Setting<CircuitBreaker.Type> IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
+        new Setting<>("network.breaker.inflight_http_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
+
     private final boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
 
@@ -134,6 +141,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.PERMANENT
         )));
+        childCircuitBreakers.put(CircuitBreaker.IN_FLIGHT_HTTP_REQUESTS, validateAndCreateBreaker(
+            new BreakerSettings(CircuitBreaker.IN_FLIGHT_HTTP_REQUESTS,
+                IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                CircuitBreaker.Durability.TRANSIENT
+            )));
         for (BreakerSettings breakerSettings : customBreakers) {
             if (childCircuitBreakers.containsKey(breakerSettings.getName())) {
                 throw new IllegalArgumentException("More than one circuit breaker with the name ["
@@ -168,6 +182,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CIRCUIT_BREAKER_OVERHEAD_SETTING,
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {});
+        clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
+            IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.IN_FLIGHT_HTTP_REQUESTS, limit, overhead));
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {

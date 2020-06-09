@@ -20,7 +20,7 @@ template>> containing:
 
 * A name or wildcard pattern for the data stream in the `index_patterns` property.
 * A `data_stream` definition that contains the `timestamp_field` property.
-  The `timestamp_field` must be the primary timestamp field 
+  The `timestamp_field` must be the primary timestamp field
    for the data source. This field must be included in every
    document indexed to the data stream.
 
@@ -35,6 +35,14 @@ over to a new index when the current write index meets specified criteria, such
 as a maximum age or size. A rollover creates a new backing index and updates the
 data stream's list of backing indices. This new index then becomes the stream's
 new write index. See <<rollover-data-stream-ex>>.
+
+Backing indices are generated with the naming convention
+`.ds-<data-stream-name>-zzzzzz`, where `zzzzzz` is the six-digit, zero-padded
+generation of the data stream. For example, a data stream named
+`web-server-logs` with a generation of 34 would have a write index named
+`.ds-web-server-logs-000034`. Data streams may have backing indices that do not
+conform to this naming convention if operations such as
+<<indices-shrink-index,shrink>> have been performed on them.
 
 [discrete]
 [[create-data-stream]]
@@ -53,7 +61,8 @@ PUT /_index_template/logs_template
 }
 -----------------------------------
 
-Start indexing data to a target matching composable template's wildcard pattern:
+Start indexing data to a target matching the composable template's wildcard
+pattern:
 
 [source,console]
 ----
@@ -77,7 +86,7 @@ Response:
         "failed" : 0,
         "successful" : 1
     },
-    "_index" : "logs-foobar-000001",
+    "_index" : ".ds-logs-foobar-000001",
     "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,

@@ -346,12 +346,8 @@ The entire document source is returned. This does not include:
 The document source is not returned.
 
 `<wildcard_pattern>`::
-(string)
-Wildcard (`*`) patterns containing source fields to return.
-
-`<wildcard_pattern_array>`::
-(array of strings)
-Array of wildcard (`*`) patterns containing source fields to return.
+(string or array of strings)
+Wildcard (`*`) pattern or array of patterns containing source fields to return.
 
 `<object>`::
 (object)

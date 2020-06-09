@@ -31,9 +31,9 @@ teardown:
   - do:
       indices.get:
         index: logs-foobar
-  - is_true: logs-foobar-000001
+  - is_true: \.ds-logs-foobar-000001
   - is_false: logs-foobar
-  - match: { logs-foobar-000001.settings.index.number_of_shards: '1' }
+  - match: { \.ds-logs-foobar-000001.settings.index.number_of_shards: '1' }
 
 ---
 "Verify get mapping api":
@@ -44,5 +44,5 @@ teardown:
   - do:
       indices.get_mapping:
         index: logs-foobar
-  - is_true: logs-foobar-000001.mappings
-  - is_false: logs-foobar.mappings
+  - is_true: \.ds-logs-foobar-000001.mappings
+  - is_false: \.ds-logs-foobar.mappings

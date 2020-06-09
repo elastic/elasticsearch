@@ -127,10 +127,10 @@ PUT /_index_template/logs_data_stream
         "@timestamp": {
           "type": "date"
         }
-      },
-      "settings": {
-        "index.lifecycle.name": "logs_policy"
       }
+    },
+    "settings": {
+      "index.lifecycle.name": "logs_policy"
     }
   }
 }

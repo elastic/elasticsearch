@@ -4,8 +4,28 @@
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
-provided when indexing the document. However, several other options are
-available.
+provided when indexing the document. 
+
+Returning fields using only the document source has some limitations:
+
+* The `_source` field does not include <<multi-fields, multi-fields>> or
+<<alias, field aliases>>. Likewise, a field in the source does not contain
+values copied using the <<copy-to,`copy_to`>> mapping parameter.
+* Since the `_source` is stored as a single field in Lucene, the whole source
+object must be loaded and parsed, even if only a small number of fields are
+needed.
+
+{es} supports some alternative methods for returning fields that help avoid
+these downsides:
+
+* The <<request-body-search-docvalue-fields, `docvalue_fields`>>
+parameter allows for loading fields from their doc values. This can be a good
+choice when returning a fairly small number of fields that support doc values,
+such as keywords and dates.
+* It's also possible to store an individual field's values by using the
+<<mapping-store,`store`>> mapping option. You can use the
+<<request-body-search-stored-fields, `stored_fields`>> parameter to return
+these stored values in the search response.
 
 You can use the following methods to select which fields and values are
 retrieved by a search request:

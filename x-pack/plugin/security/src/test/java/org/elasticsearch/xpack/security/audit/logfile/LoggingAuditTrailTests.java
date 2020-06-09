@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,8 +39,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
@@ -576,11 +581,78 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertEmptyLog(logger);
     }
 
+    public void testSystemAccessGranted() throws Exception {
+        final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
+        final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
+        final User systemUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final Authentication authentication = new Authentication(systemUser, new RealmRef("_reserved", "test", "foo"), null);
+        final String requestId = randomRequestId();
+
+        auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
+        // system user
+        assertEmptyLog(logger);
+        auditTrail.explicitIndexAccessEvent(requestId, randomFrom(AuditLevel.ACCESS_GRANTED, AuditLevel.SYSTEM_ACCESS_GRANTED),
+                authentication, "_action", randomFrom(randomAlphaOfLengthBetween(1, 4), null),
+                BulkItemRequest.class.getName(),
+                request.remoteAddress(),
+                authorizationInfo);
+        // system user
+        assertEmptyLog(logger);
+
+        // enable system user for access granted events
+        settings = Settings.builder()
+                .put(settings)
+                .put("xpack.security.audit.logfile.events.include", "system_access_granted")
+                .build();
+        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+
+        auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
+
+        MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+        MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
+                .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
+                .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
+        subject(authentication, checkedFields);
+        restOrTransportOrigin(request, threadContext, checkedFields);
+        indicesRequest(request, checkedFields, checkedArrayFields);
+        opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedFields);
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
+        clearLog();
+
+        String index = randomFrom(randomAlphaOfLengthBetween(1, 4), null);
+        auditTrail.explicitIndexAccessEvent(requestId, randomFrom(AuditLevel.ACCESS_GRANTED, AuditLevel.SYSTEM_ACCESS_GRANTED),
+                authentication, "_action", index, BulkItemRequest.class.getName(), request.remoteAddress(), authorizationInfo);
+
+        checkedFields = new MapBuilder<>(commonFields);
+        checkedArrayFields = new MapBuilder<>();
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
+                .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
+                .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
+                .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, BulkItemRequest.class.getName())
+                .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        checkedArrayFields.put(PRINCIPAL_ROLES_FIELD_NAME, (String[]) authorizationInfo.asMap().get(PRINCIPAL_ROLES_FIELD_NAME));
+        subject(authentication, checkedFields);
+        restOrTransportOrigin(request, threadContext, checkedFields);
+        opaqueId(threadContext, checkedFields);
+        forwardedFor(threadContext, checkedFields);
+        if (index != null) {
+            checkedArrayFields.put(LoggingAuditTrail.INDICES_FIELD_NAME, new String[]{index});
+        }
+        assertMsg(logger, checkedFields.immutableMap(), checkedArrayFields.immutableMap());
+    }
+
     public void testAccessGrantedInternalSystemAction() throws Exception {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final Authentication authentication = new Authentication(SystemUser.INSTANCE, new RealmRef("_reserved", "test", "foo"), null);
+        final User systemUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final Authentication authentication = new Authentication(systemUser, new RealmRef("_reserved", "test", "foo"), null);
         final String requestId = randomRequestId();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
         assertEmptyLog(logger);
@@ -596,7 +668,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-                .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, SystemUser.INSTANCE.principal())
+                .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, systemUser.principal())
                 .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, "_reserved")
                 .put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action")
                 .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())

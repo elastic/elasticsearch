@@ -37,9 +37,6 @@ public interface XPackFeatureSet {
 
         public Usage(String name, boolean available, boolean enabled) {
             Objects.requireNonNull(name);
-            if (name.isEmpty()) {
-                throw new IllegalArgumentException("name must not be empty");
-            }
             this.name = name;
             this.available = available;
             this.enabled = enabled;

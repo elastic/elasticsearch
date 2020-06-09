@@ -49,7 +49,7 @@ import java.util.Map;
 /**
  * An aggregator that computes approximate counts of unique values.
  */
-class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
+public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
     private final ValuesSource valuesSource;
@@ -60,12 +60,13 @@ class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private Collector collector;
 
-    CardinalityAggregator(String name,
-                            ValuesSource valuesSource,
-                            int precision,
-                            SearchContext context,
-                            Aggregator parent,
-                            Map<String, Object> metadata) throws IOException {
+    public CardinalityAggregator(
+            String name,
+            ValuesSource valuesSource,
+            int precision,
+            SearchContext context,
+            Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.precision = precision;

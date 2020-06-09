@@ -1,0 +1,61 @@
+description = 'Integration tests for SQL JDBC driver'
+apply plugin: 'elasticsearch.build'
+
+// Avoid circular dependency
+group = "org.elasticsearch.x-pack.qa.sql.jdbc"
+
+dependencies {
+    compile project(":test:framework")
+
+    // JDBC testing dependencies
+    compile project(path: xpackModule('sql:jdbc'))
+}
+
+/* disable unit tests because these are all integration tests used
+ * other qa projects. */
+test.enabled = false
+
+dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
+
+// the main files are actually test files, so use the appropriate forbidden api sigs
+tasks.named('forbiddenApisMain').configure {
+    replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
+}
+
+// just a test fixture: we aren't using this jars in releases and H2GIS requires disabling a lot of checks
+thirdPartyAudit.enabled = false
+
+subprojects {
+    if (subprojects.isEmpty()) {
+        // leaf project
+        apply plugin: 'elasticsearch.standalone-rest-test'
+    } else {
+        apply plugin: 'elasticsearch.build'
+    }
+
+    dependencies {
+        /* Since we're a standalone rest test we actually get transitive
+         * dependencies but we don't really want them because they cause
+         * all kinds of trouble with the jar hell checks. So we suppress
+         * them explicitly for non-es projects. */
+        testCompile(xpackProject('plugin:sql:qa:jdbc')) {
+            transitive = false
+        }
+        testCompile project(":test:framework")
+
+        testRuntime project(path: xpackModule('sql:jdbc'))
+    }
+
+    if (project.name != 'security') {
+        // The security project just configures its subprojects
+        apply plugin: 'elasticsearch.testclusters'
+        apply plugin: 'elasticsearch.rest-test'
+
+        testClusters.integTest {
+            testDistribution = 'DEFAULT'
+            setting 'xpack.ml.enabled', 'false'
+            setting 'xpack.watcher.enabled', 'false'
+        }
+    }
+}

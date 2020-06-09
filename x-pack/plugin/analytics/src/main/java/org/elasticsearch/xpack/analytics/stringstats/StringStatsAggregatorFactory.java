@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -36,28 +35,16 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.showDistribution = showDistribution;
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(StringStatsAggregationBuilder.NAME,
-            CoreValuesSourceType.BYTES, new StringStatsAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        boolean showDistribution,
-                                        DocValueFormat format,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-                    return new StringStatsAggregator(name, showDistribution, (ValuesSource.Bytes) valuesSource,
-                        format, context, parent, metadata);
-                }
-            });
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(StringStatsAggregationBuilder.NAME,
+            CoreValuesSourceType.BYTES, (StringStatsAggregatorSupplier) StringStatsAggregator::new);
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new StringStatsAggregator(name, showDistribution,null, config.format(), searchContext, parent, metadata);
+        return new StringStatsAggregator(name, null, showDistribution, config.format(), searchContext, parent, metadata);
     }
 
     @Override
@@ -66,7 +53,7 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             StringStatsAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof StringStatsAggregatorSupplier == false) {

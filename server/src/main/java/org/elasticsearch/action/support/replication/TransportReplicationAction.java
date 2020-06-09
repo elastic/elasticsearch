@@ -50,6 +50,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -95,6 +97,21 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
+    /**
+     * The timeout for retrying replication requests.
+     */
+    public static final Setting<TimeValue> REPLICATION_RETRY_TIMEOUT =
+        Setting.timeSetting("indices.replication.retry_timeout", TimeValue.timeValueSeconds(60), Setting.Property.Dynamic,
+            Setting.Property.NodeScope);
+
+    /**
+     * The maximum bound for the first retry backoff for failed replication operations. The backoff bound
+     * will increase exponential if failures continue.
+     */
+    public static final Setting<TimeValue> REPLICATION_INITIAL_RETRY_BACKOFF_BOUND =
+        Setting.timeSetting("indices.replication.initial_retry_backoff_bound", TimeValue.timeValueMillis(50), TimeValue.timeValueMillis(10),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -108,6 +125,8 @@ public abstract class TransportReplicationAction<
     protected final String transportPrimaryAction;
 
     private final boolean syncGlobalCheckpointAfterOperation;
+    private volatile TimeValue initialRetryBackoffBound;
+    private volatile TimeValue retryTimeout;
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
@@ -136,6 +155,9 @@ public abstract class TransportReplicationAction<
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
 
+        this.initialRetryBackoffBound = REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.get(settings);
+        this.retryTimeout = REPLICATION_RETRY_TIMEOUT.get(settings);
+
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
         transportService.registerRequestHandler(transportPrimaryAction, executor, forceExecutionOnPrimary, true,
@@ -148,6 +170,10 @@ public abstract class TransportReplicationAction<
         this.transportOptions = transportOptions(settings);
 
         this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
+
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.addSettingsUpdateConsumer(REPLICATION_INITIAL_RETRY_BACKOFF_BOUND, (v) -> initialRetryBackoffBound = v);
+        clusterSettings.addSettingsUpdateConsumer(REPLICATION_RETRY_TIMEOUT, (v) -> retryTimeout = v);
     }
 
     @Override
@@ -370,7 +396,9 @@ public abstract class TransportReplicationAction<
 
                     new ReplicationOperation<>(primaryRequest.getRequest(), primaryShardReference,
                         ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
-                        newReplicasProxy(), logger, actionName, primaryRequest.getPrimaryTerm()).execute();
+                        newReplicasProxy(), logger, threadPool, actionName, primaryRequest.getPrimaryTerm(), initialRetryBackoffBound,
+                        retryTimeout)
+                        .execute();
                 }
             } catch (Exception e) {
                 handleException(primaryShardReference, e);
@@ -393,10 +421,6 @@ public abstract class TransportReplicationAction<
     // allows subclasses to adapt the response
     protected void adaptResponse(Response response, IndexShard indexShard) {
 
-    }
-
-    protected ActionListener<Response> wrapResponseActionListener(ActionListener<Response> listener, IndexShard shard) {
-        return listener;
     }
 
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
@@ -927,6 +951,11 @@ public abstract class TransportReplicationAction<
         @Override
         public ReplicationGroup getReplicationGroup() {
             return indexShard.getReplicationGroup();
+        }
+
+        @Override
+        public PendingReplicationActions getPendingReplicationActions() {
+            return indexShard.getPendingReplicationActions();
         }
     }
 

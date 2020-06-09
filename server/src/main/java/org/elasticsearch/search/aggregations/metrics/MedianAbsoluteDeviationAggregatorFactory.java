@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -52,29 +51,9 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         this.compression = compression;
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(MedianAbsoluteDeviationAggregationBuilder.NAME,
-            CoreValuesSourceType.NUMERIC,
-            new MedianAbsoluteDeviationAggregatorSupplier() {
-                @Override
-                public Aggregator build(String name,
-                                        ValuesSource valuesSource,
-                                        DocValueFormat format,
-                                        SearchContext context,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata,
-                                        double compression) throws IOException {
-                    return new MedianAbsoluteDeviationAggregator(
-                        name,
-                        context,
-                        parent,
-                        metadata,
-                        (ValuesSource.Numeric) valuesSource,
-                        format,
-                        compression
-                    );
-                }
-            });
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(MedianAbsoluteDeviationAggregationBuilder.NAME,
+            CoreValuesSourceType.NUMERIC, (MedianAbsoluteDeviationAggregatorSupplier) MedianAbsoluteDeviationAggregator::new);
     }
 
     @Override
@@ -84,11 +63,11 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
 
         return new MedianAbsoluteDeviationAggregator(
             name,
+            null,
+            config.format(),
             searchContext,
             parent,
             metadata,
-            null,
-            config.format(),
             compression
         );
     }
@@ -99,7 +78,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             MedianAbsoluteDeviationAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof MedianAbsoluteDeviationAggregatorSupplier == false) {

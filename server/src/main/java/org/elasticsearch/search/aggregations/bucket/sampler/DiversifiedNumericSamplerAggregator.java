@@ -44,9 +44,9 @@ public class DiversifiedNumericSamplerAggregator extends SamplerAggregator {
 
     DiversifiedNumericSamplerAggregator(String name, int shardSize, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Map<String, Object> metadata,
-            ValuesSource.Numeric valuesSource, int maxDocsPerValue) throws IOException {
+            ValuesSource valuesSource, int maxDocsPerValue) throws IOException {
         super(name, shardSize, factories, context, parent, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.maxDocsPerValue = maxDocsPerValue;
     }
 

@@ -47,10 +47,10 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
 
-        when(licenseState.isCcrAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isCcrAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
     }
 

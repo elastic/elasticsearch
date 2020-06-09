@@ -445,6 +445,37 @@ public class StreamTests extends ESTestCase {
         assertGenericRoundtrip(new LinkedHashSet<>(list));
     }
 
+    private static class Unwriteable {}
+
+    private void assertNotWriteable(Object o, Class<?> type) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StreamOutput.checkWriteable(o));
+        assertThat(e.getMessage(), equalTo("Cannot write type [" + type.getCanonicalName() + "] to stream"));
+    }
+
+    public void testIsWriteable() throws IOException {
+        assertNotWriteable(new Unwriteable(), Unwriteable.class);
+    }
+
+    public void testSetIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(Set.of("a", "b"));
+        assertNotWriteable(Set.of(new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testListIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(List.of("a", "b"));
+        assertNotWriteable(List.of(new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testMapIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(Map.of("a", "b", "c", "d"));
+        assertNotWriteable(Map.of("a", new Unwriteable()), Unwriteable.class);
+    }
+
+    public void testObjectArrayIsWriteable() throws IOException {
+        StreamOutput.checkWriteable(new Object[] {"a", "b"});
+        assertNotWriteable(new Object[] {new Unwriteable()}, Unwriteable.class);
+    }
+
     private void assertSerialization(CheckedConsumer<StreamOutput, IOException> outputAssertions,
                                      CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {

@@ -64,7 +64,7 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), GeoBoundsAggregationBuilder.NAME);
+            .getAggregator(config, GeoBoundsAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof GeoBoundsAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
@@ -75,10 +75,8 @@ class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory {
             metadata);
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
-            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
-                -> new GeoBoundsAggregator(name, aggregationContext, parent, (ValuesSource.GeoPoint) valuesSource,
-                    wrapLongitude, metadata));
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(GeoBoundsAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
+            (GeoBoundsAggregatorSupplier) GeoBoundsAggregator::new);
     }
 }

@@ -27,28 +27,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.junit.Before;
 
 import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FieldNamesFieldTypeTests extends FieldTypeTestCase {
+public class FieldNamesFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new FieldNamesFieldMapper.FieldNamesFieldType();
-    }
-
-    @Before
-    public void setupProperties() {
-        addModifier(new Modifier("enabled", true) {
-            @Override
-            public void modify(MappedFieldType ft) {
-                FieldNamesFieldMapper.FieldNamesFieldType fnft = (FieldNamesFieldMapper.FieldNamesFieldType)ft;
-                fnft.setEnabled(!fnft.isEnabled());
-            }
-        });
     }
 
     public void testTermQuery() {

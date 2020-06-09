@@ -1,7 +1,8 @@
 {
   "autoscaling.get_autoscaling_policy":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-get-autoscaling-policy.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-get-autoscaling-policy.html",
+      "description": "Retrieves an autoscaling policy."
     },
     "stability":"experimental",
     "url":{

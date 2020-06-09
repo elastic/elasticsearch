@@ -167,6 +167,13 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 + "        \"evictions\": 14,"
                 + "        \"hit_count\": 15,"
                 + "        \"miss_count\": 16"
+                + "      },"
+                + "      \"bulk\": {"
+                + "        \"total_operations\": 0,"
+                + "        \"total_time_in_millis\": 0,"
+                + "        \"total_size_in_bytes\": 0,"
+                + "        \"avg_time_in_millis\": 0,"
+                + "        \"avg_size_in_bytes\": 0"
                 + "      }"
                 + "    },"
                 + "    \"os\": {"
@@ -333,7 +340,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                 "_memory_ctrl_group", "2000000000", "1000000000");
 
         final OsStats.Mem osMem = new OsStats.Mem(0, 0);
-        final OsStats.Swap osSwap = new OsStats.Swap(no, no);
+        final OsStats.Swap osSwap = new OsStats.Swap(0, 0);
         final OsStats os = new OsStats(no, osCpu, osMem, osSwap, osCgroup);
 
         // Process

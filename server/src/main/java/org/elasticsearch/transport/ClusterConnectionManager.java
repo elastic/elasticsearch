@@ -219,6 +219,7 @@ public class ClusterConnectionManager implements ConnectionManager {
         return connectedNodes.size();
     }
 
+    @Override
     public Set<DiscoveryNode> getAllConnectedNodes() {
         return Collections.unmodifiableSet(connectedNodes.keySet());
     }

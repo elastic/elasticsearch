@@ -111,6 +111,18 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         // elastic user is updated last
         usersInSetOrder = new ArrayList<>(SetupPasswordTool.USERS);
+        usersInSetOrder.sort((user1, user2) -> {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user1)
+                && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user2)) {
+                return -1;
+            }
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsKey(user2)
+                && SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user1)) {
+                return 1;
+            }
+            return 0;
+        });
+
         for (int i = 0; i < usersInSetOrder.size() - 1; i++) {
             if (ElasticUser.NAME.equals(usersInSetOrder.get(i))) {
                 Collections.swap(usersInSetOrder, i, i + 1);
@@ -118,6 +130,9 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
 
         for (String user : SetupPasswordTool.USERS) {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+                continue;
+            }
             terminal.addSecretInput(user + "-password");
             terminal.addSecretInput(user + "-password");
         }
@@ -168,11 +183,26 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedFunction.class));
+        Map<String, String> capturedPasswords = new HashMap<>(usersInSetOrder.size());
         for (String user : usersInSetOrder) {
             URL urlWithRoute = passwordUrl(url, user);
+            ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
-                    any(CheckedSupplier.class), any(CheckedFunction.class));
+                passwordCaptor.capture(), any(CheckedFunction.class));
+
+            String userPassword = passwordCaptor.getValue().get();
+            capturedPasswords.put(user, userPassword);
         }
+
+       for (Map.Entry<String, String> entry : SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.entrySet()) {
+           assertEquals(capturedPasswords.get(entry.getKey()), capturedPasswords.get(entry.getValue()));
+
+           capturedPasswords.remove(entry.getKey());
+           capturedPasswords.remove(entry.getValue());
+       }
+
+        Set<String> uniqueCapturedPasswords = new HashSet<>(capturedPasswords.values());
+       assertEquals(uniqueCapturedPasswords.size(), capturedPasswords.size());
     }
 
     public void testAuthnFail() throws Exception {
@@ -391,12 +421,13 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedFunction.class));
+
         for (String user : usersInSetOrder) {
             URL urlWithRoute = passwordUrl(url, user);
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedFunction.class));
-            assertThat(passwordCaptor.getValue().get(), containsString(user + "-password"));
+            assertThat(passwordCaptor.getValue().get(), containsString(getExpectedPasswordForUser(user)));
         }
     }
 
@@ -409,6 +440,10 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
         terminal.addTextInput("Y");
         for (String user : SetupPasswordTool.USERS) {
+            if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+                continue;
+            }
+
             // fail in strength and match
             int failCount = randomIntBetween(3, 10);
             while (failCount-- > 0) {
@@ -437,7 +472,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedFunction.class));
-            assertThat(passwordCaptor.getValue().get(), containsString(user + "-password"));
+            assertThat(passwordCaptor.getValue().get(), containsString(getExpectedPasswordForUser(user)));
         }
     }
 
@@ -509,5 +544,17 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         };
 
+    }
+
+    private String getExpectedPasswordForUser(String user) throws Exception {
+        if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
+            for(Map.Entry<String, String> entry : SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.entrySet()) {
+                if (entry.getValue().equals(user)) {
+                    return entry.getKey() + "-password";
+                }
+            }
+            throw new Exception("Expected to find corresponding user for " + user);
+        }
+        return user + "-password";
     }
 }

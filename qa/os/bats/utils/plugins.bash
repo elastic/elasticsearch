@@ -185,5 +185,7 @@ install_meta_plugin() {
 compare_plugins_list() {
     cat $1 | sort > /tmp/plugins
     echo "Checking plugins from $2 (<) against expected plugins (>):"
-    diff -w /elasticsearch/qa/vagrant/build/plugins/expected /tmp/plugins
+    # bats tests are run under build/packaging/distributions, and expected file is in build/plugins/expected
+    # this can't be an absolute path since it differs whether running in vagrant or GCP
+    diff -w ../../plugins/expected /tmp/plugins
 }

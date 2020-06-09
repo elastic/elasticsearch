@@ -42,7 +42,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final RestGetUserPrivilegesAction action =
             new RestGetUserPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
-        when(licenseState.isSecurityAvailable()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
         final FakeRestRequest request = new FakeRestRequest();
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
         action.handleRequest(request, channel, mock(NodeClient.class));

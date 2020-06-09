@@ -25,6 +25,10 @@ Python::
 
     See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
 
+JavaScript::
+
+    See {jsclient-current}/client-helpers.html[client.helpers.*]
+
 *********************************************
 
 NOTE: The results that are returned from a scroll request reflect the state of

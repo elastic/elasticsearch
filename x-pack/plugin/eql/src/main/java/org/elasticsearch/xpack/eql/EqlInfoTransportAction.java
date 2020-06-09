@@ -19,7 +19,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
-    
+
     @Inject
     public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
                                   Settings settings, XPackLicenseState licenseState) {
@@ -27,7 +27,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
         this.enabled = EqlPlugin.isEnabled(settings);
         this.licenseState = licenseState;
     }
-    
+
     @Override
     public String name() {
         return XPackField.EQL;
@@ -35,7 +35,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isEqlAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.EQL);
     }
 
     @Override

@@ -227,13 +227,14 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExtractRanges() throws Exception {
+        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
         addQueryFieldMappings();
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         Query rangeQuery1 = mapperService.fieldType("number_field1")
-            .rangeQuery(10, 20, true, true, null, null, null, null);
+            .rangeQuery(10, 20, true, true, null, null, null, context);
         bq.add(rangeQuery1, Occur.MUST);
         Query rangeQuery2 = mapperService.fieldType("number_field1")
-            .rangeQuery(15, 20, true, true, null, null, null, null);
+            .rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
         DocumentMapper documentMapper = mapperService.documentMapper();
@@ -265,7 +266,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         bq = new BooleanQuery.Builder();
         bq.add(rangeQuery1, Occur.MUST);
         rangeQuery2 = mapperService.fieldType("number_field2")
-            .rangeQuery(15, 20, true, true, null, null, null, null);
+            .rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
         parseContext = new ParseContext.InternalParseContext(settings,

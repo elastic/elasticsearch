@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.Streams;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -97,19 +98,26 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     private final String bucketName;
     private final String clientName;
+    private final String repositoryName;
     private final GoogleCloudStorageService storageService;
+    private final GoogleCloudStorageOperationsStats stats;
 
-    GoogleCloudStorageBlobStore(String bucketName, String clientName, GoogleCloudStorageService storageService) {
+    GoogleCloudStorageBlobStore(String bucketName,
+                                String clientName,
+                                String repositoryName,
+                                GoogleCloudStorageService storageService) {
         this.bucketName = bucketName;
         this.clientName = clientName;
+        this.repositoryName = repositoryName;
         this.storageService = storageService;
+        this.stats = new GoogleCloudStorageOperationsStats(bucketName);
         if (doesBucketExist(bucketName) == false) {
             throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
         }
     }
 
     private Storage client() throws IOException {
-        return storageService.client(clientName);
+        return storageService.client(clientName, repositoryName, stats);
     }
 
     @Override
@@ -118,7 +126,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        storageService.closeRepositoryClient(repositoryName);
     }
 
     /**
@@ -200,6 +209,29 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
+     * Returns an {@link java.io.InputStream} for the given blob's position and length
+     *
+     * @param blobName name of the blob
+     * @param position starting position to read from
+     * @param length length of bytes to read
+     * @return the InputStream used to read the blob's content
+     */
+    InputStream readBlob(String blobName, long position, long length) throws IOException {
+        if (position < 0L) {
+            throw new IllegalArgumentException("position must be non-negative");
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("length must be non-negative");
+        }
+        if (length == 0) {
+            return new ByteArrayInputStream(new byte[0]);
+        } else {
+            return new GoogleCloudStorageRetryingInputStream(client(), BlobId.of(bucketName, blobName), position,
+                Math.addExact(position, length - 1));
+        }
+    }
+
+    /**
      * Writes a blob in the specific bucket
      *  @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
@@ -261,6 +293,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
 
                 }));
+                // We don't track this operation on the http layer as
+                // we do with the GET/LIST operations since this operations
+                // can trigger multiple underlying http requests but only one
+                // operation is billed.
+                stats.trackPutOperation();
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -303,6 +340,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 new Storage.BlobTargetOption[0];
             SocketAccess.doPrivilegedVoidIOException(
                     () -> client().create(blobInfo, buffer, targetOptions));
+            // We don't track this operation on the http layer as
+            // we do with the GET/LIST operations since this operations
+            // can trigger multiple underlying http requests but only one
+            // operation is billed.
+            stats.trackPostOperation();
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -386,5 +428,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private static String buildKey(String keyPath, String s) {
         assert s != null;
         return keyPath + s;
+    }
+
+    @Override
+    public Map<String, Long> stats() {
+        return stats.toMap();
     }
 }

@@ -33,25 +33,13 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
-    public static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(
-            MissingAggregationBuilder.NAME,
-            List.of(
-                CoreValuesSourceType.NUMERIC,
-                CoreValuesSourceType.BYTES,
-                CoreValuesSourceType.GEOPOINT,
-                CoreValuesSourceType.RANGE,
-                CoreValuesSourceType.IP,
-                CoreValuesSourceType.BOOLEAN,
-                CoreValuesSourceType.DATE
-            ),
-            (MissingAggregatorSupplier) MissingAggregator::new
-        );
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(MissingAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
+            (MissingAggregatorSupplier) MissingAggregator::new);
     }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
@@ -74,7 +62,7 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
                                                     boolean collectsFromSingleBucket,
                                                     Map<String, Object> metadata) throws IOException {
         final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), MissingAggregationBuilder.NAME);
+            .getAggregator(config, MissingAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof MissingAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected MissingAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");

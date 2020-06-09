@@ -70,6 +70,7 @@ public class IndexStatsCollector extends Collector {
                 .setRefresh(true)
                 .setQueryCache(true)
                 .setRequestCache(true)
+                .setBulk(true)
                 .get(getCollectionTimeout());
 
         final long timestamp = timestamp();

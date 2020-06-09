@@ -11,7 +11,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -70,13 +69,15 @@ public class AnalyticsProcessManager {
     private final DataFrameAnalyticsAuditor auditor;
     private final TrainedModelProvider trainedModelProvider;
     private final ResultsPersisterService resultsPersisterService;
+    private final int numAllocatedProcessors;
 
     public AnalyticsProcessManager(Client client,
                                    ThreadPool threadPool,
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
-                                   ResultsPersisterService resultsPersisterService) {
+                                   ResultsPersisterService resultsPersisterService,
+                                   int numAllocatedProcessors) {
         this(
             client,
             threadPool.generic(),
@@ -84,7 +85,8 @@ public class AnalyticsProcessManager {
             analyticsProcessFactory,
             auditor,
             trainedModelProvider,
-            resultsPersisterService);
+            resultsPersisterService,
+            numAllocatedProcessors);
     }
 
     // Visible for testing
@@ -94,7 +96,8 @@ public class AnalyticsProcessManager {
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
-                                   ResultsPersisterService resultsPersisterService) {
+                                   ResultsPersisterService resultsPersisterService,
+                                   int numAllocatedProcessors) {
         this.client = Objects.requireNonNull(client);
         this.executorServiceForJob = Objects.requireNonNull(executorServiceForJob);
         this.executorServiceForProcess = Objects.requireNonNull(executorServiceForProcess);
@@ -102,6 +105,7 @@ public class AnalyticsProcessManager {
         this.auditor = Objects.requireNonNull(auditor);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.numAllocatedProcessors = numAllocatedProcessors;
     }
 
     public void runJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory) {
@@ -117,7 +121,8 @@ public class AnalyticsProcessManager {
                     return;
                 }
                 if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
-                    task.setFailed("[" + config.getId() + "] Could not create process as one already exists");
+                    task.setFailed(ExceptionsHelper.serverError(
+                        "[" + config.getId() + "] Could not create process as one already exists"));
                     return;
                 }
             }
@@ -208,7 +213,7 @@ public class AnalyticsProcessManager {
                 task.markAsCompleted();
             } else {
                 LOGGER.error("[{}] Marking task failed; {}", config.getId(), processContext.getFailureReason());
-                task.setFailed(processContext.getFailureReason());
+                task.setFailed(ExceptionsHelper.serverError(processContext.getFailureReason()));
                 // Note: We are not marking the task as failed here as we want the user to be able to inspect the failure reason.
             }
         }
@@ -246,7 +251,7 @@ public class AnalyticsProcessManager {
                     }
                 }
                 rowsProcessed += rows.get().size();
-                progressTracker.loadingDataPercent.set(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
+                progressTracker.updateLoadingDataProgress(rowsProcessed >= totalRows ? 100 : (int) (rowsProcessed * 100.0 / totalRows));
             }
         }
     }
@@ -265,10 +270,6 @@ public class AnalyticsProcessManager {
         headerRecord[headerRecord.length - 2] = ".";
         headerRecord[headerRecord.length - 1] = ".";
         process.writeRecord(headerRecord);
-    }
-
-    private void indexDataCounts(DataCounts dataCounts) {
-        IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias());
     }
 
     private void restoreState(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, @Nullable BytesReference state,
@@ -290,7 +291,7 @@ public class AnalyticsProcessManager {
             process.restoreState(state);
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
-            task.setFailed("Failed to restore state: " + e.getMessage());
+            task.setFailed(ExceptionsHelper.serverError("Failed to restore state: " + e.getMessage()));
         }
     }
 
@@ -426,7 +427,7 @@ public class AnalyticsProcessManager {
             dataExtractor.set(dataExtractorFactory.newExtractor(false));
             AnalyticsProcessConfig analyticsProcessConfig =
                 createProcessConfig(dataExtractor.get(), dataExtractorFactory.getExtractedFields());
-            LOGGER.trace("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
+            LOGGER.debug("[{}] creating analytics process with config [{}]", config.getId(), Strings.toString(analyticsProcessConfig));
             // If we have no rows, that means there is no data so no point in starting the native process
             // just finish the task
             if (analyticsProcessConfig.rows() == 0) {
@@ -442,12 +443,13 @@ public class AnalyticsProcessManager {
                                                            ExtractedFields extractedFields) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
             Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
+            int threads = config.getMaxNumThreads() == null ? 1 : Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
             return new AnalyticsProcessConfig(
                 config.getId(),
                 dataSummary.rows,
                 dataSummary.cols,
                 config.getModelMemoryLimit(),
-                1,
+                threads,
                 config.getDest().getResultsField(),
                 categoricalFields,
                 config.getAnalysis(),

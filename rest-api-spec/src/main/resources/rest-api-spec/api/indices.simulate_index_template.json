@@ -1,0 +1,45 @@
+{
+  "indices.simulate_index_template":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "description": "Simulate matching the given index name against the index templates in the system"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_index_template/_simulate_index/{name}",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the index (it must be a concrete index name)"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "create":{
+        "type":"boolean",
+        "description":"Whether the index template we optionally defined in the body should only be dry-run added if new or can also replace an existing one",
+        "default":false
+      },
+      "cause":{
+        "type":"string",
+        "description":"User defined reason for dry-run creating the new template for simulation purposes",
+        "default":false
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    },
+    "body":{
+      "description":"New index template definition, which will be included in the simulation, as if it already exists in the system",
+      "required":false
+    }
+  }
+}

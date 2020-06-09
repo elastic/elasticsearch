@@ -59,4 +59,8 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
                                                    boolean collectsFromSingleBucket,
                                                    Map<String, Object> metadata) throws IOException;
 
+    @Override
+    public String getStatsSubtype() {
+        return config.valueSourceType().typeName();
+    }
 }

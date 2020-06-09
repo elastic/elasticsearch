@@ -37,8 +37,13 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
 
     private final ValuesSource valuesSource;
 
-    public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    public MissingAggregator(
+            String name,
+            AggregatorFactories factories,
+            ValuesSource valuesSource,
+            SearchContext aggregationContext,
+            Aggregator parent,
+            Map<String, Object> metadata) throws IOException {
         super(name, factories, aggregationContext, parent, metadata);
         this.valuesSource = valuesSource;
     }
@@ -68,8 +73,9 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalMissing(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override

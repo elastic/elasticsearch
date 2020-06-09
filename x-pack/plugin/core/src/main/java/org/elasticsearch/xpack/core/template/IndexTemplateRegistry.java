@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -200,29 +199,26 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePoliciesIfMissing(ClusterState state) {
-        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
 
-        if (ilmSupported) {
-            Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
-            List<LifecyclePolicy> policies = getPolicyConfigs().stream()
-                .map(policyConfig -> policyConfig.load(xContentRegistry))
-                .collect(Collectors.toList());
+        Optional<IndexLifecycleMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE));
+        List<LifecyclePolicy> policies = getPolicyConfigs().stream()
+            .map(policyConfig -> policyConfig.load(xContentRegistry))
+            .collect(Collectors.toList());
 
-            for (LifecyclePolicy policy : policies) {
-                final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(policy.getName(),
-                    key -> new AtomicBoolean(false));
-                if (creationCheck.compareAndSet(false, true)) {
-                    final boolean policyNeedsToBeCreated = maybeMeta
-                        .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName())))
-                        .isPresent() == false;
-                    if (policyNeedsToBeCreated) {
-                        logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
-                        putPolicy(policy, creationCheck);
-                    } else {
-                        logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists",
-                            policy.getName(), getOrigin());
-                        creationCheck.set(false);
-                    }
+        for (LifecyclePolicy policy : policies) {
+            final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(policy.getName(),
+                key -> new AtomicBoolean(false));
+            if (creationCheck.compareAndSet(false, true)) {
+                final boolean policyNeedsToBeCreated = maybeMeta
+                    .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName())))
+                    .isPresent() == false;
+                if (policyNeedsToBeCreated) {
+                    logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
+                    putPolicy(policy, creationCheck);
+                } else {
+                    logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists",
+                        policy.getName(), getOrigin());
+                    creationCheck.set(false);
                 }
             }
         }

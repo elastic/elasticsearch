@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -48,22 +49,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.precisionThreshold = precisionThreshold;
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.registerAny(CardinalityAggregationBuilder.NAME, cardinalityAggregatorSupplier());
-    }
-
-    private static CardinalityAggregatorSupplier cardinalityAggregatorSupplier(){
-        return new CardinalityAggregatorSupplier() {
-            @Override
-            public Aggregator build(String name,
-                                    ValuesSource valuesSource,
-                                    int precision,
-                                    SearchContext context,
-                                    Aggregator parent,
-                                    Map<String, Object> metadata) throws IOException {
-                return new CardinalityAggregator(name, valuesSource, precision, context, parent, metadata);
-            }
-        };
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
+            (CardinalityAggregatorSupplier) CardinalityAggregator::new);
     }
 
     @Override
@@ -79,7 +67,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                             Aggregator parent,
                                             boolean collectsFromSingleBucket,
                                             Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             CardinalityAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof CardinalityAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected CardinalityAggregatorSupplier, found [" +

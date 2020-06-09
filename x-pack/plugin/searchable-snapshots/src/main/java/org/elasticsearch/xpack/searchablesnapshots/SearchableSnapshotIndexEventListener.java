@@ -19,7 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.isSearchableSnapshotStore;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 
 public class SearchableSnapshotIndexEventListener implements IndexEventListener {
 

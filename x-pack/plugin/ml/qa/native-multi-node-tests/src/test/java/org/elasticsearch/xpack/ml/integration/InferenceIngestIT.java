@@ -22,7 +22,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinitionTests.CLASSIFICATION_DEFINITION;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -46,14 +49,16 @@ public class InferenceIngestIT extends ESRestTestCase {
         basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
 
     @Before
-    public void createBothModels() throws Exception {
-        Request request = new Request("PUT", "_ml/inference/test_classification");
-        request.setJsonEntity(CLASSIFICATION_CONFIG);
-        client().performRequest(request);
-
-        request = new Request("PUT", "_ml/inference/test_regression");
-        request.setJsonEntity(REGRESSION_CONFIG);
-        client().performRequest(request);
+    public void setup() throws Exception {
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference\" : \"TRACE\"\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
+        client().performRequest(new Request("GET", "/_cluster/health?wait_for_status=green&timeout=30s"));
     }
 
     @Override
@@ -64,19 +69,33 @@ public class InferenceIngestIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
+        client().performRequest(new Request("DELETE", InferenceIndexConstants.INDEX_PATTERN));
+        client().performRequest(new Request("DELETE", MlStatsIndex.indexPattern()));
+        Request loggingSettings = new Request("PUT", "_cluster/settings");
+        loggingSettings.setJsonEntity("" +
+            "{" +
+            "\"transient\" : {\n" +
+            "        \"logger.org.elasticsearch.xpack.ml.inference\" : null\n" +
+            "    }" +
+            "}");
+        client().performRequest(loggingSettings);
         ESRestTestCase.waitForPendingTasks(adminClient());
-        client().performRequest(new Request("DELETE", "_ml/inference/test_classification"));
-        client().performRequest(new Request("DELETE", "_ml/inference/test_regression"));
     }
 
     public void testPathologicalPipelineCreationAndDeletion() throws Exception {
+        String classificationModelId = "test_pathological_classification";
+        putModel(classificationModelId, CLASSIFICATION_CONFIG);
+
+        String regressionModelId = "test_pathological_regression";
+        putModel(regressionModelId, REGRESSION_CONFIG);
 
         for (int i = 0; i < 10; i++) {
-            client().performRequest(putPipeline("simple_classification_pipeline", CLASSIFICATION_PIPELINE));
+            client().performRequest(putPipeline("simple_classification_pipeline",
+                pipelineDefinition(classificationModelId, "classification")));
             client().performRequest(indexRequest("index_for_inference_test", "simple_classification_pipeline", generateSourceDoc()));
             client().performRequest(new Request("DELETE", "_ingest/pipeline/simple_classification_pipeline"));
 
-            client().performRequest(putPipeline("simple_regression_pipeline", REGRESSION_PIPELINE));
+            client().performRequest(putPipeline("simple_regression_pipeline", pipelineDefinition(regressionModelId, "regression")));
             client().performRequest(indexRequest("index_for_inference_test", "simple_regression_pipeline", generateSourceDoc()));
             client().performRequest(new Request("DELETE", "_ingest/pipeline/simple_regression_pipeline"));
         }
@@ -94,13 +113,30 @@ public class InferenceIngestIT extends ESRestTestCase {
                     QueryBuilders.existsQuery("ml.inference.classification.predicted_value"))));
 
         assertThat(EntityUtils.toString(searchResponse.getEntity()), containsString("\"value\":10"));
+        assertBusy(() -> {
+            try {
+                Response statsResponse = client().performRequest(new Request("GET",
+                    "_ml/inference/" + classificationModelId + "/_stats"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
+                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+            } catch (ResponseException ex) {
+                //this could just mean shard failures.
+                fail(ex.getMessage());
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/54786")
     public void testPipelineIngest() throws Exception {
+        String classificationModelId = "test_classification";
+        putModel(classificationModelId, CLASSIFICATION_CONFIG);
 
-        client().performRequest(putPipeline("simple_classification_pipeline", CLASSIFICATION_PIPELINE));
-        client().performRequest(putPipeline("simple_regression_pipeline", REGRESSION_PIPELINE));
+        String regressionModelId = "test_regression";
+        putModel(regressionModelId, REGRESSION_CONFIG);
+
+        client().performRequest(putPipeline("simple_classification_pipeline",
+            pipelineDefinition(classificationModelId, "classification")));
+        client().performRequest(putPipeline("simple_regression_pipeline", pipelineDefinition(regressionModelId, "regression")));
 
         for (int i = 0; i < 10; i++) {
             client().performRequest(indexRequest("index_for_inference_test", "simple_classification_pipeline", generateSourceDoc()));
@@ -131,21 +167,30 @@ public class InferenceIngestIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                Response statsResponse = client().performRequest(new Request("GET", "_ml/inference/test_classification/_stats"));
+                Response statsResponse = client().performRequest(new Request("GET",
+                    "_ml/inference/" + classificationModelId + "/_stats"));
                 assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
-                statsResponse = client().performRequest(new Request("GET", "_ml/inference/test_regression/_stats"));
+                statsResponse = client().performRequest(new Request("GET", "_ml/inference/" + regressionModelId + "/_stats"));
                 assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
                 // can get both
                 statsResponse = client().performRequest(new Request("GET", "_ml/inference/_stats"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":15"));
-                assertThat(EntityUtils.toString(statsResponse.getEntity()), containsString("\"inference_count\":10"));
+                String entityString = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(entityString, containsString("\"inference_count\":15"));
+                assertThat(entityString, containsString("\"inference_count\":10"));
             } catch (ResponseException ex) {
                 //this could just mean shard failures.
+                fail(ex.getMessage());
             }
         }, 30, TimeUnit.SECONDS);
     }
 
     public void testSimulate() throws IOException {
+        String classificationModelId = "test_classification_simulate";
+        putModel(classificationModelId, CLASSIFICATION_CONFIG);
+
+        String regressionModelId = "test_regression_simulate";
+        putModel(regressionModelId, REGRESSION_CONFIG);
+
         String source = "{\n" +
             "  \"pipeline\": {\n" +
             "    \"processors\": [\n" +
@@ -157,7 +202,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "                \"top_classes_results_field\": \"result_class_prob\"," +
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
-            "          \"model_id\": \"test_classification\",\n" +
+            "          \"model_id\": \"" + classificationModelId + "\",\n" +
             "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
             "            \"col2\": \"col2\",\n" +
@@ -169,7 +214,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "      {\n" +
             "        \"inference\": {\n" +
             "          \"target_field\": \"ml.regression\",\n" +
-            "          \"model_id\": \"test_regression\",\n" +
+            "          \"model_id\": \"" + regressionModelId + "\",\n" +
             "          \"inference_config\": {\"regression\":{}},\n" +
             "          \"field_map\": {\n" +
             "            \"col1\": \"col1\",\n" +
@@ -232,6 +277,8 @@ public class InferenceIngestIT extends ESRestTestCase {
     }
 
     public void testSimulateWithDefaultMappedField() throws IOException {
+        String classificationModelId = "test_classification_default_mapped_field";
+        putModel(classificationModelId, CLASSIFICATION_CONFIG);
         String source = "{\n" +
             "  \"pipeline\": {\n" +
             "    \"processors\": [\n" +
@@ -243,7 +290,7 @@ public class InferenceIngestIT extends ESRestTestCase {
             "                \"top_classes_results_field\": \"result_class_prob\"," +
             "                \"num_top_feature_importance_values\": 2" +
             "          }},\n" +
-            "          \"model_id\": \"test_classification\",\n" +
+            "          \"model_id\": \"" + classificationModelId + "\",\n" +
             "          \"field_map\": {}\n" +
             "        }\n" +
             "      }\n"+
@@ -466,133 +513,6 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"definition\": " + REGRESSION_DEFINITION +
         "}";
 
-    private static final String CLASSIFICATION_DEFINITION = "{" +
-        "  \"preprocessors\": [\n" +
-        "    {\n" +
-        "      \"one_hot_encoding\": {\n" +
-        "        \"field\": \"col1\",\n" +
-        "        \"hot_map\": {\n" +
-        "          \"male\": \"col1_male\",\n" +
-        "          \"female\": \"col1_female\"\n" +
-        "        }\n" +
-        "      }\n" +
-        "    },\n" +
-        "    {\n" +
-        "      \"target_mean_encoding\": {\n" +
-        "        \"field\": \"col2\",\n" +
-        "        \"feature_name\": \"col2_encoded\",\n" +
-        "        \"target_map\": {\n" +
-        "          \"S\": 5.0,\n" +
-        "          \"M\": 10.0,\n" +
-        "          \"L\": 20\n" +
-        "        },\n" +
-        "        \"default_value\": 5.0\n" +
-        "      }\n" +
-        "    },\n" +
-        "    {\n" +
-        "      \"frequency_encoding\": {\n" +
-        "        \"field\": \"col3\",\n" +
-        "        \"feature_name\": \"col3_encoded\",\n" +
-        "        \"frequency_map\": {\n" +
-        "          \"none\": 0.75,\n" +
-        "          \"true\": 0.10,\n" +
-        "          \"false\": 0.15\n" +
-        "        }\n" +
-        "      }\n" +
-        "    }\n" +
-        "  ],\n" +
-        "  \"trained_model\": {\n" +
-        "    \"ensemble\": {\n" +
-        "      \"feature_names\": [\n" +
-        "        \"col1_male\",\n" +
-        "        \"col1_female\",\n" +
-        "        \"col2_encoded\",\n" +
-        "        \"col3_encoded\",\n" +
-        "        \"col4\"\n" +
-        "      ],\n" +
-        "      \"aggregate_output\": {\n" +
-        "        \"weighted_mode\": {\n" +
-        "          \"num_classes\": \"2\",\n" +
-        "          \"weights\": [\n" +
-        "            0.5,\n" +
-        "            0.5\n" +
-        "          ]\n" +
-        "        }\n" +
-        "      },\n" +
-        "      \"target_type\": \"classification\",\n" +
-        "      \"classification_labels\": [\"first\", \"second\"],\n" +
-        "      \"trained_models\": [\n" +
-        "        {\n" +
-        "          \"tree\": {\n" +
-        "            \"feature_names\": [\n" +
-        "              \"col1_male\",\n" +
-        "              \"col1_female\",\n" +
-        "              \"col4\"\n" +
-        "            ],\n" +
-        "            \"tree_structure\": [\n" +
-        "              {\n" +
-        "                \"node_index\": 0,\n" +
-        "                \"split_feature\": 0,\n" +
-        "                \"number_samples\": 100,\n" +
-        "                \"split_gain\": 12.0,\n" +
-        "                \"threshold\": 10.0,\n" +
-        "                \"decision_type\": \"lte\",\n" +
-        "                \"default_left\": true,\n" +
-        "                \"left_child\": 1,\n" +
-        "                \"right_child\": 2\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 1,\n" +
-        "                \"number_samples\": 80,\n" +
-        "                \"leaf_value\": 1\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 2,\n" +
-        "                \"number_samples\": 20,\n" +
-        "                \"leaf_value\": 0\n" +
-        "              }\n" +
-        "            ],\n" +
-        "            \"target_type\": \"regression\"\n" +
-        "          }\n" +
-        "        },\n" +
-        "        {\n" +
-        "          \"tree\": {\n" +
-        "            \"feature_names\": [\n" +
-        "              \"col2_encoded\",\n" +
-        "              \"col3_encoded\",\n" +
-        "              \"col4\"\n" +
-        "            ],\n" +
-        "            \"tree_structure\": [\n" +
-        "              {\n" +
-        "                \"node_index\": 0,\n" +
-        "                \"split_feature\": 0,\n" +
-        "                \"split_gain\": 12.0,\n" +
-        "                \"number_samples\": 180,\n" +
-        "                \"threshold\": 10.0,\n" +
-        "                \"decision_type\": \"lte\",\n" +
-        "                \"default_left\": true,\n" +
-        "                \"left_child\": 1,\n" +
-        "                \"right_child\": 2\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 1,\n" +
-        "                \"number_samples\": 10,\n" +
-        "                \"leaf_value\": 1\n" +
-        "              },\n" +
-        "              {\n" +
-        "                \"node_index\": 2,\n" +
-        "                \"number_samples\": 170,\n" +
-        "                \"leaf_value\": 0\n" +
-        "              }\n" +
-        "            ],\n" +
-        "            \"target_type\": \"regression\"\n" +
-        "          }\n" +
-        "        }\n" +
-        "      ]\n" +
-        "    }\n" +
-        "  }\n" +
-        "}";
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
@@ -607,36 +527,28 @@ public class InferenceIngestIT extends ESRestTestCase {
         "  \"definition\": " + CLASSIFICATION_DEFINITION +
         "}";
 
-    private static final String CLASSIFICATION_PIPELINE = "{" +
-        "    \"processors\": [\n" +
-        "      {\n" +
-        "        \"inference\": {\n" +
-        "          \"model_id\": \"test_classification\",\n" +
-        "          \"tag\": \"classification\",\n" +
-        "          \"inference_config\": {\"classification\": {}},\n" +
-        "          \"field_map\": {\n" +
-        "            \"col1\": \"col1\",\n" +
-        "            \"col2\": \"col2\",\n" +
-        "            \"col3\": \"col3\",\n" +
-        "            \"col4\": \"col4\"\n" +
-        "          }\n" +
-        "        }\n" +
-        "      }]}\n";
+    private static String pipelineDefinition(String modelId, String inferenceConfig) {
+        return "{" +
+            "    \"processors\": [\n" +
+            "      {\n" +
+            "        \"inference\": {\n" +
+            "          \"model_id\": \"" + modelId + "\",\n" +
+            "          \"tag\": \""+ inferenceConfig + "\",\n" +
+            "          \"inference_config\": {\"" + inferenceConfig + "\": {}},\n" +
+            "          \"field_map\": {\n" +
+            "            \"col1\": \"col1\",\n" +
+            "            \"col2\": \"col2\",\n" +
+            "            \"col3\": \"col3\",\n" +
+            "            \"col4\": \"col4\"\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }]}\n";
+    }
 
-    private static final String REGRESSION_PIPELINE = "{" +
-        "    \"processors\": [\n" +
-        "      {\n" +
-        "        \"inference\": {\n" +
-        "          \"model_id\": \"test_regression\",\n" +
-        "          \"tag\": \"regression\",\n" +
-        "          \"inference_config\": {\"regression\": {}},\n" +
-        "          \"field_map\": {\n" +
-        "            \"col1\": \"col1\",\n" +
-        "            \"col2\": \"col2\",\n" +
-        "            \"col3\": \"col3\",\n" +
-        "            \"col4\": \"col4\"\n" +
-        "          }\n" +
-        "        }\n" +
-        "      }]}\n";
+    private void putModel(String modelId, String modelConfiguration) throws IOException {
+        Request request = new Request("PUT", "_ml/inference/" + modelId);
+        request.setJsonEntity(modelConfiguration);
+        client().performRequest(request);
+    }
 
 }

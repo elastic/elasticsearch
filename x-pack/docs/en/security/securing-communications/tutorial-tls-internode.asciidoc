@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="trial"]
 [[encrypting-internode]]
-=== Encrypt internode communications  
+=== Encrypt internode communications
 
 Now that we've generated a certificate authority and certificates, let's update
 the cluster to use these files.
@@ -9,7 +9,7 @@ the cluster to use these files.
 IMPORTANT: When you enable {es} {security-features}, unless you have a trial
 license, you must use Transport Layer Security (TLS) to encrypt internode
 communication. By following the steps in this tutorial tutorial, you learn how
-to meet the minimum requirements to pass the 
+to meet the minimum requirements to pass the
 <<bootstrap-checks-tls,TLS bootstrap check>>.
 
 . (Optional) Name the cluster.
@@ -23,10 +23,10 @@ For example, add the <<cluster.name,cluster.name>> setting in the
 cluster.name: test-cluster
 ----
 
-TIP: The `ES_PATH_CONF` environment variable contains the path for the {es} 
-configuration files. If you installed {es} using archive distributions (`zip` or 
-`tar.gz`), it defaults to `ES_HOME/config`. If you used package distributions 
-(Debian or RPM), it defaults to `/etc/elasticsearch`. For more information, see 
+TIP: The `ES_PATH_CONF` environment variable contains the path for the {es}
+configuration files. If you installed {es} using archive distributions (`zip` or
+`tar.gz`), it defaults to `ES_HOME/config`. If you used package distributions
+(Debian or RPM), it defaults to `/etc/elasticsearch`. For more information, see
 <<settings>>.
 
 The default cluster name is `elasticsearch`. You should choose a unique name,
@@ -46,7 +46,7 @@ node.name: node-1
 
 In this tutorial, the cluster will consist of three nodes that exist on the same
 machine and share the same (loopback) IP address and hostname. Therefore, we
-must give each node a unique name. 
+must give each node a unique name.
 
 This step is also necessary if you want to use the `node.name` value to define
 the location of certificates in subsequent steps.
@@ -79,13 +79,13 @@ itself into a new cluster.
 TIP: If you are starting a cluster with multiple master-eligible nodes for the
 first time, add all of those node names to the `cluster.initial_master_nodes`
 setting.
- 
+
 See <<modules-discovery-bootstrap-cluster>> and
 <<discovery-settings>>.
 --
 
 . Enable Transport Layer Security (TLS/SSL) for transport (internode)
-communications. 
+communications.
 +
 --
 // tag::enable-tls[]
@@ -95,20 +95,20 @@ file:
 [source,yaml]
 ----
 xpack.security.enabled: true
-xpack.security.transport.ssl.enabled: true  
+xpack.security.transport.ssl.enabled: true
 xpack.security.transport.ssl.keystore.path: certs/${node.name}.p12 <1>
 xpack.security.transport.ssl.truststore.path: certs/${node.name}.p12
 ----
 <1> If the file name for your certificate does not match the `node.name` value,
-you must put the appropriate file name in the `elasticsearch.yml` file. 
+you must put the appropriate file name in the `elasticsearch.yml` file.
 // end::enable-tls[]
 
 NOTE: The PKCS#12 keystore that is output by the `elasticsearch-certutil` can be
-used as both a keystore and a truststore. If you use other tools to manage and 
+used as both a keystore and a truststore. If you use other tools to manage and
 generate your certificates, you might have different values for these settings,
 but that scenario is not covered in this tutorial.
 
-For more information, see <<get-started-enable-security>> and 
+For more information, see <<get-started-enable-security>> and
 <<transport-tls-ssl-settings>>.
 --
 
@@ -116,7 +116,7 @@ For more information, see <<get-started-enable-security>> and
 +
 --
 // tag::secure-passwords[]
-For example, run the following commands: 
+For example, run the following commands:
 
 ["source","sh",subs="attributes,callouts"]
 ----------------------------------------------------------------------
@@ -146,7 +146,7 @@ command from the {es} directory:
 ----------------------------------------------------------------------
 --
 
-. Create passwords for the built-in users and configure {kib} to use them. 
+. Create passwords for the built-in users and configure {kib} to use them.
 +
 --
 NOTE: If you already configured passwords for these users in other tutorials,
@@ -154,11 +154,11 @@ you can skip this step.
 
 include::{xes-repo-dir}/security/get-started-builtin-users.asciidoc[tag=create-users]
 
-After you setup the password for the `kibana` built-in user,
+After you setup the password for the `kibana_system` built-in user,
 <<get-started-kibana-user,configure {kib} to use it>>.
 
 For example, run the following commands to create the {kib} keystore and add the
-`kibana` built-in user and its password in secure settings:
+`kibana_system` built-in user and its password in secure settings:
 
 include::{xes-repo-dir}/security/get-started-kibana-users.asciidoc[tag=store-kibana-user]
 --
@@ -173,5 +173,5 @@ command from the {kib}  directory:
 ./bin/kibana
 ----------------------------------------------------------------------
 
-See {kibana-ref}/start-stop.html[Starting and stopping {kib}]. 
+See {kibana-ref}/start-stop.html[Starting and stopping {kib}].
 --

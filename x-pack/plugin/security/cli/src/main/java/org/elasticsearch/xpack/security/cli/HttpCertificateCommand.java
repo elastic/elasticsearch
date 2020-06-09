@@ -864,7 +864,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("IT IS IMPORTANT THAT YOU REMEMBER THIS PASSWORD AND KEEP IT SECURE");
             terminal.println("");
             final char[] password = readPassword(terminal, "CA password: ", true);
-            return new CertificateTool.CAInfo(caCert, keyPair.getPrivate(), true, password.length == 0 ? null : password);
+            return new CertificateTool.CAInfo(caCert, keyPair.getPrivate(), true, password);
         } catch (GeneralSecurityException | CertIOException | OperatorCreationException e) {
             throw new IllegalArgumentException("Cannot generate CA key pair", e);
         }

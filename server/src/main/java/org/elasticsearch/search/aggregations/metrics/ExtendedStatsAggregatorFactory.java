@@ -52,8 +52,8 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.sigma = sigma;
     }
 
-    static void registerAggregators(ValuesSourceRegistry valuesSourceRegistry) {
-        valuesSourceRegistry.register(ExtendedStatsAggregationBuilder.NAME,
+    static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        builder.register(ExtendedStatsAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (ExtendedStatsAggregatorProvider) ExtendedStatsAggregator::new);
     }
@@ -71,7 +71,7 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             ExtendedStatsAggregationBuilder.NAME);
 
         if (aggregatorSupplier instanceof ExtendedStatsAggregatorProvider == false) {

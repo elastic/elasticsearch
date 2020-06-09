@@ -6,6 +6,7 @@
 :plugins-examples-dir:  {elasticsearch-root}/plugins/examples
 :xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
+:kib-repo-dir:          {kibana-root}/docs
 
 
 include::../Versions.asciidoc[]

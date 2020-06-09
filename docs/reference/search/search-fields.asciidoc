@@ -1,12 +1,26 @@
 [discrete]
 [[search-fields]]
-=== Return fields in a search
+=== Retrieve selected fields
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
-provided when indexing the document. If you only need certain fields in the
-search response, you can use the `_source` parameter to restrict what parts of
-the source are returned. This is called _source filtering_.
+provided when indexing the document. However, several other options are
+available.
+
+You can use the following methods to select which fields and values are
+retrieved by a search request:
+
+* <<source-filtering>>
+* <<docvalue-fields>>
+* <<stored-fields>>
+
+[discrete]
+[[source-filtering]]
+==== Source filtering
+
+If you only need certain source fields in the search response, you can use the
+`_source` parameter to restrict what parts of the source are returned. This is
+called _source filtering_.
 
 .*Example*
 [%collapsible]
@@ -100,26 +114,35 @@ values copied using the <<copy-to,`copy_to`>> mapping parameter.
 object must be loaded and parsed, even if only a small number of fields are
 needed.
 
-{es} supports some alternative methods for returning fields that help avoid
-these downsides:
+[discrete]
+[[docvalue-fields]]
+==== Doc value fields
 
-* You can use the <<search-docvalue-fields,`docvalue_fields`>> parameter to
-return doc values for one or more fields. This can be a good choice when
-returning a fairly small number of fields that support doc values, such as
-<<keyword,keywords>> or <<date,dates>> .
-+
+You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
+<<doc-values,doc values>> for one or more fields in the search response.
+
+Doc values store the same values as the `_source` but in an on-disk,
+column-based structure that's optimized for sorting and aggregations. Doc values
+are typically more compact that the original JSON `_source`.
+
+IMPORTANT: Most field datatypes store doc values by default. However,
+<<text,`text` fields>> do not support doc values.
+
+We recommend retrieving doc values only if you need a fairly small number of
+fields that support doc values, such as <<keyword,keywords>> and <<date,dates>>.
+
 .*Example*
 [%collapsible]
 ====
-The following search API request uses the `docvalue_fields` parameter to return
-doc values for the following fields:
+The following search API request uses the `docvalue_fields` parameter to
+retrieve doc values for the following fields:
 
 * Fields with names starting with `my_ip`
 * `my_keyword_field`
 * Fields with names ending with `_date_field`
 
 [source,console]
---------------------------------------------------
+----
 GET /_search
 {
   "query": {
@@ -136,18 +159,23 @@ GET /_search
     }
   ]
 }
---------------------------------------------------
+----
 
 <1> Wildcard patten used to match field names, specified as a string.
 <2> Wildcard patten used to match field names, specified as an object.
-<3> With the object notation, you can use the `format` parameter to specify a 
-    format for the field's returned doc values. <<date,Date fields>> support a 
+<3> With the object notation, you can use the `format` parameter to specify a
+    format for the field's returned doc values. <<date,Date fields>> support a
     <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
     https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
     pattern]. Other field datatypes do not support the `format` parameter.
 ====
 
-* It's also possible to store an individual field's values by using the
+
+[discrete]
+[[stored-fields]]
+==== Stored fields
+
+It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
 <<request-body-search-stored-fields, `stored_fields`>> parameter to return
 these stored values in the search response.

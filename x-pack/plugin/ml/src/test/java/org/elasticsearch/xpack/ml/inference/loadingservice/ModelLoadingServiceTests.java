@@ -392,7 +392,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
             clusterService,
             trainedModelStatsService,
             Settings.EMPTY,
-            "test-node");
+            "test-node",
+            circuitBreaker);
 
         for(int i = 0; i < 3; i++) {
             PlainActionFuture<Model> future = new PlainActionFuture<>();

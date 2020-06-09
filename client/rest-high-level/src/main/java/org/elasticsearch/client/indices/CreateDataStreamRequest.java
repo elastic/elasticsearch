@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -19,30 +19,12 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.client.Validatable;
+public class CreateDataStreamRequest extends AbstractDataStreamRequest {
 
-/**
- * A request to create an data stream.
- */
-public class CreateDataStreamRequest extends TimedRequest {
-
-    private final String dataStream;
-
-    /**
-     * Constructs a new request to create an data stream with the specified name.
-     */
-    public CreateDataStreamRequest(String dataStream) {
-        if (dataStream == null) {
+    public CreateDataStreamRequest(String name) {
+        super(name);
+        if (name == null) {
             throw new IllegalArgumentException("The data stream name cannot be null.");
         }
-        this.dataStream = dataStream;
-    }
-
-    /**
-     * The name of the data stream to create.
-     */
-    public String dataStream() {
-        return dataStream;
     }
 }

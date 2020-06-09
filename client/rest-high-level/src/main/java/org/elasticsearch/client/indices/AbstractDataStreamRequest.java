@@ -19,12 +19,16 @@
 
 package org.elasticsearch.client.indices;
 
-public class DeleteDataStreamRequest extends AbstractDataStreamRequest {
+import org.elasticsearch.client.TimedRequest;
 
-    public DeleteDataStreamRequest(String name) {
-        super(name);
-        if (name == null) {
-            throw new IllegalArgumentException("The data stream name cannot be null.");
-        }
+public abstract class AbstractDataStreamRequest extends TimedRequest {
+    protected final String name;
+
+    public AbstractDataStreamRequest(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
     }
 }

@@ -392,7 +392,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Iterate all of the buckets. Implementations take into account
          * the {@link BucketCountThresholds}. In particular,
          * if the {@link BucketCountThresholds#getMinDocCount()} is 0 then
-         * they'll make sure to iterate a bucket even if it was never 
+         * they'll make sure to iterate a bucket even if it was never
          * {{@link #collectGlobalOrd(int, long, LeafBucketCollector) collected}.
          * If {@link BucketCountThresholds#getMinDocCount()} is not 0 then
          * they'll skip all global ords that weren't collected.
@@ -500,7 +500,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
             }
         }
-            
+
 
         @Override
         public void close() {
@@ -543,9 +543,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         }
                         updateBucket(spare, globalOrd, bucketOrd, docCount);
                         spare = ordered.insertWithOverflow(spare);
-                        if (spare == null) {
-                            consumeBucketsAndMaybeBreak(1);
-                        }
                     }
                 }
             });
@@ -554,11 +551,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             B[] topBuckets = buildBuckets(ordered.size());
             for (int i = ordered.size() - 1; i >= 0; --i) {
                 topBuckets[i] = convertTempBucketToRealBucket(ordered.pop());
+                otherDocCount[0] -= topBuckets[i].getDocCount();
             }
             buildSubAggs(topBuckets);
 
             return new InternalAggregation[] {
-                buildResult(topBuckets)
+                buildResult(topBuckets, otherDocCount[0])
             };
         }
 
@@ -611,7 +609,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         /**
          * Turn the buckets into an aggregation result.
          */
-        abstract R buildResult(B[] topBuckets);
+        abstract R buildResult(B[] topBuckets, long otherDocCount);
 
         /**
          * Build an "empty" result. Only called if there isn't any data on this
@@ -624,8 +622,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * Builds results for the standard {@code terms} aggregation.
      */
     class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket, OrdBucket> {
-        private long otherDocCount;
-
         @Override
         String describe() {
             return "terms";
@@ -651,9 +647,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.globalOrd = globalOrd;
             spare.bucketOrd = bucketOrd;
             spare.docCount = docCount;
-            otherDocCount += docCount;
         }
-        
+
         @Override
         PriorityQueue<OrdBucket> buildPriorityQueue(int size) {
             return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
@@ -663,7 +658,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             BytesRef term = BytesRef.deepCopyOf(lookupGlobalOrd.apply(temp.globalOrd));
             StringTerms.Bucket result = new StringTerms.Bucket(term, temp.docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = temp.bucketOrd;
-            otherDocCount -= temp.docCount;
             result.docCountError = 0;
             return result;
         }
@@ -674,7 +668,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        StringTerms buildResult(StringTerms.Bucket[] topBuckets) {
+        StringTerms buildResult(StringTerms.Bucket[] topBuckets, long otherDocCount) {
             return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(topBuckets), 0);
@@ -710,7 +704,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         String describe() {
-            return "terms";
+            return "significant_terms";
         }
 
         @Override
@@ -766,14 +760,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        SignificantStringTerms buildResult(SignificantStringTerms.Bucket[] topBuckets) {
+        SignificantStringTerms buildResult(SignificantStringTerms.Bucket[] topBuckets, long otherDocCount) {
             return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 metadata(), format, subsetSize, termsAggFactory.getSupersetNumDocs(), significanceHeuristic, Arrays.asList(topBuckets));
         }
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(subsetSize, significanceHeuristic);
         }
 
         @Override

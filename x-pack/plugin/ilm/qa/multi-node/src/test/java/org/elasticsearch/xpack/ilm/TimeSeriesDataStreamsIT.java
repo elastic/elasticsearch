@@ -67,7 +67,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = "logs-foo-000001";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertThat(
             "original index must wait in the " + CONDITIONAL_SKIP_SHRINK_STEP + " until it is not the write index anymore",
@@ -96,8 +96,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = "logs-foo-000001";
-        String rolloverIndex = "logs-foo-000002";
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String rolloverIndex = DataStream.getDefaultBackingIndexName(dataStream, 2);
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertTrue("the rollover action created the rollover index", indexExists(rolloverIndex)));
         assertBusy(() -> assertFalse("the original index was deleted by the shrink action", indexExists(backingIndexName)),

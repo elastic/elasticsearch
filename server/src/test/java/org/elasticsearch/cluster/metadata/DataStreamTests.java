@@ -116,7 +116,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         List<Index> indices = new ArrayList<>(numBackingIndices);
         for (int i = 1; i <= numBackingIndices; i++) {
-            indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
         DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
 
@@ -141,7 +141,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         List<Index> indices = new ArrayList<>(numBackingIndices);
         for (int i = 1; i <= numBackingIndices; i++) {
-            indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
         DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
 
@@ -157,7 +157,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         List<Index> indices = new ArrayList<>(numBackingIndices);
         for (int i = 1; i <= numBackingIndices; i++) {
-            indices.add(new Index(DataStream.getBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
         DataStream original = new DataStream(dataStreamName, "@timestamp", indices);
 

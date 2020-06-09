@@ -40,11 +40,17 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     private LongKeyedBucketOrds() {}
 
     /**
-     * Add the {@code owningBucketOrd, term} pair. Return the ord for
+     * Add the {@code owningBucketOrd, value} pair. Return the ord for
      * their bucket if they have yet to be added, or {@code -1-ord}
      * if they were already present.
      */
     public abstract long add(long owningBucketOrd, long value);
+
+    /**
+     * Find the {@code owningBucketOrd, value} pair. Return the ord for
+     * their bucket if they have been added or {@code -1} if they haven't.
+     */
+    public abstract long find(long owningBucketOrd, long value);
 
     /**
      * Count the buckets in {@code owningBucketOrd}.
@@ -96,7 +102,6 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         };
     }
 
-
     /**
      * Implementation that only works if it is collecting from a single bucket.
      */
@@ -111,6 +116,12 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         public long add(long owningBucketOrd, long value) {
             assert owningBucketOrd == 0;
             return ords.add(value);
+        }
+
+        @Override
+        public long find(long owningBucketOrd, long value) {
+            assert owningBucketOrd == 0;
+            return ords.find(value);
         }
 
         @Override
@@ -215,6 +226,22 @@ public abstract class LongKeyedBucketOrds implements Releasable {
                 owningOrdToBuckets.set(owningBucketOrd, buckets);
             }
             return buckets;
+        }
+
+        @Override
+        public long find(long owningBucketOrd, long value) {
+            if (owningBucketOrd >= owningOrdToBuckets.size()) {
+                return -1;
+            }
+            Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
+            if (buckets == null) {
+                return -1;
+            }
+            long thisBucketOrd = buckets.valueToThisBucketOrd.find(value);
+            if (thisBucketOrd < 0) {
+                return -1;
+            }
+            return buckets.thisBucketOrdToGlobalOrd.get(thisBucketOrd);
         }
 
         @Override

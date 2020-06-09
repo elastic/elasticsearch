@@ -920,7 +920,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
      * Tests that we check that settings/mappings/etc are valid even after template composition,
      * when updating a component template
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/57842")
     public void testUpdateComponentTemplateFailsIfResolvedIndexTemplatesWouldBeInvalid() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;

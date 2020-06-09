@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.DataStream.getBackingIndexName;
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.collect.List.copyOf;
 
@@ -294,7 +294,7 @@ public interface IndexAbstraction {
             this.dataStream = dataStream;
             this.dataStreamIndices = copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
-            assert writeIndex.getIndex().getName().equals(getBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
+            assert writeIndex.getIndex().getName().equals(getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
         }
 
         @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -31,44 +32,43 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LongKeyedBucketOrdsTests extends ESTestCase {
+public class BytesKeyedBucketOrdsTests extends ESTestCase {
+    private static final BytesRef SHIP_1 = new BytesRef("Just Read The Instructions");
+    private static final BytesRef SHIP_2 = new BytesRef("Of Course I Still Love You");
+
     private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public void testExplicitCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, true));
+        collectsFromSingleBucketCase(BytesKeyedBucketOrds.build(bigArrays, true));
     }
 
     public void testSurpriseCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, false));
+        collectsFromSingleBucketCase(BytesKeyedBucketOrds.build(bigArrays, false));
     }
 
-    private void collectsFromSingleBucketCase(LongKeyedBucketOrds ords) {
+    private void collectsFromSingleBucketCase(BytesKeyedBucketOrds ords) {
         try {
             // Test a few explicit values
-            assertThat(ords.add(0, 0), equalTo(0L));
-            assertThat(ords.add(0, 1000), equalTo(1L));
-            assertThat(ords.add(0, 0), equalTo(-1L));
-            assertThat(ords.add(0, 1000), equalTo(-2L));
-            assertThat(ords.find(0, 0), equalTo(0L));
-            assertThat(ords.find(0, 1000), equalTo(1L));
+            assertThat(ords.add(0, SHIP_1), equalTo(0L));
+            assertThat(ords.add(0, SHIP_2), equalTo(1L));
+            assertThat(ords.add(0, SHIP_1), equalTo(-1L));
+            assertThat(ords.add(0, SHIP_2), equalTo(-2L));
 
             // And some random values
-            Set<Long> seen = new HashSet<>();
-            seen.add(0L);
-            seen.add(1000L);
+            Set<BytesRef> seen = new HashSet<>();
+            seen.add(SHIP_1);
+            seen.add(SHIP_2);
             assertThat(ords.size(), equalTo(2L));
-            long[] values = new long[scaledRandomIntBetween(1, 10000)];
+            BytesRef[] values = new BytesRef[scaledRandomIntBetween(1, 10000)];
             for (int i = 0; i < values.length; i++) {
-                values[i] = randomValueOtherThanMany(seen::contains, ESTestCase::randomLong);
+                values[i] = randomValueOtherThanMany(seen::contains, () -> new BytesRef(Long.toString(randomLong())));
                 seen.add(values[i]);
             }
             for (int i = 0; i < values.length; i++) {
-                assertThat(ords.find(0, values[i]), equalTo(-1L));
                 assertThat(ords.add(0, values[i]), equalTo(i + 2L));
-                assertThat(ords.find(0, values[i]), equalTo(i + 2L));
                 assertThat(ords.size(), equalTo(i + 3L));
                 if (randomBoolean()) {
-                    assertThat(ords.add(0, 0), equalTo(-1L));
+                    assertThat(ords.add(0, SHIP_1), equalTo(-1L));
                 }
             }
             for (int i = 0; i < values.length; i++) {
@@ -76,24 +76,28 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
 
             // And the explicit values are still ok
-            assertThat(ords.add(0, 0), equalTo(-1L));
-            assertThat(ords.add(0, 1000), equalTo(-2L));
+            assertThat(ords.add(0, SHIP_1), equalTo(-1L));
+            assertThat(ords.add(0, SHIP_2), equalTo(-2L));
 
             // Check counting values
             assertThat(ords.bucketsInOrd(0), equalTo(values.length + 2L));
 
             // Check iteration
-            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = ords.ordsEnum(0);
+            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = ords.ordsEnum(0);
+            BytesRef scratch = new BytesRef();
             assertTrue(ordsEnum.next());
             assertThat(ordsEnum.ord(), equalTo(0L));
-            assertThat(ordsEnum.value(), equalTo(0L));
+            ordsEnum.readValue(scratch);
+            assertThat(scratch, equalTo(SHIP_1));
             assertTrue(ordsEnum.next());
             assertThat(ordsEnum.ord(), equalTo(1L));
-            assertThat(ordsEnum.value(), equalTo(1000L));
+            ordsEnum.readValue(scratch);
+            assertThat(scratch, equalTo(SHIP_2));
             for (int i = 0; i < values.length; i++) {
                 assertTrue(ordsEnum.next());
                 assertThat(ordsEnum.ord(), equalTo(i + 2L));
-                assertThat(ordsEnum.value(), equalTo(values[i]));
+                ordsEnum.readValue(scratch);
+                assertThat(scratch, equalTo(values[i]));
             }
             assertFalse(ordsEnum.next());
         } finally {
@@ -102,34 +106,30 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
     }
 
     public void testCollectsFromManyBuckets() {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
+        try (BytesKeyedBucketOrds ords = BytesKeyedBucketOrds.build(bigArrays, false)) {
             // Test a few explicit values
-            assertThat(ords.add(0, 0), equalTo(0L));
-            assertThat(ords.add(1, 0), equalTo(1L));
-            assertThat(ords.add(0, 0), equalTo(-1L));
-            assertThat(ords.add(1, 0), equalTo(-2L));
+            assertThat(ords.add(0, SHIP_1), equalTo(0L));
+            assertThat(ords.add(1, SHIP_1), equalTo(1L));
+            assertThat(ords.add(0, SHIP_1), equalTo(-1L));
+            assertThat(ords.add(1, SHIP_1), equalTo(-2L));
             assertThat(ords.size(), equalTo(2L));
-            assertThat(ords.find(0, 0), equalTo(0L));
-            assertThat(ords.find(1, 0), equalTo(1L));
 
             // And some random values
             Set<OwningBucketOrdAndValue> seen = new HashSet<>();
-            seen.add(new OwningBucketOrdAndValue(0, 0));
-            seen.add(new OwningBucketOrdAndValue(1, 0));
+            seen.add(new OwningBucketOrdAndValue(0, SHIP_1));
+            seen.add(new OwningBucketOrdAndValue(1, SHIP_1));
             OwningBucketOrdAndValue[] values = new OwningBucketOrdAndValue[scaledRandomIntBetween(1, 10000)];
             long maxOwningBucketOrd = scaledRandomIntBetween(0, values.length);
             for (int i = 0; i < values.length; i++) {
                 values[i] = randomValueOtherThanMany(seen::contains, () ->
-                        new OwningBucketOrdAndValue(randomLongBetween(0, maxOwningBucketOrd), randomLong()));
+                        new OwningBucketOrdAndValue(randomLongBetween(0, maxOwningBucketOrd), new BytesRef(Long.toString(randomLong()))));
                 seen.add(values[i]);
             }
             for (int i = 0; i < values.length; i++) {
-                assertThat(ords.find(values[i].owningBucketOrd, values[i].value), equalTo(-1L));
                 assertThat(ords.add(values[i].owningBucketOrd, values[i].value), equalTo(i + 2L));
-                assertThat(ords.find(values[i].owningBucketOrd, values[i].value), equalTo(i + 2L));
                 assertThat(ords.size(), equalTo(i + 3L));
                 if (randomBoolean()) {
-                    assertThat(ords.add(0, 0), equalTo(-1L));
+                    assertThat(ords.add(0, SHIP_1), equalTo(-1L));
                 }
             }
             for (int i = 0; i < values.length; i++) {
@@ -137,25 +137,27 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
 
             // And the explicit values are still ok
-            assertThat(ords.add(0, 0), equalTo(-1L));
-            assertThat(ords.add(1, 0), equalTo(-2L));
+            assertThat(ords.add(0, SHIP_1), equalTo(-1L));
+            assertThat(ords.add(1, SHIP_1), equalTo(-2L));
 
-
+            BytesRef scratch = new BytesRef();
             for (long owningBucketOrd = 0; owningBucketOrd <= maxOwningBucketOrd; owningBucketOrd++) {
                 long expectedCount = 0;
-                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = ords.ordsEnum(owningBucketOrd);
+                BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = ords.ordsEnum(owningBucketOrd);
                 if (owningBucketOrd <= 1) {
                     expectedCount++;
                     assertTrue(ordsEnum.next());
                     assertThat(ordsEnum.ord(), equalTo(owningBucketOrd));
-                    assertThat(ordsEnum.value(), equalTo(0L));
+                    ordsEnum.readValue(scratch);
+                    assertThat(scratch, equalTo(SHIP_1));
                 }
                 for (int i = 0; i < values.length; i++) {
                     if (values[i].owningBucketOrd == owningBucketOrd) {
                         expectedCount++;
                         assertTrue(ordsEnum.next());
                         assertThat(ordsEnum.ord(), equalTo(i + 2L));
-                        assertThat(ordsEnum.value(), equalTo(values[i].value));
+                        ordsEnum.readValue(scratch);
+                        assertThat(scratch, equalTo(values[i].value));
                     }
                 }
                 assertFalse(ordsEnum.next());
@@ -169,9 +171,9 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
 
     private class OwningBucketOrdAndValue {
         private final long owningBucketOrd;
-        private final long value;
+        private final BytesRef value;
 
-        OwningBucketOrdAndValue(long owningBucketOrd, long value) {
+        OwningBucketOrdAndValue(long owningBucketOrd, BytesRef value) {
             this.owningBucketOrd = owningBucketOrd;
             this.value = value;
         }

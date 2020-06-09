@@ -70,21 +70,20 @@ The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
   - module: elasticsearch
     xpack.enabled: true
     period: 10s
-    hosts: ["http://localhost:9200"]
-    #scope: node
+    hosts: ["http://localhost:9200"] <1>
+    #scope: node <2>
     #username: "user"
     #password: "secret"
 ----------------------------------
-
-By default, the module collects {es} monitoring metrics from
+<1> By default, the module collects {es} monitoring metrics from
 `http://localhost:9200`. If that host and port number are not correct, you must
 update the `hosts` setting. If you configured {es} to use encrypted
 communications, you must access it via HTTPS. For example, use a `hosts` setting
-like `https://localhost:9200`. By default, `scope` is set to `node` and each
-entry in the `hosts` list indicates a distinct node in an {es} cluster. If you
-set `scope` to `cluster`, each entry in the `hosts` list indicates a single 
-endpoint for a distinct {es} cluster (for example, a load-balancing proxy
-fronting the cluster).
+like `https://localhost:9200`.
+<2> By default, `scope` is set to `node` and each entry in the `hosts` list
+indicates a distinct node in an {es} cluster. If you set `scope` to `cluster`,
+each entry in the `hosts` list indicates a single endpoint for a distinct {es}
+cluster (for example, a load-balancing proxy fronting the cluster).
 
 If Elastic {security-features} are enabled, you must also provide a user ID
 and password so that {metricbeat} can collect metrics successfully: 

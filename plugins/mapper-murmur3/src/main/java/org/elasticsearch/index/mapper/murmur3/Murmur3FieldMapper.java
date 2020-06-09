@@ -157,6 +157,11 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
     }

@@ -80,7 +80,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class MetadataRolloverServiceTests extends ESTestCase {
@@ -486,11 +489,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             int numberOfShards = randomIntBetween(1, 5);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
             createIndexRequest.settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards));
+            boolean dryRun = randomBoolean();
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult =
-                rolloverService.rolloverClusterState(clusterState, aliasName, newIndexName, createIndexRequest, metConditions,
-                    randomBoolean());
+                rolloverService.rolloverClusterState(clusterState, aliasName, newIndexName, createIndexRequest, metConditions, dryRun);
             long after = testThreadPool.absoluteTimeInMillis();
 
             newIndexName = newIndexName == null ? indexPrefix + "2" : newIndexName;
@@ -513,6 +516,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
+
+            if (dryRun == false) {
+                verify(allocationService).reroute(any(), anyString());
+            }
+            verifyZeroInteractions(allocationService);
         } finally {
             testThreadPool.shutdown();
         }
@@ -553,11 +561,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+            boolean dryRun = randomBoolean();
 
             long before = testThreadPool.absoluteTimeInMillis();
             MetadataRolloverService.RolloverResult rolloverResult =
-                rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
-                    randomBoolean());
+                rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions, dryRun);
             long after = testThreadPool.absoluteTimeInMillis();
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -580,6 +588,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             assertThat(info.getTime(), greaterThanOrEqualTo(before));
             assertThat(info.getMetConditions(), hasSize(1));
             assertThat(info.getMetConditions().get(0).value(), equalTo(condition.value()));
+
+            if (dryRun == false) {
+                verify(allocationService).reroute(any(), anyString());
+            }
+            verifyZeroInteractions(allocationService);
         } finally {
             testThreadPool.shutdown();
         }

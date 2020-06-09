@@ -88,16 +88,16 @@ public class MetadataRolloverService {
 
     public RolloverResult rolloverClusterState(ClusterState currentState, String rolloverTarget, String newIndexName,
                                                CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                               boolean silent) throws Exception {
+                                               boolean dryRun) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {
             case ALIAS:
                 return rolloverAlias(currentState, (IndexAbstraction.Alias) indexAbstraction, rolloverTarget, newIndexName,
-                    createIndexRequest, metConditions, silent);
+                    createIndexRequest, metConditions, dryRun);
             case DATA_STREAM:
                 return  rolloverDataStream(currentState, (IndexAbstraction.DataStream) indexAbstraction, rolloverTarget,
-                    createIndexRequest, metConditions, silent);
+                    createIndexRequest, metConditions, dryRun);
             default:
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -106,7 +106,7 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverAlias(ClusterState currentState, IndexAbstraction.Alias alias, String aliasName,
                                          String newIndexName, CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                         boolean silent) throws Exception {
+                                         boolean dryRun) throws Exception {
         final Metadata metadata = currentState.metadata();
         final IndexMetadata writeIndex = alias.getWriteIndex();
         final AliasMetadata aliasMetadata = writeIndex.getAliases().get(alias.getName());
@@ -125,7 +125,7 @@ public class MetadataRolloverService {
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareCreateIndexRequest(unresolvedName, rolloverIndexName, createIndexRequest);
-        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
+        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, dryRun);
         newState = indexAliasesService.applyAliasActions(newState,
             rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName));
 
@@ -140,7 +140,7 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverDataStream(ClusterState currentState, IndexAbstraction.DataStream dataStream, String dataStreamName,
                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                              boolean silent) throws Exception {
+                                              boolean dryRun) throws Exception {
         lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         final DataStream ds = dataStream.getDataStream();
@@ -149,7 +149,7 @@ public class MetadataRolloverService {
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareDataStreamCreateIndexRequest(dataStreamName, newWriteIndexName, createIndexRequest);
-        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
+        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, dryRun,
             (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex())));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());

@@ -313,7 +313,7 @@ public class MetadataCreateIndexService {
      * Handles the cluster state transition to a version that reflects the {@link CreateIndexClusterStateUpdateRequest}.
      * All the requested changes are firstly validated before mutating the {@link ClusterState}.
      */
-    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent,
+    public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean dryRun,
                                                 BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer) throws Exception {
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
 
@@ -325,7 +325,7 @@ public class MetadataCreateIndexService {
         if (sourceMetadata != null) {
             // If source metadata was provided, it means we're recovering from an existing index,
             // in which case templates don't apply, so create the index from the source metadata
-            return applyCreateIndexRequestWithExistingMetadata(currentState, request, silent, sourceMetadata, metadataTransformer);
+            return applyCreateIndexRequestWithExistingMetadata(currentState, request, dryRun, sourceMetadata, metadataTransformer);
         } else {
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
             // templates), so we need to check to see if the request is creating a hidden index
@@ -342,7 +342,7 @@ public class MetadataCreateIndexService {
             if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
                 // the index using that template and the request's specified settings
-                return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer);
+                return applyCreateIndexRequestWithV2Template(currentState, request, dryRun, v2Template, metadataTransformer);
             } else {
                 // A v2 template wasn't found, check the v1 templates, in the event no templates are
                 // found creation still works using the request's specified index settings
@@ -355,14 +355,14 @@ public class MetadataCreateIndexService {
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
 
-                return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
+                return applyCreateIndexRequestWithV1Templates(currentState, request, dryRun, v1Templates, metadataTransformer);
             }
         }
     }
 
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request,
-                                                boolean silent) throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null);
+                                                boolean dryRun) throws Exception {
+        return applyCreateIndexRequest(currentState, request, dryRun, null);
     }
 
     /**
@@ -371,7 +371,7 @@ public class MetadataCreateIndexService {
      * the index added (and rerouted)
      * @param currentState the current state to base the new state off of
      * @param request the create index request
-     * @param silent a boolean for whether logging should be at a lower or higher level
+     * @param dryRun when true, reroute will be skipped and logging will be redirected to a lower logging level.
      * @param sourceMetadata when recovering from an existing index, metadata that should be copied to the new index
      * @param temporaryIndexMeta metadata for the new index built from templates, source metadata, and request settings
      * @param mappings a map of mappings for the new index
@@ -383,7 +383,7 @@ public class MetadataCreateIndexService {
      */
     private ClusterState applyCreateIndexWithTemporaryService(final ClusterState currentState,
                                                               final CreateIndexClusterStateUpdateRequest request,
-                                                              final boolean silent,
+                                                              final boolean dryRun,
                                                               final IndexMetadata sourceMetadata,
                                                               final IndexMetadata temporaryIndexMeta,
                                                               final Map<String, Object> mappings,
@@ -411,13 +411,14 @@ public class MetadataCreateIndexService {
                 throw e;
             }
 
-            logger.log(silent ? Level.DEBUG : Level.INFO, "[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
+            logger.log(dryRun ? Level.DEBUG : Level.INFO, "[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
                 request.index(), request.cause(), templatesApplied, indexMetadata.getNumberOfShards(),
                 indexMetadata.getNumberOfReplicas(), mappings.keySet());
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(),
                 indexMetadata.getSettings());
-            return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, allocationService::reroute, metadataTransformer);
+            BiFunction<ClusterState, String, ClusterState> reroute = dryRun ? (state, name) -> state : allocationService::reroute;
+            return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, reroute, metadataTransformer);
         });
     }
 
@@ -452,7 +453,7 @@ public class MetadataCreateIndexService {
     // TODO: this method can be removed in 9.0 because we will no longer use v1 templates to create indices (only v2 templates)
     private ClusterState applyCreateIndexRequestWithV1Templates(final ClusterState currentState,
                                                                 final CreateIndexClusterStateUpdateRequest request,
-                                                                final boolean silent,
+                                                                final boolean dryRun,
                                                                 final List<IndexTemplateMetadata> templates,
                                                                 final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                         throws Exception {
@@ -468,7 +469,7 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
+        return applyCreateIndexWithTemporaryService(currentState, request, dryRun, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
@@ -479,7 +480,7 @@ public class MetadataCreateIndexService {
 
     private ClusterState applyCreateIndexRequestWithV2Template(final ClusterState currentState,
                                                                final CreateIndexClusterStateUpdateRequest request,
-                                                               final boolean silent,
+                                                               final boolean dryRun,
                                                                final String templateName,
                                                                final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                     throws Exception {
@@ -494,7 +495,7 @@ public class MetadataCreateIndexService {
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, null, tmpImd, mappings,
+        return applyCreateIndexWithTemporaryService(currentState, request, dryRun, null, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(),
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
@@ -514,7 +515,7 @@ public class MetadataCreateIndexService {
 
     private ClusterState applyCreateIndexRequestWithExistingMetadata(final ClusterState currentState,
                                                                      final CreateIndexClusterStateUpdateRequest request,
-                                                                     final boolean silent,
+                                                                     final boolean dryRun,
                                                                      final IndexMetadata sourceMetadata,
                                                                      final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer)
                                                                                             throws Exception {
@@ -527,7 +528,7 @@ public class MetadataCreateIndexService {
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
 
-        return applyCreateIndexWithTemporaryService(currentState, request, silent, sourceMetadata, tmpImd, mappings,
+        return applyCreateIndexWithTemporaryService(currentState, request, dryRun, sourceMetadata, tmpImd, mappings,
             indexService -> resolveAndValidateAliases(request.index(), request.aliases(), Collections.emptyList(),
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the

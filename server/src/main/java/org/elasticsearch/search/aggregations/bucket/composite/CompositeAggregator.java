@@ -236,7 +236,8 @@ final class CompositeAggregator extends BucketsAggregator {
             }
             sortFields.add(indexSortField);
             if (sourceConfig.valuesSource() instanceof RoundingValuesSource) {
-                // rounded values break the index sort
+                // the rounding "squashes" many values together, that breaks the ordering of sub-values
+                // so we ignore subsequent source even if they match the index sort.
                 break;
             }
         }
@@ -265,7 +266,8 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     /**
-     * Apply rounding when needed on the provided {@link SortField}.
+     * Rewrites the provided {@link Sort} to apply rounding on {@link SortField} that target
+     * {@link RoundingValuesSource}.
      */
     private Sort applySortFieldRounding(Sort sort) {
         SortField[] sortFields = new SortField[sort.getSort().length];

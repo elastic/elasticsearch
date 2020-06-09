@@ -194,6 +194,14 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelActionListener the listener to alert when the model has been retrieved.
      */
     private void getModel(String modelId, Consumer consumer, ActionListener<Model> modelActionListener) {
+        ModelAndConsumer cachedModel = localModelCache.get(modelId);
+        if (cachedModel != null) {
+            cachedModel.consumers.add(consumer);
+            modelActionListener.onResponse(cachedModel.model);
+            logger.trace(() -> new ParameterizedMessage("[{}] loaded from cache", modelId));
+            return;
+        }
+
         if (loadModelIfNecessary(modelId, consumer, modelActionListener)) {
             logger.trace(() -> new ParameterizedMessage("[{}] is loading or loaded, added new listener to queue", modelId));
         }

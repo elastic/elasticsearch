@@ -912,8 +912,8 @@ public class QueryTranslatorTests extends ESTestCase {
                 "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":" +
                 "{\"bucket_selector\":{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"" +
                 "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptUtils.coalesce(" +
-                "[params.a0]),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\",\"params\":" +
-                "{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
+                "[InternalSqlScriptUtils.asDateTime(params.a0)]),InternalSqlScriptUtils.asDateTime(params.v0)))\"," +
+                "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-01-01T00:00:00.000Z\"}}"));
         assertTrue(esQExec.queryContainer().query() instanceof ScriptQuery);
         ScriptQuery sq = (ScriptQuery) esQExec.queryContainer().query();
         assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
@@ -2123,5 +2123,40 @@ public class QueryTranslatorTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    public void testScriptsInsideAggregateFunctions_WithDatetimeField() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(date) FROM test HAVING MAX(date) > CAST('2020-05-03T12:34:56.000Z' AS DATETIME)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        AggregationBuilder aggBuilder = eqe.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+            "\"aggregations\":{\"" + aggName + "\":{\"max\":{\"field\":\"date\"}},\"" + havingName + "\":{\"bucket_selector\":"
+            + "{\"buckets_path\":{\"a0\":\"" + aggName + "\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter("
+            + "InternalQlScriptUtils.gt(InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\","
+            + "\"lang\":\"painless\",\"params\":{\"v0\":\"2020-05-03T12:34:56.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
+    }
+
+    public void testScriptsInsideAggregateFunctions_WithDateField_AndExtendedStats() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MIN(CAST(date AS DATE)), MAX(CAST(date AS DATE)) FROM test HAVING "
+            + "MIN(CAST(date AS DATE)) > CAST('2020-05-03T12:34:56.000Z' AS DATE)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        AggregationBuilder aggBuilder = eqe.queryContainer().aggs().asAggBuilder();
+        assertEquals(1, aggBuilder.getSubAggregations().size());
+        assertEquals(1, aggBuilder.getPipelineAggregations().size());
+        String aggName = aggBuilder.getSubAggregations().iterator().next().getName();
+        String havingName = aggBuilder.getPipelineAggregations().iterator().next().getName();
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+            "\"aggregations\":{\"" + aggName + "\":{\"stats\":{\"script\":{\"source\":\"InternalSqlScriptUtils.cast("
+            + "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\",\"lang\":\"painless\",\"params\":"
+            + "{\"v0\":\"date\",\"v1\":\"DATE\"}}}},\"" + havingName + "\":{\"bucket_selector\":{\"buckets_path\":"
+            + "{\"a0\":\"" + aggName + ".min\"},\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
+            + "InternalSqlScriptUtils.asDateTime(params.a0),InternalSqlScriptUtils.asDateTime(params.v0)))\",\"lang\":\"painless\","
+            + "\"params\":{\"v0\":\"2020-05-03T00:00:00.000Z\"}},\"gap_policy\":\"skip\"}}}}}}"));
     }
 }

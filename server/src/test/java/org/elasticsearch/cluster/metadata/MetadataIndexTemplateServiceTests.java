@@ -286,7 +286,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\"}"),
             ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
-        expectThrows(MapperParsingException.class,
+        expectThrows(Exception.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2));
 
         template = new Template(Settings.builder().build(), new CompressedXContent("{\"invalid\":\"invalid\"}"),

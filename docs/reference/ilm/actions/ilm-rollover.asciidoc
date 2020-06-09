@@ -16,7 +16,7 @@ For a managed index to be rolled over:
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my_index-000001`).
 * The `index.lifecycle.rollover_alias` must be configured as the alias to roll over. 
-* The index must be the <<<<indices-rollover-is-write-index, write index>> for the alias.
+* The index must be the <<indices-rollover-is-write-index, write index>> for the alias.
 
 For example, if `my_index-000001` has the alias `my_data`, 
 the following settings must be configured. 

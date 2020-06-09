@@ -10,7 +10,6 @@ import java.util.Deque;
 
 /**
  * An iterator of batches of objects
- * @param <T>
  */
 public interface BatchedIterator<T> {
 

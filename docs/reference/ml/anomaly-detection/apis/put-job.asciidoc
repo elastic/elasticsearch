@@ -186,6 +186,24 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latency]
 (boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
 
+//Begin analysis_config.per_partition_categorization
+`per_partition_categorization`:::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
++
+.Properties of `per_partition_categorization`
+[%collapsible%open]
+=====
+`enabled`::::
+(boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
+
+`stop_on_warn`::::
+(boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
+=====
+//End analysis_config.per_partition_categorization
+
 `summary_count_field_name`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=summary-count-field-name]

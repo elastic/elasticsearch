@@ -253,12 +253,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
@@ -321,6 +315,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         for (String fieldName : inputFields.keySet()) {
             builder.field(fieldName, inputFields.get(fieldName));
         }
+        builder.endObject();
         return builder;
     }
 

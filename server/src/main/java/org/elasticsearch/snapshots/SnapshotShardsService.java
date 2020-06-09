@@ -276,7 +276,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 failure = "aborted";
                                 logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
                             } else {
-                                failure = formatFailure(e);
+                                failure = summarizeFailure(e);
                                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
                             }
                             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
@@ -287,7 +287,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         });
     }
 
-    private static String formatFailure(Throwable t) {
+    //package private for testing
+    static String summarizeFailure(Throwable t) {
         if (t.getCause() == null) {
             return t.getClass().getSimpleName() + "[" + t.getMessage() + "]";
         } else {
@@ -299,10 +300,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     sb.append(t.getMessage());
                     sb.append("]");
                 }
-                sb.append("; ");
                 t = t.getCause();
                 if (t != null) {
-                    sb.append("nested: ");
+                    sb.append("; nested: ");
                 }
             }
             return sb.toString();

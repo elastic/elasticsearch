@@ -10,15 +10,12 @@ There is a limit to how small a resilient cluster can be. All {es} clusters
 require:
 
 * One <<modules-discovery-quorums,elected master node>> node
+* At least one node for each <<modules-node,role>>.
 * At least one copy of every <<scalability,shard>>.
 
-We also recommend adding a new node to the cluster for each
-<<modules-node,role>>.
+A resilient cluster requires redundancy for every required cluster component.
+This means a resilient cluster must have:
 
-A resilient cluster requires redundancy for every required cluster component,
-except the elected master node. For resilient clusters, we recommend:
-
-* One elected master node
 * At least three master-eligible nodes
 * At least two nodes of each role
 * At least two copies of each shard (one primary and one or more replicas)
@@ -27,13 +24,18 @@ A resilient cluster needs three master-eligible nodes so that if one of
 them fails then the remaining two still form a majority and can hold a
 successful election.
 
-Similarly, node redundancy makes it likely that if a node for a particular role
-fails, another node can take on its responsibilities.
+Similarly, redundancy of nodes of each role means that if a node for a
+particular role fails, another node can take on its responsibilities.
 
 Finally, a resilient cluster should have at least two copies of each shard. If
-one copy fails then there is another good copy to take over. {es} automatically
-rebuilds any failed shard copies on the remaining nodes in order to restore the
-cluster to full health after a failure.
+one copy fails then there should be another good copy to take over. {es}
+automatically rebuilds any failed shard copies on the remaining nodes in order
+to restore the cluster to full health after a failure.
+
+Failures temporarily reduce the total capacity of your cluster. In addition,
+after a failure the cluster must perform additional background activities to
+restore itself to health. You should make sure that your cluster has the
+capacity to handle your workload even if some nodes fail.
 
 Depending on your needs and budget, an {es} cluster can consist of a single
 node, hundreds of nodes, or any number in between. When designing a smaller
@@ -60,13 +62,16 @@ To accommodate this, {es} assigns nodes every role by default.
 
 A single node cluster is not resilient. If the the node fails, the cluster will
 stop working. Because there are no replicas in a one-node cluster, you cannot
-store your data redundantly. However, at least one replica is required for a
-<<cluster-health,`green` cluster health status>>. To ensure your cluster can
-report a `green` status, set
-<<dynamic-index-settings,`index.number_of_replicas`>> to `0` on every index. If
-the node fails, you may need to restore an older copy of any lost indices from a
-<<modules-snapshots,snapshot>>. Because they are not resilient to any failures,
-we do not recommend using one-node clusters in production.
+store your data redundantly. However, by default at least one replica is
+required for a <<cluster-health,`green` cluster health status>>. To ensure your
+cluster can report a `green` status, override the default by setting
+<<dynamic-index-settings,`index.number_of_replicas`>> to `0` on every index.
+
+If the node fails, you may need to restore an older copy of any lost indices
+from a <<modules-snapshots,snapshot>>.
+
+Because they are not resilient to any failures, we do not recommend using
+one-node clusters in production.
 
 [[high-availability-cluster-design-two-nodes]]
 ==== Two-node clusters
@@ -84,8 +89,8 @@ not <<master-node,master-eligible>>. This means you can be certain which of your
 nodes is the elected master of the cluster. The cluster can tolerate the loss of
 the other master-ineligible node. If you don't set `node.master: false` on one
 node, both nodes are master-eligible. This means both nodes are required for a
-master election. This election will fail if your cluster cannot reliably
-tolerate the loss of either node.
+master election. Since the election will fail if either node is unavailable,
+your cluster cannot reliably tolerate the loss of either node.
 
 By default, each node is assigned every role. We recommend you assign both nodes
 all other roles except master eligibility. If one node fails, the other node can
@@ -114,7 +119,7 @@ master, but it is impossible to tell the difference between the failure of a
 remote node and a mere loss of connectivity between the nodes. If both nodes
 were capable of running independent elections, a loss of connectivity would
 lead to a https://en.wikipedia.org/wiki/Split-brain_(computing)[split-brain
-problem] and therefore, data loss. {es} avoids this and
+problem] and therefore data loss. {es} avoids this and
 protects your data by electing neither node as master until that node can be
 sure that it has the latest cluster state and that there is no other master in
 the cluster. This could result in the cluster having no master until
@@ -212,8 +217,8 @@ The cluster will be resilient to the loss of any node as long as:
 - There are at least two data nodes. 
 - Every index has at least one replica of each shard, in addition to the 
   primary.
-- The cluster has at least three master-eligible nodes. At least two of these
-  nodes are not voting-only, master-eligible nodes.
+- The cluster has at least three master-eligible nodes, as long as at least two
+  of these nodes are not voting-only master-eligible nodes.
 - Clients are configured to send their requests to more than one node or are
   configured to use a load balancer that balances the requests across an
   appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such
@@ -343,8 +348,8 @@ The cluster will be resilient to the loss of any zone as long as:
 - Shard allocation awareness is configured to avoid concentrating all copies of
   a shard within a single zone.
 - The cluster has at least three master-eligible nodes. At least two of these 
-  nodes are not voting-only master-eligible nodes, spread evenly across at least
-  three zones.
+  nodes are not voting-only master-eligible nodes, and they are spread evenly
+  across at least three zones.
 - Clients are configured to send their requests to nodes in more than one zone
   or are configured to use a load balancer that balances the requests across an
   appropriate set of nodes. The {ess-trial}[Elastic Cloud] service provides such

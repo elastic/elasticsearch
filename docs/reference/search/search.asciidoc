@@ -561,7 +561,7 @@ or specify which source fields to return.
 `fields`::
 (object)
 Contains <<doc-values,doc values>> for fields specified using the
-<<search-docvalue-fields,`docvalue_fields`>> parameter. This property is only
+<<search-docvalue-fields-param,`docvalue_fields`>> parameter. This property is only
 returned if `docvalue_fields` is specified in the search request.
 +
 .Properties of `fields`

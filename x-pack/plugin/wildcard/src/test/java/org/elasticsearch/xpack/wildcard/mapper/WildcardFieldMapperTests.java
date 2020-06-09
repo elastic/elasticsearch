@@ -262,7 +262,8 @@ public class WildcardFieldMapperTests extends ESTestCase {
             }
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, values.size() + 1, Sort.RELEVANCE);
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
-            assertThat(keywordFieldQuery + "\n" + wildcardFieldQuery, wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
+            assertThat(keywordFieldQuery + "\n" + wildcardFieldQuery,
+                wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
 
             HashSet<Integer> expectedDocs = new HashSet<>();
             for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {

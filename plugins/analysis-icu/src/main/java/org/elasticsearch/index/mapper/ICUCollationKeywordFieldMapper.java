@@ -659,11 +659,15 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-
+        if (includeDefaults || (mappedFieldType.isSearchable() && fieldType.indexOptions() != IndexOptions.DOCS)) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
+        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }
-
+        if (includeDefaults || fieldType.omitNorms() != KeywordFieldMapper.Defaults.FIELD_TYPE.omitNorms()) {
+            builder.field("norms", fieldType.omitNorms() == false);
+        }
         if (includeDefaults || rules != null) {
             builder.field("rules", rules);
         }

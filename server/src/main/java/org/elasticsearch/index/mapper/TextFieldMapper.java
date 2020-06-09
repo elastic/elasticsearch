@@ -398,7 +398,6 @@ public class TextFieldMapper extends FieldMapper {
         final int minChars;
         final int maxChars;
         final String parentField;
-        final boolean hasPositions;
 
         PrefixFieldType(String parentField, String name, int minChars, int maxChars, boolean hasPositions) {
             super(name, true, false, Collections.emptyMap());

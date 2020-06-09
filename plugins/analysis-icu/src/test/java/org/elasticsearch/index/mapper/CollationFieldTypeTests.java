@@ -140,7 +140,7 @@ public class CollationFieldTypeTests extends FieldTypeTestCase<MappedFieldType> 
 
         MappedFieldType unsearchable = new CollationFieldType("field", false, true, collator, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.rangeQuery("a", "b", false, false, null, null, null, MOCK_QSC));
+            () -> unsearchable.rangeQuery("a", "b", false, false, null, null, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

@@ -48,6 +48,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
@@ -59,6 +60,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends FieldMapperTestCase<G
     @Override
     protected GeoShapeWithDocValuesFieldMapper.Builder newBuilder() {
         return new GeoShapeWithDocValuesFieldMapper.Builder("geoshape");
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "store");
     }
 
     @Before

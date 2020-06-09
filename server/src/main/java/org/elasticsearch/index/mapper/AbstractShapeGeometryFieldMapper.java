@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -100,11 +99,6 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
                 return new Explicit<>(orientation, true);
             }
             return Defaults.ORIENTATION;
-        }
-
-        @Override
-        protected boolean defaultDocValues(Version indexCreated) {
-            return false;
         }
 
     }

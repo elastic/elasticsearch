@@ -52,10 +52,12 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         @Override
         public ShapeFieldMapper build(BuilderContext context) {
             ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
-            GeometryParser geometryParser = new GeometryParser(orientation.getAsBoolean(), coerce, ignoreZValue);
+            GeometryParser geometryParser
+                = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
             ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
             ft.setGeometryIndexer(new ShapeIndexer(ft.name()));
             ft.setGeometryQueryBuilder(new ShapeQueryProcessor());
+            ft.setOrientation(orientation().value());
             return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
                 ignoreZValue(), orientation(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }

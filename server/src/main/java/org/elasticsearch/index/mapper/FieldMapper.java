@@ -185,10 +185,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return context.path().pathAsText(name);
         }
 
-        protected boolean defaultDocValues(Version indexCreated) {
-            return fieldType.tokenized() == false;
-        }
-
         /** Set metadata on this field. */
         public T meta(Map<String, String> meta) {
             this.meta = meta;

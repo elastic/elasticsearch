@@ -232,7 +232,7 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "ip")
-                            .field("null_value", "0:0:0:0:0:0:0:1")
+                            .field("null_value", "::1")
                         .endObject()
                     .endObject()
                 .endObject().endObject());

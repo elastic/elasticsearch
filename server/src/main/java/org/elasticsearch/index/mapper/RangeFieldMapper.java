@@ -190,6 +190,8 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = Objects.requireNonNull(type);
             dateTimeFormatter = null;
             dateMathParser = null;
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public RangeFieldType(String name, RangeType type) {
@@ -201,7 +203,8 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = RangeType.DATE;
             this.dateTimeFormatter = Objects.requireNonNull(formatter);
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
-            this.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public RangeFieldType(String name, DateFormatter formatter) {

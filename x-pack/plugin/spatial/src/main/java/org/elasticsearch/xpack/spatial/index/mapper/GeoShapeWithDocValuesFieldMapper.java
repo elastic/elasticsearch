@@ -63,29 +63,38 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
     public static final String CONTENT_TYPE = "geo_shape";
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder, GeoShapeWithDocValuesFieldType> {
+
+        private boolean docValuesSet = false;
+
         public Builder(String name) {
             super (name, new FieldType());
             this.hasDocValues = true;
         }
 
         @Override
+        public Builder docValues(boolean docValues) {
+            docValuesSet = true;
+            return super.docValues(docValues);
+        }
+
+        @Override
         public GeoShapeWithDocValuesFieldMapper build(BuilderContext context) {
+            if (docValuesSet == false) {
+                hasDocValues = Version.V_7_8_0.onOrBefore(context.indexCreatedVersion());
+            }
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(buildFullName(context), indexed, hasDocValues, meta);
             // @todo check coerce
             GeometryParser geometryParser = new GeometryParser(ft.orientation().getAsBoolean(), coerce().value(),
                 ignoreZValue().value());
             ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
-            ft.setGeometryIndexer(new GeoShapeIndexer(orientation.getAsBoolean(), ft.name()));
+            ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), ft.name()));
             ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+            ft.setOrientation(orientation().value());
             return new GeoShapeWithDocValuesFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), orientation(), context.indexSettings(),
+                ignoreZValue(), orientation(), context.indexSettings(), Version.V_7_8_0.onOrBefore(context.indexCreatedVersion()),
                 multiFieldsBuilder.build(this, context), copyTo);
         }
 
-        @Override
-        public boolean defaultDocValues(Version indexCreated) {
-            return Version.V_7_8_0.onOrBefore(indexCreated);
-        }
     }
 
     @Override
@@ -167,13 +176,21 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
         }
     }
 
+    private final boolean defaultDocValues;
+
     public GeoShapeWithDocValuesFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                             Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation,
-                                            Settings indexSettings,
+                                            Settings indexSettings, boolean defaultDocValues,
                                             MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
             multiFields, copyTo);
+        this.defaultDocValues = defaultDocValues;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return defaultDocValues;
     }
 
     @Override

@@ -25,13 +25,13 @@ import java.util.List;
  */
 public class FetchFieldsContext {
 
-    private final List<String> fields;
+    private final List<FieldAndFormat> fields;
 
-    public FetchFieldsContext(List<String> fields) {
+    public FetchFieldsContext(List<FieldAndFormat> fields) {
         this.fields = fields;
     }
 
-    public List<String> fields() {
+    public List<FieldAndFormat> fields() {
         return this.fields;
     }
 }

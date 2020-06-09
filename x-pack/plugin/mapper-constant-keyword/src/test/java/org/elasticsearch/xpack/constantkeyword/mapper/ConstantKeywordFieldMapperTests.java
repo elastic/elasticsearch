@@ -140,7 +140,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
         assertEquals(mapping, mapper.mappingSource().toString());
 
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        List<?> values = fieldMapper.lookupValues(new SourceLookup());
+        List<?> values = fieldMapper.lookupValues(new SourceLookup(), null);
         assertTrue(values.isEmpty());
 
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
@@ -149,7 +149,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
         mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
 
         fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        values = fieldMapper.lookupValues(new SourceLookup());
+        values = fieldMapper.lookupValues(new SourceLookup(), null);
         assertEquals(1, values.size());
         assertEquals("foo", values.get(0));
     }

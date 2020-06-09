@@ -103,6 +103,31 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
+     * Replaces the specified backing index with a new index and returns a new {@code DataStream} instance with
+     * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
+     * is not a backing index for this data stream or if it is the {@code DataStream}'s write index.
+     *
+     * @param existingBackingIndex the backing index to be replaced
+     * @param newBackingIndex      the new index that will be part of the {@code DataStream}
+     * @return new {@code DataStream} instance with backing indices that contain replacement index instead of the specified
+     * existing index.
+     */
+    public DataStream replaceBackingIndex(Index existingBackingIndex, Index newBackingIndex) {
+        List<Index> backingIndices = new ArrayList<>(indices);
+        int backingIndexPosition = backingIndices.indexOf(existingBackingIndex);
+        if (backingIndexPosition == -1) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] ",
+                existingBackingIndex.getName(), name));
+        }
+        if (generation == (backingIndexPosition + 1)) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "cannot replace backing index [%s] of data stream [%s] because " +
+                "it is the write index", existingBackingIndex.getName(), name));
+        }
+        backingIndices.set(backingIndexPosition, newBackingIndex);
+        return new DataStream(name, timeStampField, backingIndices, generation);
+    }
+
+    /**
      * Generates the name of the index that conforms to the default naming convention for backing indices
      * on data streams given the specified data stream name and generation.
      *

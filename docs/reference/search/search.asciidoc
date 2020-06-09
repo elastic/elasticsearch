@@ -298,19 +298,6 @@ pattern].
 +
 For other field datatypes, this parameter is not supported.
 ====
-+
-WARNING: <<doc-values,Doc values>> are enabled on supported fields by default.
-However, they can be disabled using the <<doc-values,`doc_values`>> mapping
-parameter. If the `docvalue_fields` parameter specifies a field without a doc
-value, the search request attempts to load the value from the
-<<modules-fielddata,field data cache>>. This causes the field's terms to be
-loaded into memory, resulting in higher memory consumption.
-+
-You cannot use the `docvalue_fields` parameter to return doc values
-for nested objects. If you specify a pattern containing a nested object, the
-request returns an empty array (`[ ]`) for the field. To access nested fields,
-use the <<request-body-search-inner-hits, `inner_hits`>> parameter's
-`docvalue_fields` property.
 
 [[request-body-search-explain]]
 `explain`::

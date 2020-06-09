@@ -123,13 +123,24 @@ You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
 
 Doc values store the same values as the `_source` but in an on-disk,
 column-based structure that's optimized for sorting and aggregations. Doc values
-are typically more compact that the original JSON `_source`.
+are typically more compact than `_source` values.
 
-IMPORTANT: Most field datatypes store doc values by default. However,
-<<text,`text` fields>> do not support doc values.
+[IMPORTANT]
+====
+Doc values are enabled by supported fields by default. However, <<text,`text`
+fields>> do not support doc values.
 
-We recommend retrieving doc values only if you need a fairly small number of
-fields that support doc values, such as <<keyword,keywords>> and <<date,dates>>.
+If you use the `docvalue_fields` parameter to specify a field without a doc
+value, the search attempts to load the value from the <<modules-fielddata,field
+data cache>>. This causes the field's terms to be loaded into memory, resulting
+in higher memory consumption.
+
+You cannot use the `docvalue_fields` parameter to retrieve doc values for
+nested objects. If you specify a nested object, the search returns an empty
+array (`[ ]`) for the field. To access nested fields, use the
+<<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
+property.
+====
 
 .*Example*
 [%collapsible]
@@ -169,7 +180,6 @@ GET /_search
     https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
     pattern]. Other field datatypes do not support the `format` parameter.
 ====
-
 
 [discrete]
 [[stored-fields]]

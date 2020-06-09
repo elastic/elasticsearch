@@ -133,6 +133,7 @@ PUT /_index_template/logs_data_stream
       }
     }
   }
+}
 ----
 // TEST[continued]
 ====

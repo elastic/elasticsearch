@@ -103,7 +103,7 @@
       ilm.explain_lifecycle:
         index: logs-foobar
   - is_false: indices.logs-foobar.managed
-  - is_true: indices.logs-foobar-000001.managed
+  - is_true: indices.\.ds-logs-foobar-000001.managed
 
   - do:
       indices.delete_data_stream:

@@ -80,7 +80,7 @@ public class RepositoryDataTests extends ESTestCase {
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             long gen = (long) randomIntBetween(0, 500);
-            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
+            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen, randomBoolean());
             assertEquals(repositoryData, fromXContent);
             assertEquals(gen, fromXContent.getGenId());
         }
@@ -100,14 +100,14 @@ public class RepositoryDataTests extends ESTestCase {
             IndexId indexId = new IndexId(randomAlphaOfLength(7), UUIDs.randomBase64UUID());
             newIndices.add(indexId);
             indices.add(indexId);
-            builder.put(indexId, 0, "1");
+            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
         }
         int numOld = randomIntBetween(1, indexIdMap.size());
         List<String> indexNames = new ArrayList<>(indexIdMap.keySet());
         for (int i = 0; i < numOld; i++) {
             final IndexId indexId = indexIdMap.get(indexNames.get(i));
             indices.add(indexId);
-            builder.put(indexId, 0, "2");
+            builder.put(indexId, 0, UUIDs.randomBase64UUID(random()));
         }
         final ShardGenerations shardGenerations = builder.build();
         final Map<IndexId, String> indexLookup =
@@ -197,7 +197,7 @@ public class RepositoryDataTests extends ESTestCase {
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         RepositoryData parsedRepositoryData;
         try (XContentParser xParser = createParser(builder)) {
-            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId());
+            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId(), randomBoolean());
         }
         assertEquals(repositoryData, parsedRepositoryData);
 
@@ -236,7 +236,7 @@ public class RepositoryDataTests extends ESTestCase {
 
         try (XContentParser xParser = createParser(corruptedBuilder)) {
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
-                RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId()));
+                RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId(), randomBoolean()));
             assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index " + corruptedIndexId + " references an unknown " +
                 "snapshot uuid [_does_not_exist]"));
         }
@@ -273,7 +273,7 @@ public class RepositoryDataTests extends ESTestCase {
 
         try (XContentParser xParser = createParser(builder)) {
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
-                RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong()));
+                RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong(), randomBoolean()));
             assertThat(e.getMessage(), equalTo("Detected a corrupted repository, " +
                 "index [docs/_id] references an unknown snapshot uuid [null]"));
         }

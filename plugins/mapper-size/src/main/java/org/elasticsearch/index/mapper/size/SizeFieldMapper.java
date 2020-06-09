@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -92,7 +91,9 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            throw new UnsupportedOperationException("size field mapper requires a target field");
+            return new SizeFieldMapper(Defaults.SIZE_FIELD_TYPE, Defaults.ENABLED_STATE,
+                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER),
+                context.mapperService().getIndexSettings().getSettings());
         }
     }
 
@@ -114,7 +115,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
+    public void preParse(ParseContext context) {
     }
 
     @Override
@@ -124,17 +125,17 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) {
         // nothing to do here, we call the parent in postParse
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context) {
         if (!enabledState.enabled) {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType().isSearchable();
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType.stored();
         context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, indexed, docValued, stored));

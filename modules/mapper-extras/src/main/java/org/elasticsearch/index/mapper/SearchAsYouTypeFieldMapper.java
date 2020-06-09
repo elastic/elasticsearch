@@ -479,6 +479,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             return (PrefixFieldType) super.fieldType();
         }
 
+        FieldType getLuceneFieldType() {
+            return fieldType;
+        }
+
         @Override
         protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
@@ -504,6 +508,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         ShingleFieldMapper(FieldType fieldType, ShingleFieldType mappedFieldtype, Settings indexSettings) {
             super(mappedFieldtype.name(), fieldType, mappedFieldtype, indexSettings, MultiFields.empty(), CopyTo.empty());
+        }
+
+        FieldType getLuceneFieldType() {
+            return fieldType;
         }
 
         @Override
@@ -671,9 +679,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         context.doc().add(new Field(fieldType().name(), value, fieldType));
         for (ShingleFieldMapper subFieldMapper : shingleFields) {
-            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.fieldType));
+            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
         }
-        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.fieldType));
+        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
         if (fieldType.omitNorms()) {
             createFieldNamesField(context);
         }

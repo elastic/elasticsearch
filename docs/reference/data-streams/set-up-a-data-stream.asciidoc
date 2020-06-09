@@ -9,7 +9,7 @@ To set up a data stream, follow these steps:
 . <<create-a-data-stream>>.
 
 After you set up a data stream, you can <<use-a-data-stream, use the data
-stream>> for indexing, searches, and other common operations.
+stream>> for indexing, searches, and other supported operations.
 
 [discrete]
 [[data-stream-prereqs]]

@@ -32,7 +32,7 @@ delete documents.
 
 [discrete]
 [[configure-a-data-stream-ilm-policy]]
-=== Optional: Configure an {ilm-init} policy for the data stream
+=== Optional: Configure an {ilm-init} policy for a data stream
 
 You can use <<index-lifecycle-management,{ilm} ({ilm-init})>> to automatically
 manage a data stream's backing indices. For example, you could use {ilm-init}
@@ -89,14 +89,14 @@ PUT /_ilm/policy/logs_policy
 
 [discrete]
 [[create-a-data-stream-template]]
-=== Create a composable template for the data stream
+=== Create a composable template for a data stream
 
 Each data stream requires a <<indices-templates,composable template>>. The data
 stream uses this template as a blueprint when creating its backing indices.
 
 Composable templates for data streams must contain:
 
-* A name or wildcard pattern for the data stream in the `index_patterns`
+* A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
   property.
 
 * A `data_stream` definition containing the `timestamp_field` property.

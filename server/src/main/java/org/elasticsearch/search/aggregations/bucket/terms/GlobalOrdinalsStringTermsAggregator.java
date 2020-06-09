@@ -767,7 +767,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         SignificantStringTerms buildEmptyResult() {
-            return buildEmptySignificantTermsAggregation(significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(subsetSize, significanceHeuristic);
         }
 
         @Override

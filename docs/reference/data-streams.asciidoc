@@ -62,7 +62,8 @@ PUT /_index_template/logs_template
 }
 -----------------------------------
 
-Start indexing data to a target matching composable template's wildcard pattern:
+Start indexing data to a target matching the composable template's wildcard
+pattern:
 
 [source,console]
 ----
@@ -86,7 +87,7 @@ Response:
         "failed" : 0,
         "successful" : 1
     },
-    "_index" : "logs-foobar-000001",
+    "_index" : ".ds-logs-foobar-000001",
     "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,

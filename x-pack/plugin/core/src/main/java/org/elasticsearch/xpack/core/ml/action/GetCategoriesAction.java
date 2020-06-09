@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -80,9 +79,7 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
             jobId = in.readString();
             categoryId = in.readOptionalLong();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                partitionFieldValue = in.readOptionalString();
-            }
+            partitionFieldValue = in.readOptionalString();
         }
 
         public String getJobId() { return jobId; }
@@ -132,9 +129,7 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
             out.writeString(jobId);
             out.writeOptionalLong(categoryId);
             out.writeOptionalWriteable(pageParams);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalString(partitionFieldValue);
-            }
+            out.writeOptionalString(partitionFieldValue);
         }
 
         @Override

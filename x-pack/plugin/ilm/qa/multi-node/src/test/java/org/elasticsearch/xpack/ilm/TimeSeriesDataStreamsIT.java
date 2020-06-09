@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -40,9 +41,11 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
-        assertBusy(() -> assertTrue(indexExists("logs-foo-000002")));
-        assertBusy(() -> assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap("logs-foo-000002").get("index.hidden"))));
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), "logs-foo-000001"), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+        assertBusy(() -> assertTrue(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2))));
+        assertBusy(() -> assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(
+            DataStream.getDefaultBackingIndexName(dataStream, 2)).get("index.hidden"))));
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), DataStream.getDefaultBackingIndexName(dataStream, 1)),
+            equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
     }
 
 }

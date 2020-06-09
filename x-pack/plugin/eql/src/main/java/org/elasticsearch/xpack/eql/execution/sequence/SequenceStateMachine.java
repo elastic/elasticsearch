@@ -38,6 +38,7 @@ public class SequenceStateMachine {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public SequenceStateMachine(int stages, boolean hasTieBreaker) {
         this.completionStage = stages - 1;
+
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
         this.timestampMarkers = new long[completionStage];

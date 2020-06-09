@@ -35,9 +35,9 @@ public class SequenceExec extends PhysicalPlan {
                         List<PhysicalPlan> matches,
                         List<Attribute> untilKeys,
                         PhysicalPlan until,
-                        Attribute timestampField,
+                        Attribute timestamp,
                         Attribute tieBreaker) {
-        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestampField, tieBreaker);
+        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tieBreaker);
     }
 
     private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute ts, Attribute tb) {

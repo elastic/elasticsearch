@@ -228,7 +228,7 @@ of a hit. If no fields are specified, no stored fields are included in the
 response.
 +
 If this field is specified, the `_source` parameter defaults to `false`. You can
-specify a value in the `_source` parameter to return both source fields and
+pass `_source: true` to return both source fields and
 stored fields in the search response.
 
 `suggest_field`::

@@ -19,6 +19,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An iterator useful to fetch a large number of documents of type T
@@ -30,6 +31,12 @@ import java.util.Objects;
  * Search after has the advantage that the scroll context does not have to be kept
  * alive so if processing each batch takes a long time search after should be
  * preferred to scroll.
+ *
+ * Documents in the index may be deleted or updated between search after calls
+ * so it is possible that the total hits can change. For this reason the hit
+ * count isn't a reliable indicator of progress and the iterator will judge that
+ * it has reached the end of the search only when less than {@value #BATCH_SIZE}
+ * hits are returned.
  */
 public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator<T> {
 
@@ -37,34 +44,39 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
 
     private final OriginSettingClient client;
     private final String index;
-    private volatile long count;
-    private volatile long totalHits;
+    private final AtomicBoolean lastSearchReturnedResults;
+    private int batchSize = BATCH_SIZE;
 
     protected SearchAfterDocumentsIterator(OriginSettingClient client, String index) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
-        this.totalHits = -1;
-        this.count = 0;
+        this.lastSearchReturnedResults = new AtomicBoolean(true);
     }
 
     /**
      * Returns {@code true} if the iteration has more elements or
      * no searches have been been run and it is unknown if there is a next.
      *
+     * Because the index may change between search after calls it is not possible
+     * to know how many results will be returned until all have been seen.
+     * For this reason is it possible {@code hasNext} will return true even
+     * if the next search returns 0 search hits. In that case {@link #next()}
+     * will return an empty collection.
+     *
      * @return {@code true} if the iteration has more elements or the first
      * search has not been run
      */
     @Override
     public boolean hasNext() {
-        return count != totalHits;
+        return lastSearchReturnedResults.get();
     }
 
     /**
      * The first time next() is called, the search will be performed and the first
-     * batch will be returned. Any subsequent call will return the following batches.
-     * <p>
-     * Note that in some implementations it is possible that when there are no
-     * results at all, the first time this method is called an empty {@code Deque} is returned.
+     * batch will be returned. Subsequent calls will return the following batches.
+     *
+     * Note it is possible that when there are no results at all, the first time
+     * this method is called an empty {@code Deque} is returned.
      *
      * @return a {@code Deque} with the next batch of documents
      * @throws NoSuchElementException if the iteration has no more elements
@@ -75,29 +87,17 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
             throw new NoSuchElementException();
         }
 
-        SearchResponse searchResponse;
-        if (totalHits == -1) {
-            searchResponse = initSearch();
-        } else {
-            searchResponse = doSearch(searchAfterFields());
-        }
+        SearchResponse searchResponse = doSearch(searchAfterFields());
         return mapHits(searchResponse);
-    }
-
-    private SearchResponse initSearch() {
-        SearchResponse searchResponse = doSearch(null);
-        totalHits = searchResponse.getHits().getTotalHits().value;
-        return searchResponse;
     }
 
     private SearchResponse doSearch(Object [] searchAfterValues) {
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
-            .size(BATCH_SIZE)
+            .size(batchSize)
             .query(getQuery())
             .fetchSource(shouldFetchSource())
-            .trackTotalHits(true)
             .sort(sortField()));
 
         if (searchAfterValues != null) {
@@ -118,7 +118,11 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
                 results.add(mapped);
             }
         }
-        count += hits.length;
+
+        // fewer hits than we requested, this is the end of the search
+        if (hits.length < batchSize) {
+            lastSearchReturnedResults.set(false);
+        }
 
         if (hits.length > 0) {
             extractSearchAfterFields(hits[hits.length - 1]);
@@ -168,4 +172,9 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
      * @param lastSearchHit The last search hit in the previous search response
      */
     protected abstract void extractSearchAfterFields(SearchHit lastSearchHit);
+
+    // for testing
+    void setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+    }
 }

@@ -22,6 +22,7 @@ import java.util.Deque;
 import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class SearchAfterDocumentsIteratorTests extends ESTestCase {
@@ -44,11 +45,15 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
             .finishMock();
 
         TestIterator testIterator = new TestIterator(originSettingClient, INDEX_NAME);
+        testIterator.setBatchSize(3);
         assertTrue(testIterator.hasNext());
+        Deque<String> batch = testIterator.next();
+        assertThat(batch, hasSize(3));
 
-        testIterator.next();
         assertTrue(testIterator.hasNext());
-        testIterator.next();
+        batch = testIterator.next();
+        assertThat(batch, hasSize(2));
+
         assertFalse(testIterator.hasNext());
         ESTestCase.expectThrows(NoSuchElementException.class, testIterator::next);
     }
@@ -74,6 +79,7 @@ public class SearchAfterDocumentsIteratorTests extends ESTestCase {
             .finishMock();
 
         TestIterator testIterator = new TestIterator(originSettingClient, INDEX_NAME);
+        testIterator.setBatchSize(3);
         Deque<String> next = testIterator.next();
         assertThat(next, not(empty()));
         Object[] values = testIterator.searchAfterFields();

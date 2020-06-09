@@ -30,6 +30,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
@@ -214,7 +215,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
             Query wildcardFieldQuery = null;
             Query keywordFieldQuery = null;
             String pattern = null;
-            switch (randomInt(3)) {
+            switch (randomInt(4)) {
             case 0:
                 pattern = getRandomWildcardPattern();                
                 wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
@@ -259,6 +260,14 @@ public class WildcardFieldMapperTests extends ESTestCase {
                 keywordFieldQuery = keywordFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, 
                     transpositions, MOCK_QSC);
                 break;
+            case 4:
+                TermRangeQuery trq = getRandomRange(values);
+                wildcardFieldQuery = wildcardFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(), 
+                    trq.includesUpper(), null, null, null, MOCK_QSC);
+                keywordFieldQuery = keywordFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(), 
+                    trq.includesUpper(), null, null, null, MOCK_QSC);
+                break;
+                
             }
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, values.size() + 1, Sort.RELEVANCE);
             TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, values.size() + 1, Sort.RELEVANCE);
@@ -485,6 +494,54 @@ public class WildcardFieldMapperTests extends ESTestCase {
         }
     }    
     
+    
+    static class RangeTest {
+        String lower;
+        String upper;
+        String ngrams;
+
+        RangeTest(
+            String lower,
+            String upper,
+            String ngrams
+        ) {
+            super();
+            this.lower = lower;
+            this.upper = upper;
+            this.ngrams = ngrams;
+        }
+
+        Query getRangeQuery() {
+            return wildcardFieldType.fieldType().rangeQuery(lower, upper, true, true, null, null, null, MOCK_QSC);
+        }
+
+        Query getExpectedApproxQuery() throws ParseException {
+            BooleanQuery.Builder bq = new BooleanQuery.Builder();
+            if (ngrams != null) {
+                String[] tokens = ngrams.split(" ");
+                for (String token : tokens) {
+                    Query ngramQuery = new TermQuery(
+                        new Term(WILDCARD_FIELD_NAME, token.replaceAll("_", WildcardFieldMapper.TOKEN_START_STRING))
+                    );
+                    bq.add(ngramQuery, Occur.MUST);
+                }
+            }
+            return bq.build();
+        }
+    }    
+    
+    public void testRangeAcceleration() throws IOException, ParseException {
+
+        RangeTest[] tests = {
+            new RangeTest("c:/a.txt", "c:/z.txt", "_c: c:/"),
+            new RangeTest("C:/ProgramFiles/a.txt", "C:/ProgramFiles/z.txt", "_c: :/p pro ogr ram mfi ile es/"),
+        };
+        for (RangeTest test : tests) {
+            Query wildcardFieldQuery = test.getRangeQuery();
+            testExpectedAccelerationQuery(test.lower + "-" + test.upper, wildcardFieldQuery, test.getExpectedApproxQuery());
+        }
+    }      
+    
     void testExpectedAccelerationQuery(String regex, Query combinedQuery, String expectedAccelerationQueryString) throws ParseException {
 
         QueryParser qsp = new QueryParser(WILDCARD_FIELD_NAME, new KeywordAnalyzer());
@@ -530,6 +587,33 @@ public class WildcardFieldMapperTests extends ESTestCase {
         }
         return randomValue;
     }    
+    
+    private TermRangeQuery getRandomRange(HashSet<String> values) {
+        // Pick one of the indexed document values to focus our queries on.
+        String randomValue = values.toArray(new String[0])[randomIntBetween(0, values.size()-1)];
+        StringBuilder upper = new StringBuilder();
+        //Pick a part of the string to change
+        int substitutionPoint = randomIntBetween(0, randomValue.length()-1);
+        int substitutionLength = randomIntBetween(1, Math.min(10, randomValue.length() - substitutionPoint));
+
+        //Add any head to the result, unchanged
+        if(substitutionPoint >0) {
+            upper.append(randomValue.substring(0,substitutionPoint));
+        }
+        
+        // Modify the middle...
+        String replacementPart = randomValue.substring(substitutionPoint, substitutionPoint+substitutionLength);
+        // .-replace all a chars with z
+        upper.append(replacementPart.replaceAll("a", "z"));            
+        
+        //add any remaining tail, unchanged
+        if(substitutionPoint + substitutionLength <= randomValue.length()-1) {
+            upper.append(randomValue.substring(substitutionPoint + substitutionLength));
+        }
+        return new TermRangeQuery(WILDCARD_FIELD_NAME, new BytesRef(randomValue), new BytesRef(upper.toString()), 
+            randomBoolean(), randomBoolean());
+    }    
+    
 
     private String getRandomRegexPattern(HashSet<String> values) {
         // Pick one of the indexed document values to focus our queries on.

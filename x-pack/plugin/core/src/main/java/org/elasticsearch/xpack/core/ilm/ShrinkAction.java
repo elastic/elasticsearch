@@ -151,6 +151,8 @@ public class ShrinkAction implements LifecycleAction {
             }
 
             if (indexMetadata.getNumberOfShards() == targetNumberOfShards) {
+                logger.debug("skipping [{}] lifecycle action for index [{}] because the index already has the target number of shards",
+                    NAME, index.getName());
                 return true;
             }
 

@@ -156,13 +156,9 @@ GET /_search
 
 The `docvalue_fields` parameter has some limitations:
 
-* Doc values are stored for supported fields by default. However, <<text,`text`
-fields>> do not support doc values.
-
-*  If you use the `docvalue_fields` parameter to specify a field without a doc
-value, the search attempts to load the value from the <<modules-fielddata,field
-data cache>>. This causes the field's terms to be loaded into memory, resulting
-in higher memory consumption.
+* Doc values are stored for supported fields by default. However,
+<<text,`text`>> and <<mapper-annotated-text-usage,`text_annotated`>> fields do
+not support doc values.
 
 *  You cannot use the `docvalue_fields` parameter to retrieve doc values for
 nested objects. If you specify a nested object, the search returns an empty

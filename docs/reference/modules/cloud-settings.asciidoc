@@ -1,3 +1,18 @@
+[[cloud-settings]]
+=== Cloud settings
+The following {es} settings are supported on {ess}.
 
-== HTTP settings
-include::{es-repo-dir}/modules/http.asciidoc[http-cors-max-age]
+==== Disk-based shard allocation settings
+include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-disk-threshold-tag]
+include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-watermark-low-tag]
+include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-watermark-high-tag]
+include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-flood-stage-tag]
+
+==== HTTP settings
+include::{es-repo-dir}/modules/http.asciidoc[tag=http-compression-tag]
+include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-enabled-tag]
+include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-origin-tag]
+include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-max-age-tag]
+include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-methods-tag]
+include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-headers-tag]
+include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-credentials-tag]

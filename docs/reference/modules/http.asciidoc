@@ -49,17 +49,20 @@ The max length of an HTTP URL. Defaults to `4KB`.
 The max size of allowed headers. Defaults to `8KB`.
 
 [[http-compression]]
+// tag::http-compression-tag[]
 `http.compression` {ess-icon}::
 Support for compression when possible (with Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults to `true`.
 +
 Disabling compression for HTTPS mitigates potential security risks, such as a
 https://en.wikipedia.org/wiki/BREACH[BREACH attack]. To compress HTTPS traffic,
 you must explicitly set `http.compression` to `true`.
+// end::http-compression-tag[]
 
 `http.compression_level`::
 Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression) and 9 (maximum compression). Defaults to `3`.
 
 [[http-cors-enabled]]
+// tag::http-cors-enabled-tag[]
 `http.cors.enabled` {ess-icon}::
 Enable or disable cross-origin resource sharing, which determines whether a browser on another origin can execute requests against {es}. Set to `true` to enable {es} to process pre-flight
 https://en.wikipedia.org/wiki/Cross-origin_resource_sharing[CORS] requests.
@@ -69,31 +72,43 @@ NOTE: If the client does not send a pre-flight request with an `Origin` header o
 `Access-Control-Allow-Origin` response header, then cross-origin security is
 compromised. If CORS is not enabled on {es}, the only way for the client to know is to send a pre-flight request and realize the required response headers are missing.
 
+// end::http-cors-enabled-tag[]
+
 [[http-cors-allow-origin]]
+// tag::http-cors-allow-origin-tag[]
 `http.cors.allow-origin` {ess-icon}::
 Which origins to allow. If you prepend and append a forward slash (`/`) to the value, this will be treated as a regular expression, allowing you to support HTTP and HTTPs. For example, using `/https?:\/\/localhost(:[0-9]+)?/` would return the request header appropriately in both cases. Defaults to no origins allowed.
 +
 IMPORTANT: A wildcard (`*`) is a valid value but is considered a security risk, as your {es} instance is open to cross origin requests from *anywhere*.
 
-// tag::http-cors-max-age[]
+// end::http-cors-allow-origin-tag[]
+
 [[http-cors-max-age]]
+// tag::http-cors-max-age-tag[]
 `http.cors.max-age` {ess-icon}::
 Browsers send a "preflight" OPTIONS-request to determine CORS settings. `max-age` defines how long the result should be cached for. Defaults to `1728000` (20 days).
-// end::http-cors-max-age[]
+// end::http-cors-max-age-tag[]
 
 [[http-cors-allow-methods]]
+// tag::http-cors-allow-methods-tag[]
 `http.cors.allow-methods` {ess-icon}::
 Which methods to allow. Defaults to `OPTIONS, HEAD, GET, POST, PUT, DELETE`.
+// end::http-cors-allow-methods-tag[]
 
 [[http-cors-allow-headers]]
+// tag::http-cors-allow-headers-tag[]
 `http.cors.allow-headers` {ess-icon}::
 Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length`.
+// end::http-cors-allow-headers-tag[]
 
 [[http-cors-allow-credentials]]
+// tag::http-cors-allow-credentials-tag[]
 `http.cors.allow-credentials` {ess-icon}::
 Whether the `Access-Control-Allow-Credentials` header should be returned. Defaults to `false`.
 +
 NOTE: This header is only returned when the setting is set to `true`.
+
+// end::http-cors-allow-credentials-tag[]
 
 `http.detailed_errors.enabled`::
 Enables or disables the output of detailed error messages and stack traces in response output. Defaults to `true`.

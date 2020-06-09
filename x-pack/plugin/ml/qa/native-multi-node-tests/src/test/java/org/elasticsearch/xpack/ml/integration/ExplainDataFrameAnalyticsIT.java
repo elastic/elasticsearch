@@ -124,6 +124,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         explainResponse = explainDataFrame(config);
 
-        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(), lessThanOrEqualTo(allDataUsedForTraining));
+        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(), 
+                   lessThanOrEqualTo(allDataUsedForTraining));
     }
 }

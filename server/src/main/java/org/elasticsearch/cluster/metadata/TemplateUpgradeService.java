@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -128,8 +129,11 @@ public class TemplateUpgradeService implements ClusterStateListener {
                     changes.get().v1().size(),
                     changes.get().v2().size());
 
-                assert threadPool.getThreadContext().isSystemContext();
-                threadPool.generic().execute(() -> upgradeTemplates(changes.get().v1(), changes.get().v2()));
+                final ThreadContext threadContext = threadPool.getThreadContext();
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    threadContext.markAsSystemContext();
+                    threadPool.generic().execute(() -> upgradeTemplates(changes.get().v1(), changes.get().v2()));
+                }
             }
         }
     }

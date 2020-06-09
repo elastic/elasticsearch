@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -60,11 +59,7 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
 
         // ensure the cluster listener gets triggered
         ClusterChangedEvent event = new ClusterChangedEvent("testing", clusterService.state(), clusterService.state());
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
-            templateUpgradeService.clusterChanged(event);
-        }
+        templateUpgradeService.clusterChanged(event);
 
         assertBusy(() -> assertTemplates("added-template", "removed-template"));
     }

@@ -139,14 +139,6 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Captures the current thread context as writeable, allowing it to be serialized out later
-     */
-    public Writeable captureAsWriteable() {
-        final ThreadContextStruct context = threadLocal.get();
-        return out -> context.writeTo(out, defaultHeader);
-    }
-
-    /**
      * Removes the current context and resets a default context marked with as
      * originating from the supplied string. The removed context can be
      * restored by closing the returned {@link StoredContext}. Callers should
@@ -501,7 +493,7 @@ public final class ThreadContext implements Writeable {
             return new ThreadContextStruct(newRequestHeaders, responseHeaders, transientHeaders, isSystemContext);
         }
 
-        private static void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
+        private void putSingleHeader(String key, String value, Map<String, String> newHeaders) {
             if (newHeaders.putIfAbsent(key, value) != null) {
                 throw new IllegalArgumentException("value for key [" + key + "] already present");
             }

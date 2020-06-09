@@ -19,7 +19,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 /**
@@ -29,12 +28,15 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 public abstract class NetworkMessage {
 
     protected final Version version;
-    protected final Writeable threadContext;
+    protected final ThreadContext threadContext;
+    protected final ThreadContext.StoredContext storedContext;
     protected final long requestId;
     protected final byte status;
 
     NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
-        this.threadContext = threadContext.captureAsWriteable();
+        this.threadContext = threadContext;
+        storedContext = threadContext.stashContext();
+        storedContext.restore();
         this.version = version;
         this.requestId = requestId;
         this.status = status;
@@ -50,6 +52,10 @@ public abstract class NetworkMessage {
 
     boolean isCompress() {
         return TransportStatus.isCompress(status);
+    }
+
+    ThreadContext.StoredContext getStoredContext() {
+        return storedContext;
     }
 
     boolean isResponse() {

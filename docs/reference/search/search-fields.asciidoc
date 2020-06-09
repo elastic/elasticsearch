@@ -1,6 +1,6 @@
 [discrete]
 [[search-fields]]
-=== Retrieve selected fields
+=== Retrieve selected fields in a search
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
@@ -127,7 +127,7 @@ are typically more compact than `_source` values.
 
 [IMPORTANT]
 ====
-Doc values are enabled by supported fields by default. However, <<text,`text`
+Doc values are enabled for supported fields by default. However, <<text,`text`
 fields>> do not support doc values.
 
 If you use the `docvalue_fields` parameter to specify a field without a doc

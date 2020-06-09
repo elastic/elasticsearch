@@ -20,7 +20,7 @@ template>> containing:
 
 * A name or wildcard pattern for the data stream in the `index_patterns` property.
 * A `data_stream` definition that contains the `timestamp_field` property.
-  The `timestamp_field` must be the primary timestamp field 
+  The `timestamp_field` must be the primary timestamp field
    for the data source. This field must be included in every
    document indexed to the data stream.
 
@@ -53,7 +53,8 @@ PUT /_index_template/logs_template
 }
 -----------------------------------
 
-Start indexing data to a target matching composable template's wildcard pattern:
+Start indexing data to a target matching the composable template's wildcard
+pattern:
 
 [source,console]
 ----
@@ -77,7 +78,7 @@ Response:
         "failed" : 0,
         "successful" : 1
     },
-    "_index" : "logs-foobar-000001",
+    "_index" : ".ds-logs-foobar-000001",
     "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,

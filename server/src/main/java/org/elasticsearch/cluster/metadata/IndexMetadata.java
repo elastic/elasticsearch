@@ -1622,8 +1622,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
-     * Eg.
-     * - For "logs-000002" it'll return 2
+     * E.g.
+     * - For ".ds-logs-000002" it will return 2
      * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
      * @throws IllegalArgumentException if the index doesn't contain a "-" separator or if the last token after the separator is not a
      * number

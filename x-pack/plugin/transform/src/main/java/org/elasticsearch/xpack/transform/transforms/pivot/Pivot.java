@@ -103,12 +103,10 @@ public class Pivot {
             listener.onResponse(true);
         }, e -> {
             Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-            RestStatus status = unwrapped instanceof ElasticsearchException ?
-                ((ElasticsearchException)unwrapped).status() :
-                RestStatus.SERVICE_UNAVAILABLE;
-            listener.onFailure(new ElasticsearchStatusException("Failed to test query",
-                status,
-                unwrapped));
+            RestStatus status = unwrapped instanceof ElasticsearchException
+                ? ((ElasticsearchException) unwrapped).status()
+                : RestStatus.SERVICE_UNAVAILABLE;
+            listener.onFailure(new ElasticsearchStatusException("Failed to test query", status, unwrapped));
         }));
     }
 

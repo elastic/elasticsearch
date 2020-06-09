@@ -1040,6 +1040,28 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             containsString("mapping fields [field2] cannot be replaced during template composition"));
     }
 
+    public void testPutExistingComponentTemplateIsNoop() throws Exception {
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+        ComponentTemplate componentTemplate = ComponentTemplateTests.randomInstance();
+        state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
+
+        assertNotNull(state.metadata().componentTemplates().get("foo"));
+
+        assertThat(metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate), equalTo(state));
+    }
+
+    public void testPutExistingComposableTemplateIsNoop() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        ComposableIndexTemplate template = ComposableIndexTemplateTests.randomInstance();
+        state = metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template);
+
+        assertNotNull(state.metadata().templatesV2().get("foo"));
+
+        assertThat(metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template), equalTo(state));
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,

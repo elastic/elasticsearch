@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -389,7 +388,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, segments(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesStats(dataStreamName), false);
         verifyResolvability(dataStreamName, IndicesOptionsIntegrationIT.forceMerge(dataStreamName), false);
-        verifyResolvability(dataStreamName, validateQuery(dataStreamName), false);
+        verifyResolvability(dataStreamName, validateQuery(dataStreamName), true);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
@@ -424,11 +423,11 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, segments(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesStats(wildcardExpression), false);
         verifyResolvability(wildcardExpression, IndicesOptionsIntegrationIT.forceMerge(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), true);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), false);
         verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), false);
         verifyResolvability(wildcardExpression,
             putMapping("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", wildcardExpression), false);
@@ -763,8 +762,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
-            String expectedErrorMessage = "The provided expression [" + dataStream +
-                "] matches a data stream, specify the corresponding concrete indices instead.";
+            String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
                 assertThat(multiSearchResponse.getResponses().length, equalTo(1));
@@ -772,10 +770,10 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
                 assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
             } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
-                ValidateQueryResponse response = (ValidateQueryResponse) requestBuilder.get();
-                assertThat(response.getQueryExplanation().get(0).getError(), equalTo(expectedErrorMessage));
+                Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
+                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
             } else {
-                Exception e = expectThrows(IllegalArgumentException.class, requestBuilder::get);
+                Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
             }
         } else {

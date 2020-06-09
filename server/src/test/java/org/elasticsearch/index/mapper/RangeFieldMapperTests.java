@@ -497,13 +497,29 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase<Ra
 
         RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Map.of("gte", 3L, "lt", 42L), longMapper.parseSourceValue(longRange));
+        assertEquals(Map.of("gte", 3L, "lt", 42L), longMapper.parseSourceValue(longRange, null));
 
         RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
             .format("yyyy/MM/dd||epoch_millis")
             .build(context);
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
         assertEquals(Map.of("lt", "1990/12/29", "gte", "1988/12/06"),
-            dateMapper.parseSourceValue(dateRange));
+            dateMapper.parseSourceValue(dateRange, null));
+    }
+
+    public void testParseSourceValueWithFormat() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        RangeFieldMapper longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG).build(context);
+        Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Map.of("gte", 3L, "lt", 42L), longMapper.parseSourceValue(longRange, null));
+
+        RangeFieldMapper dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE)
+            .format("strict_date_time")
+            .build(context);
+        Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
+        assertEquals(Map.of("lt", "1990/12/29"), dateMapper.parseSourceValue(dateRange, "yyy/MM/dd"));
+        assertEquals(Map.of("lt", "662428800000"), dateMapper.parseSourceValue(dateRange, "epoch_millis"));
     }
 }

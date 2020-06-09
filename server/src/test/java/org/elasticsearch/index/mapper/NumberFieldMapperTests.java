@@ -409,8 +409,8 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<N
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         NumberFieldMapper mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER).build(context);
 
-        assertEquals(3, mapper.parseSourceValue(3.14));
-        assertEquals(42, mapper.parseSourceValue("42.9"));
+        assertEquals(3, mapper.parseSourceValue(3.14, null));
+        assertEquals(42, mapper.parseSourceValue("42.9", null));
     }
 
     @Timeout(millis = 30000)

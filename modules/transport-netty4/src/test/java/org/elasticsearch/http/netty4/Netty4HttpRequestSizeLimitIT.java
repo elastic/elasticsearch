@@ -61,7 +61,7 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
+            .put(HierarchyCircuitBreakerService.IN_FLIGHT_HTTP_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), LIMIT)
             .build();
     }
 

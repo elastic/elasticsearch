@@ -202,10 +202,7 @@ the search response. Defaults to `true`.
 ====
 `true`::
 (boolean)
-The entire document source is returned. This does not include:
-* <<multi-fields,multi-fields>>
-* <<alias,field aliases>>
-* Values copied using the <<copy-to,`copy_to`>> mapping parameter
+The entire document source is returned.
 
 `false`::
 (boolean)

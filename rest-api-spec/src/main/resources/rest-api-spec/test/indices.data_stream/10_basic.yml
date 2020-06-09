@@ -23,8 +23,8 @@ setup:
 ---
 "Create data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
 
   - do:
       indices.create_data_stream:
@@ -43,12 +43,12 @@ setup:
   - match: { 0.timestamp_field: '@timestamp' }
   - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
-  - match: { 0.indices.0.index_name: 'simple-data-stream1-000001' }
+  - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
   - match: { 1.name: simple-data-stream2 }
   - match: { 1.timestamp_field: '@timestamp2' }
   - match: { 0.generation: 1 }
   - length: { 1.indices: 1 }
-  - match: { 1.indices.0.index_name: 'simple-data-stream2-000001' }
+  - match: { 1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
 
   - do:
       index:
@@ -64,7 +64,7 @@ setup:
         index: simple-data-stream1
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: simple-data-stream1-000001 }
+  - match: { hits.hits.0._index: .ds-simple-data-stream1-000001 }
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
@@ -95,8 +95,8 @@ setup:
 ---
 "Get data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
 
   - do:
       indices.create_data_stream:
@@ -160,8 +160,8 @@ setup:
 ---
 "Delete data stream with backing indices":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
 
   - do:
       indices.create_data_stream:
@@ -178,10 +178,10 @@ setup:
 
   - do:
       indices.get:
-        index: ['simple-data-stream1-000001', 'test_index']
+        index: ['.ds-simple-data-stream1-000001', 'test_index']
 
   - is_true: test_index.settings
-  - is_true: simple-data-stream1-000001.settings
+  - is_true: \.ds-simple-data-stream1-000001.settings
 
   - do:
       indices.get_data_stream: {}
@@ -189,7 +189,7 @@ setup:
   - match: { 0.timestamp_field: '@timestamp' }
   - match: { 0.generation: 1 }
   - length: { 0.indices: 1 }
-  - match: { 0.indices.0.index_name: 'simple-data-stream1-000001' }
+  - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
 
   - do:
       indices.delete_data_stream:
@@ -199,4 +199,4 @@ setup:
   - do:
       catch: missing
       indices.get:
-        index: "simple-data-stream1-000001"
+        index: ".ds-simple-data-stream1-000001"

@@ -84,12 +84,12 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         long creationDate = randomLongBetween(0, 1000000);
         long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
         String dataStreamName = "test-datastream";
-        IndexMetadata originalIndexMeta = IndexMetadata.builder(dataStreamName + "-000001")
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .putRolloverInfo(new RolloverInfo(dataStreamName, Collections.emptyList(), rolloverTime))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        IndexMetadata rolledIndexMeta= IndexMetadata.builder(dataStreamName + "-000002")
+        IndexMetadata rolledIndexMeta= IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 

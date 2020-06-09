@@ -19,7 +19,9 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.tasks.Task;
 
 import java.util.Arrays;
 
@@ -56,6 +58,13 @@ public enum Transports {
     public static boolean assertNotTransportThread(String reason) {
         final Thread t = Thread.currentThread();
         assert isTransportThread(t) == false : "Expected current thread [" + t + "] to not be a transport thread. Reason: [" + reason + "]";
+        return true;
+    }
+
+    public static boolean assertDefaultThreadContext(ThreadContext threadContext) {
+        assert threadContext.getHeaders().isEmpty() ||
+            threadContext.getHeaders().size() == 1 && threadContext.getHeaders().containsKey(Task.X_OPAQUE_ID) :
+            "expected empty context but was " + threadContext.getHeaders() + " on " + Thread.currentThread().getName();
         return true;
     }
 }

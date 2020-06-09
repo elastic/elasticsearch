@@ -97,8 +97,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
                 .build();
-        // TODO: Change after backport
-        this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_8_0_0);
+        this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
     }
 
     @Override

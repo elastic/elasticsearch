@@ -822,7 +822,7 @@ See {painless}/painless-lang-spec.html[Painless language specification].
 [role="exclude",id="using-policies-rollover"]
 === Using policies to manage index rollover
 
-See <<ilm-configure-rollover>>.
+See <<getting-started-index-lifecycle-management>>.
 
 [role="exclude",id="_applying_a_policy_to_our_index"]
 === Applying a policy to our index
@@ -882,6 +882,17 @@ We have stopped adding new customers to our {esms}.
 
 If you are interested in similar capabilities, contact
 https://support.elastic.co[Elastic Support] to discuss available options.
+
+[role="exclude",id="ilm-with-existing-periodic-indices"]
+=== Manage existing periodic indices with {ilm-init}
+
+See <<ilm-existing-indices-apply>>.
+
+[role="exclude",id="ilm-reindexing-into-rollover"]
+=== Reindexing via {ilm-init}
+
+See <<ilm-existing-indices-reindex>>.
+
 
 ////
 [role="exclude",id="search-request-body"]

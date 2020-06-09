@@ -19,6 +19,8 @@
 
 package org.elasticsearch.join.aggregations;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -72,6 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@Seed("C819E5036478507F")
 public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
     private static final String CHILD_TYPE = "child_type";
@@ -172,11 +175,15 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                 assertThat(evenChildren.getDocCount(), equalTo(expectedEvenChildCount));
                 assertThat(evenMin.getValue(), equalTo(expectedEvenMin));
 
-                StringTerms.Bucket oddBucket = result.getBucketByKey("odd");
-                InternalChildren oddChildren = oddBucket.getAggregations().get("children");
-                InternalMin oddMin = oddChildren.getAggregations().get("min");
-                assertThat(oddChildren.getDocCount(), equalTo(expectedOddChildCount));
-                assertThat(oddMin.getValue(), equalTo(expectedOddMin));
+                if (expectedOddChildCount > 0) {
+                    StringTerms.Bucket oddBucket = result.getBucketByKey("odd");
+                    InternalChildren oddChildren = oddBucket.getAggregations().get("children");
+                    InternalMin oddMin = oddChildren.getAggregations().get("min");
+                    assertThat(oddChildren.getDocCount(), equalTo(expectedOddChildCount));
+                    assertThat(oddMin.getValue(), equalTo(expectedOddMin));
+                } else {
+                    assertNull(result.getBucketByKey("odd"));
+                }
             }
         }
     }

@@ -348,12 +348,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     return;
                 }
 
-                performTranslogOps(request, listener);
-            }
-        }
-
-        private void performTranslogOps(final RecoveryTranslogOperationsRequest request, final ActionListener<Void> listener) {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 performTranslogOps(request, listener, recoveryRef);
             }
         }
@@ -373,7 +367,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         try {
-                            performTranslogOps(request, listener);
+                            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                                performTranslogOps(request, listener, recoveryRef);
+                            }
                         } catch (Exception e) {
                             listener.onFailure(e);
                         }

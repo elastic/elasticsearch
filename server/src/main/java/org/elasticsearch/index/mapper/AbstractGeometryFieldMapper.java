@@ -142,7 +142,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
+    protected Object parseSourceValue(Object value, String format) {
         throw new UnsupportedOperationException();
     }
 

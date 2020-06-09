@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -281,9 +282,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * Some mappers may need more flexibility and can override this entire method instead.
      *
      * @param lookup a lookup structure over the document's source.
+     * @param format an optional format string used when formatting values, for example a date format.
      * @return a list a standardized field values.
      */
-    public List<?> lookupValues(SourceLookup lookup) {
+    public List<?> lookupValues(SourceLookup lookup, @Nullable String format) {
         Object sourceValue = lookup.extractValue(name());
         if (sourceValue == null) {
             return List.of();
@@ -291,11 +293,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         List<Object> values = new ArrayList<>();
         if (parsesArrayValue()) {
-            return (List<?>) parseSourceValue(sourceValue);
+            return (List<?>) parseSourceValue(sourceValue, format);
         } else {
             List<?> sourceValues = sourceValue instanceof List ? (List<?>) sourceValue : List.of(sourceValue);
             for (Object value : sourceValues) {
-                Object parsedValue = parseSourceValue(value);
+                Object parsedValue = parseSourceValue(value, format);
                 values.add(parsedValue);
             }
         }
@@ -309,7 +311,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      *
      * Note that when overriding this method, {@link #lookupValues} should *not* be overridden.
      */
-    protected abstract Object parseSourceValue(Object value);
+    protected abstract Object parseSourceValue(Object value, @Nullable String format);
 
     protected void createFieldNamesField(ParseContext context) {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();

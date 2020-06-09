@@ -194,7 +194,7 @@ public class RankFeatureFieldMapperTests extends FieldMapperTestCase<RankFeature
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         RankFeatureFieldMapper mapper = new RankFeatureFieldMapper.Builder("field").build(context);
 
-        assertEquals(3.14f, mapper.parseSourceValue(3.14), 0.0001);
-        assertEquals(42.9f, mapper.parseSourceValue("42.9"), 0.0001);
+        assertEquals(3.14f, mapper.parseSourceValue(3.14, null), 0.0001);
+        assertEquals(42.9f, mapper.parseSourceValue("42.9", null), 0.0001);
     }
 }

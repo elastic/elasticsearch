@@ -134,7 +134,7 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value) {
+    protected String parseSourceValue(Object value, String format) {
         return value.toString();
     }
 

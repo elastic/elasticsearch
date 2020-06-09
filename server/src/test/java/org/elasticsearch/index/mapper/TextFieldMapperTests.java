@@ -1341,8 +1341,8 @@ public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Bu
         FieldMapper fieldMapper = newBuilder().build(context);
         TextFieldMapper mapper = (TextFieldMapper) fieldMapper;
 
-        assertEquals("value", mapper.parseSourceValue("value"));
-        assertEquals("42", mapper.parseSourceValue(42L));
-        assertEquals("true", mapper.parseSourceValue(true));
+        assertEquals("value", mapper.parseSourceValue("value", null));
+        assertEquals("42", mapper.parseSourceValue(42L, null));
+        assertEquals("true", mapper.parseSourceValue(true, null));
     }
 }

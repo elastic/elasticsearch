@@ -48,7 +48,10 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .endObject()
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, List.of("field", "object.field"));
+        List<FieldAndFormat> fieldAndFormats = List.of(
+            new FieldAndFormat("field", null),
+            new FieldAndFormat("object.field", null));
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 
         DocumentField field = fields.get("field");
@@ -152,6 +155,27 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertNotNull(objectField);
         assertThat(objectField.getValues().size(), equalTo(1));
         assertThat(objectField.getValues(), hasItems("fourth"));
+    }
+
+    public void testDateFormat() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .field("date_field", "1990-12-29T00:00:00.000Z")
+        .endObject();
+
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, List.of(
+            new FieldAndFormat("field", null),
+            new FieldAndFormat("date_field", "yyyy/MM/dd")));
+        assertThat(fields.size(), equalTo(2));
+
+        DocumentField field = fields.get("field");
+        assertNotNull(field);
+
+        DocumentField dateField = fields.get("date_field");
+        assertNotNull(dateField);
+        assertThat(dateField.getValues().size(), equalTo(1));
+        assertThat(dateField.getValue(), equalTo("1990/12/29"));
     }
 
     public void testFieldAliases() throws IOException {
@@ -263,14 +287,15 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
     }
 
     private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, String fieldPattern) {
-        return retrieveFields(mapperService, source, List.of(fieldPattern));
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
+        return retrieveFields(mapperService, source, fields);
     }
 
-    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<String> fieldPatterns) {
+    private Map<String, DocumentField> retrieveFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields) {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, fieldPatterns);
+        FieldValueRetriever fetchFieldsLookup = FieldValueRetriever.create(mapperService, fields);
         return fetchFieldsLookup.retrieve(sourceLookup, Set.of());
     }
 
@@ -279,6 +304,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
             .startObject("properties")
                 .startObject("field").field("type", "keyword").endObject()
                 .startObject("integer_field").field("type", "integer").endObject()
+                .startObject("date_field").field("type", "date").endObject()
                 .startObject("completion").field("type", "completion").endObject()
                 .startObject("float_range").field("type", "float_range").endObject()
                 .startObject("object")

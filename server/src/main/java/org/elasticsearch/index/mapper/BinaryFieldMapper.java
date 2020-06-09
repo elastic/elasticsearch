@@ -190,7 +190,10 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
+    protected Object parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
         return value;
     }
 

@@ -688,8 +688,8 @@ public class AnnotatedTextFieldMapperTests extends ESSingleNodeTestCase {
             .build(context);
         AnnotatedTextFieldMapper mapper = (AnnotatedTextFieldMapper) fieldMapper;
 
-        assertEquals("value", mapper.parseSourceValue("value"));
-        assertEquals("42", mapper.parseSourceValue(42L));
-        assertEquals("true", mapper.parseSourceValue(true));
+        assertEquals("value", mapper.parseSourceValue("value", null));
+        assertEquals("42", mapper.parseSourceValue(42L, null));
+        assertEquals("true", mapper.parseSourceValue(true, null));
     }
 }

@@ -170,7 +170,7 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
 
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        assertEquals("1234", fieldMapper.parseSourceValue("1234"));
+        assertEquals("1234", fieldMapper.parseSourceValue("1234", null));
     }
 
     public void testIgnoreAbove() throws IOException {
@@ -635,8 +635,11 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
 
-        assertEquals("value", mapper.parseSourceValue("value"));
-        assertEquals("42", mapper.parseSourceValue(42L));
-        assertEquals("true", mapper.parseSourceValue(true));
+        assertEquals("value", mapper.parseSourceValue("value", null));
+        assertEquals("42", mapper.parseSourceValue(42L, null));
+        assertEquals("true", mapper.parseSourceValue(true, null));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.parseSourceValue(true, "format"));
+        assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
     }
 }

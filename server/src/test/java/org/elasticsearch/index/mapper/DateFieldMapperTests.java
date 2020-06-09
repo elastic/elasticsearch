@@ -455,25 +455,32 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     public void testParseSourceValue() {
         DateFieldMapper mapper = createMapper(Resolution.MILLISECONDS, null);
         String date = "2020-05-15T21:33:02.000Z";
-        assertEquals(date, mapper.parseSourceValue(date));
-        assertEquals(date, mapper.parseSourceValue(1589578382000L));
+        assertEquals(date, mapper.parseSourceValue(date, null));
+        assertEquals(date, mapper.parseSourceValue(1589578382000L, null));
 
         DateFieldMapper mapperWithFormat = createMapper(Resolution.MILLISECONDS, "yyyy/MM/dd||epoch_millis");
         String dateInFormat = "1990/12/29";
-        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(dateInFormat));
-        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(662428800000L));
+        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(dateInFormat, null));
+        assertEquals(dateInFormat, mapperWithFormat.parseSourceValue(662428800000L, null));
 
         DateFieldMapper mapperWithMillis = createMapper(Resolution.MILLISECONDS, "epoch_millis");
         String dateInMillis = "662428800000";
-        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(dateInMillis));
-        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(662428800000L));
+        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(dateInMillis, null));
+        assertEquals(dateInMillis, mapperWithMillis.parseSourceValue(662428800000L, null));
+    }
+
+    public void testParseSourceValueWithFormat() {
+        DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time");
+        String date = "1990-12-29T00:00:00.000Z";
+        assertEquals("1990/12/29", mapper.parseSourceValue(date, "yyyy/MM/dd"));
+        assertEquals("662428800000", mapper.parseSourceValue(date, "epoch_millis"));
     }
 
     public void testParseSourceValueNanos() {
         DateFieldMapper mapper = createMapper(Resolution.NANOSECONDS, "strict_date_time||epoch_millis");
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals("2020-05-15T21:33:02.123456789Z", mapper.parseSourceValue(date));
-        assertEquals("2020-05-15T21:33:02.123Z", mapper.parseSourceValue(1589578382123L));
+        assertEquals("2020-05-15T21:33:02.123456789Z", mapper.parseSourceValue(date, null));
+        assertEquals("2020-05-15T21:33:02.123Z", mapper.parseSourceValue(1589578382123L, null));
     }
 
     private DateFieldMapper createMapper(Resolution resolution, String format) {

@@ -409,7 +409,7 @@ public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloat
             .scalingFactor(100)
             .build(context);
 
-        assertEquals(3.14, mapper.parseSourceValue(3.1415926), 0.00001);
-        assertEquals(3.14, mapper.parseSourceValue("3.1415"), 0.00001);
+        assertEquals(3.14, mapper.parseSourceValue(3.1415926, null), 0.00001);
+        assertEquals(3.14, mapper.parseSourceValue("3.1415", null), 0.00001);
     }
 }

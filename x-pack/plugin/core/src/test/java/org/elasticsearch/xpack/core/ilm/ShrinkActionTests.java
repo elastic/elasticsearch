@@ -134,7 +134,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             .numberOfShards(1).numberOfReplicas(1)
             .build();
 
-        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex());
+        List<Index> backingIndices = org.elasticsearch.common.collect.List.of(sourceIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
@@ -156,7 +156,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             .numberOfShards(5).numberOfReplicas(1)
             .build();
 
-        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex());
+        List<Index> backingIndices = org.elasticsearch.common.collect.List.of(sourceIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(
             Metadata.builder()
                 .put(sourceIndexMetadata, true)

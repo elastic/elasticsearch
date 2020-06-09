@@ -515,7 +515,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Object parseSourceValue(Object value) {
+        protected Object parseSourceValue(Object value, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -546,7 +546,7 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected Object parseSourceValue(Object value) {
+        protected Object parseSourceValue(Object value, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -888,7 +888,10 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String parseSourceValue(Object value) {
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
         return value.toString();
     }
 

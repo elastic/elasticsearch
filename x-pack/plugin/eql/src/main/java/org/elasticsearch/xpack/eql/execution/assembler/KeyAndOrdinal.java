@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 
+import java.util.Objects;
+
 class KeyAndOrdinal {
     final SequenceKey key;
     final long timestamp;
@@ -17,5 +19,15 @@ class KeyAndOrdinal {
         this.key = key;
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key, timestamp, tiebreaker);
+    }
+
+    @Override
+    public String toString() {
+        return key + "[" + timestamp + "][" + (tiebreaker != null ? Objects.toString(tiebreaker) : "") + "]";
     }
 }

@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.eql.planner;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
+import org.elasticsearch.xpack.eql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -39,7 +42,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         Batch fold = new Batch("Fold queries",
                 new FoldProject(),
                 new FoldFilter(),
-                new FoldOrderBy()
+                new FoldOrderBy(),
+                new FoldLimit()
         );
         Batch finish = new Batch("Finish query", Limiter.ONCE,
                 new PlanOutputToQueryRef()
@@ -55,7 +59,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(ProjectExec project) {
             if (project.child() instanceof EsQueryExec) {
                 EsQueryExec exec = (EsQueryExec) project.child();
-                return new EsQueryExec(exec.source(), exec.index(), project.output(), exec.queryContainer());
+                return new EsQueryExec(exec.source(), project.output(), exec.queryContainer());
             }
             return project;
         }
@@ -83,6 +87,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
     
     private static class FoldOrderBy extends FoldingRule<OrderExec> {
+
         @Override
         protected PhysicalPlan rule(OrderExec plan) {
             if (plan.child() instanceof EsQueryExec) {
@@ -115,6 +120,24 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
+    private static class FoldLimit extends FoldingRule<LimitWithOffsetExec> {
+
+        @Override
+        protected PhysicalPlan rule(LimitWithOffsetExec limit) {
+            PhysicalPlan plan = limit;
+            PhysicalPlan child = limit.child();
+            if (child instanceof EsQueryExec) {
+                EsQueryExec query = (EsQueryExec) child;
+                plan = query.with(query.queryContainer().with(limit.limit()));
+            }
+            if (child instanceof SequenceExec) {
+                SequenceExec exec = (SequenceExec) child;
+                plan = exec.with(limit.limit());
+            }
+            return plan;
+        }
+    }
+
     private static class PlanOutputToQueryRef extends FoldingRule<EsQueryExec> {
         @Override
         protected PhysicalPlan rule(EsQueryExec exec) {
@@ -138,5 +161,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
+    }
+
+    abstract static class QueryFoldingRule<SubPlan extends UnaryExec> extends FoldingRule<SubPlan> {
+
+        @Override
+        protected final PhysicalPlan rule(SubPlan plan) {
+            PhysicalPlan p = plan;
+            if (plan.child() instanceof EsQueryExec) {
+                p = rule(plan, (EsQueryExec) plan.child());
+            }
+            return p;
+        }
+
+        protected abstract PhysicalPlan rule(SubPlan plan, EsQueryExec query);
     }
 }

@@ -72,7 +72,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.parseV2Mappings;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -486,20 +485,9 @@ public class MetadataIndexTemplateService {
                 "is invalid", e);
         }
         logger.info("adding index template [{}]", name);
-        ClusterState newState = ClusterState.builder(currentState)
+        return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
             .build();
-        if (finalIndexTemplate.getDataStreamTemplate() != null) {
-            validateDataStreamTemplate(name, finalIndexTemplate, newState);
-        }
-        return newState;
-    }
-
-    private void validateDataStreamTemplate(String name, ComposableIndexTemplate finalIndexTemplate, ClusterState state) throws Exception {
-        String tsFieldName = finalIndexTemplate.getDataStreamTemplate().getTimestampField();
-        Map<String, Object> finalMapping = parseV2Mappings("{}", resolveMappings(state, name), xContentRegistry);
-        Map<?, ?> typelessMapping = (Map<?, ?>) finalMapping.get("_doc");
-        validateTimestampFieldMapping(tsFieldName,typelessMapping);
     }
 
     /**
@@ -1025,6 +1013,11 @@ public class MetadataIndexTemplateService {
                         // TODO: Eventually change this to:
                         // dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
                         dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MergeReason.MAPPING_UPDATE);
+                    }
+                    if (template.getDataStreamTemplate() != null) {
+                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
+                        Map<?, ?> typelessMapping = (Map<?, ?>) finalMappings.get("_doc");
+                        validateTimestampFieldMapping(tsFieldName, typelessMapping);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

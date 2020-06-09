@@ -1,13 +1,21 @@
 [[cloud-settings]]
 === Cloud settings
-The following {es} settings are supported on {ess}.
+The following {es} settings are supported on {ess}:
 
+* <<cloud-disk-based-shard-allocation-settings,Disk-based shard allocation settings>>
+* <<cloud-http-settings,HTTP settings>>
+* <<cloud-machine-learning-settings,Machine learning settings>>
+* <<cloud-monitoring-collection-settings,Monitoring collection settings>>
+* <<cloud-watcher-settings,Watcher settings>>
+
+[[cloud-disk-based-shard-allocation-settings]]
 ==== Disk-based shard allocation settings
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-disk-threshold-tag]
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-watermark-low-tag]
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-watermark-high-tag]
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-flood-stage-tag]
 
+[[cloud-http-settings]]
 ==== HTTP settings
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-compression-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-enabled-tag]
@@ -16,3 +24,17 @@ include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-max-age-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-methods-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-headers-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-credentials-tag]
+
+[[cloud-machine-learning-settings]]
+==== Machine learning settings
+include::{es-repo-dir}/settings/ml-settings.asciidoc[tag=interference-model-ttl-tag]
+
+[[cloud-monitoring-collection-settings]]
+==== Monitoring collection settings
+include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-collection-interval-tag]
+include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-history-duration-tag]
+
+[[cloud-watcher-settings]]
+==== Watcher settings
+include::{es-repo-dir}/settings/notification-settings.asciidoc[tag=watcher-history-cleaner-service]
+include::{es-repo-dir}/settings/notification-settings.asciidoc[tag=watcher-encrypt-sensitive-data]

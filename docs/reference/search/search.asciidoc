@@ -211,7 +211,7 @@ The document source is not returned.
 `<string>`::
 (string)
 Comma-separated list of source fields to return.
-Wildcard (`*`) expressions are supported.
+Wildcard (`*`) patterns are supported.
 ====
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]

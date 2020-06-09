@@ -36,6 +36,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.stream.Collectors.toList;
@@ -77,18 +78,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
             List<Object> list = parser.list();
             for (Object item : list) {
                 assertThat(item, instanceOf(HashMap.class));
-
-                HashMap<String, Object> entry = (HashMap<String, Object>) item;
-
-                // Adjust the structure of the document with additional event.category and @timestamp fields
-                // Add event.category field
-                HashMap<String, Object> objEvent = new HashMap<>();
-                objEvent.put("category", entry.get("event_type"));
-                entry.put("event", objEvent);
-
-                // Add @timestamp field
-                entry.put("@timestamp", entry.get("timestamp"));
-
+                Map<String, Object> entry = (Map<String, Object>) item;
                 bulk.add(new IndexRequest(testIndexName).source(entry, XContentType.JSON));
             }
         }
@@ -162,8 +152,9 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
                 name = spec.note();
             }
             if (Strings.isNullOrEmpty(name)) {
-                name = spec.query();
+                name = "" + (counter.get() + 1);
             }
+
             return new Object[] { counter.incrementAndGet(), name, spec };
         }).collect(toList());
     }
@@ -197,6 +188,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     protected EqlSearchResponse runQuery(String index, String query) throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
+        request.tieBreakerField("event.sequence");
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }
 

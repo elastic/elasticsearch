@@ -301,8 +301,8 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         BooleanFieldMapper mapper = new BooleanFieldMapper.Builder("field").build(context);
 
-        assertTrue(mapper.parseSourceValue(true));
-        assertFalse(mapper.parseSourceValue("false"));
-        assertFalse(mapper.parseSourceValue(""));
+        assertTrue(mapper.parseSourceValue(true, null));
+        assertFalse(mapper.parseSourceValue("false", null));
+        assertFalse(mapper.parseSourceValue("", null));
     }
 }

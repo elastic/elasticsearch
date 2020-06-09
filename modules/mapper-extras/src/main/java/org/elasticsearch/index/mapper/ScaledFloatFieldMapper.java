@@ -475,7 +475,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Double parseSourceValue(Object value) {
+    protected Double parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
         double doubleValue = objectToDouble(value);
         double scalingFactor = fieldType().getScalingFactor();
         return Math.round(doubleValue * scalingFactor) / scalingFactor;

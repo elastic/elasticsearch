@@ -544,12 +544,16 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public String parseSourceValue(Object value) {
+    public String parseSourceValue(Object value, String format) {
         String date = value.toString();
         long timestamp = fieldType().parse(date);
-
         ZonedDateTime dateTime = fieldType().resolution().toInstant(timestamp).atZone(ZoneOffset.UTC);
-        return fieldType().dateTimeFormatter().format(dateTime);
+
+        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
+        if (format != null) {
+            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+        }
+        return dateTimeFormatter.format(dateTime);
     }
 
     public boolean getIgnoreMalformed() {

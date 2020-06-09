@@ -376,7 +376,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object parseSourceValue(Object value) {
+    protected Object parseSourceValue(Object value, String format) {
         RangeType rangeType = fieldType().rangeType();
         if (!(value instanceof Map)) {
             assert rangeType == RangeType.IP;
@@ -384,11 +384,16 @@ public class RangeFieldMapper extends FieldMapper {
             return InetAddresses.toCidrString(ipRange.v1(), ipRange.v2());
         }
 
+        DateFormatter dateTimeFormatter = fieldType().dateTimeFormatter();
+        if (format != null) {
+            dateTimeFormatter = DateFormatter.forPattern(format).withLocale(dateTimeFormatter.locale());
+        }
+
         Map<String, Object> range = (Map<String, Object>) value;
         Map<String, Object> parsedRange = new HashMap<>();
         for (Map.Entry<String, Object> entry : range.entrySet()) {
             Object parsedValue = rangeType.parseValue(entry.getValue(), coerce.value(), fieldType().dateMathParser);
-            Object formattedValue = rangeType.formatValue(parsedValue, fieldType().dateTimeFormatter);
+            Object formattedValue = rangeType.formatValue(parsedValue, dateTimeFormatter);
             parsedRange.put(entry.getKey(), formattedValue);
         }
         return parsedRange;

@@ -103,7 +103,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         }
 
         @Override
-        protected Object parseSourceValue(Object value) {
+        protected Object parseSourceValue(Object value, String format) {
             throw new UnsupportedOperationException();
         }
 

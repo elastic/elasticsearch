@@ -52,6 +52,7 @@ public class RestImportDanglingIndexAction extends BaseRestHandler {
         );
 
         importRequest.timeout(request.paramAsTime("timeout", importRequest.timeout()));
+        importRequest.masterNodeTimeout(request.paramAsTime("master_timeout", importRequest.masterNodeTimeout()));
 
         return channel -> client.admin().cluster().importDanglingIndex(importRequest, new RestToXContentListener<>(channel) {
             @Override

@@ -127,7 +127,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assertThat(importResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
 
         final XContentTestUtils.JsonMapView mapView = createJsonMapView(importResponse.getEntity().getContent());
-        assertThat(mapView.get("accepted"), equalTo(true));
+        assertThat(mapView.get("acknowledged"), equalTo(true));
 
         assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
     }
@@ -161,6 +161,9 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         deleteRequest.addParameter("master_timeout", "20s");
         final Response deleteResponse = restClient.performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), equalTo(ACCEPTED.getStatus()));
+
+        final XContentTestUtils.JsonMapView mapView = createJsonMapView(deleteResponse.getEntity().getContent());
+        assertThat(mapView.get("acknowledged"), equalTo(true));
 
         assertBusy(() -> assertThat("Expected dangling index to be deleted", listDanglingIndexIds(), hasSize(0)));
 

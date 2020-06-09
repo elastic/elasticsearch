@@ -52,7 +52,7 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
         @Override
         public Processor create(Map<String, Processor.Factory> processorFactories,
                                 String tag,
-                                Map<String, Object> config) throws Exception {
+                                String description, Map<String, Object> config) throws Exception {
             // read fields so the processor succeeds
             for (final String field : fields) {
                 ConfigurationUtils.readObject(type, tag, config, field);

@@ -33,8 +33,8 @@ public final class DotExpanderProcessor extends AbstractProcessor {
     private final String path;
     private final String field;
 
-    DotExpanderProcessor(String tag, String path, String field) {
-        super(tag);
+    DotExpanderProcessor(String tag, String description, String path, String field) {
+        super(tag, description);
         this.path = path;
         this.field = field;
     }
@@ -97,7 +97,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
 
         @Override
         public Processor create(Map<String, Processor.Factory> processorFactories, String tag,
-                                Map<String, Object> config) throws Exception {
+                                String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             if (field.contains(".") == false) {
                 throw ConfigurationUtils.newConfigurationException(ConfigurationUtils.TAG_KEY, tag, "field",
@@ -117,7 +117,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
             }
 
             String path = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "path");
-            return new DotExpanderProcessor(tag, path, field);
+            return new DotExpanderProcessor(tag, description, path, field);
         }
     }
 }

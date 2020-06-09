@@ -62,12 +62,13 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
-        this(tag, script, scriptService, processor, System::nanoTime);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, description, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
-        super(tag);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor,
+                         LongSupplier relativeTimeProvider) {
+        super(tag, description);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;

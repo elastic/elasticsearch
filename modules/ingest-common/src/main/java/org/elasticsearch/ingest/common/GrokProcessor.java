@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -36,6 +38,7 @@ public final class GrokProcessor extends AbstractProcessor {
 
     public static final String TYPE = "grok";
     private static final String PATTERN_MATCH_KEY = "_ingest._grok_match_index";
+    private static final Logger logger = LogManager.getLogger(GrokProcessor.class);
 
     private final String matchField;
     private final List<String> matchPatterns;
@@ -48,9 +51,12 @@ public final class GrokProcessor extends AbstractProcessor {
         super(tag);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
-        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog);
+        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
+        // Joni warnings are only emitted on an attempt to match, and the warning emitted for every call to match which is too verbose
+        // so here we emit a warning (if there is one) to the logfile at warn level on construction / processor creation.
+        new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::warn).match("___nomatch___");
     }
 
     @Override

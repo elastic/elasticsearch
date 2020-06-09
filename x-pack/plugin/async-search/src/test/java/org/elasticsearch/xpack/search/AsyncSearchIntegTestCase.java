@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.xpack.async.AsyncPlugin;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -104,7 +105,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, IndexLifecycle.class,
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, AsyncSearch.class, AsyncPlugin.class, IndexLifecycle.class,
             SearchTestPlugin.class, ReindexPlugin.class);
     }
 

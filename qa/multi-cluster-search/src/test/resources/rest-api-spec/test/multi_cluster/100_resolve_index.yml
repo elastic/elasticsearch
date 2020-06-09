@@ -6,7 +6,7 @@
 
   - do:
       indices.resolve_index:
-        name: '*,my_remote_cluster:*'
+        name: 'my_remote_cluster:*'
         expand_wildcards: [all]
 
   - match: {indices.0.name: my_remote_cluster:.ds-simple-data-stream1-000001}

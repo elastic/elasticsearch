@@ -221,10 +221,11 @@ public class RestoreService implements ClusterStateApplier {
                     requestIndices.toArray(String[]::new), IndicesOptions.fromOptions(true, true, true, true));
                 dataStreams.keySet().retainAll(requestedDataStreams);
                 requestIndices.removeAll(dataStreams.keySet());
-                requestIndices.addAll(dataStreams.values().stream()
+                Set<String> dataStreamIndices = dataStreams.values().stream()
                     .flatMap(ds -> ds.getIndices().stream())
                     .map(Index::getName)
-                    .collect(Collectors.toSet()));
+                    .collect(Collectors.toSet());
+                requestIndices.addAll(dataStreamIndices);
 
                 final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), requestIndices.toArray(String[]::new),
                     request.indicesOptions());
@@ -247,7 +248,7 @@ public class RestoreService implements ClusterStateApplier {
 
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
-                final Map<String, String> indices = renamedIndices(request, indicesInSnapshot);
+                final Map<String, String> indices = renamedIndices(request, indicesInSnapshot, dataStreamIndices);
 
                 // Now we can start the actual restore process by adding shards to be recovered in the cluster state
                 // and updating cluster metadata (global and index) as needed
@@ -591,7 +592,7 @@ public class RestoreService implements ClusterStateApplier {
             dataStreamName = dataStreamName.replaceAll(request.renamePattern(), request.renameReplacement());
         }
         List<Index> updatedIndices = dataStream.getIndices().stream()
-            .map(i -> metadata.get(renameIndex(i.getName(), request)).getIndex())
+            .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
             .collect(Collectors.toList());
         return new DataStream(dataStreamName, dataStream.getTimeStampField(), updatedIndices, dataStream.getGeneration());
     }
@@ -867,10 +868,11 @@ public class RestoreService implements ClusterStateApplier {
         return failedShards;
     }
 
-    private static Map<String, String> renamedIndices(RestoreSnapshotRequest request, List<String> filteredIndices) {
+    private static Map<String, String> renamedIndices(RestoreSnapshotRequest request, List<String> filteredIndices,
+                                                      Set<String> dataStreamIndices) {
         Map<String, String> renamedIndices = new HashMap<>();
         for (String index : filteredIndices) {
-            String renamedIndex = renameIndex(index, request);
+            String renamedIndex = renameIndex(index, request, dataStreamIndices.contains(index));
             String previousIndex = renamedIndices.put(renamedIndex, index);
             if (previousIndex != null) {
                 throw new SnapshotRestoreException(request.repository(), request.snapshot(),
@@ -880,10 +882,17 @@ public class RestoreService implements ClusterStateApplier {
         return Collections.unmodifiableMap(renamedIndices);
     }
 
-    private static String renameIndex(String index, RestoreSnapshotRequest request) {
+    private static String renameIndex(String index, RestoreSnapshotRequest request, boolean partOfDataStream) {
         String renamedIndex = index;
         if (request.renameReplacement() != null && request.renamePattern() != null) {
+            partOfDataStream = partOfDataStream && index.startsWith(DataStream.BACKING_INDEX_PREFIX);
+            if (partOfDataStream) {
+                index = index.substring(DataStream.BACKING_INDEX_PREFIX.length());
+            }
             renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+            if (partOfDataStream) {
+                renamedIndex = DataStream.BACKING_INDEX_PREFIX + renamedIndex;
+            }
         }
         return renamedIndex;
     }

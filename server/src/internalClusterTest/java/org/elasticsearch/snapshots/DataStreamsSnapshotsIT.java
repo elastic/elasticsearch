@@ -80,7 +80,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots("repo").setSnapshots("snap").get();
         List<SnapshotInfo> snap = snapshot.getSnapshots("repo");
         assertEquals(1, snap.size());
-        assertEquals(Collections.singletonList("ds-000001"), snap.get(0).indices());
+        assertEquals(Collections.singletonList(".ds-ds-000001"), snap.get(0).indices());
 
         assertTrue(client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).get().isAcknowledged());
 
@@ -92,13 +92,13 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        GetResponse getResponse = client.prepareGet("ds-000001", indexResponse.getId()).get();
+        GetResponse getResponse = client.prepareGet(".ds-ds-000001", indexResponse.getId()).get();
         assertEquals(source, getResponse.getSourceAsMap());
 
         GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
-        assertEquals("ds-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
+        assertEquals(".ds-ds-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
         assertEquals(source, client.prepareSearch("ds").get().getHits().getHits()[0].getSourceAsMap());
 
         restoreSnapshotResponse = client.admin().cluster()
@@ -112,7 +112,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds2")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
-        assertEquals("ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
+        assertEquals(".ds-ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
         assertEquals(source, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
     }
 
@@ -151,7 +151,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds2")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
-        assertEquals("ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
+        assertEquals(".ds-ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
     }
 
     public void testDataStreamNotStoredWhenIndexRequested() throws Exception {
@@ -169,7 +169,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
             .prepareCreateSnapshot("repo", "snap2")
             .setWaitForCompletion(true)
-            .setIndices("ds-000001")
+            .setIndices(".ds-ds-000001")
             .setIncludeGlobalState(false)
             .get();
 
@@ -209,7 +209,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
             .prepareRestoreSnapshot("repo", "snap2")
             .setWaitForCompletion(true)
-            .setIndices("ds-*")
+            .setIndices(".ds-ds-*")
             .get();
 
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());

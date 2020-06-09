@@ -49,7 +49,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -186,7 +188,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
             final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, shard);
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
-            nodeToHandlers.computeIfAbsent(recoveryTargetHandler.targetNode(), k -> new ArrayList<>()).add(recoveryTargetHandler);
+            nodeToHandlers.computeIfAbsent(recoveryTargetHandler.targetNode(), k -> new HashSet<>()).add(recoveryTargetHandler);
             shard.recoveryStats().incCurrentAsSource();
             return handlers.v1();
         }
@@ -218,6 +220,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             if (removed != null) {
                 shard.recoveryStats().decCurrentAsSource();
                 removed.cancel();
+                assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
+                        : "Remote recovery was not properly tracked [" + removed + "]";
                 nodeToHandlers.computeIfPresent(removed.targetNode(), (k, handlersForNode) -> {
                     handlersForNode.remove(removed);
                     if (handlersForNode.isEmpty()) {

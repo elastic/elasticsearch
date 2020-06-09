@@ -22,6 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -140,6 +143,14 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
         IndexableField pointField = fields[0];
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
+
+        fields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
+
+        FieldMapper m = (FieldMapper) mapper.mappers().getMapper("field");
+        Query existsQuery = m.fieldType().existsQuery(null);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), existsQuery);
     }
 
     public void testStore() throws Exception {

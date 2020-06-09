@@ -23,7 +23,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -402,7 +401,7 @@ public class IpFieldMapper extends FieldMapper {
         }
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
-        } else if (fieldType.stored() || fieldType.indexOptions() != IndexOptions.NONE) {
+        } else if (fieldType.stored() || fieldType().isSearchable()) {
             createFieldNamesField(context);
         }
         if (fieldType.stored()) {

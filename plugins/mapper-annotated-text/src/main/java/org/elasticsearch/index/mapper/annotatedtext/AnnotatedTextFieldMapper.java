@@ -81,6 +81,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.freeze();
         }
     }
@@ -111,13 +112,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         private AnnotatedTextFieldType buildFieldType(BuilderContext context) {
-            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(buildFullName(context), meta);
+            boolean hasPositions = fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+            AnnotatedTextFieldType ft = new AnnotatedTextFieldType(buildFullName(context), hasPositions, meta);
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
                     throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
                         + name + "] without positions enabled");
                 }
-                ft.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer, positionIncrementGap));
+                ft.setIndexAnalyzer(indexAnalyzer, positionIncrementGap);
                 ft.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer, positionIncrementGap));
                 ft.setSearchQuoteAnalyzer(new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap));
             } else {
@@ -125,7 +127,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 // does to splice in new default of posIncGap=100 by wrapping the analyzer
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
                     int overrideInc = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
-                    ft.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer, overrideInc));
+                    ft.setIndexAnalyzer(indexAnalyzer, overrideInc);
                     ft.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer, overrideInc));
                     ft.setSearchQuoteAnalyzer(new NamedAnalyzer(searchQuoteAnalyzer,overrideInc));
                 }
@@ -520,23 +522,22 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     public static final class AnnotatedTextFieldType extends TextFieldMapper.TextFieldType {
 
-        public AnnotatedTextFieldType(String name, Map<String, String> meta) {
-            super(name, true, false, meta);
+        public AnnotatedTextFieldType(String name, boolean hasPositions, Map<String, String> meta) {
+            super(name, true, hasPositions, meta);
         }
 
         protected AnnotatedTextFieldType(AnnotatedTextFieldType ref) {
             super(ref);
         }
 
-        @Override
-        public void setIndexAnalyzer(NamedAnalyzer delegate) {
+        public void setIndexAnalyzer(NamedAnalyzer delegate, int positionIncrementGap) {
             if(delegate.analyzer() instanceof AnnotationAnalyzerWrapper){
                 // Already wrapped the Analyzer with an AnnotationAnalyzer
                 super.setIndexAnalyzer(delegate);
             } else {
                 // Wrap the analyzer with an AnnotationAnalyzer that will inject required annotations
                 super.setIndexAnalyzer(new NamedAnalyzer(delegate.name(), AnalyzerScope.INDEX,
-                    new AnnotationAnalyzerWrapper(delegate.analyzer())));
+                    new AnnotationAnalyzerWrapper(delegate.analyzer()), positionIncrementGap));
             }
         }
 
@@ -557,7 +558,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
-        assert mappedFieldType.hasDocValues();
         this.positionIncrementGap = positionIncrementGap;
     }
 
@@ -608,10 +608,17 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
+
+    @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         doXContentAnalyzers(builder, includeDefaults);
-
+        if (includeDefaults || fieldType.omitNorms()) {
+            builder.field("norms", fieldType.omitNorms() == false);
+        }
         if (includeDefaults || positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
             builder.field("position_increment_gap", positionIncrementGap);
         }

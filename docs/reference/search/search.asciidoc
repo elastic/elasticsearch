@@ -356,20 +356,20 @@ Object containing a list of source fields to include or exclude.
 .Properties for `<object>`
 [%collapsible%open]
 =====
-`includes`::
-(array of strings)
-Array of wildcard (`*`) patterns containing source fields to return.
-+
-If this property is specified, only source fields that match these patterns are
-returned. You can exclude fields from this subset using the `excludes` property.
-
 `excludes`::
-(array of strings)
-Array of wildcard (`*`) pattern containing source fields to exclude from the
-response.
+(string or array of strings)
+Wildcard (`*`) pattern or array of patterns containing source fields to exclude
+from the response.
 +
-If the `includes` property is not specified, the entire document source is returned,
-excluding fields specified in this parameter.
+You can also use this property to exclude fields from the subset specified in
+`includes` property.
+
+`includes`::
+(string or array of strings)
+Wildcard (`*`) pattern or array of patterns containing source fields to return.
++
+If this property is specified, only these source fields are returned. You can
+exclude fields from this subset using the `excludes` property.
 =====
 ====
 

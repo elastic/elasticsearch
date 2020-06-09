@@ -161,15 +161,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         long indexingBytes = DocWriteRequest.writeSizeInBytes(bulkRequest.requests.stream());
         final Releasable releasable = writeMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runAfter(listener, releasable::close);
-        threadPool.executor(ThreadPool.Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
-            @Override
-            protected void doRun() {
-                doDispatchedExecute(task, bulkRequest, releasingListener);
-            }
-        });
+        doInternalExecute(task, bulkRequest, releasingListener);
     }
 
-    protected void doDispatchedExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+    protected void doInternalExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
@@ -705,7 +700,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // before we continue the bulk request we should fork back on a write thread:
                         if (originalThread == Thread.currentThread()) {
                             assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
-                            doDispatchedExecute(task, bulkRequest, actionListener);
+                            doInternalExecute(task, bulkRequest, actionListener);
                         } else {
                             threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
                                 @Override
@@ -715,7 +710,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                                 @Override
                                 protected void doRun() throws Exception {
-                                    doDispatchedExecute(task, bulkRequest, actionListener);
+                                    doInternalExecute(task, bulkRequest, actionListener);
                                 }
 
                                 @Override

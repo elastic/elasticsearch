@@ -27,7 +27,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -161,11 +160,11 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
-        transportService.registerRequestHandler(transportPrimaryAction, ThreadPool.Names.SAME, forceExecutionOnPrimary, true,
+        transportService.registerRequestHandler(transportPrimaryAction, executor, forceExecutionOnPrimary, true,
             in -> new ConcreteShardRequest<>(requestReader, in), this::handlePrimaryRequest);
 
         // we must never reject on because of thread pool capacity on replicas
-        transportService.registerRequestHandler(transportReplicaAction, ThreadPool.Names.SAME, true, true,
+        transportService.registerRequestHandler(transportReplicaAction, executor, true, true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), this::handleReplicaRequest);
 
         this.transportOptions = transportOptions(settings);
@@ -290,12 +289,7 @@ public abstract class TransportReplicationAction<
         ActionListener<Response> listener =
             ActionListener.runAfter(new ChannelActionListener<>(channel, transportPrimaryAction, request), releasable::close);
 
-        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
-            }
-        });
+        new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
     }
 
     protected Releasable checkPrimaryLimits(final Request request) {
@@ -515,14 +509,7 @@ public abstract class TransportReplicationAction<
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         ActionListener<ReplicaResponse> listener =
             ActionListener.runAfter(new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), releasable::close);
-
-        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                new AsyncReplicaAction(
-                    replicaRequest, listener, (ReplicationTask) task).run();
-            }
-        });
+        new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
     }
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {

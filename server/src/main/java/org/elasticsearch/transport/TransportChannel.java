@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ChannelActionListener;
 
 import java.io.IOException;
 
@@ -32,7 +31,7 @@ import java.io.IOException;
  */
 public interface TransportChannel {
 
-    Logger logger = LogManager.getLogger(ChannelActionListener.class);
+    Logger logger = LogManager.getLogger(TransportChannel.class);
 
     String getProfileName();
 

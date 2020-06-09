@@ -60,6 +60,7 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
+    private final boolean forceExecutionOnPrimary;
     private final WriteMemoryLimits writeMemoryLimits;
     private final String executor;
 
@@ -71,6 +72,7 @@ public abstract class TransportWriteAction<
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
+        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
         this.writeMemoryLimits = writeMemoryLimits;
     }
 
@@ -152,6 +154,11 @@ public abstract class TransportWriteAction<
             protected void doRun() {
                 dispatchedShardOperationOnPrimary(request, primary, listener);
             }
+
+            @Override
+            public boolean isForceExecution() {
+                return forceExecutionOnPrimary;
+            }
         });
     }
 
@@ -171,6 +178,11 @@ public abstract class TransportWriteAction<
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnReplica(request, replica, listener);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
             }
         });
     }

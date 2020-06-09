@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
@@ -120,8 +121,6 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             lessThan1KB.add(request);
         }
 
-
-
         final int operationSize = totalSourceLength + WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD;
 
         try {
@@ -138,25 +137,32 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             assertEquals(0, replicaWriteLimits.getPrimaryBytes());
             assertEquals(0, replicaWriteLimits.getReplicaBytes());
 
-            replicaTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
-                    try {
-                        newActionsSendPointReached.countDown();
-                        latchBlockingReplication.await();
-                    } catch (InterruptedException e) {
-                        throw new IllegalStateException(e);
-                    }
+            ThreadPool replicaThreadPool = replicaTransportService.getThreadPool();
+            // Block the replica Write thread pool
+            replicaThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
+                try {
+                    newActionsSendPointReached.countDown();
+                    latchBlockingReplication.await();
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
                 }
-                connection.sendRequest(requestId, action, request, options);
             });
+            replicaThreadPool.executor(ThreadPool.Names.WRITE).execute(() -> {
+                try {
+                    newActionsSendPointReached.countDown();
+                    latchBlockingReplication.await();
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            newActionsSendPointReached.await();
+            latchBlockingReplicationSend.countDown();
 
             IndexRequest request1 = new IndexRequest(index).source(Collections.singletonMap("key", randomAlphaOfLength(50)));
             IndexRequest request2 = new IndexRequest(index).source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+
             ActionFuture<IndexResponse> future1 = client(replicaName).index(request1);
             ActionFuture<IndexResponse> future2 = client(replicaName).index(request2);
-
-            newActionsSendPointReached.await();
-            latchBlockingReplicationSend.countDown();
 
             int newOperationSizes = request1.source().length() + request2.source().length() +
                 (WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD * 2);

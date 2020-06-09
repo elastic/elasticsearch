@@ -60,8 +60,6 @@ public interface CircuitBreaker {
      * segments.
      */
     String ACCOUNTING = "accounting";
-    // TODO: Description
-    String INDEXING = "indexing";
 
     enum Type {
         // A regular or ChildMemoryCircuitBreaker

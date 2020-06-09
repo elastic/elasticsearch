@@ -30,6 +30,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -265,7 +266,11 @@ public class Reindexer {
              */
             index.routing(mainRequest.getDestination().routing());
             index.setPipeline(mainRequest.getDestination().getPipeline());
-            // OpType is synthesized from version so it is handled when we copy version above.
+            // Only copy the op_type if it has been set to CREATE.
+            // (INDEX is the default and UPDATE and DELETE are invalid values)
+            if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
+                index.opType(mainRequest.getDestination().opType());
+            }
 
             return wrap(index);
         }

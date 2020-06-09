@@ -58,7 +58,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws Exception{
         final List<Number> dataset = Arrays.asList();
         testBothCases(DEFAULT_QUERY, dataset, true,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setCacheLimit(4),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setInitialBuffer(4),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(0, buckets.size());
@@ -108,7 +108,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedCentroids.put(4d, 4.5);
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(3).setShardSize(6).setCacheLimit(3),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(3).setShardSize(6).setInitialBuffer(3),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCount.size(), buckets.size());
@@ -141,8 +141,8 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedCentroidsOnlySearch.put(5.3, 5.6);
         expectedCentroidsOnlySearch.put(8.8, 8.8);
 
-        testSearchCase(DEFAULT_QUERY, dataset, false,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setCacheLimit(4),
+        testSearchCase(DEFAULT_QUERY, dataset, true,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setInitialBuffer(4),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedCentroidsOnlySearch.size(), buckets.size());
@@ -168,7 +168,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedCentroidsSearchReduce.put(5.3, 5.6);
         expectedCentroidsSearchReduce.put(8.8, 8.8);
         testSearchAndReduceCase(DEFAULT_QUERY, dataset, false,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(6).setCacheLimit(4),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(6).setInitialBuffer(4),
             histogram -> {
             final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
             assertEquals(expectedDocCountSearchReduce.size(), buckets.size());
@@ -217,7 +217,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedCentroidsSearchReduce.put(75d, 77.5);
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(16).setCacheLimit(12),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(16).setInitialBuffer(12),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCountOnlySearch.size(), buckets.size());
@@ -249,7 +249,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedCentroids.put(10d, 1116d);
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
-            aggregation -> aggregation.field(NUMERIC_FIELD) .setNumBuckets(2).setShardSize(4).setCacheLimit(5),
+            aggregation -> aggregation.field(NUMERIC_FIELD) .setNumBuckets(2).setShardSize(4).setInitialBuffer(5),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedDocCount.size(), buckets.size());
@@ -265,10 +265,10 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     public void testSimpleSubAggregations() throws IOException{
         final List<Number> dataset =  Arrays.asList(5, 1, 9, 2, 8);
 
-        testSearchAndReduceCase(DEFAULT_QUERY, dataset, false,
+        testSearchAndReduceCase(DEFAULT_QUERY, dataset, true,
             aggregation -> aggregation.field(NUMERIC_FIELD)
                 .setNumBuckets(3)
-                .setCacheLimit(3)
+                .setInitialBuffer(3)
                 .setShardSize(4)
                 .subAggregation(AggregationBuilders.stats("stats").field(NUMERIC_FIELD)),
             histogram -> {
@@ -303,7 +303,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         testSearchCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD)
                 .setNumBuckets(3)
-                .setCacheLimit(12)
+                .setInitialBuffer(12)
                 .setShardSize(4)
                 .subAggregation(new StatsAggregationBuilder("stats").field(NUMERIC_FIELD)),
             histogram -> {
@@ -346,7 +346,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(DEFAULT_QUERY, dataset, true,
             aggregation -> aggregation.field(NUMERIC_FIELD)
                 .setNumBuckets(2)
-                .setCacheLimit(4)
+                .setInitialBuffer(4)
                 .setShardSize(3)
                 .subAggregation(new StatsAggregationBuilder("stats").field(NUMERIC_FIELD)),
             histogram -> {

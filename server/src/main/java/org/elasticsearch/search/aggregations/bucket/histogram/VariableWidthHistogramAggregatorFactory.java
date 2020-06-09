@@ -46,13 +46,13 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
 
     private final int numBuckets;
     private final int shardSize;
-    private final int cacheLimit;
+    private final int initialBuffer;
 
     VariableWidthHistogramAggregatorFactory(String name,
                                             ValuesSourceConfig config,
                                             int numBuckets,
                                             int shardSize,
-                                            int cacheLimit,
+                                            int initialBuffer,
                                             QueryShardContext queryShardContext,
                                             AggregatorFactory parent,
                                             AggregatorFactories.Builder subFactoriesBuilder,
@@ -60,14 +60,14 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.numBuckets = numBuckets;
         this.shardSize = shardSize;
-        this.cacheLimit = cacheLimit;
+        this.initialBuffer = initialBuffer;
     }
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext,
                                         Aggregator parent,
                                         Map<String, Object> metadata) throws IOException {
-        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, cacheLimit, null,
+        return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, null,
             config.format(), searchContext, parent, metadata);
     }
 
@@ -88,7 +88,7 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
             throw new AggregationExecutionException("Registry miss-match - expected HistogramAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((VariableWidthHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, shardSize, cacheLimit,
+        return ((VariableWidthHistogramAggregatorSupplier) aggregatorSupplier).build(name, factories, numBuckets, shardSize, initialBuffer,
             valuesSource, config.format(), searchContext, parent, metadata);
     }
 }

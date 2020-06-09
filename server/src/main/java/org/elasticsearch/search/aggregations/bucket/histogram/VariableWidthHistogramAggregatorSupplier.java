@@ -18,7 +18,7 @@ public interface VariableWidthHistogramAggregatorSupplier extends AggregatorSupp
         AggregatorFactories factories,
         int numBuckets,
         int shardSize,
-        int cacheLimit,
+        int initialBuffer,
         @Nullable ValuesSource valuesSource,
         DocValueFormat formatter,
         SearchContext aggregationContext,

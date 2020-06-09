@@ -85,40 +85,40 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
     /**
-     * Phase 1: Build up a cache of docs (i.e. give each new doc its own bucket). No clustering decisions are made here.
-     * Building this cache lets us analyze the distribution of the data before we begin clustering.
+     * Phase 1: Build up a buffer of docs (i.e. give each new doc its own bucket). No clustering decisions are made here.
+     * Building this buffer lets us analyze the distribution of the data before we begin clustering.
      */
-    private class CacheValuesPhase extends CollectionPhase{
+    private class BufferValuesPhase extends CollectionPhase{
 
-        private DoubleArray cachedValues;
-        private int numCachedDocs;
-        private int cacheLimit;
+        private DoubleArray buffer;
+        private int bufferSize;
+        private int bufferLimit;
         private MergeBucketsPhase mergeBucketsPhase;
 
-        CacheValuesPhase(int cacheLimit){
-            this.cachedValues = bigArrays.newDoubleArray(1);
-            this.numCachedDocs = 0;
-            this.cacheLimit = cacheLimit;
+        BufferValuesPhase(int bufferLimit){
+            this.buffer = bigArrays.newDoubleArray(1);
+            this.bufferSize = 0;
+            this.bufferLimit = bufferLimit;
             this.mergeBucketsPhase = null;
         }
 
         @Override
         public CollectionPhase collectValue(LeafBucketCollector sub, int doc, double val) throws IOException{
-            if (numCachedDocs < cacheLimit) {
-                // Cache the doc in a new bucket
-                cachedValues = bigArrays.grow(cachedValues, numCachedDocs + 1);
-                cachedValues.set((long) numCachedDocs, val);
-                collectBucket(sub, doc, numCachedDocs);
-                numCachedDocs += 1;
+            if (bufferSize < bufferLimit) {
+                // Add to the buffer i.e store the doc in a new bucket
+                buffer = bigArrays.grow(buffer, bufferSize + 1);
+                buffer.set((long) bufferSize, val);
+                collectBucket(sub, doc, bufferSize);
+                bufferSize += 1;
             }
 
-            if(numCachedDocs == cacheLimit) {
-                // We have hit the cache limit. Switch to merge mode
-                CollectionPhase mergeBuckets = new MergeBucketsPhase(cachedValues, numCachedDocs);
+            if(bufferSize == bufferLimit) {
+                // We have hit the buffer limit. Switch to merge mode
+                CollectionPhase mergeBuckets = new MergeBucketsPhase(buffer, bufferSize);
                 Releasables.close(this);
                 return mergeBuckets;
             } else {
-                // There is still room in the cache
+                // There is still room in the buffer
                 return this;
             }
         }
@@ -135,7 +135,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         MergeBucketsPhase getMergeBucketPhase(){
             if(mergeBucketsPhase == null){
-                mergeBucketsPhase = new MergeBucketsPhase(cachedValues, numCachedDocs);
+                mergeBucketsPhase = new MergeBucketsPhase(buffer, bufferSize);
             }
             return mergeBucketsPhase;
         }
@@ -145,13 +145,13 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             if(mergeBucketsPhase != null){
                 Releasables.close(mergeBucketsPhase);
             }
-            Releasables.close(cachedValues);
+            Releasables.close(buffer);
         }
     }
 
     /**
-     * Phase 2: This phase is initialized with the cache created in Phase 1.
-     * It is responsible for merging the cached docs into a smaller number of buckets and then determining which existing
+     * Phase 2: This phase is initialized with the buffer created in Phase 1.
+     * It is responsible for merging the buffered docs into a smaller number of buckets and then determining which existing
      * bucket all subsequent docs belong to. New buckets will be created for docs that are distant from all existing ones
      */
     private class MergeBucketsPhase extends CollectionPhase{
@@ -167,12 +167,12 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         private int avgBucketDistance;
 
-        MergeBucketsPhase(DoubleArray cachedValues, int numCachedDocs) {
+        MergeBucketsPhase(DoubleArray buffer, int bufferSize) {
             // Cluster the documents to reduce the number of buckets
             // Target shardSizes * (3/4) buckets so that there's room for more distant buckets to be added during rest of collection
-            bucketCachedDocs(cachedValues, numCachedDocs, shardSize * 3 / 4);
+            bucketBufferedDocs(buffer, bufferSize, shardSize * 3 / 4);
 
-            if(numCachedDocs > 1) {
+            if(bufferSize > 1) {
                 // Calculate the average distance between buckets
                 // Subsequent documents will be compared with this value to determine if they should be collected into
                 // an existing bucket or into a new bucket
@@ -235,13 +235,13 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         /**
          * Sorting the documents by key lets us bucket the documents into groups with a single linear scan
          *
-         * But we can't do this by just sorting <code>cachedValues</code>, because we also need to generate a merge map
+         * But we can't do this by just sorting <code>buffer</code>, because we also need to generate a merge map
          * for every change we make to the list, so that we can apply the changes to the underlying buckets as well.
          *
-         * By just creating a merge map, we eliminate the need to actually sort <code>cachedValues</code>. We can just
+         * By just creating a merge map, we eliminate the need to actually sort <code>buffer</code>. We can just
          * use the merge map to find any doc's sorted index.
          */
-        private void bucketCachedDocs(final DoubleArray cachedValues, final int numCachedDocs, final int numBuckets){
+        private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets){
             // Allocate space for the clusters about to be created
             clusterMins = bigArrays.newDoubleArray(1);
             clusterMaxes = bigArrays.newDoubleArray(1);
@@ -249,16 +249,16 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             clusterSizes = bigArrays.newDoubleArray(1);
             numClusters = 0;
 
-            ClusterSorter sorter = new ClusterSorter(cachedValues, numCachedDocs);
+            ClusterSorter sorter = new ClusterSorter(buffer, bufferSize);
             long[] mergeMap = sorter.generateMergeMap();
 
-            // Naively use basic linear separation to group the first cacheLimit docs into initialNumBuckets buckets
+            // Naively use basic linear separation to group the first bufferSize docs into initialNumBuckets buckets
             // This will require modifying the merge map, which currently represents a sorted list of buckets with 1 doc / bucket
-            int docsPerBucket = (int) Math.ceil((double) numCachedDocs / (double) numBuckets);
+            int docsPerBucket = (int) Math.ceil((double) bufferSize / (double) numBuckets);
             int bucketOrd = 0;
             for(int i = 0; i < mergeMap.length; i++){
                 // mergeMap[i] is the index of the i'th smallest doc
-                double val = cachedValues.get(mergeMap[i]);
+                double val = buffer.get(mergeMap[i]);
 
                 // Put the i'th smallest doc into the bucket at bucketOrd
                 mergeMap[i] = (int)(mergeMap[i]/docsPerBucket);
@@ -429,7 +429,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     // Aggregation parameters
     private final int numBuckets;
     private final int shardSize;
-    private final int cacheLimit;
+    private final int bufferLimit;
 
     final BigArrays bigArrays;
     private CollectionPhase collector;
@@ -437,7 +437,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     private MergingBucketsDeferringCollector deferringCollector;
 
     VariableWidthHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, int shardSize,
-                                     int cacheLimit, @Nullable ValuesSource valuesSource,
+                                     int initialBuffer, @Nullable ValuesSource valuesSource,
                                      DocValueFormat formatter, SearchContext context, Aggregator parent,
                                      Map<String, Object> metadata) throws IOException{
         super(name, factories, context, parent, metadata);
@@ -446,10 +446,10 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         this.valuesSource = (ValuesSource.Numeric) valuesSource;
         this.formatter = formatter;
         this.shardSize = shardSize;
-        this.cacheLimit = cacheLimit;
+        this.bufferLimit = initialBuffer;
 
         bigArrays = context.bigArrays();
-        collector = new CacheValuesPhase(this.cacheLimit);
+        collector = new BufferValuesPhase(this.bufferLimit);
 
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);

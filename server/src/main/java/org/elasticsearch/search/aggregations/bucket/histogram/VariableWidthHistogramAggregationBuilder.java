@@ -50,7 +50,7 @@ public class VariableWidthHistogramAggregationBuilder
 
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
 
-    private static ParseField CACHE_LIMIT_FIELD = new ParseField("cache_limit");
+    private static ParseField INITIAL_BUFFER_FIELD = new ParseField("initial_buffer");
 
     private static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
 
@@ -60,12 +60,12 @@ public class VariableWidthHistogramAggregationBuilder
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, true);
         PARSER.declareInt(VariableWidthHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
         PARSER.declareInt(VariableWidthHistogramAggregationBuilder::setShardSize, SHARD_SIZE_FIELD);
-        PARSER.declareInt(VariableWidthHistogramAggregationBuilder::setCacheLimit, CACHE_LIMIT_FIELD);
+        PARSER.declareInt(VariableWidthHistogramAggregationBuilder::setInitialBuffer, INITIAL_BUFFER_FIELD);
     }
 
     private int numBuckets = 10;
     private int shardSize = numBuckets * 50;
-    private int cacheLimit = Math.min(10 * this.shardSize, 50000);
+    private int initialBuffer = Math.min(10 * this.shardSize, 50000);
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         VariableWidthHistogramAggregatorFactory.registerAggregators(builder);
@@ -114,14 +114,14 @@ public class VariableWidthHistogramAggregationBuilder
         return this;
     }
 
-    public VariableWidthHistogramAggregationBuilder setCacheLimit(int cacheLimit){
-        if (cacheLimit < numBuckets) {
+    public VariableWidthHistogramAggregationBuilder setInitialBuffer(int initialBuffer){
+        if (initialBuffer < numBuckets) {
             // If numBuckets buckets are being returned, then at least that many must be stored in memory
-            throw new IllegalArgumentException(CACHE_LIMIT_FIELD.getPreferredName() + " must be greater than numBuckets "
+            throw new IllegalArgumentException(INITIAL_BUFFER_FIELD.getPreferredName() + " must be greater than numBuckets "
                 + NUM_BUCKETS_FIELD.getPreferredName() + " for [" + name + "]");
 
         }
-        this.cacheLimit = cacheLimit;
+        this.initialBuffer = initialBuffer;
         return this;
     }
 
@@ -129,7 +129,7 @@ public class VariableWidthHistogramAggregationBuilder
 
     public int getShardSize(){ return shardSize; }
 
-    public int getCacheLimit(){ return cacheLimit; }
+    public int getInitialBuffer(){ return initialBuffer; }
 
     @Override
     public BucketCardinality bucketCardinality() {
@@ -158,7 +158,7 @@ public class VariableWidthHistogramAggregationBuilder
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
                 " must be less than " + maxBuckets);
         }
-        return new VariableWidthHistogramAggregatorFactory(name, config, numBuckets, shardSize, cacheLimit,
+        return new VariableWidthHistogramAggregatorFactory(name, config, numBuckets, shardSize, initialBuffer,
             queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
@@ -170,7 +170,7 @@ public class VariableWidthHistogramAggregationBuilder
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), numBuckets, shardSize, cacheLimit);
+        return Objects.hash(super.hashCode(), numBuckets, shardSize, initialBuffer);
     }
 
     @Override
@@ -181,7 +181,7 @@ public class VariableWidthHistogramAggregationBuilder
         VariableWidthHistogramAggregationBuilder other = (VariableWidthHistogramAggregationBuilder) obj;
         return Objects.equals(numBuckets, other.numBuckets)
             && Objects.equals(shardSize, other.shardSize)
-            && Objects.equals(cacheLimit, other.cacheLimit);
+            && Objects.equals(initialBuffer, other.initialBuffer);
     }
 
     @Override

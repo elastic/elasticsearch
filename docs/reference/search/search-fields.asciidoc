@@ -115,9 +115,9 @@ You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
 <<doc-values,doc values>> for one or more fields in the search response.
 
 Doc values store the same values as the `_source` but in an on-disk,
-column-based structure that's optimized for sorting and aggregations. Because
-they've been normalized, doc values are typically more compact than `_source`
-values.
+column-based structure that's optimized for sorting and aggregations. Since each
+field is stored separately, {es} only reads the field values that were requested
+and can avoid loading the whole document `_source`.
 
 The following search API request uses the `docvalue_fields` parameter to
 retrieve doc values for the following fields:

@@ -119,6 +119,10 @@ column-based structure that's optimized for sorting and aggregations. Since each
 field is stored separately, {es} only reads the field values that were requested
 and can avoid loading the whole document `_source`.
 
+Doc values are stored for supported fields by default. However,
+<<text,`text`>> and <<mapper-annotated-text-usage,`text_annotated`>> fields do
+not support doc values.
+
 The following search API request uses the `docvalue_fields` parameter to
 retrieve doc values for the following fields:
 
@@ -154,17 +158,13 @@ GET /_search
     https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
     pattern]. Other field datatypes do not support the `format` parameter.
 
-The `docvalue_fields` parameter has some limitations:
 
-* Doc values are stored for supported fields by default. However,
-<<text,`text`>> and <<mapper-annotated-text-usage,`text_annotated`>> fields do
-not support doc values.
-
-*  You cannot use the `docvalue_fields` parameter to retrieve doc values for
+TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
 nested objects. If you specify a nested object, the search returns an empty
 array (`[ ]`) for the field. To access nested fields, use the
 <<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
 property.
+
 ====
 
 [[stored-fields]]

@@ -305,9 +305,9 @@ public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builde
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         IpFieldMapper mapper = new IpFieldMapper.Builder("field").build(context);
 
-        assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8::2:1"));
-        assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1"));
-        assertEquals("::1", mapper.parseSourceValue("0:0:0:0:0:0:0:1"));
+        assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8::2:1", null));
+        assertEquals("2001:db8::2:1", mapper.parseSourceValue("2001:db8:0:0:0:0:2:1", null));
+        assertEquals("::1", mapper.parseSourceValue("0:0:0:0:0:0:0:1", null));
     }
 
     @Override

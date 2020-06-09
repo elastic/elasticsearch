@@ -194,7 +194,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected Object parseSourceValue(Object value) {
+    protected Object parseSourceValue(Object value, String format) {
         throw new UnsupportedOperationException("The " + typeName() + " field is not stored in _source.");
     }
 

@@ -262,7 +262,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Boolean parseSourceValue(Object value) {
+    public Boolean parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
         if (value instanceof Boolean) {
             return (Boolean) value;
         } else {

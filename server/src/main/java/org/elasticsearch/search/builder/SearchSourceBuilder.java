@@ -46,8 +46,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -167,7 +167,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<FieldAndFormat> docValueFields;
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
-    private List<String> fetchFields;
+    private List<FieldAndFormat> fetchFields;
 
     private AggregatorFactories.Builder aggregations;
 
@@ -244,7 +244,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         trackTotalHitsUpTo = in.readOptionalInt();
 
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            fetchFields = in.readOptionalStringList();
+            if (in.readBoolean()) {
+                fetchFields = in.readList(FieldAndFormat::new);
+            }
         }
     }
 
@@ -302,7 +304,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalInt(trackTotalHitsUpTo);
 
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalStringCollection(fetchFields);
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeList(fetchFields);
+            }
         }
     }
 
@@ -835,18 +840,27 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     /**
      * Gets the fields to load and return as part of the search request.
      */
-    public List<String> fetchFields() {
+    public List<FieldAndFormat> fetchFields() {
         return fetchFields;
     }
 
     /**
      * Adds a field to load and return as part of the search request.
      */
-    public SearchSourceBuilder fetchField(String fieldName) {
+    public SearchSourceBuilder fetchField(String name) {
+        return fetchField(name, null);
+    }
+
+    /**
+     * Adds a field to load and return as part of the search request.
+     * @param name the field name.
+     * @param format an optional format string used when formatting values, for example a date format.
+     */
+    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(fieldName);
+        fetchFields.add(new FieldAndFormat(name, format));
         return this;
     }
 
@@ -1148,7 +1162,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (FETCH_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        fetchFields.add(parser.text());
+                        fetchFields.add(FieldAndFormat.fromXContent(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -1247,18 +1261,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (docValueFields != null) {
             builder.startArray(DOCVALUE_FIELDS_FIELD.getPreferredName());
             for (FieldAndFormat docValueField : docValueFields) {
-                builder.startObject()
-                    .field("field", docValueField.field);
-                if (docValueField.format != null) {
-                    builder.field("format", docValueField.format);
-                }
-                builder.endObject();
+               docValueField.toXContent(builder, params);
             }
             builder.endArray();
         }
 
         if (fetchFields != null) {
-            builder.array(FETCH_FIELDS_FIELD.getPreferredName(), fetchFields);
+            builder.startArray(FETCH_FIELDS_FIELD.getPreferredName());
+            for (FieldAndFormat docValueField : fetchFields) {
+                docValueField.toXContent(builder, params);
+            }
+            builder.endArray();
         }
 
         if (scriptFields != null) {

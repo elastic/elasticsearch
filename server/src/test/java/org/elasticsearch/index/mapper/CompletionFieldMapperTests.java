@@ -969,13 +969,13 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
         CompletionFieldMapper mapper = newBuilder().build(context);
 
-        assertEquals(List.of("value"), mapper.parseSourceValue("value"));
+        assertEquals(List.of("value"), mapper.parseSourceValue("value", null));
 
         List<String> list = List.of("first", "second");
-        assertEquals(list, mapper.parseSourceValue(list));
+        assertEquals(list, mapper.parseSourceValue(list, null));
 
         Map<String, Object> object = Map.of("input", List.of("first", "second"), "weight", "2.718");
-        assertEquals(List.of(object), mapper.parseSourceValue(object));
+        assertEquals(List.of(object), mapper.parseSourceValue(object, null));
     }
 
     private Matcher<IndexableField> suggestField(String value) {

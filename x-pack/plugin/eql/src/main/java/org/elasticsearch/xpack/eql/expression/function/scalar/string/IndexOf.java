@@ -6,16 +6,18 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
+import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -35,15 +37,20 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * Find the first position (zero-indexed) of a string where a substring is found.
  * If the optional parameter start is provided, then this will find the first occurrence at or after the start position.
  */
-public class IndexOf extends ScalarFunction implements OptionalArgument {
+public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgument {
 
     private final Expression source, substring, start;
 
-    public IndexOf(Source source, Expression src, Expression substring, Expression start) {
-        super(source, Arrays.asList(src, substring, start != null ? start : new Literal(source, null, DataTypes.NULL)));
+    public IndexOf(Source source, Expression src, Expression substring, Expression start, Configuration configuration) {
+        super(source, Arrays.asList(src, substring, start != null ? start : new Literal(source, null, DataTypes.NULL)), configuration);
         this.source = src;
         this.substring = substring;
         this.start = arguments().get(2);
+    }
+
+    @Override
+    public boolean isCaseSensitive() {
+        return ((EqlConfiguration) configuration()).isCaseSensitive();
     }
 
     @Override
@@ -61,13 +68,14 @@ public class IndexOf extends ScalarFunction implements OptionalArgument {
         if (resolution.unresolved()) {
             return resolution;
         }
-        
+
         return isInteger(start, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new IndexOfFunctionPipe(source(), this, Expressions.pipe(source), Expressions.pipe(substring), Expressions.pipe(start));
+        return new IndexOfFunctionPipe(source(), this, Expressions.pipe(source), Expressions.pipe(substring),
+                Expressions.pipe(start), isCaseSensitive());
     }
 
     @Override
@@ -77,12 +85,12 @@ public class IndexOf extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), substring.fold(), start.fold());
+        return doProcess(source.fold(), substring.fold(), start.fold(), isCaseSensitive());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, IndexOf::new, source, substring, start);
+        return NodeInfo.create(this, IndexOf::new, source, substring, start, configuration());
     }
 
     @Override
@@ -93,18 +101,20 @@ public class IndexOf extends ScalarFunction implements OptionalArgument {
 
         return asScriptFrom(sourceScript, substringScript, startScript);
     }
-    
+
     protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
+        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s)"),
                 "indexOf",
                 sourceScript.template(),
                 substringScript.template(),
-                startScript.template()),
+                startScript.template(),
+                "{}"),
                 paramsBuilder()
-                    .script(sourceScript.params())
-                    .script(substringScript.params())
-                    .script(startScript.params())
-                    .build(), dataType());
+                        .script(sourceScript.params())
+                        .script(substringScript.params())
+                        .script(startScript.params())
+                        .variable(isCaseSensitive())
+                        .build(), dataType());
     }
 
     @Override
@@ -125,7 +135,7 @@ public class IndexOf extends ScalarFunction implements OptionalArgument {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
 
-        return new IndexOf(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new IndexOf(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), configuration());
     }
 
 }

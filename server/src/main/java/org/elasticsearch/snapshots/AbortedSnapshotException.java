@@ -16,29 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.snapshots;
 
-package org.elasticsearch.index.snapshots;
-
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
-
-import java.io.IOException;
-
-/**
- * Generic shard snapshot exception
- */
-public class IndexShardSnapshotException extends ElasticsearchException {
-    public IndexShardSnapshotException(ShardId shardId, String msg) {
-        this(shardId, msg, null);
-    }
-
-    public IndexShardSnapshotException(ShardId shardId, String msg, Throwable cause) {
-        super(msg, cause);
-        setShard(shardId);
-    }
-
-    public IndexShardSnapshotException(StreamInput in) throws IOException{
-        super(in);
+public final class AbortedSnapshotException extends RuntimeException {
+    public AbortedSnapshotException() {
+        super("aborted");
     }
 }

@@ -16,15 +16,21 @@ import java.util.Objects;
 class Match {
 
     private final long timestamp;
+    private final Comparable<Object> tieBreaker;
     private final SearchHit hit;
 
-    Match(long timestamp, SearchHit hit) {
+    Match(long timestamp, Comparable<Object> tieBreaker, SearchHit hit) {
         this.timestamp = timestamp;
+        this.tieBreaker = tieBreaker;
         this.hit = hit;
     }
 
     long timestamp() {
         return timestamp;
+    }
+
+    Comparable<Object> tieBreaker() {
+        return tieBreaker;
     }
 
     SearchHit hit() {
@@ -33,7 +39,7 @@ class Match {
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, hit);
+        return Objects.hash(timestamp, tieBreaker, hit);
     }
 
     @Override
@@ -48,11 +54,12 @@ class Match {
 
         Match other = (Match) obj;
         return Objects.equals(timestamp, other.timestamp)
+                && Objects.equals(tieBreaker, other.tieBreaker)
                 && Objects.equals(hit, other.hit);
     }
 
     @Override
     public String toString() {
-        return timestamp + "->" + hit.getId();
+        return timestamp + "[" + (tieBreaker != null ? tieBreaker : "") + "]->" + hit.getId();
     }
 }

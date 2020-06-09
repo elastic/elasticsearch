@@ -36,6 +36,14 @@ as a maximum age or size. A rollover creates a new backing index and updates the
 data stream's list of backing indices. This new index then becomes the stream's
 new write index. See <<rollover-data-stream-ex>>.
 
+Backing indices are generated with the naming convention
+`.ds-<data-stream-name>-zzzzzz`, where `zzzzzz` is the six-digit, zero-padded
+generation of the data stream. For example, a data stream named
+`web-server-logs` with a generation of 34 would have a write index named
+`.ds-web-server-logs-000034`. Data streams may have backing indices that do not
+conform to this naming convention if operations such as
+<<indices-shrink-index,shrink>> have been performed on them.
+
 [discrete]
 [[create-data-stream]]
 == Create a data stream

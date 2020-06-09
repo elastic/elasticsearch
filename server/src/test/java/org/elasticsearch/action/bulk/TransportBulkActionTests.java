@@ -30,9 +30,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -58,6 +58,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -295,51 +296,51 @@ public class TransportBulkActionTests extends ESTestCase {
         }
     }
 
-    public void testProhibitAppendOnlyWritesInBackingIndices() {
-        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of("foobar"), null, null, null, null, null,
-            new DataStreamTemplate("@timestamp"));
-        Metadata metadata = Metadata.builder().put("_id", template).build();
+    public void testProhibitAppendOnlyWritesInBackingIndices() throws Exception {
+        String dataStreamName = "logs-foobar";
+        ClusterState clusterState = createDataStream(dataStreamName);
+        Metadata metadata = clusterState.metadata();
 
         // Testing create op against backing index fails:
-        IndexRequest invalidRequest1 = new IndexRequest(".ds-foobar-000001").opType(DocWriteRequest.OpType.CREATE);
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(invalidRequest1, metadata));
         assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed," +
             "target corresponding data stream instead"));
 
         // Testing index op against backing index fails:
-        IndexRequest invalidRequest2 = new IndexRequest(".ds-foobar-000001").opType(DocWriteRequest.OpType.INDEX);
+        IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(invalidRequest2, metadata));
         assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed," +
             "target corresponding data stream instead"));
 
         // Testing valid writes ops against a backing index:
-        DocWriteRequest<?> validRequest = new IndexRequest(".ds-foobar-000001").opType(DocWriteRequest.OpType.INDEX)
+        DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1).setIfPrimaryTerm(1);
         TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
-        validRequest = new DeleteRequest(".ds-foobar-000001");
+        validRequest = new DeleteRequest(backingIndexName);
         TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
-        validRequest = new UpdateRequest(".ds-foobar-000001", "_id");
+        validRequest = new UpdateRequest(backingIndexName, "_id");
         TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
 
         // Testing append only write via ds name
+        validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
+        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+
+        validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
+        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+
+        // Append only for a backing index that doesn't exist is allowed:
+        validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1))
+            .opType(DocWriteRequest.OpType.CREATE);
+        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+
+        // Some other index names:
+        validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
+        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
-
-        validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
-
-        // Append only op in the .ds-* namespace for which no composable template exists is valid
-        validRequest = new IndexRequest(".ds-foo-000001").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
-
-        // Some garbage names inside .ds- space
-        validRequest = new IndexRequest(".ds-").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
-        validRequest = new IndexRequest(".ds-xyz").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
-        validRequest = new IndexRequest(".ds-foobar").opType(DocWriteRequest.OpType.CREATE);
         TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
     }
 

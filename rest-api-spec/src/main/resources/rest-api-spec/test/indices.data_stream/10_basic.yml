@@ -217,18 +217,20 @@ setup:
           index_patterns: logs-*
           data_stream:
             timestamp_field: timestamp
-          template:
-            settings:
-              number_of_shards:   1
-              number_of_replicas: 0
-            mappings:
-              properties:
-                timestamp:
-                  type: date
+
+  - do:
+      index:
+        index:  logs-foobar
+        body:   { foo: bar }
+  - match: { _index: .ds-logs-foobar-000001 }
 
   - do:
       catch: bad_request
       index:
         index:  .ds-logs-foobar-000001
-        refresh: true
         body:   { foo: bar }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

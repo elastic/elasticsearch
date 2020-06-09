@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -277,23 +276,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static void prohibitAppendOnlyWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
-        if (writeRequest.index().startsWith(".ds-") == false) {
-            // This is definitively not a backing index of data stream, skip further checking
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
+        if (indexAbstraction == null) {
             return;
         }
-
-        // Extract data stream name and check if a composable template with a data stream definition would match with it:
-        int indexOfLastDash = writeRequest.index().lastIndexOf('-');
-        if (indexOfLastDash == -1 || indexOfLastDash == 3) {
+        if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             return;
         }
-        String dataStreamName = writeRequest.index().substring(4, indexOfLastDash);
-        String templateId = findV2Template(metadata, dataStreamName, false);
-        if (templateId == null) {
-            return;
-        }
-        ComposableIndexTemplate template = metadata.templatesV2().get(templateId);
-        if (template.getDataStreamTemplate() == null) {
+        if (indexAbstraction.getParentDataStream() == null) {
             return;
         }
 

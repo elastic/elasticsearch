@@ -18,9 +18,6 @@ If you only need certain source fields in the search response, you can use the
 `_source` parameter to restrict what parts of the source are returned. This is
 called _source filtering_.
 
-.*Example*
-[%collapsible]
-=====
 The following search API request sets the `_source` request body parameter to
 `false`. The document source is not included in the response.
 
@@ -99,7 +96,6 @@ GET /_search
   }
 }
 ----
-=====
 
 Returning fields using only the document source has some limitations:
 
@@ -123,9 +119,6 @@ column-based structure that's optimized for sorting and aggregations. Because
 they've been normalized, doc values are typically more compact than `_source`
 values.
 
-.*Example*
-[%collapsible]
-=====
 The following search API request uses the `docvalue_fields` parameter to
 retrieve doc values for the following fields:
 
@@ -160,7 +153,6 @@ GET /_search
     <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
     https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
     pattern]. Other field datatypes do not support the `format` parameter.
-=====
 
 The `docvalue_fields` parameter has some limitations:
 

@@ -160,8 +160,19 @@ class MutableSearchResponse {
      * This method is synchronized to ensure that we don't perform final reduces concurrently.
      */
     synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task, long expirationTime) {
-        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), findOrBuildResponse(task),
-                failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
+        SearchResponse searchResponse = null;
+        Exception error = failure;
+        try {
+            searchResponse = findOrBuildResponse(task);
+        } catch(Exception e) {
+            if (error == null) {
+                error = e;
+            } else {
+                error.addSuppressed(e);
+            }
+        }
+        return new AsyncSearchResponse(task.getExecutionId().getEncoded(), searchResponse,
+                error, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 
     private SearchResponse findOrBuildResponse(AsyncSearchTask task) {

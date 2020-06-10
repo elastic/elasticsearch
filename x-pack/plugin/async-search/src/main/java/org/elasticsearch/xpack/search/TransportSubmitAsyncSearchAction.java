@@ -126,6 +126,11 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                 @Override
                 public void onFailure(Exception exc) {
+                    //this will only ever be called when there's an issue registering the completion listener. Mostly the issue will be
+                    //when scheduling the thread that returns a response after the wait for completion timeout.
+                    //Note that addCompletionListener may be executed asynchronously as it has to wait for onListShards to be called,
+                    //which is why we need to rely on the listener rather than catching.
+                    taskManager.unregister(searchTask);
                     submitListener.onFailure(exc);
                 }
             }, request.getWaitForCompletionTimeout());
@@ -171,15 +176,23 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
         if (searchTask.isCancelled()) {
-            // the task was cancelled so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
-                resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                exc -> {
-                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchTask.getExecutionId()), exc);
-                    unregisterTaskAndMoveOn(searchTask, nextAction);
-                }));
+            try {
+                // the task was cancelled so we ensure that there is nothing stored in the response index.
+                store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
+                    resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
+                    exc -> {
+                        logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
+                            searchTask.getExecutionId().getEncoded()), exc);
+                        unregisterTaskAndMoveOn(searchTask, nextAction);
+                    }));
+            } catch(Exception exc) {
+                logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
+                        searchTask.getExecutionId().getEncoded()),
+                    exc);
+                unregisterTaskAndMoveOn(searchTask, nextAction);
+            }
             return;
-        }
+       }
 
         try {
             store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,

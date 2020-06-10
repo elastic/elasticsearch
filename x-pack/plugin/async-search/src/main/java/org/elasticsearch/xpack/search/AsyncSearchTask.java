@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -197,7 +196,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      * Creates a listener that listens for an {@link AsyncSearchResponse} and executes the
      * consumer when the task is finished.
      */
-    public void addCompletionListener(Consumer<AsyncSearchResponse>  listener) {
+    public void addCompletionListener(Consumer<AsyncSearchResponse> listener) {
         boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted) {
@@ -220,17 +219,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
                 // ensure that we consumes the listener only once
                 AtomicBoolean hasRun = new AtomicBoolean(false);
                 long id = completionId++;
-
                 final Cancellable cancellable;
                 try {
-                    cancellable = threadPool.schedule(() -> {
-                        if (hasRun.compareAndSet(false, true)) {
-                            // timeout occurred before completion
-                            removeCompletionListener(id);
-                            listener.onResponse(getResponseWithHeaders());
-                        }
-                    }, waitForCompletion, "generic");
-                } catch (EsRejectedExecutionException exc) {
+                     cancellable = threadPool.schedule(
+                         () -> {
+                            if (hasRun.compareAndSet(false, true)) {
+                                // timeout occurred before completion
+                                removeCompletionListener(id);
+                                listener.onResponse(getResponseWithHeaders());
+                            }
+                        },
+                        waitForCompletion,
+                        "generic");
+                } catch(Exception exc) {
                     listener.onFailure(exc);
                     return;
                 }
@@ -405,11 +406,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onFailure(Exception exc) {
-            if (searchResponse.get() == null) {
-                // if the failure occurred before calling onListShards
-                searchResponse.compareAndSet(null,
-                    new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
-            }
+            // if the failure occurred before calling onListShards
+            searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
             searchResponse.get().updateWithFailure(exc);
             executeInitListeners();
             executeCompletionListeners();

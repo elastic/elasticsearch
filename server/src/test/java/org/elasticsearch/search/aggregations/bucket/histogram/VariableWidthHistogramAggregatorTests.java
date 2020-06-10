@@ -37,6 +37,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -142,7 +144,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedCentroidsOnlySearch.put(8.8, 8.8);
 
         testSearchCase(DEFAULT_QUERY, dataset, true,
-            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setInitialBuffer(4),
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(6).setInitialBuffer(4),
             histogram -> {
                 final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 assertEquals(expectedCentroidsOnlySearch.size(), buckets.size());
@@ -329,6 +331,32 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(11d, stats.getMax(), deltaError);
                 assertEquals(4L, stats.getCount());
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
+            });
+    }
+
+    public void testSubAggregationReduction() throws IOException{
+        final List<Number> dataset =  Arrays.asList(1L, 1L, 1L, 2L, 2L);
+
+        testSearchCase(DEFAULT_QUERY, dataset, false,
+            aggregation -> aggregation.field(NUMERIC_FIELD)
+                .setNumBuckets(3)
+                .setInitialBuffer(12)
+                .setShardSize(4)
+                .subAggregation(new TermsAggregationBuilder("terms")
+                                        .field(NUMERIC_FIELD)
+                                        .shardSize(2)
+                                        .size(1)),
+            histogram -> {
+                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
+                double deltaError = 1d / 10000d;
+
+                // This is a test to make sure that the sub aggregations get reduced
+                // This terms sub aggregation has shardSize (2) != size (1), so we will get 1 bucket only if
+                // InternalVariableWidthHistogram reduces the sub aggregations.
+
+                InternalTerms terms = histogram.getBuckets().get(0).getAggregations().get("terms");
+                assertEquals(1L, terms.getBuckets().size(), deltaError);
+                assertEquals(1L, ((InternalTerms.Bucket) terms.getBuckets().get(0)).getKey());
             });
     }
 

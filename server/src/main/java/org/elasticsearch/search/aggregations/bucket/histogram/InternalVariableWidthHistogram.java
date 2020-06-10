@@ -316,8 +316,8 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
         double sum = 0;
         for (InternalVariableWidthHistogram.Bucket bucket : buckets) {
             docCount += bucket.docCount;
@@ -347,18 +347,38 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         }
 
         List<Bucket> reducedBuckets = new ArrayList<>();
-        while (pq.size() > 0) {
-            IteratorAndCurrent top = pq.top();
-            reducedBuckets.add(top.current);
-            reduceContext.consumeBucketsAndMaybeBreak(1);
+        if(pq.size() > 0) {
+            double key = pq.top().current.centroid();
+            // list of buckets coming from different shards that have the same key
+            List<Bucket> currentBuckets = new ArrayList<>();
+            do {
+                IteratorAndCurrent top = pq.top();
 
-            if (top.iterator.hasNext()) {
-                Bucket next = top.iterator.next();
-                assert next.compareKey(top.current) >= 0 : "shards must return data sorted by centroid";
-                top.current = next;
-                pq.updateTop();
-            } else {
-                pq.pop();
+                if (Double.compare(top.current.centroid(), key) != 0) {
+                    // The key changes, reduce what we already buffered and reset the buffer for current buckets.
+                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                    reducedBuckets.add(reduced);
+                    currentBuckets.clear();
+                    key = top.current.centroid();
+                }
+
+                currentBuckets.add(top.current);
+
+                if (top.iterator.hasNext()) {
+                    Bucket next = top.iterator.next();
+                    assert next.compareKey(top.current) >= 0 : "shards must return data sorted by centroid";
+                    top.current = next;
+                    pq.updateTop();
+                } else {
+                    pq.pop();
+                }
+            } while(pq.size() > 0);
+
+            if (currentBuckets.isEmpty() == false) {
+                final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
+                reduceContext.consumeBucketsAndMaybeBreak(1);
+                reducedBuckets.add(reduced);
             }
         }
 
@@ -518,6 +538,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
 
         if(reduceContext.isFinalReduce()) {
@@ -525,7 +546,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             mergeBucketsWithSameMin(reducedBuckets, reduceContext);
             adjustBoundsForOverlappingBuckets(reducedBuckets, reduceContext);
         }
-        
         return new InternalVariableWidthHistogram(getName(), reducedBuckets, emptyBucketInfo, targetNumBuckets,
             format, metadata);
     }

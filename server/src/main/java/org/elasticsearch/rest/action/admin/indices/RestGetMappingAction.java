@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,7 +31,9 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +41,12 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetMappingAction extends BaseRestHandler {
+
+    private final ThreadPool threadPool;
+
+    public RestGetMappingAction(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     @Override
     public List<Route> routes() {
@@ -62,13 +71,21 @@ public class RestGetMappingAction extends BaseRestHandler {
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
+        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestActionListener<>(channel) {
+
             @Override
-            public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+            protected void processResponse(GetMappingsResponse getMappingsResponse) {
+                // Process serialization on GENERIC pool since the serialization of the raw mappings to XContent can be too slow to execute
+                // on an IO thread
+                threadPool.generic().execute(ActionRunnable.wrap(this, l -> new RestBuilderListener<GetMappingsResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                }.onResponse(getMappingsResponse)));
             }
         });
     }

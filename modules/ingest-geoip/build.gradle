@@ -72,14 +72,6 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.http.util.EntityUtils'
 )
 
-tasks.named("compileTestJava").configure { t ->
-  doFirst {
-    t.classpath.files.each {
-      println "testClasspath " + it
-    }
-  }
-}
-
 test {
   if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     // Windows cannot cleanup database files properly unless it loads everything on heap.

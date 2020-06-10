@@ -41,6 +41,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -167,7 +168,9 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request;
         if (errorTrace != !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT || randomBoolean()) {
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                    .withParams(Map.of("error_trace", Boolean.toString(errorTrace))).build();
+                    .withParams(Collections.unmodifiableMap(new HashMap<String, String>() {{
+                        put("error_trace", Boolean.toString(errorTrace));
+                    }})).build();
         } else {
             // sometimes do not fill in the default value
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();

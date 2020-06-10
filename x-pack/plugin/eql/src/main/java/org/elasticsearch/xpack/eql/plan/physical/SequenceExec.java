@@ -28,7 +28,7 @@ public class SequenceExec extends PhysicalPlan {
 
     private final List<List<Attribute>> keys;
     private final Attribute timestamp;
-    private final Attribute tieBreaker;
+    private final Attribute tiebreaker;
 
     public SequenceExec(Source source,
                         List<List<Attribute>> keys,
@@ -36,20 +36,20 @@ public class SequenceExec extends PhysicalPlan {
                         List<Attribute> untilKeys,
                         PhysicalPlan until,
                         Attribute timestamp,
-                        Attribute tieBreaker) {
-        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tieBreaker);
+                        Attribute tiebreaker) {
+        this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tiebreaker);
     }
 
     private SequenceExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys, Attribute ts, Attribute tb) {
         super(source, children);
         this.keys = keys;
         this.timestamp = ts;
-        this.tieBreaker = tb;
+        this.tiebreaker = tb;
     }
 
     @Override
     protected NodeInfo<SequenceExec> info() {
-        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp, tieBreaker);
+        return NodeInfo.create(this, SequenceExec::new, children(), keys, timestamp, tiebreaker);
     }
 
     @Override
@@ -59,15 +59,15 @@ public class SequenceExec extends PhysicalPlan {
                     children().size(),
                     newChildren.size());
         }
-        return new SequenceExec(source(), newChildren, keys, timestamp, tieBreaker);
+        return new SequenceExec(source(), newChildren, keys, timestamp, tiebreaker);
     }
 
     @Override
     public List<Attribute> output() {
         List<Attribute> attrs = new ArrayList<>();
         attrs.add(timestamp);
-        if (Expressions.isPresent(tieBreaker)) {
-            attrs.add(tieBreaker);
+        if (Expressions.isPresent(tiebreaker)) {
+            attrs.add(tiebreaker);
         }
         for (List<? extends NamedExpression> ne : keys) {
             attrs.addAll(Expressions.asAttributes(ne));
@@ -83,18 +83,18 @@ public class SequenceExec extends PhysicalPlan {
         return timestamp;
     }
 
-    public Attribute tieBreaker() {
-        return tieBreaker;
+    public Attribute tiebreaker() {
+        return tiebreaker;
     }
 
     @Override
     public void execute(EqlSession session, ActionListener<Results> listener) {
-        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tieBreaker()).execute(listener);
+        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tiebreaker()).execute(listener);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, tieBreaker, keys, children());
+        return Objects.hash(timestamp, tiebreaker, keys, children());
     }
 
     @Override
@@ -109,7 +109,7 @@ public class SequenceExec extends PhysicalPlan {
 
         SequenceExec other = (SequenceExec) obj;
         return Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tieBreaker, other.tieBreaker)
+                && Objects.equals(tiebreaker, other.tiebreaker)
                 && Objects.equals(children(), other.children())
                 && Objects.equals(keys, other.keys);
     }

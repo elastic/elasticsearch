@@ -18,14 +18,14 @@ public class Criterion {
     private final SearchSourceBuilder searchSource;
     private final List<HitExtractor> keyExtractors;
     private final HitExtractor timestampExtractor;
-    private final HitExtractor tieBreakerExtractor;
+    private final HitExtractor tiebreakerExtractor;
 
     public Criterion(SearchSourceBuilder searchSource, List<HitExtractor> searchAfterExractors, HitExtractor timestampExtractor,
-                     HitExtractor tieBreakerExtractor) {
+                     HitExtractor tiebreakerExtractor) {
         this.searchSource = searchSource;
         this.keyExtractors = searchAfterExractors;
         this.timestampExtractor = timestampExtractor;
-        this.tieBreakerExtractor = tieBreakerExtractor;
+        this.tiebreakerExtractor = tiebreakerExtractor;
     }
 
     public SearchSourceBuilder searchSource() {
@@ -40,8 +40,8 @@ public class Criterion {
         return timestampExtractor;
     }
 
-    public HitExtractor tieBreakerExtractor() {
-        return tieBreakerExtractor;
+    public HitExtractor tiebreakerExtractor() {
+        return tiebreakerExtractor;
     }
 
     public long timestamp(SearchHit hit) {
@@ -53,11 +53,11 @@ public class Criterion {
     }
 
     @SuppressWarnings({ "unchecked" })
-    public Comparable<Object> tieBreaker(SearchHit hit) {
-        if (tieBreakerExtractor == null) {
+    public Comparable<Object> tiebreaker(SearchHit hit) {
+        if (tiebreakerExtractor == null) {
             return null;
         }
-        Object tb = tieBreakerExtractor.extract(hit);
+        Object tb = tiebreakerExtractor.extract(hit);
         if (tb instanceof Comparable) {
             return (Comparable<Object>) tb;
         }

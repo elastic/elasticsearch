@@ -37,8 +37,8 @@ class SequenceRuntime implements Executable {
         this.criteria = criteria;
         this.numberOfStages = criteria.size();
         this.queryClient = queryClient;
-        boolean hasTieBreaker = criteria.get(0).tieBreakerExtractor() != null;
-        this.stateMachine = new SequenceStateMachine(numberOfStages, hasTieBreaker);
+        boolean hasTiebreaker = criteria.get(0).tiebreakerExtractor() != null;
+        this.stateMachine = new SequenceStateMachine(numberOfStages, hasTiebreaker);
     }
 
     @Override
@@ -80,19 +80,19 @@ class SequenceRuntime implements Executable {
             tMin = lastCriterion.timestamp(hits.get(0));
             tMax = lastCriterion.timestamp(hits.get(hits.size() - 1));
             
-            if (lastCriterion.tieBreakerExtractor() != null) {
-               bMin = lastCriterion.tieBreaker(hits.get(0));
+            if (lastCriterion.tiebreakerExtractor() != null) {
+               bMin = lastCriterion.tiebreaker(hits.get(0));
             }
         }
 
         for (SearchHit hit : hits) {
             KeyAndOrdinal ko = findKey(hit, lastCriterion);
-            Sequence seq = new Sequence(ko.key, numberOfStages, ko.timestamp, ko.tieBreaker, hit);
+            Sequence seq = new Sequence(ko.key, numberOfStages, ko.timestamp, ko.tiebreaker, hit);
             stateMachine.trackSequence(seq, tMin, tMax);
         }
         stateMachine.setTimestampMarker(0, tMin);
         if (bMin != null) {
-            stateMachine.setTieBreakerMarker(0, bMin);
+            stateMachine.setTiebreakerMarker(0, bMin);
         }
     }
 
@@ -120,7 +120,7 @@ class SequenceRuntime implements Executable {
         // break the results per key
         for (SearchHit hit : hits) {
             KeyAndOrdinal ko = findKey(hit, currentCriterion);
-            stateMachine.match(currentStage, ko.key, ko.timestamp, ko.tieBreaker, hit);
+            stateMachine.match(currentStage, ko.key, ko.timestamp, ko.tiebreaker, hit);
         }
     }
 
@@ -138,7 +138,7 @@ class SequenceRuntime implements Executable {
             key = new SequenceKey(docKeys);
         }
 
-        return new KeyAndOrdinal(key, criterion.timestamp(hit), criterion.tieBreaker(hit));
+        return new KeyAndOrdinal(key, criterion.timestamp(hit), criterion.tiebreaker(hit));
     }
 
     private Results assembleResults() {

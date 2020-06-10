@@ -415,8 +415,8 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null);
         CloseIndexClusterStateUpdateRequest request = new CloseIndexClusterStateUpdateRequest(0L).indices(indicesToDeleteArray);
         Exception e = expectThrows(IllegalArgumentException.class, () -> service.closeIndices(request, null));
-        assertThat(e.getMessage(), CoreMatchers.containsString("cannot close the following data stream write indices " +
-            "[" + Strings.collectionToCommaDelimitedString(indicesToDelete) + "]"));
+        assertThat(e.getMessage(), CoreMatchers.containsString("cannot close the following data stream write indices [" +
+                Strings.collectionToCommaDelimitedString(indicesToDelete) + "]"));
     }
 
     public static ClusterState addOpenedIndex(final String index, final int numShards, final int numReplicas, final ClusterState state) {

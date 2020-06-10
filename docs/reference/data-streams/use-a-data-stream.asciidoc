@@ -147,9 +147,9 @@ A rollover creates a new backing index for a data stream. This new backing index
 becomes the stream's new write index and increments the stream's generation.
 
 In most cases, we recommend using <<index-lifecycle-management,{ilm-init}>> to
-<<getting-started-index-lifecycle-management,automate rollovers>> for data
-streams. This lets you automatically roll over the current write index when it
-meets specified criteria, such as a maximum age or size.
+automate rollovers for data streams. This lets you automatically roll over the
+current write index when it meets specified criteria, such as a maximum age or
+size.
 
 However, you can also use the <<indices-rollover-index,rollover API>> to
 manually perform a rollover. This can be useful if you want to apply mapping or

@@ -73,7 +73,7 @@ _write index_. The data stream routes all indexing requests to this index.
 
 image::images/data-streams/data-streams-index-request.svg[align="center"]
 
-You cannot index new documents to a stream's other backing indices, even
+You cannot add new documents to a stream's other backing indices, even
 by sending indexing requests directly to the index.
 
 Because it's the only index capable of handling indexing requests, you also

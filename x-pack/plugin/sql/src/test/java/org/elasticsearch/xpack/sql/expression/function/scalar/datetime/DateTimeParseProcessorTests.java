@@ -258,8 +258,6 @@ public class DateTimeParseProcessorTests extends AbstractSqlWireSerializingTestC
                 .asProcessor()
                 .process(null)
         );
-    
-        // DateParse
         assertEquals(
                 date(2020, 4, 7, zoneId),
                 new DateParse(Source.EMPTY, l("07/04/2020 12:12:00"), l("dd/MM/uuuu HH:mm:ss"), zoneId).makePipe()

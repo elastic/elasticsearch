@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -57,13 +58,15 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
 
     public static class Builder implements IndexFieldData.Builder {
         private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+        private final ValuesSourceType valuesSourceType;
 
-        public Builder() {
-            this(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        public Builder(ValuesSourceType valuesSourceType) {
+            this(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION, valuesSourceType);
         }
 
-        public Builder(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
+        public Builder(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction, ValuesSourceType valuesSourceType) {
             this.scriptFunction = scriptFunction;
+            this.valuesSourceType = valuesSourceType;
         }
 
         @Override
@@ -75,7 +78,7 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new SortedSetOrdinalsIndexFieldData(indexSettings, cache, fieldName, breakerService, scriptFunction);
+            return new SortedSetOrdinalsIndexFieldData(indexSettings, cache, fieldName, valuesSourceType, breakerService, scriptFunction);
         }
     }
 
@@ -85,17 +88,20 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+    private final ValuesSourceType valuesSourceType;
     private static final Logger logger = LogManager.getLogger(SortedSetOrdinalsIndexFieldData.class);
 
     public SortedSetOrdinalsIndexFieldData(
         IndexSettings indexSettings,
         IndexFieldDataCache cache,
         String fieldName,
+        ValuesSourceType valuesSourceType,
         CircuitBreakerService breakerService,
         Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
     ) {
         this.index = indexSettings.getIndex();
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
         this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
@@ -105,6 +111,11 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
     @Override
     public final String getFieldName() {
         return fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override

@@ -119,13 +119,10 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 return;
             }
             String field = fetchSubPhaseBuilder.getField();
-            if (hitContext.hit().fieldsOrNull() == null) {
-                hitContext.hit().fields(new HashMap<>());
-            }
             DocumentField hitField = hitContext.hit().getFields().get(NAME);
             if (hitField == null) {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
-                hitContext.hit().setField(NAME, hitField);
+                hitContext.hit().setDocumentField(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
                     hitContext.hit().getId());

@@ -38,10 +38,8 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
@@ -965,71 +963,6 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(3, bucket.getDocCount());
             }, false
         );
-    }
-
-    public void testMaxBucket() throws IOException {
-        Query query = new MatchAllDocsQuery();
-        List<String> timestamps = Arrays.asList(
-            "2010-01-01T00:00:00.000Z",
-            "2011-01-01T00:00:00.000Z",
-            "2017-01-01T00:00:00.000Z"
-        );
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
-            histogram -> {}, 2, false));
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
-            histogram -> {}, 2, false));
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.fixedInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(0L),
-            histogram -> {}, 100, false));
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation ->
-                aggregation.fixedInterval(DateHistogramInterval.seconds(5))
-                    .field(AGGREGABLE_DATE)
-                    .subAggregation(
-                        AggregationBuilders.dateHistogram("1")
-                            .fixedInterval(DateHistogramInterval.seconds(5))
-                            .field(AGGREGABLE_DATE)
-                    ),
-            histogram -> {}, 5, false));
-    }
-
-    public void testMaxBucketDeprecated() throws IOException {
-        Query query = new MatchAllDocsQuery();
-        List<String> timestamps = Arrays.asList(
-            "2010-01-01T00:00:00.000Z",
-            "2011-01-01T00:00:00.000Z",
-            "2017-01-01T00:00:00.000Z"
-        );
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchCase(query, timestamps,
-            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
-            histogram -> {}, 2, false));
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE),
-            histogram -> {}, 2, false));
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(AGGREGABLE_DATE).minDocCount(0L),
-            histogram -> {}, 100, false));
-
-        expectThrows(TooManyBucketsException.class, () -> testSearchAndReduceCase(query, timestamps,
-            aggregation ->
-                aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5))
-                    .field(AGGREGABLE_DATE)
-                    .subAggregation(
-                        AggregationBuilders.dateHistogram("1")
-                            .dateHistogramInterval(DateHistogramInterval.seconds(5))
-                            .field(AGGREGABLE_DATE)
-                    ),
-            histogram -> {}, 5, false));
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testFixedWithCalendar() throws IOException {

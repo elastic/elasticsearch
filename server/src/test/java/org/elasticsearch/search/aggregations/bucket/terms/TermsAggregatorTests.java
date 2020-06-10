@@ -185,7 +185,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         GlobalOrdinalsStringTermsAggregator globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertFalse(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
 
         // Infers depth_first because the maxOrd is 0 which is less than the size
         aggregationBuilder
@@ -194,7 +194,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertTrue(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
 
         aggregationBuilder
             .collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
@@ -202,7 +202,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));
-        assertTrue(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
 
         aggregationBuilder
             .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
@@ -210,14 +210,14 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
         assertThat(globalAgg.collectMode, equalTo(Aggregator.SubAggCollectionMode.BREADTH_FIRST));
-        assertFalse(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("dense"));
 
         aggregationBuilder
             .order(BucketOrder.aggregation("card", true));
         aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         assertThat(aggregator, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
         globalAgg = (GlobalOrdinalsStringTermsAggregator) aggregator;
-        assertTrue(globalAgg.remapGlobalOrds());
+        assertThat(globalAgg.descriptCollectionStrategy(), equalTo("remap"));
 
         indexReader.close();
         directory.close();
@@ -1291,6 +1291,54 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    public void testThreeLayerStringViaGlobalOrds() throws IOException {
+        threeLayerStringTestCase("global_ordinals");
+    }
+
+    public void testThreeLayerStringViaMap() throws IOException {
+        threeLayerStringTestCase("map");
+    }
+
+    private void threeLayerStringTestCase(String executionHint) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < 10; i++) {
+                    for (int j = 0; j < 10; j++) {
+                        for (int k = 0; k < 10; k++) {
+                            Document d = new Document();
+                            d.add(new SortedDocValuesField("i", new BytesRef(Integer.toString(i))));
+                            d.add(new SortedDocValuesField("j", new BytesRef(Integer.toString(j))));
+                            d.add(new SortedDocValuesField("k", new BytesRef(Integer.toString(k))));
+                            writer.addDocument(d);
+                        }
+                    }
+                }
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i").executionHint(executionHint)
+                        .subAggregation(new TermsAggregationBuilder("j").field("j").executionHint(executionHint)
+                            .subAggregation(new TermsAggregationBuilder("k").field("k").executionHint(executionHint)));
+                    StringTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                        keywordField("i"), keywordField("j"), keywordField("k"));
+                    for (int i = 0; i < 10; i++) {
+                        StringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
+                        assertThat(iBucket.getDocCount(), equalTo(100L));
+                        StringTerms jAgg = iBucket.getAggregations().get("j");
+                        for (int j = 0; j < 10; j++) {
+                            StringTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
+                            assertThat(jBucket.getDocCount(), equalTo(10L));
+                            StringTerms kAgg = jBucket.getAggregations().get("k");
+                            for (int k = 0; k < 10; k++) {
+                                StringTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
+                                assertThat(kBucket.getDocCount(), equalTo(1L));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testThreeLayerLong() throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
@@ -1329,12 +1377,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
-    }
-
-    private NumberFieldMapper.NumberFieldType longField(String name) {
-        NumberFieldMapper.NumberFieldType type = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        type.setName(name);
-        return type;
     }
 
     private void assertNestedTopHitsScore(InternalMultiBucketAggregation<?, ?> terms, boolean withScore) {

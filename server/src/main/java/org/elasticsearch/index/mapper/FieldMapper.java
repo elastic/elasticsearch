@@ -274,6 +274,16 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Whether this mapper can handle an array value during document parsing. If true,
+     * when an array is encountered during parsing, the document parser will pass the
+     * whole array to the mapper. If false, the array is split into individual values
+     * and each value is passed to the mapper for parsing.
+     */
+    public boolean parsesArrayValue() {
+        return false;
+    }
+
+    /**
      * Parse the field value using the provided {@link ParseContext}.
      */
     public void parse(ParseContext context) throws IOException {

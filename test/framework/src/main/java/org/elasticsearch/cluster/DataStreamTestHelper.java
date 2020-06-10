@@ -39,7 +39,7 @@ public final class DataStreamTestHelper {
     }
 
     public static IndexMetadata.Builder createBackingIndex(String dataStreamName, int generation) {
-        return IndexMetadata.builder(DataStream.getBackingIndexName(dataStreamName, generation))
+        return IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, generation))
             .settings(SETTINGS)
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);

@@ -24,40 +24,46 @@ import java.util.Objects;
 public class KeyedFilter extends UnaryPlan {
 
     private final List<? extends NamedExpression> keys;
-    private final Attribute timestampField;
+    private final Attribute timestamp;
+    private final Attribute tieBreaker;
 
-    public KeyedFilter(Source source, LogicalPlan child, List<? extends NamedExpression> keys, Attribute timestampField) {
+    public KeyedFilter(Source source, LogicalPlan child, List<? extends NamedExpression> keys, Attribute timestamp, Attribute tieBreaker) {
         super(source, child);
         this.keys = keys;
-        this.timestampField = timestampField;
+        this.timestamp = timestamp;
+        this.tieBreaker = tieBreaker;
     }
 
     @Override
     protected NodeInfo<KeyedFilter> info() {
-        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestampField);
+        return NodeInfo.create(this, KeyedFilter::new, child(), keys, timestamp, tieBreaker);
     }
 
     @Override
     protected KeyedFilter replaceChild(LogicalPlan newChild) {
-        return new KeyedFilter(source(), newChild, keys, timestampField);
+        return new KeyedFilter(source(), newChild, keys, timestamp, tieBreaker);
     }
     
     public List<? extends NamedExpression> keys() {
         return keys;
     }
 
-    public Attribute timestampField() {
-        return timestampField;
+    public Attribute timestamp() {
+        return timestamp;
+    }
+    
+    public Attribute tieBreaker() {
+        return tieBreaker;
     }
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(keys) && timestampField.resolved();
+        return Resolvables.resolved(keys) && timestamp.resolved() && tieBreaker.resolved();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(keys, timestampField, child());
+        return Objects.hash(keys, timestamp, tieBreaker, child());
     }
     
     @Override
@@ -72,7 +78,8 @@ public class KeyedFilter extends UnaryPlan {
         KeyedFilter other = (KeyedFilter) obj;
 
         return Objects.equals(keys, other.keys)
-                && Objects.equals(timestampField, other.timestampField)
+                && Objects.equals(timestamp, other.timestamp)
+                && Objects.equals(tieBreaker, other.tieBreaker)
                 && Objects.equals(child(), other.child());
     }
 }

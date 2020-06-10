@@ -30,6 +30,7 @@ public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateP
                                  ActionListener<UpdateProcessAction.Response> listener) {
         UpdateParams updateParams = UpdateParams.builder(request.getJobId())
                 .modelPlotConfig(request.getModelPlotConfig())
+                .perPartitionCategorizationConfig(request.getPerPartitionCategorizationConfig())
                 .detectorUpdates(request.getDetectorUpdates())
                 .filter(request.getFilter())
                 .updateScheduledEvents(request.isUpdateScheduledEvents())

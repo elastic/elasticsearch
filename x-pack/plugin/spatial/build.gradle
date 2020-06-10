@@ -30,8 +30,3 @@ testClusters.integTest {
   setting 'indices.breaker.request.limit', '25kb'
   testDistribution = 'DEFAULT'
 }
-
-licenseHeaders {
-  // This class was sourced from apache lucene's sandbox module tests
-  excludes << 'org/apache/lucene/geo/XShapeTestUtil.java'
-}

@@ -59,4 +59,9 @@ public class InvalidMappedField extends EsField {
     public Exact getExactInfo() {
         return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
     }
+
+    @Override
+    public String toString() {
+        return "[" + getName() + "] " + errorMessage();
+    }
 }

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ql.index;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -145,6 +147,8 @@ public class IndexResolver {
                     && Objects.equals(type, other.type);
         }
     }
+    
+    private static final Logger log = LogManager.getLogger(IndexResolver.class);
 
     public static final String SQL_TABLE = "TABLE";
     public static final String SQL_VIEW = "VIEW";
@@ -162,8 +166,10 @@ public class IndexResolver {
 
 
     private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
-    private static final Set<String> COMPATIBLE_KEYWORD_TYPES = Set.of(KEYWORD.typeName(), CONSTANT_KEYWORD.typeName());
     static final String UNMAPPED = "unmapped";
+    private static final String VIRTUAL_ALIAS = "*";
+    private static final Set<String> COMPATIBLE_KEYWORD_TYPES = new HashSet<>(
+            Arrays.asList(KEYWORD.typeName(), CONSTANT_KEYWORD.typeName()));
 
     private final Client client;
     private final String clusterName;
@@ -300,8 +306,11 @@ public class IndexResolver {
             return IndexResolution.notFound(indexPattern);
         }
 
-        // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(typeRegistry, indexNames, null, fieldCaps, null, i -> indexPattern, true);
+        // map with aliases and their list of indices
+        Map<String, Set<String>> aliasToIndices = new HashMap<>();
+        // single virtual alias named "*" to be used for a merged mapping
+        aliasToIndices.put(VIRTUAL_ALIAS, new HashSet<>(Arrays.asList(indexNames)));
+        List<EsIndex> indices = buildIndices(typeRegistry, indexNames, null, fieldCaps, null, aliasToIndices, i -> indexPattern);
 
         if (indices.size() > 1) {
             throw new QlIllegalArgumentException(
@@ -354,17 +363,10 @@ public class IndexResolver {
 
     public static List<EsIndex> separateMappings(DataTypeRegistry typeRegistry, String javaRegex, String[] indexNames,
             Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
-        return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, aliases, Function.identity(), false);
-    }
-
-    private static Map<String, QlFieldCapabilities> buildQlFieldCaps(String[] indexNames,
-            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> indexToAliases,
-            boolean isMergedMapping) {
-        Map<String, QlFieldCapabilities> map = new HashMap<>();
-        Map<String, Set<String>> aliasToIndices = new HashMap<>(); // map with aliases and their list of indices
-        
-        if (indexToAliases != null) {
-            Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iter = indexToAliases.iterator();
+        // map with aliases and their list of indices
+        Map<String, Set<String>> aliasToIndices = new HashMap<>();
+        if (aliases != null) {
+            Iterator<ObjectObjectCursor<String, List<AliasMetadata>>> iter = aliases.iterator();
             while (iter.hasNext()) {
                 ObjectObjectCursor<String, List<AliasMetadata>> index = iter.next();
                 for (AliasMetadata aliasMetadata : index.value) {
@@ -373,10 +375,19 @@ public class IndexResolver {
                     aliasToIndices.get(aliasName).add(index.key);
                 }
             }
-        } else if (isMergedMapping) {
-            // single virtual alias named "*" to be used for a merged mappings
-            aliasToIndices.put("*", new HashSet<>(Arrays.asList(indexNames)));
         }
+        return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, aliases, aliasToIndices, Function.identity());
+    }
+
+    /*
+     * Build our own field caps object that's simpler in structure and its content can be changed (_field_caps output is immutable).
+     * This will help validating the fields with the same name that can be found in different indices as a result of those indices
+     * belonging to the same alias or in the case of grouping multiple indices together as part of a pattern (SYS COLUMNS TABLE LIKE '').
+     */ 
+    private static Map<String, QlFieldCapabilities> buildQlFieldCaps(String[] indexNames,
+            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> indexToAliases,
+            Map<String, Set<String>> aliasToIndices) {
+        Map<String, QlFieldCapabilities> map = new HashMap<>();
 
         // create a virtual set of fields capabilities for each alias
         for (String alias : aliasToIndices.keySet()) {
@@ -407,11 +418,14 @@ public class IndexResolver {
                     QlFieldCapability qlFieldCap = new QlFieldCapability(type, f.getType(), f.isSearchable(), f.isAggregatable());
                     boolean isValidType = false;
 
-                    // in each list of indices, keep only those belonging to the current alias
-                    isValidType = maybeSetIndices(f.indices(), indices, qlFieldCap::setIndices) || isValidType;
-                    isValidType = maybeSetIndices(f.nonAggregatableIndices(), indices, qlFieldCap::setNonAggregatableIndices)
-                        || isValidType;
-                    isValidType = maybeSetIndices(f.nonSearchableIndices(), indices, qlFieldCap::setNonSearchableIndices) || isValidType;
+                    /*
+                     * In each list of indices, keep only those belonging to the current alias. updateIndices is called first since 
+                     * its work needs to take place (setting values on qlFieldCap) no matter the result of isValidType. And once one of
+                     * these three calls returns true, the value of isValidType shouldn't change, thus || isValidType is called last.
+                     */
+                    isValidType = updateIndices(f.indices(), indices, qlFieldCap::setIndices) || isValidType;
+                    isValidType = updateIndices(f.nonAggregatableIndices(), indices, qlFieldCap::setNonAggregatableIndices) || isValidType;
+                    isValidType = updateIndices(f.nonSearchableIndices(), indices, qlFieldCap::setNonSearchableIndices) || isValidType;
 
                     // another field type is applicable to this alias, so skip the current field type
                     if (isEmpty(qlFieldCap.getIndices())
@@ -443,7 +457,7 @@ public class IndexResolver {
         return map;
     }
 
-    private static boolean maybeSetIndices(String[] originalList, Set<String> virtualList, Consumer<String[]> setter) {
+    private static boolean updateIndices(String[] originalList, Set<String> virtualList, Consumer<String[]> setter) {
         if (originalList == null) {
             return true;
         }
@@ -476,10 +490,9 @@ public class IndexResolver {
 
 
     private static List<EsIndex> buildIndices(DataTypeRegistry typeRegistry, String[] indexNames, String javaRegex,
-        Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> indicesToAliases,
-        Function<String, String> indexNameProcessor, boolean isMergedMapping) {
-
-        Map<String, QlFieldCapabilities> qlFieldCaps= buildQlFieldCaps(indexNames, fieldCaps, indicesToAliases, isMergedMapping);
+            Map<String, Map<String, FieldCapabilities>> fieldCaps, ImmutableOpenMap<String, List<AliasMetadata>> indicesToAliases,
+            Map<String, Set<String>> aliasToIndices, Function<String, String> indexNameProcessor) {
+        Map<String, QlFieldCapabilities> qlFieldCaps= buildQlFieldCaps(indexNames, fieldCaps, indicesToAliases, aliasToIndices);
         return buildIndices(typeRegistry, indexNames, javaRegex, fieldCaps, indicesToAliases, indexNameProcessor, qlFieldCaps);
     }
 
@@ -582,7 +595,7 @@ public class IndexResolver {
                             indicesAndAliases.put(indexName, indexFields);
                         }
                         EsField field = indexFields.flattedMapping.get(fieldName);
-                        InvalidMappedField invalidField = isIndexAlias ? invalidFields.get(index) : invalidFields.get("*");
+                        InvalidMappedField invalidField = isIndexAlias ? invalidFields.get(index) : invalidFields.get(VIRTUAL_ALIAS);
                         boolean createField = false;
 
                         // field not created at all => create the field
@@ -645,17 +658,20 @@ public class IndexResolver {
             InvalidMappedField invalidField = validate(fieldName, types);
             if (invalidField != null) {
                 invalidFields.put(indicesGroupName, invalidField);
-            } else if (qlFieldCaps.size() == 1 && qlFieldCaps.containsKey("*") && esTypes.containsKey(KEYWORD.esType())
-                && esTypes.containsKey(CONSTANT_KEYWORD.esType())) {
+                
+                if (log.isDebugEnabled()) {
+                    // log example: For indices grouping [*] containing [test4, test2]: [name] mapped as searchable except in [test4]
+                    log.debug("For indices grouping [{}] containing {}: {}", indicesGroupName, capabilities.getValue().getIndices(),
+                        invalidField);
+                }
+            } else if (qlFieldCaps.size() == 1
+                && qlFieldCaps.containsKey(VIRTUAL_ALIAS)
+                && esTypes.keySet().containsAll(COMPATIBLE_KEYWORD_TYPES)) {
                 esTypes.remove(CONSTANT_KEYWORD.esType());
             }
         }
 
-        if (invalidFields.isEmpty() == false) {
-            return invalidFields;
-        }
-        // everything checks
-        return emptyMap();
+        return invalidFields.isEmpty() ? emptyMap() : invalidFields;
     }
     
     private static InvalidMappedField validate(String fieldName, Map<String, QlFieldCapability> types) {
@@ -665,7 +681,7 @@ public class IndexResolver {
         // a keyword field and a constant_keyword field with the same name in two different indices are considered "compatible"
         // since a common use case of constant_keyword field involves two indices with a field having the same name: one being
         // a keyword, the other being a constant_keyword
-        boolean hasCompatibleKeywords = types.containsKey(KEYWORD.esType()) && types.containsKey(CONSTANT_KEYWORD.esType());
+        boolean hasCompatibleKeywords = types.keySet().containsAll(COMPATIBLE_KEYWORD_TYPES);
         int allowedTypesCount = (hasUnmapped ? 2 : 1) + (hasCompatibleKeywords ? 1 : 0);
     
         if (types.size() > allowedTypesCount) {

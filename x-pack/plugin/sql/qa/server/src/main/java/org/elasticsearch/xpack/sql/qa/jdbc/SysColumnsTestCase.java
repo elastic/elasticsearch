@@ -20,7 +20,6 @@ import java.sql.SQLException;
 
 public class SysColumnsTestCase extends JdbcIntegrationTestCase {
 
-
     public void testMergeSameMapping() throws Exception {
         createIndexWithMapping("test1", builder -> {
             builder.startObject("emp_no").field("type", "integer").endObject();
@@ -31,7 +30,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject("salary").field("type", "integer").endObject();
             builder.startObject("_meta_field").field("type", "keyword").endObject();
         });
-        
+
         createIndexWithMapping("test2", builder -> {
             builder.startObject("emp_no").field("type", "integer").endObject();
             builder.startObject("first_name").field("type", "text").endObject();
@@ -41,66 +40,72 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject("salary").field("type", "integer").endObject();
             builder.startObject("_meta_field").field("type", "keyword").endObject();
         });
-        
-        assertResultsForSysColumnsForTableQuery("test%", new String[][] {
-            {"test%"      ,"_meta_field","KEYWORD"},
-            {"test%"      ,"emp_no"     ,"INTEGER"},
-            {"test%"      ,"first_name" ,"TEXT"},
-            {"test%"      ,"gender"     ,"KEYWORD"},
-            {"test%"      ,"languages"  ,"BYTE"},
-            {"test%"      ,"last_name"  ,"TEXT"},
-            {"test%"      ,"salary"     ,"INTEGER"}
-        });
+
+        assertResultsForSysColumnsForTableQuery(
+            "test%",
+            new String[][] {
+                { "test%", "_meta_field", "KEYWORD" },
+                { "test%", "emp_no", "INTEGER" },
+                { "test%", "first_name", "TEXT" },
+                { "test%", "gender", "KEYWORD" },
+                { "test%", "languages", "BYTE" },
+                { "test%", "last_name", "TEXT" },
+                { "test%", "salary", "INTEGER" } }
+        );
     }
+
     public void testMultiLevelObjectMappings() throws Exception {
         createIndexWithMapping("test", builder -> {
             builder.startObject("test")
                 .startObject("properties")
-                    .startObject("test")
-                        .field("type", "text")
-                        .startObject("fields")
-                            .startObject("keyword")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                    .startObject("bar")
-                        .field("type", "text")
-                        .startObject("fields")
-                            .startObject("keyword")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("test")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("keyword")
+                .field("type", "keyword")
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject()
+                .startObject("bar")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("keyword")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             builder.startObject("bar")
                 .field("type", "text")
                 .startObject("fields")
-                    .startObject("keyword")
-                        .field("type", "keyword")
-                    .endObject()
+                .startObject("keyword")
+                .field("type", "keyword")
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject();
         });
-        
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test"      ,"bar"              ,"TEXT"},
-            {"test"      ,"bar.keyword"      ,"KEYWORD"},
-            {"test"      ,"test.bar"         ,"TEXT"},
-            {"test"      ,"test.bar.keyword" ,"KEYWORD"},
-            {"test"      ,"test.test"        ,"TEXT"},
-            {"test"      ,"test.test.keyword","KEYWORD"}
-        });
-        assertResultsForShowColumnsForTableQuery("test", new String[][] {
-            {"bar"              ,"VARCHAR"        ,"text"},
-            {"bar.keyword"      ,"VARCHAR"        ,"keyword"},
-            {"test"             ,"STRUCT"         ,"object"},
-            {"test.bar"         ,"VARCHAR"        ,"text"},
-            {"test.bar.keyword" ,"VARCHAR"        ,"keyword"},
-            {"test.test"        ,"VARCHAR"        ,"text"},
-            {"test.test.keyword","VARCHAR"        ,"keyword"}
-        });
+
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test", "bar", "TEXT" },
+                { "test", "bar.keyword", "KEYWORD" },
+                { "test", "test.bar", "TEXT" },
+                { "test", "test.bar.keyword", "KEYWORD" },
+                { "test", "test.test", "TEXT" },
+                { "test", "test.test.keyword", "KEYWORD" } }
+        );
+        assertResultsForShowColumnsForTableQuery(
+            "test",
+            new String[][] {
+                { "bar", "VARCHAR", "text" },
+                { "bar.keyword", "VARCHAR", "keyword" },
+                { "test", "STRUCT", "object" },
+                { "test.bar", "VARCHAR", "text" },
+                { "test.bar.keyword", "VARCHAR", "keyword" },
+                { "test.test", "VARCHAR", "text" },
+                { "test.test.keyword", "VARCHAR", "keyword" } }
+        );
     }
 
     public void testMultiLevelNestedMappings() throws Exception {
@@ -108,36 +113,38 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject("dep")
                 .field("type", "nested")
                 .startObject("properties")
-                    .startObject("dep_name")
-                        .field("type", "text")
-                    .endObject()
-                    .startObject("dep_no")
-                        .field("type", "text")
-                        .startObject("fields")
-                            .startObject("keyword")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                    .startObject("end_date")
-                        .field("type", "date")
-                    .endObject()
-                    .startObject("start_date")
-                        .field("type", "date")
-                    .endObject()
+                .startObject("dep_name")
+                .field("type", "text")
                 .endObject()
-            .endObject();
+                .startObject("dep_no")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("keyword")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("end_date")
+                .field("type", "date")
+                .endObject()
+                .startObject("start_date")
+                .field("type", "date")
+                .endObject()
+                .endObject()
+                .endObject();
         });
-        
+
         assertResultsForSysColumnsQuery(new String[][] {});
-        assertResultsForShowColumnsForTableQuery("test", new String[][] {
-            {"dep"               ,"STRUCT"         ,"nested"},
-            {"dep.dep_name"      ,"VARCHAR"        ,"text"},
-            {"dep.dep_no"        ,"VARCHAR"        ,"text"},
-            {"dep.dep_no.keyword","VARCHAR"        ,"keyword"},
-            {"dep.end_date"      ,"TIMESTAMP"      ,"datetime"},
-            {"dep.start_date"    ,"TIMESTAMP"      ,"datetime"},
-        });
+        assertResultsForShowColumnsForTableQuery(
+            "test",
+            new String[][] {
+                { "dep", "STRUCT", "nested" },
+                { "dep.dep_name", "VARCHAR", "text" },
+                { "dep.dep_no", "VARCHAR", "text" },
+                { "dep.dep_no.keyword", "VARCHAR", "keyword" },
+                { "dep.end_date", "TIMESTAMP", "datetime" },
+                { "dep.start_date", "TIMESTAMP", "datetime" }, }
+        );
     }
 
     public void testAliasWithIncompatibleTypes() throws Exception {
@@ -156,13 +163,14 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"      ,"id"      ,"KEYWORD"},
-            {"test1"      ,"value"   ,"DOUBLE"},
-            {"test2"      ,"id"      ,"TEXT"},
-            {"test2"      ,"value"   ,"DOUBLE"},
-            {"test_alias" ,"value"   ,"DOUBLE"}
-        });
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "id", "KEYWORD" },
+                { "test1", "value", "DOUBLE" },
+                { "test2", "id", "TEXT" },
+                { "test2", "value", "DOUBLE" },
+                { "test_alias", "value", "DOUBLE" } }
+        );
     }
 
     public void testAliasWithIncompatibleSearchableProperty() throws Exception {
@@ -193,19 +201,20 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test4").field("alias", "test_alias2").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"       ,"id"      ,"KEYWORD"},
-            {"test1"       ,"value"   ,"BOOLEAN"},
-            {"test2"       ,"id"      ,"KEYWORD"},
-            {"test2"       ,"value"   ,"BOOLEAN"},
-            {"test3"       ,"id"      ,"KEYWORD"},
-            {"test3"       ,"value"   ,"BOOLEAN"},
-            {"test4"       ,"id"      ,"KEYWORD"},
-            {"test4"       ,"value"   ,"BOOLEAN"},
-            {"test_alias"  ,"value"   ,"BOOLEAN"},
-            {"test_alias2" ,"id"      ,"KEYWORD"},
-            {"test_alias2" ,"value"   ,"BOOLEAN"}
-        });
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "id", "KEYWORD" },
+                { "test1", "value", "BOOLEAN" },
+                { "test2", "id", "KEYWORD" },
+                { "test2", "value", "BOOLEAN" },
+                { "test3", "id", "KEYWORD" },
+                { "test3", "value", "BOOLEAN" },
+                { "test4", "id", "KEYWORD" },
+                { "test4", "value", "BOOLEAN" },
+                { "test_alias", "value", "BOOLEAN" },
+                { "test_alias2", "id", "KEYWORD" },
+                { "test_alias2", "value", "BOOLEAN" } }
+        );
     }
 
     public void testAliasWithIncompatibleAggregatableProperty() throws Exception {
@@ -236,19 +245,20 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test4").field("alias", "test_alias2").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"      ,"id"      ,"TEXT"},
-            {"test1"      ,"value"   ,"DATETIME"},
-            {"test2"      ,"id"      ,"TEXT"},
-            {"test2"      ,"value"   ,"DATETIME"},
-            {"test3"      ,"id"      ,"TEXT"},
-            {"test3"      ,"value"   ,"DATETIME"},
-            {"test4"      ,"id"      ,"TEXT"},
-            {"test4"      ,"value"   ,"DATETIME"},
-            {"test_alias" ,"value"   ,"DATETIME"},
-            {"test_alias2","id"      ,"TEXT"},
-            {"test_alias2","value"   ,"DATETIME"},
-        });
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "id", "TEXT" },
+                { "test1", "value", "DATETIME" },
+                { "test2", "id", "TEXT" },
+                { "test2", "value", "DATETIME" },
+                { "test3", "id", "TEXT" },
+                { "test3", "value", "DATETIME" },
+                { "test4", "id", "TEXT" },
+                { "test4", "value", "DATETIME" },
+                { "test_alias", "value", "DATETIME" },
+                { "test_alias2", "id", "TEXT" },
+                { "test_alias2", "value", "DATETIME" }, }
+        );
     }
 
     public void testAliasWithIncompatibleTypesInSubfield() throws Exception {
@@ -295,19 +305,20 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"      ,"id"       ,"TEXT"},
-            {"test1"      ,"id.raw"   ,"KEYWORD"},
-            {"test1"      ,"value"    ,"DATETIME"},
-            {"test1"      ,"value.raw","LONG"},
-            {"test2"      ,"id"       ,"TEXT"},
-            {"test2"      ,"id.raw"   ,"INTEGER"},
-            {"test2"      ,"value"    ,"DATETIME"},
-            {"test2"      ,"value.raw","LONG"},
-            {"test_alias" ,"id"       ,"TEXT"},
-            {"test_alias" ,"value"    ,"DATETIME"},
-            {"test_alias" ,"value.raw","LONG"},
-        });
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "id", "TEXT" },
+                { "test1", "id.raw", "KEYWORD" },
+                { "test1", "value", "DATETIME" },
+                { "test1", "value.raw", "LONG" },
+                { "test2", "id", "TEXT" },
+                { "test2", "id.raw", "INTEGER" },
+                { "test2", "value", "DATETIME" },
+                { "test2", "value.raw", "LONG" },
+                { "test_alias", "id", "TEXT" },
+                { "test_alias", "value", "DATETIME" },
+                { "test_alias", "value.raw", "LONG" }, }
+        );
     }
 
     public void testAliasWithIncompatibleSearchablePropertyInSubfield() throws Exception {
@@ -355,19 +366,20 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"      ,"id"       ,"TEXT"},
-            {"test1"      ,"id.raw"   ,"INTEGER"},
-            {"test1"      ,"value"    ,"DATETIME"},
-            {"test1"      ,"value.raw","LONG"},
-            {"test2"      ,"id"       ,"TEXT"},
-            {"test2"      ,"id.raw"   ,"INTEGER"},
-            {"test2"      ,"value"    ,"DATETIME"},
-            {"test2"      ,"value.raw","LONG"},
-            {"test_alias" ,"id"       ,"TEXT"},
-            {"test_alias" ,"value"    ,"DATETIME"},
-            {"test_alias" ,"value.raw","LONG"},
-        });
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "id", "TEXT" },
+                { "test1", "id.raw", "INTEGER" },
+                { "test1", "value", "DATETIME" },
+                { "test1", "value.raw", "LONG" },
+                { "test2", "id", "TEXT" },
+                { "test2", "id.raw", "INTEGER" },
+                { "test2", "value", "DATETIME" },
+                { "test2", "value.raw", "LONG" },
+                { "test_alias", "id", "TEXT" },
+                { "test_alias", "value", "DATETIME" },
+                { "test_alias", "value.raw", "LONG" }, }
+        );
     }
 
     public void testAliasWithIncompatibleAggregatablePropertyInSubfield() throws Exception {
@@ -415,19 +427,20 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"      ,"id"       ,"TEXT"},
-            {"test1"      ,"id.raw"   ,"INTEGER"},
-            {"test1"      ,"value"    ,"IP"},
-            {"test1"      ,"value.raw","TEXT"},
-            {"test2"      ,"id"       ,"TEXT"},
-            {"test2"      ,"id.raw"   ,"INTEGER"},
-            {"test2"      ,"value"    ,"IP"},
-            {"test2"      ,"value.raw","TEXT"},
-            {"test_alias" ,"id"       ,"TEXT"},
-            {"test_alias" ,"value"    ,"IP"},
-            {"test_alias" ,"value.raw","TEXT"},
-        });
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "id", "TEXT" },
+                { "test1", "id.raw", "INTEGER" },
+                { "test1", "value", "IP" },
+                { "test1", "value.raw", "TEXT" },
+                { "test2", "id", "TEXT" },
+                { "test2", "id.raw", "INTEGER" },
+                { "test2", "value", "IP" },
+                { "test2", "value.raw", "TEXT" },
+                { "test_alias", "id", "TEXT" },
+                { "test_alias", "value", "IP" },
+                { "test_alias", "value.raw", "TEXT" }, }
+        );
     }
 
     public void testAliasWithSubfieldsAndDifferentRootFields() throws Exception {
@@ -461,15 +474,16 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"      ,"id"      ,"KEYWORD"},
-            {"test1"      ,"name"    ,"TEXT"},
-            {"test1"      ,"name.raw","KEYWORD"},
-            {"test2"      ,"id"      ,"KEYWORD"},
-            {"test2"      ,"name"    ,"KEYWORD"},
-            {"test2"      ,"name.raw","KEYWORD"},
-            {"test_alias" ,"id"      ,"KEYWORD"}
-        });
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "id", "KEYWORD" },
+                { "test1", "name", "TEXT" },
+                { "test1", "name.raw", "KEYWORD" },
+                { "test2", "id", "KEYWORD" },
+                { "test2", "name", "KEYWORD" },
+                { "test2", "name.raw", "KEYWORD" },
+                { "test_alias", "id", "KEYWORD" } }
+        );
     }
 
     public void testAliasWithSubfieldsAndDifferentRootFields_AndObjects() throws Exception {
@@ -478,90 +492,92 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject("name")
                 .field("type", "text")
                 .startObject("fields")
-                    .startObject("raw")
-                        .field("type", "keyword")
-                    .endObject()
+                .startObject("raw")
+                .field("type", "keyword")
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject();
             builder.startObject("address")
                 .startObject("properties")
-                    .startObject("city")
-                        .field("type", "text")
-                        .startObject("fields")
-                            .startObject("raw")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                    .startObject("county")
-                        .field("type", "keyword")
-                        .startObject("fields")
-                            .startObject("raw")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-               .endObject()
-            .endObject();
+                .startObject("city")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("county")
+                .field("type", "keyword")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
         });
-        
+
         createIndexWithMapping("test2", builder -> {
             builder.startObject("id").field("type", "keyword").endObject();
             builder.startObject("name")
                 .field("type", "keyword")                               // <-------- first difference in mapping
                 .startObject("fields")
-                    .startObject("raw")
-                        .field("type", "keyword")
-                    .endObject()
+                .startObject("raw")
+                .field("type", "keyword")
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject();
             builder.startObject("address")
                 .startObject("properties")
-                    .startObject("city")
-                        .field("type", "text")
-                        .startObject("fields")
-                            .startObject("raw")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                    .startObject("county")
-                        .field("type", "text")                          // <-------- second difference in mapping
-                        .startObject("fields")
-                            .startObject("raw")
-                                .field("type", "keyword")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-               .endObject()
-            .endObject();
+                .startObject("city")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("county")
+                .field("type", "text")                          // <-------- second difference in mapping
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
         });
 
         createAliases(builder -> {
             builder.startObject().startObject("add").field("index", "test1").field("alias", "test_alias").endObject().endObject();
-            builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
+            builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject();
         });
-        
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"      ,"address.city"      ,"TEXT"},
-            {"test1"      ,"address.city.raw"  ,"KEYWORD"},
-            {"test1"      ,"address.county"    ,"KEYWORD"},
-            {"test1"      ,"address.county.raw","KEYWORD"},
-            {"test1"      ,"id"                ,"KEYWORD"},
-            {"test1"      ,"name"              ,"TEXT"},
-            {"test1"      ,"name.raw"          ,"KEYWORD"},
-            {"test2"      ,"address.city"      ,"TEXT"},
-            {"test2"      ,"address.city.raw"  ,"KEYWORD"},
-            {"test2"      ,"address.county"    ,"TEXT"},
-            {"test2"      ,"address.county.raw","KEYWORD"},
-            {"test2"      ,"id"                ,"KEYWORD"},
-            {"test2"      ,"name"              ,"KEYWORD"},
-            {"test2"      ,"name.raw"          ,"KEYWORD"},
-            {"test_alias" ,"address.city"      ,"TEXT"},
-            {"test_alias" ,"address.city.raw"  ,"KEYWORD"},
-            {"test_alias" ,"id"                ,"KEYWORD"}
+
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "address.city", "TEXT" },
+                { "test1", "address.city.raw", "KEYWORD" },
+                { "test1", "address.county", "KEYWORD" },
+                { "test1", "address.county.raw", "KEYWORD" },
+                { "test1", "id", "KEYWORD" },
+                { "test1", "name", "TEXT" },
+                { "test1", "name.raw", "KEYWORD" },
+                { "test2", "address.city", "TEXT" },
+                { "test2", "address.city.raw", "KEYWORD" },
+                { "test2", "address.county", "TEXT" },
+                { "test2", "address.county.raw", "KEYWORD" },
+                { "test2", "id", "KEYWORD" },
+                { "test2", "name", "KEYWORD" },
+                { "test2", "name.raw", "KEYWORD" },
+                { "test_alias", "address.city", "TEXT" },
+                { "test_alias", "address.city.raw", "KEYWORD" },
+                { "test_alias", "id", "KEYWORD" }
             // address.county gets removed since it has conflicting mappings
-        });
+            }
+        );
     }
 
     public void testAliasWithSubfieldsAndDifferentRootFields_AndObjects_2() throws Exception {
@@ -570,138 +586,140 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject("name")
                 .field("type", "text")
                 .startObject("fields")
-                    .startObject("raw")
-                        .field("type", "keyword")
-                    .endObject()
+                .startObject("raw")
+                .field("type", "keyword")
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject();
             builder.startObject("address")
                 .startObject("properties")
-                    .startObject("home")
-                        .startObject("properties")
-                            .startObject("city")
-                                .field("type", "text")
-                                .startObject("fields")
-                                    .startObject("raw")
-                                        .field("type", "keyword")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject("county")
-                                .field("type", "keyword")
-                                .startObject("fields")
-                                    .startObject("raw")
-                                        .field("type", "keyword")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                    .startObject("work")
-                        .startObject("properties")
-                            .startObject("name")
-                                .field("type", "keyword")
-                                .startObject("fields")
-                                    .startObject("raw")
-                                        .field("type", "text")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject("location")
-                                .field("type", "text")
-                            .endObject()
-                        .endObject()
-                   .endObject()
-               .endObject()
-            .endObject();
+                .startObject("home")
+                .startObject("properties")
+                .startObject("city")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("county")
+                .field("type", "keyword")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("work")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("location")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
         });
-        
+
         createIndexWithMapping("test2", builder -> {
             builder.startObject("id").field("type", "keyword").endObject();
             builder.startObject("name")
                 .field("type", "keyword")                               // <-------- first difference in mapping
                 .startObject("fields")
-                    .startObject("raw")
-                        .field("type", "keyword")
-                    .endObject()
+                .startObject("raw")
+                .field("type", "keyword")
                 .endObject()
-            .endObject();
+                .endObject()
+                .endObject();
             builder.startObject("address")
                 .startObject("properties")
-                    .startObject("home")
-                        .startObject("properties")
-                            .startObject("city")
-                                .field("type", "text")
-                                .startObject("fields")
-                                    .startObject("raw")
-                                        .field("type", "keyword")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject("county")
-                                .field("type", "text")                  // <-------- second difference in mapping
-                                .startObject("fields")
-                                    .startObject("raw")
-                                        .field("type", "keyword")
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                    .startObject("work")
-                        .startObject("properties")
-                            .startObject("name")
-                                .field("type", "keyword")
-                                .startObject("fields")
-                                    .startObject("raw")
-                                        .field("type", "keyword")       // <-------- third difference in mapping
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                            .startObject("location")
-                                .field("type", "text")
-                            .endObject()
-                        .endObject()
-                   .endObject()
-               .endObject()
-            .endObject();
+                .startObject("home")
+                .startObject("properties")
+                .startObject("city")
+                .field("type", "text")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("county")
+                .field("type", "text")                  // <-------- second difference in mapping
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("work")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "keyword")       // <-------- third difference in mapping
+                .endObject()
+                .endObject()
+                .endObject()
+                .startObject("location")
+                .field("type", "text")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
         });
 
         createAliases(builder -> {
             builder.startObject().startObject("add").field("index", "test1").field("alias", "test_alias").endObject().endObject();
-            builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject(); 
+            builder.startObject().startObject("add").field("index", "test2").field("alias", "test_alias").endObject().endObject();
         });
-        
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"test1"          ,"address.home.city"      ,"TEXT"},
-            {"test1"          ,"address.home.city.raw"  ,"KEYWORD"},
-            {"test1"          ,"address.home.county"    ,"KEYWORD"},// field type is different and its children will not make it in alias
-            {"test1"          ,"address.home.county.raw","KEYWORD"},
-            {"test1"          ,"address.work.location"  ,"TEXT"},
-            {"test1"          ,"address.work.name"      ,"KEYWORD"},
-            {"test1"          ,"address.work.name.raw"  ,"TEXT"},   // field type is different and it will not make it in alias
-            {"test1"          ,"id"                     ,"KEYWORD"},
-            {"test1"          ,"name"                   ,"TEXT"},
-            {"test1"          ,"name.raw"               ,"KEYWORD"},
-            {"test2"          ,"address.home.city"      ,"TEXT"},
-            {"test2"          ,"address.home.city.raw"  ,"KEYWORD"},
-            {"test2"          ,"address.home.county"    ,"TEXT"},   // field type is different and its children will not make it in alias
-            {"test2"          ,"address.home.county.raw","KEYWORD"},
-            {"test2"          ,"address.work.location"  ,"TEXT"},
-            {"test2"          ,"address.work.name"      ,"KEYWORD"},
-            {"test2"          ,"address.work.name.raw"  ,"KEYWORD"},// field type is different and it will not make it in alias
-            {"test2"          ,"id"                     ,"KEYWORD"},
-            {"test2"          ,"name"                   ,"KEYWORD"},
-            {"test2"          ,"name.raw"               ,"KEYWORD"},
-            {"test_alias"     ,"address.home.city"      ,"TEXT"},
-            {"test_alias"     ,"address.home.city.raw"  ,"KEYWORD"},
-            {"test_alias"     ,"address.work.location"  ,"TEXT"},
-            {"test_alias"     ,"address.work.name"      ,"KEYWORD"},
-            {"test_alias"     ,"id"                     ,"KEYWORD"}
+
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "test1", "address.home.city", "TEXT" },
+                { "test1", "address.home.city.raw", "KEYWORD" },
+                { "test1", "address.home.county", "KEYWORD" },// field type is different and its children will not make it in alias
+                { "test1", "address.home.county.raw", "KEYWORD" },
+                { "test1", "address.work.location", "TEXT" },
+                { "test1", "address.work.name", "KEYWORD" },
+                { "test1", "address.work.name.raw", "TEXT" },   // field type is different and it will not make it in alias
+                { "test1", "id", "KEYWORD" },
+                { "test1", "name", "TEXT" },
+                { "test1", "name.raw", "KEYWORD" },
+                { "test2", "address.home.city", "TEXT" },
+                { "test2", "address.home.city.raw", "KEYWORD" },
+                { "test2", "address.home.county", "TEXT" },   // field type is different and its children will not make it in alias
+                { "test2", "address.home.county.raw", "KEYWORD" },
+                { "test2", "address.work.location", "TEXT" },
+                { "test2", "address.work.name", "KEYWORD" },
+                { "test2", "address.work.name.raw", "KEYWORD" },// field type is different and it will not make it in alias
+                { "test2", "id", "KEYWORD" },
+                { "test2", "name", "KEYWORD" },
+                { "test2", "name.raw", "KEYWORD" },
+                { "test_alias", "address.home.city", "TEXT" },
+                { "test_alias", "address.home.city.raw", "KEYWORD" },
+                { "test_alias", "address.work.location", "TEXT" },
+                { "test_alias", "address.work.name", "KEYWORD" },
+                { "test_alias", "id", "KEYWORD" }
             // address.home.county gets removed since it has conflicting mappings
-        });
+            }
+        );
     }
-    
+
     public void testMultiIndicesMultiAlias() throws Exception {
         createIndexWithMapping("test2", builder -> {
             builder.startObject("id").field("type", "keyword").endObject();
@@ -730,24 +748,84 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
             builder.startObject().startObject("add").field("index", "test4").field("alias", "alias3").endObject().endObject();
         });
 
-        assertResultsForSysColumnsQuery(new String[][] {
-            {"alias1","id"    ,"KEYWORD"},
-            {"alias1","name"  ,"KEYWORD"},
-            {"alias1","number","LONG"},
-            {"alias2","id"    ,"KEYWORD"},
-            {"alias2","number","LONG"},
-            {"alias3","id"    ,"KEYWORD"},
-            {"test1" ,"id"    ,"KEYWORD"},
-            {"test1" ,"name"  ,"KEYWORD"},
-            {"test1" ,"number","LONG"},
-            {"test2" ,"id"    ,"KEYWORD"},
-            {"test2" ,"name"  ,"TEXT"},
-            {"test3" ,"id"    ,"KEYWORD"},
-            {"test3" ,"name"  ,"KEYWORD"},
-            {"test3" ,"number","LONG"},
-            {"test4" ,"id"    ,"KEYWORD"},
-            {"test4" ,"name"  ,"TEXT"}
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "alias1", "id", "KEYWORD" },
+                { "alias1", "name", "KEYWORD" },
+                { "alias1", "number", "LONG" },
+                { "alias2", "id", "KEYWORD" },
+                { "alias2", "number", "LONG" },
+                { "alias3", "id", "KEYWORD" },
+                { "test1", "id", "KEYWORD" },
+                { "test1", "name", "KEYWORD" },
+                { "test1", "number", "LONG" },
+                { "test2", "id", "KEYWORD" },
+                { "test2", "name", "TEXT" },
+                { "test3", "id", "KEYWORD" },
+                { "test3", "name", "KEYWORD" },
+                { "test3", "number", "LONG" },
+                { "test4", "id", "KEYWORD" },
+                { "test4", "name", "TEXT" } }
+        );
+    }
+
+    public void testMultiIndicesMultiAliasWithConstantKeyword() throws Exception {
+        createIndexWithMapping("test2", builder -> {
+            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("name").field("type", "text").endObject();
+            builder.startObject("ck").field("type", "constant_keyword").endObject();
         });
+        createIndexWithMapping("test4", builder -> {
+            builder.startObject("id").field("type", "constant_keyword").endObject();
+            builder.startObject("name").field("type", "text").field("index", false).endObject();
+            builder.startObject("ck").field("type", "constant_keyword").endObject();
+        });
+        createIndexWithMapping("test1", builder -> {
+            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("name").field("type", "keyword").endObject();
+            builder.startObject("number").field("type", "long").endObject();
+        });
+        createIndexWithMapping("test3", builder -> {
+            builder.startObject("id").field("type", "keyword").endObject();
+            builder.startObject("name").field("type", "keyword").endObject();
+            builder.startObject("number").field("type", "long").endObject();
+        });
+
+        createAliases(builder -> {
+            builder.startObject().startObject("add").field("index", "test1").field("alias", "alias1").endObject().endObject();
+            builder.startObject().startObject("add").field("index", "test1").field("alias", "alias2").endObject().endObject();
+            builder.startObject().startObject("add").field("index", "test2").field("alias", "alias2").endObject().endObject();
+            builder.startObject().startObject("add").field("index", "test2").field("alias", "alias3").endObject().endObject();
+            builder.startObject().startObject("add").field("index", "test4").field("alias", "alias3").endObject().endObject();
+        });
+
+        assertResultsForSysColumnsQuery(
+            new String[][] {
+                { "alias1", "id", "KEYWORD" },
+                { "alias1", "name", "KEYWORD" },
+                { "alias1", "number", "LONG" },
+                { "alias2", "ck", "CONSTANT_KEYWORD" },// <-------- here "name" is missing because their field types are different
+                { "alias2", "id", "KEYWORD" },
+                { "alias2", "number", "LONG" },
+                { "alias3", "ck", "CONSTANT_KEYWORD" },
+                { "alias3", "id", "KEYWORD" },         // <-------- here "id" is regarded as KEYWORD in both indices test2 and test4
+                { "test1", "id", "KEYWORD" },
+                { "test1", "name", "KEYWORD" },
+                { "test1", "number", "LONG" },
+                { "test2", "ck", "CONSTANT_KEYWORD" },
+                { "test2", "id", "KEYWORD" },
+                { "test2", "name", "TEXT" },
+                { "test3", "id", "KEYWORD" },
+                { "test3", "name", "KEYWORD" },
+                { "test3", "number", "LONG" },
+                { "test4", "ck", "CONSTANT_KEYWORD" },
+                { "test4", "id", "CONSTANT_KEYWORD" },
+                { "test4", "name", "TEXT" } }
+        );
+        assertResultsForSysColumnsForTableQuery(
+            "alias%",
+            new String[][] { { "alias%", "ck", "CONSTANT_KEYWORD" }, { "alias%", "id", "KEYWORD" }, { "alias%", "number", "LONG" } }
+        );
     }
 
     private static void createIndexWithMapping(String indexName, CheckedConsumer<XContentBuilder, IOException> mapping) throws Exception {

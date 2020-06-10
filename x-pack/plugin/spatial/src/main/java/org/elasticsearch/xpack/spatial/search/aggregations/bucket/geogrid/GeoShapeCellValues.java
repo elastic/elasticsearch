@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 
 import java.io.IOException;
@@ -51,12 +52,12 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
 
     void resizeCell(int newSize) {
         int oldValuesLength = values.length;
-        resize(newSize);
-        int newValuesLength = values.length;
-        if (newValuesLength > oldValuesLength) {
+        if (values.length < newSize) {
+            int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
             long bytesDiff = (newValuesLength - oldValuesLength) * Long.BYTES;
             circuitBreakerConsumer.accept(bytesDiff);
         }
+        resize(newSize);
     }
 
     /**

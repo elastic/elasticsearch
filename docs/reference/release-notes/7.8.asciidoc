@@ -8,18 +8,14 @@ Also see <<breaking-changes-7.8,Breaking changes in 7.8>>.
 === Breaking changes
 
 Aggregations::
-* Scripts used in `value_count` will now receive a number if they are counting
-  a numeric field and a `GeoPoint` if they are counting a `geo_point` fields.
-  They used to always receive the `String` representation of those values.
-  {pull}54854[#54854]
+* `value_count` aggregation optimization {pull}54854[#54854]
 
 Features/Indices APIs::
-* The privilege named `indices:admin/create` will no longer allow the auto
-  creation of indices.  Use `create_index` instead. {pull}55858[#55858]
+* Add auto create action {pull}55858[#55858]
 
 Mapping::
-* Disallow changing 'enabled' on the root mapper. {pull}54463[#54463] (issue: {issue}33933[#33933])
-* Fix updating include_in_parent/include_in_root of nested field. {pull}54386[#54386] (issue: {issue}53792[#53792])
+* Disallow changing 'enabled' on the root mapper {pull}54463[#54463] (issue: {issue}33933[#33933])
+* Fix updating include_in_parent/include_in_root of nested field {pull}54386[#54386] (issue: {issue}53792[#53792])
 
 
 [[deprecation-7.8.0]]
@@ -27,7 +23,7 @@ Mapping::
 === Deprecations
 
 Authentication::
-* Deprecate the kibana reserved user; introduce kibana_system user {pull}54967[#54967]
+* Deprecate the `kibana` reserved user; introduce `kibana_system` user {pull}54967[#54967]
 
 Cluster Coordination::
 * Voting config exclusions should work with absent nodes {pull}50836[#50836] (issue: {issue}47990[#47990])
@@ -56,8 +52,8 @@ Infra/Plugins::
 === New features
 
 Aggregations::
-* Add https://en.wikipedia.org/wiki/Student%27s_t-test[Student's t-test] aggregation support {pull}54469[#54469] (issue: {issue}53692[#53692])
-* Add support for filters to T-Test aggregation {pull}54980[#54980] (issue: {issue}53692[#53692])
+* Add Student's t-test aggregation support {pull}54469[#54469] (issue: {issue}53692[#53692])
+* Add support for filters to t-test aggregation {pull}54980[#54980] (issue: {issue}53692[#53692])
 * Histogram field type support for Sum aggregation {pull}55681[#55681] (issue: {issue}53285[#53285])
 * Histogram field type support for ValueCount and Avg aggregations {pull}55933[#55933] (issue: {issue}53285[#53285])
 
@@ -68,7 +64,7 @@ Geo::
 * Add geo_bounds aggregation support for geo_shape {pull}55328[#55328]
 * Add geo_shape support for geotile_grid and geohash_grid {pull}55966[#55966]
 * Add geo_shape support for the geo_centroid aggregation {pull}55602[#55602]
-* Add new point field. {pull}53804[#53804]
+* Add new point field {pull}53804[#53804]
 
 SQL::
 * Implement DATETIME_FORMAT function for date/time formatting {pull}54832[#54832] (issue: {issue}53714[#53714])
@@ -154,8 +150,6 @@ Infra/Core::
 Infra/Packaging::
 * Make Windows JAVA_HOME handling consistent with Linux {pull}55261[#55261] (issue: {issue}55134[#55134])
 
-Infra/Plugins::
-* Switch role pluggability to use SPI {pull}54370[#54370]
 
 Infra/REST API::
 * Add validation to the usage service {pull}54617[#54617]
@@ -189,21 +183,20 @@ Recovery::
 
 SQL::
 * Add BigDecimal support to JDBC {pull}56015[#56015] (issue: {issue}43806[#43806])
-* Allow intervals to be passed as request parameters {pull}52273[#52273] (issue: {issue}45915[#45915])
 * Drop BASE TABLE type in favour for just TABLE {pull}54836[#54836]
 * Relax version lock between server and clients {pull}56148[#56148]
 
 Search::
 * Consolidate DelayableWriteable {pull}55932[#55932]
 * Exists queries to MatchNoneQueryBuilder when the field is unmapped  {pull}54857[#54857]
-* Rewrite wrapper queries to match_none if possible. {pull}55271[#55271]
+* Rewrite wrapper queries to match_none if possible {pull}55271[#55271]
 * SearchService#canMatch takes into consideration the alias filter {pull}55120[#55120] (issue: {issue}55090[#55090])
 
 Snapshot/Restore::
 * Add GCS support for searchable snapshots {pull}55403[#55403]
 * Allocate searchable snapshots with the balancer {pull}54889[#54889] (issues: {issue}50999[#50999], {issue}54729[#54729])
-* Allow Bulk Snapshot Deletes to Abort {pull}56009[#56009] (issue: {issue}55773[#55773])
-* Allow Deleting Multiple Snapshots at Once {pull}55474[#55474]
+* Allow bulk snapshot deletes to abort {pull}56009[#56009] (issue: {issue}55773[#55773])
+* Allow deleting multiple snapshots at once {pull}55474[#55474]
 * Allow searching of snapshot taken while indexing {pull}55511[#55511] (issue: {issue}50999[#50999])
 * Allow to prewarm the cache for searchable snapshot shards {pull}55322[#55322]
 * Enable prewarming by default for searchable snapshots {pull}56201[#56201] (issue: {issue}55952[#55952])
@@ -237,7 +230,7 @@ Aggregations::
 * Clean up how pipeline aggs check for multi-bucket {pull}54161[#54161] (issue: {issue}53215[#53215])
 * Fix auto_date_histogram serialization bug {pull}54447[#54447] (issues: {issue}54382[#54382], {issue}54429[#54429])
 * Fix error massage for unknown value type {pull}55821[#55821] (issue: {issue}55727[#55727])
-* Fix scripted metric in ccs {pull}54776[#54776] (issue: {issue}54758[#54758])
+* Fix scripted metric in CCS {pull}54776[#54776] (issue: {issue}54758[#54758])
 * Use Decimal formatter for Numeric ValuesSourceTypes {pull}54366[#54366] (issue: {issue}54365[#54365])
 
 Allocation::
@@ -297,6 +290,5 @@ Transform::
 
 Infra/Scripting::
 * Don't double-wrap expression values {pull}54432[#54432] (issue: {issue}53661[#53661])
-
 
 

@@ -38,7 +38,7 @@ public class RemoveProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
         Processor processor = new RemoveProcessor(randomAlphaOfLength(10),
-            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)), false);
+                null, Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)), false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(field), equalTo(false));
     }

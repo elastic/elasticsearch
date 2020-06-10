@@ -53,8 +53,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     /**
      * Processor that evaluates a script with an ingest document in its context
-     *
-     * @param tag The processor's tag.
+     *  @param tag The processor's tag.
      * @param description The processor's description.
      * @param script The {@link Script} to execute.
      * @param scriptService The {@link ScriptService} used to execute the script.

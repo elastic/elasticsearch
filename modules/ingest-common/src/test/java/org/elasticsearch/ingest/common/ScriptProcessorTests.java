@@ -65,7 +65,7 @@ public class ScriptProcessorTests extends ESTestCase {
         document.put("bytes_out", randomInt());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, scriptService);
 
         processor.execute(ingestDocument);
 

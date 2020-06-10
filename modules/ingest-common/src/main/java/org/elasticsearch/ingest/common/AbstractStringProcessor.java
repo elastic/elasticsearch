@@ -114,7 +114,8 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             return newProcessor(tag, description, config, field, ignoreMissing, targetField);
         }
 
-        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, String description, Map<String, Object> config, String field,
+        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, String description,
+                                                                   Map<String, Object> config, String field,
                                                                    boolean ignoreMissing, String targetField);
     }
 }

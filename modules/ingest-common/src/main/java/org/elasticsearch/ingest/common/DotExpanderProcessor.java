@@ -33,7 +33,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
     private final String path;
     private final String field;
 
-    DotExpanderProcessor(String tag, String description, String path, String field) {
+    DotExpanderProcessor(String tag, String description, String field, String path) {
         super(tag, description);
         this.path = path;
         this.field = field;

@@ -66,7 +66,8 @@ public final class DissectProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public DissectProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description, Map<String, Object> config) {
+        public DissectProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
+                                       Map<String, Object> config) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String pattern = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pattern");
             String appendSeparator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "append_separator", "");

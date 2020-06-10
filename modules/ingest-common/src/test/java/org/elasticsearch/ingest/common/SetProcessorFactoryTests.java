@@ -106,7 +106,8 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("field", "{{field1}}");
         config.put("value", "value1");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }

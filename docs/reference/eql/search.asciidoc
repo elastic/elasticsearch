@@ -453,7 +453,7 @@ The following request specifies `event.start` as the tiebreaker field.
 ----
 GET /sec_logs/_eql/search
 {
-  "tie_breaker_field": "event.id",
+  "tiebreaker_field": "event.id",
   "query": """
     process where process.name == "cmd.exe" and stringContains(process.path, "System32")
   """

@@ -178,6 +178,33 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         assertThat(dateField.getValue(), equalTo("1990/12/29"));
     }
 
+    public void testIgnoreAbove() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "keyword")
+                    .field("ignore_above", 20)
+                .endObject()
+            .endObject()
+        .endObject();
+
+        IndexService indexService = createIndex("index", Settings.EMPTY, mapping);
+        MapperService mapperService = indexService.mapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .array("field", "value", "other_value", "really_really_long_value")
+            .endObject();
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "field");
+        DocumentField field = fields.get("field");
+        assertThat(field.getValues().size(), equalTo(2));
+
+        source = XContentFactory.jsonBuilder().startObject()
+            .array("field", "really_really_long_value")
+            .endObject();
+        fields = retrieveFields(mapperService, source, "field");
+        assertFalse(fields.containsKey("field"));
+    }
+
     public void testFieldAliases() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")

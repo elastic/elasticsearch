@@ -227,14 +227,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    @Override
-    protected String parseSourceValue(Object value, String format) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
-        }
-        return value.toString();
-    }
-
     public static final class KeywordFieldType extends StringFieldType {
 
         boolean hasNorms;
@@ -405,6 +397,20 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
+
+    @Override
+    protected String parseSourceValue(Object value, String format) {
+        if (format != null) {
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+        }
+
+        String keywordValue = value.toString();
+        if (keywordValue.length() > ignoreAbove) {
+            return null;
+        }
+        return keywordValue;
+    }
+
     @Override
     protected String contentType() {
         return CONTENT_TYPE;

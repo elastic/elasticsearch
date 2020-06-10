@@ -494,5 +494,12 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase<ICU
         assertEquals("value", mapper.parseSourceValue("value", null));
         assertEquals("42", mapper.parseSourceValue(42L, null));
         assertEquals("true", mapper.parseSourceValue(true, null));
+
+        ICUCollationKeywordFieldMapper ignoreAboveMapper = new ICUCollationKeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context);
+        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
+        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
+        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
     }
 }

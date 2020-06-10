@@ -774,6 +774,23 @@ public class WildcardFieldMapperTests extends ESTestCase {
         return result.toString();
     }
 
+    public void testParseSourceValue() {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
+        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
+
+        WildcardFieldMapper mapper = new WildcardFieldMapper.Builder("field").build(context);
+        assertEquals("value", mapper.parseSourceValue("value", null));
+        assertEquals("42", mapper.parseSourceValue(42L, null));
+        assertEquals("true", mapper.parseSourceValue(true, null));
+
+        WildcardFieldMapper ignoreAboveMapper = new WildcardFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context);
+        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
+        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
+        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
+    }
+
     protected MappedFieldType provideMappedFieldType(String name) {
         if (name.equals(WILDCARD_FIELD_NAME)) {
             return wildcardFieldType.fieldType();

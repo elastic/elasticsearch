@@ -48,8 +48,18 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String matchField,
         int maxMatches
     ) {
-        this(tag, description, createSearchRunner(client), policyName, field, targetField, ignoreMissing, overrideEnabled, matchField,
-            maxMatches);
+        this(
+            tag,
+            description,
+            createSearchRunner(client),
+            policyName,
+            field,
+            targetField,
+            ignoreMissing,
+            overrideEnabled,
+            matchField,
+            maxMatches
+        );
     }
 
     protected AbstractEnrichProcessor(

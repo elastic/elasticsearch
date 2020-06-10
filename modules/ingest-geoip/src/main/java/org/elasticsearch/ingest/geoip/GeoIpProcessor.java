@@ -73,8 +73,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     /**
      * Construct a geo-IP processor.
-     *
-     * @param tag           the processor tag
+     *  @param tag           the processor tag
      * @param description   the processor description
      * @param field         the source field to geo-IP map
      * @param lazyLoader    a supplier of a geo-IP database reader; ideally this is lazily-loaded once on first use
@@ -86,8 +85,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      */
     GeoIpProcessor(
         final String tag,
-        final String description,
-        final String field,
+        String description, final String field,
         final DatabaseReaderLazyLoader lazyLoader,
         final String targetField,
         final Set<Property> properties,

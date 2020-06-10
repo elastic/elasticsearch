@@ -271,7 +271,8 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config) {
+        public InferenceProcessor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                         Map<String, Object> config) {
 
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException("Max number of inference processors reached, total inference processors [{}]. " +

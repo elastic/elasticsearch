@@ -633,13 +633,20 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
     public void testParseSourceValue() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
         Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-        KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
 
+        KeywordFieldMapper mapper = new KeywordFieldMapper.Builder("field").build(context);
         assertEquals("value", mapper.parseSourceValue("value", null));
         assertEquals("42", mapper.parseSourceValue(42L, null));
         assertEquals("true", mapper.parseSourceValue(true, null));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.parseSourceValue(true, "format"));
         assertEquals("Field [field] of type [keyword] doesn't support formats.", e.getMessage());
+
+        KeywordFieldMapper ignoreAboveMapper = new KeywordFieldMapper.Builder("field")
+            .ignoreAbove(4)
+            .build(context);
+        assertNull(ignoreAboveMapper.parseSourceValue("value", null));
+        assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
+        assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
     }
 }

@@ -28,27 +28,36 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.indices.DataStreamIT;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.search.SearchHit;
+import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
-    public void testSnapshotAndRestore() throws Exception {
-        Client client = client();
+    private static final String DS_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds", 1);
+    private static final String DS2_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds2", 1);
+    private static final Map<String, Integer> DOCUMENT_SOURCE = Collections.singletonMap("@timestamp", 123);
+    public static final String REPO = "repo";
+    public static final String SNAPSHOT = "snap";
+    private Client client;
 
+    private String id;
+
+    @Before
+    public void setup() throws Exception {
+        client = client();
         Path location = randomRepoPath();
-        createRepository("repo", "fs", location);
+        createRepository(REPO, "fs", location);
 
         DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
 
@@ -60,15 +69,17 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         response = client.admin().indices().createDataStream(request).get();
         assertTrue(response.isAcknowledged());
 
-        Map<String, Integer> source = Collections.singletonMap("@timestamp", 123);
         IndexResponse indexResponse = client.prepareIndex("ds")
             .setOpType(DocWriteRequest.OpType.CREATE)
-            .setSource(source)
+            .setSource(DOCUMENT_SOURCE)
             .get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        id = indexResponse.getId();
+    }
 
+    public void testSnapshotAndRestore() throws Exception {
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
-            .prepareCreateSnapshot("repo", "snap")
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
             .setWaitForCompletion(true)
             .setIndices("ds")
             .setIncludeGlobalState(false)
@@ -77,59 +88,68 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots("repo").setSnapshots("snap").get();
-        List<SnapshotInfo> snap = snapshot.getSnapshots("repo");
+        GetSnapshotsResponse snapshot = client.admin().cluster().prepareGetSnapshots(REPO).setSnapshots(SNAPSHOT).get();
+        List<SnapshotInfo> snap = snapshot.getSnapshots(REPO);
         assertEquals(1, snap.size());
-        assertEquals(Collections.singletonList(".ds-ds-000001"), snap.get(0).indices());
+        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), snap.get(0).indices());
 
         assertTrue(client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).get().isAcknowledged());
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
-            .prepareRestoreSnapshot("repo", "snap")
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
             .setWaitForCompletion(true)
             .setIndices("ds")
             .get();
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        GetResponse getResponse = client.prepareGet(".ds-ds-000001", indexResponse.getId()).get();
-        assertEquals(source, getResponse.getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
 
         GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
-        assertEquals(".ds-ds-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
-        assertEquals(source, client.prepareSearch("ds").get().getHits().getHits()[0].getSourceAsMap());
+        assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getIndices().get(0).getName());
+    }
 
-        restoreSnapshotResponse = client.admin().cluster()
-            .prepareRestoreSnapshot("repo", "snap")
+    public void testRename() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        expectThrows(SnapshotRestoreException.class, () -> client.admin().cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get());
+
+        client.admin().cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
             .setWaitForCompletion(true)
             .setIndices("ds")
             .setRenamePattern("ds")
             .setRenameReplacement("ds2")
             .get();
 
-        ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds2")).get();
+        GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds2")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
-        assertEquals(".ds-ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
-        assertEquals(source, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
+        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getIndices().get(0).getName());
+        assertEquals(DOCUMENT_SOURCE, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS2_BACKING_INDEX_NAME, id).get().getSourceAsMap());
     }
 
     public void testWildcards() throws Exception {
-        Client client = client();
-
-        Path location = randomRepoPath();
-        createRepository("repo", "fs", location);
-
-        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
-
-        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
-        assertTrue(response.isAcknowledged());
-
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
-            .prepareCreateSnapshot("repo", "snap2")
+            .prepareCreateSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
             .setIndices("d*")
             .setIncludeGlobalState(false)
@@ -139,7 +159,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, status);
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
-            .prepareRestoreSnapshot("repo", "snap2")
+            .prepareRestoreSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
             .setIndices("d*")
             .setRenamePattern("ds")
@@ -151,51 +171,29 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         GetDataStreamAction.Response ds = client.admin().indices().getDataStreams(new GetDataStreamAction.Request("ds2")).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getIndices().size());
-        assertEquals(".ds-ds2-000001", ds.getDataStreams().get(0).getIndices().get(0).getName());
+        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getIndices().get(0).getName());
     }
 
     public void testDataStreamNotStoredWhenIndexRequested() throws Exception {
-        Client client = client();
-
-        Path location = randomRepoPath();
-        createRepository("repo", "fs", location);
-
-        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
-
-        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
-        assertTrue(response.isAcknowledged());
-
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
-            .prepareCreateSnapshot("repo", "snap2")
+            .prepareCreateSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
-            .setIndices(".ds-ds-000001")
+            .setIndices(DS_BACKING_INDEX_NAME)
             .setIncludeGlobalState(false)
             .get();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
         expectThrows(Exception.class, () -> client.admin().cluster()
-            .prepareRestoreSnapshot("repo", "snap2")
+            .prepareRestoreSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
             .setIndices("ds")
             .get());
     }
 
     public void testDataStreamNotRestoredWhenIndexRequested() throws Exception {
-        Client client = client();
-
-        Path location = randomRepoPath();
-        createRepository("repo", "fs", location);
-
-        DataStreamIT.createIndexTemplate("t1", "@timestamp", "ds", "other-ds");
-
-        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
-        AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();
-        assertTrue(response.isAcknowledged());
-
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
-            .prepareCreateSnapshot("repo", "snap2")
+            .prepareCreateSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
             .setIndices("ds")
             .setIncludeGlobalState(false)
@@ -207,7 +205,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertTrue(client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("ds")).get().isAcknowledged());
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster()
-            .prepareRestoreSnapshot("repo", "snap2")
+            .prepareRestoreSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
             .setIndices(".ds-ds-*")
             .get();
@@ -215,10 +213,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
 
         GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request("ds");
-        Throwable e = expectThrows(ExecutionException.class, () -> client.admin().indices().getDataStreams(getRequest).get()).getCause();
-        if (e instanceof RemoteTransportException) {
-            e = e.getCause();
-        }
-        assertEquals(ResourceNotFoundException.class, e.getClass());
+        expectThrows(ResourceNotFoundException.class, () -> client.admin().indices().getDataStreams(getRequest).actionGet());
     }
 }

@@ -80,12 +80,8 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        if (collectsFromSingleBucket) {
-            return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
-                parentFilter, valuesSource, maxOrd, metadata);
-        } else {
-            return asMultiBucketAggregator(this, searchContext, children);
-        }
+        return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
+            parentFilter, valuesSource, maxOrd, collectsFromSingleBucket, metadata);
     }
 
     @Override

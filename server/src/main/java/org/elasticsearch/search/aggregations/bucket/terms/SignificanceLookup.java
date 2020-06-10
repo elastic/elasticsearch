@@ -133,7 +133,7 @@ class SignificanceLookup {
     }
 
     /**
-     * Get the background frequency of a {@link BytesRef} term.
+     * Get the background frequency of a {@code long} term.
      */
     BackgroundFrequencyForLong longLookup(BigArrays bigArrays, boolean collectsFromSingleBucket) {
         if (collectsFromSingleBucket) {
@@ -171,7 +171,7 @@ class SignificanceLookup {
     }
 
     /**
-     * Get the background frequency of a {@link BytesRef} term.
+     * Get the background frequency of a {@code long} term.
      */
     private long getBackgroundFrequency(long term) throws IOException {
         return getBackgroundFrequency(config.fieldContext().fieldType().termQuery(config.format().format(term).toString(), context));

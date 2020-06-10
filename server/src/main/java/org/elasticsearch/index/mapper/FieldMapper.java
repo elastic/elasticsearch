@@ -298,7 +298,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             List<?> sourceValues = sourceValue instanceof List ? (List<?>) sourceValue : List.of(sourceValue);
             for (Object value : sourceValues) {
                 Object parsedValue = parseSourceValue(value, format);
-                values.add(parsedValue);
+                if (parsedValue != null) {
+                    values.add(parsedValue);
+                }
             }
         }
         return values;

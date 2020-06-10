@@ -18,6 +18,8 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
+include::data-streams/data-streams.asciidoc[]
+
 include::search/index.asciidoc[]
 
 include::query-dsl.asciidoc[]
@@ -57,8 +59,6 @@ include::data-rollup-transform.asciidoc[]
 include::high-availability.asciidoc[]
 
 include::snapshot-restore/index.asciidoc[]
-
-include::data-streams.asciidoc[]
 
 include::{xes-repo-dir}/security/index.asciidoc[]
 

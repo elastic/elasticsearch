@@ -1,7 +1,8 @@
-[chapter]
 [[data-streams]]
-= Data Streams
+= Data streams
 
+[partintro]
+--
 You can use data streams to index time-based data that's continuously generated.
 A data stream groups indices from the same time-based data source.
 A data stream tracks its indices, known as _backing indices_, using an ordered
@@ -116,3 +117,14 @@ The following APIs are available for managing data streams:
 * To get information about data streams, use the <<indices-get-data-stream, get data stream API>>.
 * To delete data streams, use the <<indices-delete-data-stream, delete data stream API>>.
 * To manually create a data stream, use the <<indices-create-data-stream, create data stream API>>.
+
+[discrete]
+[[data-streams-toc]]
+== In this section
+
+* <<set-up-a-data-stream>>
+* <<use-a-data-stream>>
+--
+
+include::set-up-a-data-stream.asciidoc[]
+include::use-a-data-stream.asciidoc[]

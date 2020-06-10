@@ -70,8 +70,13 @@ image::images/data-streams/data-streams-search-request.svg[align="center"]
 
 However, the most recently created backing index is the data stream’s only
 _write index_. The data stream routes all indexing requests to this index.
+You cannot index new documents to a stream's other backing indices, even
+by sending indexing requests directly to the index.
 
 image::images/data-streams/data-streams-index-request.svg[align="center"]
+
+Because it's the only index capable of handling indexing requests, you cannot
+<<indices-close,close>> a data stream's write index.
 
 [discrete]
 [[data-streams-rollover]]

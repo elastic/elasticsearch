@@ -18,15 +18,15 @@ In {es}, EQL assumes each document in an index corresponds to an event.
 ----
 PUT /my_index/_bulk?refresh
 {"index":{"_index" : "my_index", "_id" : "1"}}
-{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "sequence": 1, "start": "2020-12-06T11:04:05.000Z" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD","sequence": 1 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "2"}}
-{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "sequence": 2, "start": "2020-12-06T11:04:07.000Z" }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "3"}}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "sequence": 3, "start": "2020-12-07T11:06:07.000Z" }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "4"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "sequence": 4, "start": "2020-12-07T11:07:08.000Z }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
 {"index":{"_index" : "my_index", "_id" : "5"}}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "sequence": 5, "start": "2020-12-07T11:07:09.000Z }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
 // TESTSETUP
 ////
@@ -130,7 +130,7 @@ to return.
 Defaults to `50`. This value must be greater than `0`.
 
 [[eql-search-api-tiebreaker-field]]
-`tie_breaker_field`::
+`tiebreaker_field`::
 (Optional, string)
 Field used to sort events with the same
 <<eql-search-api-timestamp-field,timestamp field>> value. Defaults to
@@ -270,6 +270,10 @@ Original JSON body passed for the event at index time.
 `sort`::
 (array)
 Array of field values used to sort the event.
++
+By default, the first item in the array is the event's
+<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ======
 =====
 
@@ -304,6 +308,10 @@ Original JSON body passed for the event at index time.
 `sort`::
 (array)
 Array of field values used to sort the event.
++
+By default, the first item in the array is the event's
+<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
+since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 =====
 ====
 
@@ -335,7 +343,7 @@ to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
 in ascending order.
 
 If two or more events share the same timestamp, the
-<<eql-search-api-tiebreaker-field,`tie_breaker_field`>> field is used to sort
+<<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
 the events in ascending, lexicographic order.
 
 [source,console-result]
@@ -359,7 +367,9 @@ the events in ascending, lexicographic order.
             "id": "8a4f500d"
           },
           "event": {
-            "category": "file"
+            "category": "file",
+            "id": "dGCHwoeS",
+            "sequence": 2,
           },
           "file": {
             "accessed": "2020-12-07T11:07:08.000Z",
@@ -387,7 +397,9 @@ the events in ascending, lexicographic order.
             "id": "8a4f500d"
           },
           "event": {
-            "category": "file"
+            "category": "file",
+            "id": "bYA7gPay",
+            "sequence": 4
           },
           "file": {
             "accessed": "2020-12-07T11:07:08.000Z",
@@ -452,7 +464,7 @@ the `hits.sequences.events` property are sorted by
 the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 
 If two or more events share the same timestamp, the
-<<eql-search-api-tiebreaker-field,`tie_breaker_field`>> field is used to sort
+<<eql-search-api-tiebreaker-field,`tiebreaker_field`>> field is used to sort
 the events in ascending, lexicographic order.
 
 [source,console-result]
@@ -481,7 +493,9 @@ the events in ascending, lexicographic order.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "file"
+                "category": "file",
+                "id": "bYA7gPay",
+                "sequence": 4
               },
               "file": {
                 "accessed": "2020-12-07T11:07:08.000Z",
@@ -514,7 +528,9 @@ the events in ascending, lexicographic order.
                 "id": "8a4f500d"
               },
               "event": {
-                "category": "process"
+                "category": "process",
+                "id": "aR3NWVOs",
+                "sequence": 5
               },
               "process": {
                 "name": "regsvr32.exe",

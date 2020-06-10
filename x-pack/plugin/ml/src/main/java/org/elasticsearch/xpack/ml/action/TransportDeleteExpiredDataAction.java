@@ -87,7 +87,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         Instant timeoutTime = Instant.now(clock).plus(
             request.getTimeout() == null ? DEFAULT_MAX_DURATION : Duration.ofMillis(request.getTimeout().millis())
         );
-        
+
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
 

@@ -53,7 +53,9 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public static Request parseRequest(String jobId, XContentParser parser) {
             Request request = PARSER.apply(parser, null);
-            request.jobId = jobId;
+            if (jobId != null) {
+                request.jobId = jobId;
+            }
             return request;
         }
 

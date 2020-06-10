@@ -280,7 +280,7 @@ public class MetadataCreateIndexService {
 
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
                                  final ActionListener<ClusterStateUpdateResponse> listener) {
-        applyCreateIndexRequestInternal(request);
+        normalizeRequestSetting(request);
         clusterService.submitStateUpdateTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
             new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
@@ -306,7 +306,7 @@ public class MetadataCreateIndexService {
             });
     }
 
-    private void applyCreateIndexRequestInternal(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest){
+    private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest){
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         Settings build = updatedSettingsBuilder.put(createIndexClusterStateRequest.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
         indexScopedSettings.validate(build,true);
@@ -319,7 +319,7 @@ public class MetadataCreateIndexService {
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent,
                                                 BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer) throws Exception {
 
-        applyCreateIndexRequestInternal(request);
+        normalizeRequestSetting(request);
         logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
 
         validate(request, currentState);

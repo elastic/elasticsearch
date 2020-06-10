@@ -63,7 +63,7 @@ public class DateTimeTestUtils {
         return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
 
-    public static ZonedDateTime date(int year, int month, int day, ZoneId zoneId){
+    public static ZonedDateTime date(int year, int month, int day, ZoneId zoneId) {
         return LocalDate.of(year, month, day).atStartOfDay(zoneId);
     }
 

@@ -300,7 +300,7 @@ public class ValuesSourceConfig {
         valuesSource = ConstructValuesSource(missing, format, nowSupplier);
     }
 
-    private final ValuesSource ConstructValuesSource(Object missing, DocValueFormat format, LongSupplier nowSupplier) {
+    private ValuesSource ConstructValuesSource(Object missing, DocValueFormat format, LongSupplier nowSupplier) {
         final ValuesSource vs;
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();

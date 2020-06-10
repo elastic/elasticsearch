@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
@@ -39,6 +40,7 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 
 /**
  * This class provides the operational REST functions needed to control an ILM time series lifecycle.
@@ -167,6 +169,22 @@ public final class TimeSeriesRestDriver {
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
+        client.performRequest(request);
+    }
+
+    public static void createSnapshotRepo(RestClient client, String repoName, boolean compress) throws IOException {
+        Request request = new Request("PUT", "/_snapshot/" + repoName);
+        request.setJsonEntity(Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", compress)
+                //random location to avoid clash with other snapshots
+                .field("location", System.getProperty("tests.path.repo") + "/" + randomAlphaOfLengthBetween(4, 10))
+                .field("max_snapshot_bytes_per_sec", "100m")
+                .endObject()
+                .endObject()));
         client.performRequest(request);
     }
 }

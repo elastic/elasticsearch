@@ -58,8 +58,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new UnresolvedAttribute(Source.EMPTY, params.fieldTimestamp());
     }
 
-    private Attribute fieldTieBreaker() {
-        return params.fieldTieBreaker() != null ? new UnresolvedAttribute(Source.EMPTY, params.fieldTieBreaker()) : UNSPECIFIED_FIELD;
+    private Attribute fieldTiebreaker() {
+        return params.fieldTiebreaker() != null ? new UnresolvedAttribute(Source.EMPTY, params.fieldTiebreaker()) : UNSPECIFIED_FIELD;
     }
 
     @Override
@@ -88,10 +88,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         // TODO: add implicit sorting - when pipes are added, this would better sit there (as a default pipe)
         orders.add(new Order(source, fieldTimestamp(), Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
-        // make sure to add the tieBreaker as well
-        Attribute tieBreaker = fieldTieBreaker();
-        if (Expressions.isPresent(tieBreaker)) {
-            orders.add(new Order(source, tieBreaker, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
+        // make sure to add the tiebreaker as well
+        Attribute tiebreaker = fieldTiebreaker();
+        if (Expressions.isPresent(tiebreaker)) {
+            orders.add(new Order(source, tiebreaker, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
         }
 
         OrderBy orderBy = new OrderBy(source, filter, orders);
@@ -133,7 +133,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
-        return new Join(source, queries, until, fieldTimestamp(), fieldTieBreaker());
+        return new Join(source, queries, until, fieldTimestamp(), fieldTiebreaker());
     }
 
     private KeyedFilter defaultUntil(Source source) {
@@ -150,13 +150,13 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
 
         List<Attribute> output = CollectionUtils.combine(keys, fieldTimestamp());
-        Attribute fieldTieBreaker = fieldTieBreaker();
+        Attribute fieldTieBreaker = fieldTiebreaker();
         if (Expressions.isPresent(fieldTieBreaker)) {
             output = CollectionUtils.combine(output, fieldTieBreaker);
         }
         LogicalPlan child = new Project(source(ctx), eventQuery, output);
 
-        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTieBreaker());
+        return new KeyedFilter(source(ctx), child, keys, fieldTimestamp(), fieldTiebreaker());
     }
 
     @Override
@@ -199,7 +199,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
-        return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTieBreaker());
+        return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker());
     }
 
     public KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {

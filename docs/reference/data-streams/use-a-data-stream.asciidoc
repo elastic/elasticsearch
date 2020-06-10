@@ -1,0 +1,185 @@
+[[use-a-data-stream]]
+== Use a data stream
+
+After you <<set-up-a-data-stream,set up a data stream set up>>, you can do
+the following:
+
+* <<add-documents-to-a-data-stream>>
+* <<search-a-data-stream>>
+* <<manually-roll-over-a-data-stream>>
+
+////
+[source,console]
+----
+PUT /_index_template/logs_data_stream
+{
+  "index_patterns": [ "logs*" ],
+  "data_stream": {
+    "timestamp_field": "@timestamp"
+  },
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT /_data_stream/logs
+----
+////
+
+[discrete]
+[[add-documents-to-a-data-stream]]
+=== Add documents to a data stream
+
+You can add documents to a data stream using the following requests:
+
+* An <<docs-index_,index API>> request with an
+<<docs-index-api-op_type,`op_type`>> set to `create`. Specify the data
+stream's name in place of an index name.
++
+--
+NOTE: The `op_type` parameter defaults to `create` when adding new documents.
+
+.*Example: Index API request*
+[%collapsible]
+====
+The following <<docs-index_,index API>> adds a new document to the `logs` data
+stream.
+
+[source,console]
+----
+POST /logs/_doc/
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z",
+  "user": {
+    "id": "8a4f500d"
+  },
+  "message": "Login successful"
+}
+----
+// TEST[continued]
+====
+--
+
+* A <<docs-bulk,bulk API>> request using the `create` action. Specify the data
+stream's name in place of an index name.
++
+--
+NOTE: Data streams do not support other bulk actions, such as `index`.
+
+.*Example: Bulk API request*
+[%collapsible]
+====
+The following <<docs-bulk,bulk API>> index request adds several new documents to
+the `logs` data stream. Note that only the `create` action is used.
+
+[source,console]
+----
+PUT /logs/_bulk?refresh
+{"create":{"_index" : "logs"}}
+{ "@timestamp": "2020-12-08T11:04:05.000Z", "user": { "id": "vlb44hny" }, "message": "Login attempt failed" }
+{"create":{"_index" : "logs"}}
+{ "@timestamp": "2020-12-08T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
+{"create":{"_index" : "logs"}}
+{ "@timestamp": "2020-12-09T11:07:08.000Z", "user": { "id": "l7gk7f82" }, "message": "Logout successful" }
+----
+// TEST[continued]
+====
+--
+
+[discrete]
+[[search-a-data-stream]]
+=== Search a data stream
+
+The following search APIs support data streams:
+
+* <<search-search, Search>>
+* <<async-search, Async search>>
+* <<search-multi-search, Multi search>>
+* <<search-field-caps, Field capabilities>>
+////
+* <<eql-search-api, EQL search>>
+////
+
+.*Example*
+[%collapsible]
+====
+The following <<search-search,search API>> request searches the `logs` data
+stream for documents with a timestamp between today and yesterday that also have
+`message` value of `login successful`.
+
+[source,console]
+----
+GET /logs/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "range": {
+          "@timestamp": {
+            "gte": "now-1d/d",
+            "lt": "now/d"
+          }
+        }
+      },
+      "should": {
+        "match": {
+          "message": "login successful"
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+====
+
+[discrete]
+[[manually-roll-over-a-data-stream]]
+=== Manually roll over a data stream
+
+A rollover creates a new backing index for a data stream. This new backing index
+becomes the stream's new write index and increments the stream's generation.
+
+In most cases, we recommend using <<index-lifecycle-management,{ilm-init}>> to
+automate rollovers for data streams. This lets you automatically roll over the
+current write index when it meets specified criteria, such as a maximum age or
+size.
+
+However, you can also use the <<indices-rollover-index,rollover API>> to
+manually perform a rollover. This can be useful if you want to apply mapping or
+setting changes to the stream's write index after updating a data stream's
+template.
+
+.*Example*
+[%collapsible]
+====
+The following <<indices-rollover-index,rollover API>> request submits a manual
+rollover request for the `logs` data stream.
+
+[source,console]
+----
+POST /logs/_rollover/
+{
+  "conditions": {
+    "max_docs":   "1"
+  }
+}
+----
+// TEST[continued]
+====
+
+////
+[source,console]
+----
+DELETE /_data_stream/logs
+
+DELETE /_index_template/logs_data_stream
+----
+// TEST[continued]
+////

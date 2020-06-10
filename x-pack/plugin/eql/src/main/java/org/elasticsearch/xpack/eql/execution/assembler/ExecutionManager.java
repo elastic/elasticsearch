@@ -58,7 +58,7 @@ public class ExecutionManager implements QueryClient {
     }
 
 
-    public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Attribute timestamp, Attribute tieBreaker) {
+    public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Attribute timestamp, Attribute tiebreaker) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
         
         List<Criterion> criteria = new ArrayList<>(plans.size() - 1);
@@ -68,7 +68,7 @@ public class ExecutionManager implements QueryClient {
             List<Attribute> keys = listOfKeys.get(i);
             // fields
             HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
-            HitExtractor tbExtractor = Expressions.isPresent(tieBreaker) ? hitExtractor(tieBreaker, extractorRegistry) : null;
+            HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
 
             PhysicalPlan query = plans.get(i);

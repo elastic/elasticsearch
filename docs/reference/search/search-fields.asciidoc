@@ -15,17 +15,13 @@ values copied using the <<copy-to,`copy_to`>> mapping parameter.
 object must be loaded and parsed, even if only a small number of fields are
 needed.
 
-{es} supports some alternative methods for returning fields that help avoid
-these downsides:
+To avoid these limitations, you can::
 
-* The <<docvalue-fields, `docvalue_fields`>>
-parameter allows for loading fields from their doc values. This can be a good
+* Use the <<docvalue-fields, `docvalue_fields`>>
+parameter to get values for selected fields. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
-* It's also possible to store an individual field's values by using the
-<<mapping-store,`store`>> mapping option. You can use the
-<<request-body-search-stored-fields, `stored_fields`>> parameter to return
-these stored values in the search response.
+* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to get the values for specific  stored fields. (Fields that use the <<mapping-store,`store`>> mapping option.)
 
 You can use the following methods to select which fields and values are
 retrieved by a search request:
@@ -143,7 +139,7 @@ Doc values are stored for supported fields by default. However, <<text,`text`>>
 and {plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields do not
 support doc values.
 
-The following search API request uses the `docvalue_fields` parameter to
+The following search request uses the `docvalue_fields` parameter to
 retrieve doc values for the following fields:
 
 * Fields with names starting with `my_ip`
@@ -193,6 +189,6 @@ property.
 ====
 It's also possible to store an individual field's values by using the
 <<mapping-store,`store`>> mapping option. You can use the
-<<request-body-search-stored-fields, `stored_fields`>> parameter to return
+<<request-body-search-stored-fields, `stored_fields`>> parameter to include
 these stored values in the search response.
 ====

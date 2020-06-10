@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     private static final Version VERSION_IN_SNAPSHOT_VERSION = Version.V_7_7_0;
-    private static final Version DATA_STREAMS_IN_SNAPSHOT = Version.V_8_0_0;
+    public static final Version DATA_STREAMS_IN_SNAPSHOT = Version.V_8_0_0;
 
     public static final String TYPE = "snapshots";
 

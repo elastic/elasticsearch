@@ -105,6 +105,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.cluster.SnapshotsInProgress.DATA_STREAMS_IN_SNAPSHOT;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -235,6 +236,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     dataStreams = new ArrayList<>(allDataStreams.keySet());
                 } else {
                     dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
+                }
+
+                Version minNodeVersion = currentState.nodes().getMinNodeVersion();
+                if (dataStreams.isEmpty() == false && minNodeVersion.before(DATA_STREAMS_IN_SNAPSHOT)) {
+                    throw new SnapshotException(repositoryName, snapshotName, "cannot snapshot data streams if any node is older than [" +
+                        DATA_STREAMS_IN_SNAPSHOT + "], current lowest " + "version is [" + minNodeVersion + "]");
                 }
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);

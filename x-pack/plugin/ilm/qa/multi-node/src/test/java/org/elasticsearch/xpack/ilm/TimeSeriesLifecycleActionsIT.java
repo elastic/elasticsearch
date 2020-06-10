@@ -69,6 +69,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explain;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
@@ -391,8 +392,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(indexILMState.get("failed_step"), is("wait-for-snapshot"));
         }, slmPolicy);
 
-        String repo = createSnapshotRepo();
-        createSlmPolicy(slmPolicy, repo);
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createSlmPolicy(slmPolicy, snapshotRepo);
 
         assertBusy( () -> {
             Map<String, Object> indexILMState = explainIndex(client(), index);
@@ -414,8 +416,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String slmPolicy = randomAlphaOfLengthBetween(4, 10);
         createNewSingletonPolicy(client(), policy, "delete", new WaitForSnapshotAction(slmPolicy));
 
-        String repo = createSnapshotRepo();
-        createSlmPolicy(slmPolicy, repo);
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createSlmPolicy(slmPolicy, snapshotRepo);
 
         Request request = new Request("PUT", "/_slm/policy/" + slmPolicy + "/_execute");
         assertOK(client().performRequest(request));
@@ -1548,7 +1551,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testSearchableSnapshotAction() throws Exception {
-        String snapshotRepo = createSnapshotRepo();
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo));
 
         createIndexWithSettings(index,
@@ -1573,7 +1577,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/54433")
     public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
-        String snapshotRepo = createSnapshotRepo();
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 
         // create policy with cold and delete phases
         Map<String, LifecycleAction> coldActions =
@@ -1629,7 +1634,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDeleteActionDoesntDeleteSearchableSnapshot() throws Exception {
-        String snapshotRepo = createSnapshotRepo();
+        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 
         // create policy with cold and delete phases
         Map<String, LifecycleAction> coldActions =
@@ -1882,24 +1888,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
                 .endObject()));
 
         assertOK(client().performRequest(request));
-    }
-
-    private String createSnapshotRepo() throws IOException {
-        String repo = randomAlphaOfLengthBetween(4, 10);
-        Request request = new Request("PUT", "/_snapshot/" + repo);
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
-                .field("type", "fs")
-                .startObject("settings")
-                .field("compress", randomBoolean())
-                //random location to avoid clash with other snapshots
-                .field("location", System.getProperty("tests.path.repo")+ "/" + randomAlphaOfLengthBetween(4, 10))
-                .field("max_snapshot_bytes_per_sec", "100m")
-                .endObject()
-                .endObject()));
-        assertOK(client().performRequest(request));
-        return repo;
     }
 
     //adds debug information for waitForSnapshot tests

@@ -81,7 +81,6 @@ import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -131,6 +130,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -1432,10 +1432,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 
-        RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        Repository repository = service.repository("test-repo");
-
-        final Map<String, IndexId> indexIds = getRepositoryData(repository).getIndices();
+        final Map<String, IndexId> indexIds = getRepositoryData("test-repo").getIndices();
         final Path indicesPath = repo.resolve("indices");
 
         logger.info("--> delete index metadata and shard metadata");
@@ -1443,7 +1440,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             Path shardZero = indicesPath.resolve(indexIds.get(index).getId()).resolve("0");
             if (randomBoolean()) {
                 Files.delete(
-                    shardZero.resolve("index-" + getRepositoryData(repository).shardGenerations().getShardGen(indexIds.get(index), 0)));
+                    shardZero.resolve("index-" + getRepositoryData("test-repo").shardGenerations().getShardGen(indexIds.get(index), 0)));
             }
             Files.delete(shardZero.resolve("snap-" + snapshotInfo.snapshotId().getUUID() + ".dat"));
         }
@@ -2877,10 +2874,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.indices(), hasSize(nbIndices));
 
-        RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        Repository repository = service.repository("test-repo");
-
-        final RepositoryData repositoryData = getRepositoryData(repository);
+        final RepositoryData repositoryData = getRepositoryData("test-repo");
         final Map<String, IndexId> indexIds = repositoryData.getIndices();
         assertThat(indexIds.size(), equalTo(nbIndices));
 
@@ -2953,10 +2947,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.indices(), hasSize(1));
 
-        RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
-        Repository repository = service.repository("test-repo");
-
-        final RepositoryData repositoryData = getRepositoryData(repository);
+        final RepositoryData repositoryData = getRepositoryData("test-repo");
         final Map<String, IndexId> indexIds = repositoryData.getIndices();
         assertThat(indexIds.size(), equalTo(1));
 
@@ -3276,7 +3267,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SnapshotInfo snapshotInfo = waitForCompletion(repo, snapshot, TimeValue.timeValueSeconds(60));
         assertEquals(1, snapshotInfo.shardFailures().size());
         assertEquals(0, snapshotInfo.shardFailures().get(0).shardId());
-        assertThat(snapshotInfo.shardFailures().get(0).reason(), containsString("IndexShardSnapshotFailedException: Aborted"));
+        assertThat(snapshotInfo.shardFailures().get(0).reason(), is("aborted"));
     }
 
     public void testSnapshotSucceedsAfterSnapshotFailure() throws Exception {
@@ -3318,7 +3309,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 assertThat(getFailureCount("test-repo"), greaterThan(0L));
                 assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), greaterThan(0));
                 for (SnapshotShardFailure shardFailure : createSnapshotResponse.getSnapshotInfo().shardFailures()) {
-                    assertThat(shardFailure.reason(), containsString("Random IOException"));
+                    assertThat(shardFailure.reason(), endsWith("; nested: IOException[Random IOException]"));
                 }
             }
         } catch (SnapshotException | RepositoryException ex) {

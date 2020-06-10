@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.tasks.Task;
@@ -21,7 +22,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.SearchAfterJobsIterator;
 import org.elasticsearch.xpack.ml.job.retention.EmptyStateIndexRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredForecastsRemover;
 import org.elasticsearch.xpack.ml.job.retention.ExpiredModelSnapshotsRemover;
@@ -30,6 +34,7 @@ import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
 import org.elasticsearch.xpack.ml.job.retention.UnusedStateRemover;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
+import org.elasticsearch.xpack.ml.utils.persistence.WrappedBatchedJobsIterator;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -38,9 +43,10 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class TransportDeleteExpiredDataAction extends HandledTransportAction<DeleteExpiredDataAction.Request,
-        DeleteExpiredDataAction.Response> {
+    DeleteExpiredDataAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteExpiredDataAction.class);
 
@@ -51,22 +57,26 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     private final OriginSettingClient client;
     private final ClusterService clusterService;
     private final Clock clock;
+    private final JobConfigProvider jobConfigProvider;
 
     @Inject
     public TransportDeleteExpiredDataAction(ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, Client client, ClusterService clusterService) {
+                                            ActionFilters actionFilters, Client client, ClusterService clusterService,
+                                            JobConfigProvider jobConfigProvider) {
         this(threadPool, MachineLearning.UTILITY_THREAD_POOL_NAME, transportService, actionFilters, client, clusterService,
-            Clock.systemUTC());
+            jobConfigProvider, Clock.systemUTC());
     }
 
     TransportDeleteExpiredDataAction(ThreadPool threadPool, String executor, TransportService transportService,
-                                     ActionFilters actionFilters, Client client, ClusterService clusterService, Clock clock) {
+                                     ActionFilters actionFilters, Client client, ClusterService clusterService,
+                                     JobConfigProvider jobConfigProvider, Clock clock) {
         super(DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new, executor);
         this.threadPool = threadPool;
         this.executor = executor;
         this.client = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
         this.clock = clock;
+        this.jobConfigProvider = jobConfigProvider;
     }
 
     @Override
@@ -78,22 +88,34 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         );
 
         Supplier<Boolean> isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-            () -> deleteExpiredData(request, listener, isTimedOutSupplier)
-        );
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
+
+        if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(new String[]{request.getJobId()})) {
+            List<MlDataRemover> dataRemovers = createDataRemovers(client, auditor);
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
+                () -> deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier)
+            );
+        } else {
+            jobConfigProvider.expandJobs(request.getJobId(), false, true, ActionListener.wrap(
+                jobBuilders -> {
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                            List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
+                            List<MlDataRemover> dataRemovers = createDataRemovers(jobs, auditor);
+                            deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier);
+                        }
+                    );
+                },
+                listener::onFailure
+            ));
+        }
     }
 
     private void deleteExpiredData(DeleteExpiredDataAction.Request request,
+                                   List<MlDataRemover> dataRemovers,
                                    ActionListener<DeleteExpiredDataAction.Response> listener,
                                    Supplier<Boolean> isTimedOutSupplier) {
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
-        List<MlDataRemover> dataRemovers = Arrays.asList(
-                new ExpiredResultsRemover(client, request.getJobId(), auditor, threadPool),
-                new ExpiredForecastsRemover(client, threadPool),
-                new ExpiredModelSnapshotsRemover(client, request.getJobId(), threadPool),
-                new UnusedStateRemover(client, clusterService),
-                new EmptyStateIndexRemover(client)
-        );
+
+
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
         // If there is no throttle provided, default to none
         float requestsPerSec = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();
@@ -103,7 +125,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             //   1 million documents over 5000 seconds ~= 83 minutes.
             // If we have > 5 data nodes, we don't set our throttling.
             requestsPerSec = numberOfDatanodes < 5 ?
-                (float)(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes :
+                (float) (AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes :
                 Float.POSITIVE_INFINITY;
         }
         deleteExpiredData(dataRemoversIterator, requestsPerSec, listener, isTimedOutSupplier, true);
@@ -117,15 +139,15 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         if (haveAllPreviousDeletionsCompleted && mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
             ActionListener<Boolean> nextListener = ActionListener.wrap(
-                    booleanResponse ->
-                        deleteExpiredData(
-                            mlDataRemoversIterator,
-                            requestsPerSecond,
-                            listener,
-                            isTimedOutSupplier,
-                            booleanResponse
-                        ),
-                    listener::onFailure);
+                booleanResponse ->
+                    deleteExpiredData(
+                        mlDataRemoversIterator,
+                        requestsPerSecond,
+                        listener,
+                        isTimedOutSupplier,
+                        booleanResponse
+                    ),
+                listener::onFailure);
             // Removing expired ML data and artifacts requires multiple operations.
             // These are queued up and executed sequentially in the action listener,
             // the chained calls must all run the ML utility thread pool NOT the thread
@@ -142,4 +164,23 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             listener.onResponse(new DeleteExpiredDataAction.Response(haveAllPreviousDeletionsCompleted));
         }
     }
+
+    private List<MlDataRemover> createDataRemovers(OriginSettingClient client, AnomalyDetectionAuditor auditor) {
+        return Arrays.asList(
+            new ExpiredResultsRemover(client, new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), auditor, threadPool),
+            new ExpiredForecastsRemover(client, threadPool),
+            new ExpiredModelSnapshotsRemover(client, new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)), threadPool),
+            new UnusedStateRemover(client, clusterService),
+            new EmptyStateIndexRemover(client));
+    }
+
+    private List<MlDataRemover> createDataRemovers(List<Job> jobs, AnomalyDetectionAuditor auditor) {
+        return Arrays.asList(
+            new ExpiredResultsRemover(client, new VolatileCursorIterator<>(jobs), auditor, threadPool),
+            new ExpiredForecastsRemover(client, threadPool),
+            new ExpiredModelSnapshotsRemover(client, new VolatileCursorIterator<>(jobs), threadPool),
+            new UnusedStateRemover(client, clusterService),
+            new EmptyStateIndexRemover(client));
+    }
+
 }

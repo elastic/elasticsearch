@@ -147,7 +147,7 @@ public class MetadataIndexStateService {
             }
         }
         if (writeIndices.size() > 0) {
-            throw new IllegalArgumentException("cannot close or freeze the following data stream write indices [" +
+            throw new IllegalArgumentException("cannot close the following data stream write indices [" +
                 Strings.collectionToCommaDelimitedString(writeIndices) + "]");
         }
 

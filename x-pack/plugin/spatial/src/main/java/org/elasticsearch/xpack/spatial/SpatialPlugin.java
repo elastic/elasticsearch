@@ -105,8 +105,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSourceConfig, wrapLongitude, metadata)
-                -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, valuesSourceConfig, wrapLongitude, metadata));
+            (GeoBoundsAggregatorSupplier) GeoShapeBoundsAggregator::new);
     }
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {

@@ -12,6 +12,15 @@
 # query = 'process where serial_event_id = 1'
 # expected_event_ids  = [1]
 
+
+# fails because of string check - msbuild does not match MSBuild
+[[queries]]
+query = '''
+sequence by unique_pid [process where opcode=1 and process_name == 'msbuild.exe'] [network where true]'''
+expected_event_ids  = [75273, 75304]
+description = "test that process sequences are working correctly"
+
+
 [[queries]]
 query = 'process where true | head 6'
 expected_event_ids  = [1, 2, 3, 4, 5, 6]
@@ -232,22 +241,6 @@ process where true
 [[queries]]
 query = '''
 sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id = 5]
-'''
-expected_event_ids  = [4, 5]
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id<3] by unique_pid
-  [process where true] by unique_ppid
-'''
-expected_event_ids  = [1, 2, 2, 3]
-
-[[queries]]
-query = '''
-sequence
   [process where serial_event_id<3] by unique_pid * 2
   [process where true] by unique_ppid * 2
 '''
@@ -328,22 +321,6 @@ sequence with maxspan=0.5s
 | head 4
 | tail 2'''
 expected_event_ids = []
-
-[[queries]]
-query = '''
-sequence
-  [process where serial_event_id < 5]
-  [process where serial_event_id < 5]
-'''
-expected_event_ids  = [1, 2, 2, 3, 3, 4]
-
-[[queries]]
-query = '''
-sequence
-  [file where opcode=0 and file_name="svchost.exe"] by unique_pid
-  [process where opcode == 1] by unique_ppid
-'''
-expected_event_ids  = [55, 56]
 
 [[queries]]
 query = '''
@@ -561,30 +538,6 @@ expected_event_ids  = [55, 95]
 [[queries]]
 query = 'process where event of [process where process_name = "python.exe" ]'
 expected_event_ids  = [48, 50, 51, 54, 93]
-
-[[queries]]
-query = '''
-sequence
-  [file where file_name="lsass.exe"] by file_path,process_path
-  [process where true] by process_path,parent_process_path
-'''
-expected_event_ids  = [61, 62]
-
-[[queries]]
-query = '''
-sequence by user_name
-  [file where file_name="lsass.exe"] by file_path, process_path
-  [process where true] by process_path, parent_process_path
-'''
-expected_event_ids  = [61, 62]
-
-[[queries]]
-query = '''
-sequence by pid
-  [file where file_name="lsass.exe"] by file_path,process_path
-  [process where true] by process_path,parent_process_path
-'''
-expected_event_ids = []
 
 [[queries]]
 query = '''
@@ -838,12 +791,6 @@ process where process_name != original_file_name
 | filter length(original_file_name) > 0'''
 expected_event_ids = []
 description = "check that case insensitive comparisons are performed for fields."
-
-[[queries]]
-query = '''
-sequence by unique_pid [process where opcode=1 and process_name == 'msbuild.exe'] [network where true]'''
-expected_event_ids  = [75273, 75304]
-description = "test that process sequences are working correctly"
 
 [[queries]]
 expected_event_ids  = [57]

@@ -198,7 +198,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         for (int i = 0; i < arrays.length; i++) {
             int cmp = arrays[i].compareCurrentWithAfter();
             if (cmp != 0) {
-                return cmp;
+                return cmp > 0 ? i+1 : -(i+1);
             }
         }
         return 0;

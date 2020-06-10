@@ -75,13 +75,13 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             responseBuilder.setLicensed(true);
-            this.modelLoadingService.getModel(request.getModelId(), getModelListener);
+            this.modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
         } else {
             trainedModelProvider.getTrainedModel(request.getModelId(), false, ActionListener.wrap(
                 trainedModelConfig -> {
                     responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
                     if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
-                        this.modelLoadingService.getModel(request.getModelId(), getModelListener);
+                        this.modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     }

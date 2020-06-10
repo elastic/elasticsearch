@@ -35,6 +35,7 @@ query string parameter>> or <<search-request-body,request body>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
+[role="child_attributes"]
 [[search-search-api-query-params]]
 ==== {api-query-parms-title}
 
@@ -53,7 +54,7 @@ If `true`, returns partial results if there are request timeouts or
 <<shard-failures,shard failures>>. If `false`, returns an error with
 no partial results. Defaults to `true`.
 +
-To override the default for this field, set the 
+To override the default for this field, set the
 `search.default_allow_partial_results` cluster setting to `false`.
 
 `batched_reduce_size`::
@@ -64,8 +65,8 @@ shards in the request can be large. Defaults to `512`.
 
 [[ccs-minimize-roundtrips]]
 `ccs_minimize_roundtrips`::
-(Optional, boolean) If `true`, network round-trips between the 
-coordinating node and the remote clusters are minimized when executing 
+(Optional, boolean) If `true`, network round-trips between the
+coordinating node and the remote clusters are minimized when executing
 {ccs} (CCS) requests. See <<ccs-network-delays>>. Defaults to `true`.
 
 `docvalue_fields`::
@@ -135,8 +136,7 @@ testing.
 +
 IMPORTANT: The `q` parameter overrides the <<request-body-search-query,`query`>>
 parameter in the request body. If both parameters are specified, documents
-matching the `query` request body parameter are not returned.	
-
+matching the `query` request body parameter are not returned.
 
 `request_cache`::
 (Optional, boolean) If `true`, the caching of search results is enabled for
@@ -192,9 +192,27 @@ value cannot be `0`.
 (Optional, string) A comma-separated list of <field>:<direction> pairs.
 
 `_source`::
-(Optional, boolean)
-If `true`, the response includes the `_source` of matching documents under
-`hits`. Defaults to `true`.
+(Optional)
+Indicates which <<mapping-source-field,source fields>> are returned for matching
+documents. These fields are returned in the `hits._source` property of
+the search response. Defaults to `true`.
++
+.Valid values for `_source`
+[%collapsible%open]
+====
+`true`::
+(boolean)
+The entire document source is returned.
+
+`false`::
+(boolean)
+The document source is not returned.
+
+`<string>`::
+(string)
+Comma-separated list of source fields to return.
+Wildcard (`*`) patterns are supported.
+====
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
@@ -208,6 +226,10 @@ purposes.
 (Optional, string) A comma-separated list of stored fields to return as part
 of a hit. If no fields are specified, no stored fields are included in the
 response.
++
+If this field is specified, the `_source` parameter defaults to `false`. You can
+pass `_source: true` to return both source fields and
+stored fields in the search response.
 
 `suggest_field`::
 (Optional, string) Specifies which field to use for suggestions.
@@ -244,6 +266,7 @@ by their respective types in the response. Defaults to `true`.
 (Optional, boolean)
 If `true`, returns document version as part of a hit. Defaults to `false`.
 
+[role="child_attributes"]
 [[search-search-api-request-body]]
 ==== {api-request-body-title}
 
@@ -280,7 +303,7 @@ As an alternative to deep paging, we recommend using
 (Optional, boolean) If `true`, returns sequence number and primary term of the
 last modification of each hit. See <<optimistic-concurrency-control>>.
 
-`size`:: 
+`size`::
 (Optional, integer) The number of hits to return. Needs to be non-negative and defaults to `10`.
 +
 --
@@ -301,6 +324,51 @@ As an alternative to deep paging, we recommend using
 If the <<search-api-scroll-query-param,`scroll` parameter>> is specified, this
 value cannot be `0`.
 --
+
+`_source`::
+(Optional)
+Indicates which <<mapping-source-field,source fields>> are returned for matching
+documents. These fields are returned in the `hits._source` property of
+the search response. Defaults to `true`.
++
+.Valid values for `_source`
+[%collapsible%open]
+====
+`true`::
+(boolean)
+The entire document source is returned.
+
+`false`::
+(boolean)
+The document source is not returned.
+
+`<wildcard_pattern>`::
+(string or array of strings)
+Wildcard (`*`) pattern or array of patterns containing source fields to return.
+
+`<object>`::
+(object)
+Object containing a list of source fields to include or exclude.
++
+.Properties for `<object>`
+[%collapsible%open]
+=====
+`excludes`::
+(string or array of strings)
+Wildcard (`*`) pattern or array of patterns containing source fields to exclude
+from the response.
++
+You can also use this property to exclude fields from the subset specified in
+`includes` property.
+
+`includes`::
+(string or array of strings)
+Wildcard (`*`) pattern or array of patterns containing source fields to return.
++
+If this property is specified, only these source fields are returned. You can
+exclude fields from this subset using the `excludes` property.
+=====
+====
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
@@ -457,6 +525,9 @@ returned document.
 `_source`::
 (object)
 Original JSON body passed for the document at index time.
++
+You can use the `_source` parameter to exclude this property from the response
+or specify which source fields to return.
 =====
 ====
 

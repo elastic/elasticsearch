@@ -614,14 +614,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         // No snapshots should be left in the repository
         assertThat(snapshotIds, empty());
-
-        for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
-            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-            assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
-            assertEquals(shards, snapshotInfo.successfulShards());
-            assertEquals(0, snapshotInfo.failedShards());
-        }
     }
 
     public void testConcurrentSnapshotRestoreAndDeleteOther() {

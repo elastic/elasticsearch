@@ -129,7 +129,7 @@ public final class BlobStoreTestUtil {
                 try (InputStream blob = blobContainer.readBlob("index-" + latestGen);
                      XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                          LoggingDeprecationHandler.INSTANCE, blob)) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
                 }
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);

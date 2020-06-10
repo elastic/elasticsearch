@@ -251,7 +251,7 @@ public class NumericTermsAggregator extends TermsAggregator {
          * Collect extra entries for "zero" hit documents if they were requested
          * and required.
          */
-        abstract void collectZeroDocEntriesIfNeeded(long ord) throws IOException;
+        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -296,11 +296,11 @@ public class NumericTermsAggregator extends TermsAggregator {
         abstract B buildEmptyBucket();
 
         @Override
-        final void collectZeroDocEntriesIfNeeded(long ord) throws IOException {
+        final void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
             if (bucketCountThresholds.getMinDocCount() != 0) {
                 return;
             }
-            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(ord) >= bucketCountThresholds.getRequiredSize()) {
+            if (InternalOrder.isCountDesc(order) && bucketOrds.bucketsInOrd(owningBucketOrd) >= bucketCountThresholds.getRequiredSize()) {
                 return;
             }
             // we need to fill-in the blanks
@@ -312,7 +312,7 @@ public class NumericTermsAggregator extends TermsAggregator {
                         for (int v = 0; v < valueCount; ++v) {
                             long value = values.nextValue();
                             if (longFilter == null || longFilter.accept(value)) {
-                                bucketOrds.add(ord, value);
+                                bucketOrds.add(owningBucketOrd, value);
                             }
                         }
                     }
@@ -546,10 +546,10 @@ public class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void collectZeroDocEntriesIfNeeded(long ord) throws IOException {}
+        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {}
 
         @Override
-        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCounts, SignificantLongTerms.Bucket[] topBuckets) {
+        SignificantLongTerms buildResult(long owningBucketOrd, long otherDocCoun, SignificantLongTerms.Bucket[] topBuckets) {
             return new SignificantLongTerms(
                 name,
                 bucketCountThresholds.getRequiredSize(),

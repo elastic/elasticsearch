@@ -103,7 +103,7 @@ public class ComposableIndexTemplateTests extends AbstractDiffableSerializationT
     private static Map<String, AliasMetadata> randomAliases() {
         String aliasName = randomAlphaOfLength(5);
         AliasMetadata aliasMeta = AliasMetadata.builder(aliasName)
-            .filter(Collections.singletonMap(randomAlphaOfLength(2), randomAlphaOfLength(2)))
+            .filter("{\"term\":{\"year\":" + randomIntBetween(1, 3000) + "}}")
             .routing(randomBoolean() ? null : randomAlphaOfLength(3))
             .isHidden(randomBoolean() ? null : randomBoolean())
             .writeIndex(randomBoolean() ? null : randomBoolean())

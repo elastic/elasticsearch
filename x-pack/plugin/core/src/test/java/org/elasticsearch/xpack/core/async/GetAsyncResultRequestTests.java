@@ -21,7 +21,7 @@ public class GetAsyncResultRequestTests extends AbstractWireSerializingTestCase<
     protected GetAsyncResultRequest createTestInstance() {
         GetAsyncResultRequest req = new GetAsyncResultRequest(randomSearchId());
         if (randomBoolean()) {
-            req.setWaitForCompletion(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
+            req.setWaitForCompletionTimeout(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));
         }
         if (randomBoolean()) {
             req.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 10000)));

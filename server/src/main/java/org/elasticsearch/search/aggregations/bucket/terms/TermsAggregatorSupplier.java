@@ -44,6 +44,4 @@ interface TermsAggregatorSupplier extends AggregatorSupplier {
                      boolean showTermDocCountError,
                      boolean collectsFromSingleBucket,
                      Map<String, Object> metadata) throws IOException;
-
-    boolean needsToCollectFromSingleBucket();
 }

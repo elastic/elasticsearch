@@ -270,7 +270,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                                        ActionListener<StoredAsyncResponse<TestResponse>> listener) {
         CountDownLatch responseLatch = new CountDownLatch(1);
         GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(id)
-            .setWaitForCompletion(timeout);
+            .setWaitForCompletionTimeout(timeout);
         results.retrieveResult(getResultsRequest, ActionListener.wrap(
             r -> {
                 listener.onResponse(r);

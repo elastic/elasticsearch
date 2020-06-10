@@ -37,5 +37,5 @@ public interface AsyncTask {
     /**
      * Performs necessary checks, cancels the task and calls the runnable upon completion
      */
-    void cancelTask(TaskManager taskManager, Runnable runnable);
+    void cancelTask(TaskManager taskManager, Runnable runnable, String reason);
 }

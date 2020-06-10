@@ -48,6 +48,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     private QueryBuilder filter = null;
     private String timestampField = FIELD_TIMESTAMP;
+    private String tieBreakerField = null;
     private String eventCategoryField = FIELD_EVENT_CATEGORY;
     private String implicitJoinKeyField = FIELD_IMPLICIT_JOIN_KEY;
     private int fetchSize = FETCH_SIZE;
@@ -62,6 +63,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
+    static final String KEY_TIE_BREAKER_FIELD = "tie_breaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
@@ -74,6 +76,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
+    static final ParseField TIE_BREAKER_FIELD = new ParseField(KEY_TIE_BREAKER_FIELD);
     static final ParseField EVENT_CATEGORY_FIELD = new ParseField(KEY_EVENT_CATEGORY_FIELD);
     static final ParseField IMPLICIT_JOIN_KEY_FIELD = new ParseField(KEY_IMPLICIT_JOIN_KEY_FIELD);
     static final ParseField SIZE = new ParseField(KEY_SIZE);
@@ -96,6 +99,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         timestampField = in.readString();
+        tieBreakerField = in.readOptionalString();
         eventCategoryField = in.readString();
         implicitJoinKeyField = in.readString();
         fetchSize = in.readVInt();
@@ -162,6 +166,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             builder.field(KEY_FILTER, filter);
         }
         builder.field(KEY_TIMESTAMP_FIELD, timestampField());
+        if (tieBreakerField != null) {
+            builder.field(KEY_TIE_BREAKER_FIELD, tieBreakerField());
+        }
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
         if (implicitJoinKeyField != null) {
             builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
@@ -194,6 +201,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareObject(EqlSearchRequest::filter,
             (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
+        parser.declareString(EqlSearchRequest::tieBreakerField, TIE_BREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
         parser.declareString(EqlSearchRequest::implicitJoinKeyField, IMPLICIT_JOIN_KEY_FIELD);
         parser.declareInt(EqlSearchRequest::fetchSize, SIZE);
@@ -227,6 +235,13 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     public EqlSearchRequest timestampField(String timestampField) {
         this.timestampField = timestampField;
+        return this;
+    }
+
+    public String tieBreakerField() { return this.tieBreakerField; }
+
+    public EqlSearchRequest tieBreakerField(String tieBreakerField) {
+        this.tieBreakerField = tieBreakerField;
         return this;
     }
 
@@ -316,6 +331,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalNamedWriteable(filter);
         out.writeString(timestampField);
+        out.writeOptionalString(tieBreakerField);
         out.writeString(eventCategoryField);
         out.writeString(implicitJoinKeyField);
         out.writeVInt(fetchSize);
@@ -343,6 +359,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
                 Objects.equals(timestampField, that.timestampField) &&
+                Objects.equals(tieBreakerField, that.tieBreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
@@ -359,7 +376,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             indicesOptions,
             filter,
             fetchSize,
-            timestampField, eventCategoryField,
+            timestampField,
+            tieBreakerField,
+            eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,
             query,

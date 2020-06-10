@@ -59,7 +59,7 @@ public class DeleteAsyncResultsService {
                                     searchId.getEncoded()), exc);
                                 listener.onFailure(exc);
                             }
-                        }))
+                        })), "cancelled by user"
                 );
             } else {
                 // the task was not found (already cancelled, already completed, or invalid id?)

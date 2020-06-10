@@ -23,11 +23,12 @@ choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
 * Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to get the values for specific  stored fields. (Fields that use the <<mapping-store,`store`>> mapping option.)
 
-You can use the following methods to select which fields and values are
-retrieved by a search request:
+You can find more detailed information on each of these methods in the sections
+below.
 
 [[source-filtering]]
-.*Source filtering*
+==== Source filtering
+
 [%collapsible]
 ====
 If you only need certain source fields in the search response, you can use the
@@ -124,7 +125,8 @@ needed.
 ====
 
 [[docvalue-fields]]
-.*Doc value fields*
+==== Doc value fields
+
 [%collapsible]
 ====
 You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
@@ -184,7 +186,8 @@ property.
 ====
 
 [[stored-fields]]
-.*Stored fields*
+==== Stored fields
+
 [%collapsible]
 ====
 It's also possible to store an individual field's values by using the

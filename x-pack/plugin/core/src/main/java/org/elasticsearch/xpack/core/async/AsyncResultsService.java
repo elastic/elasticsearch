@@ -133,7 +133,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                 public void onFailure(Exception exc) {
                     listener.onFailure(exc);
                 }
-            }, request.getWaitForCompletion());
+            }, request.getWaitForCompletionTimeout());
         } catch (Exception exc) {
             listener.onFailure(exc);
         }

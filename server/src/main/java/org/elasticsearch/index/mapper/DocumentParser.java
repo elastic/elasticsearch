@@ -389,7 +389,7 @@ final class DocumentParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 paths = splitAndValidatePath(currentFieldName);
-                if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
+                if (context.mapperService().isMetadataField(context.path().pathAsText(currentFieldName))) {
                     throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside"
                         + " a document. Use the index API request parameters.");
                 } else if (containsDisabledObjectMapper(mapper, paths)) {

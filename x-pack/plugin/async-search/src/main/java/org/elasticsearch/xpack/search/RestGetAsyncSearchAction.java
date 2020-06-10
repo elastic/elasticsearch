@@ -36,7 +36,7 @@ public class RestGetAsyncSearchAction extends BaseRestHandler  {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         GetAsyncResultRequest get = new GetAsyncResultRequest(request.param("id"));
         if (request.hasParam("wait_for_completion_timeout")) {
-            get.setWaitForCompletion(request.paramAsTime("wait_for_completion_timeout", get.getWaitForCompletion()));
+            get.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", get.getWaitForCompletionTimeout()));
         }
         if (request.hasParam("keep_alive")) {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));

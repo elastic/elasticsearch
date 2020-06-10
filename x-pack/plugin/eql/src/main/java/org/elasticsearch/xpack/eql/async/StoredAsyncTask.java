@@ -96,7 +96,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     protected abstract Response getCurrentResult();
 
     @Override
-    public void cancelTask(TaskManager taskManager, Runnable runnable) {
-        taskManager.cancelTaskAndDescendants(this, "task deleted", true, ActionListener.wrap(runnable));
+    public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
+        taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.plan.logical;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -25,17 +26,19 @@ public class Join extends LogicalPlan {
 
     private final List<KeyedFilter> queries;
     private final KeyedFilter until;
-    private final Attribute timestampField;
+    private final Attribute timestamp;
+    private final Attribute tieBreaker;
 
-    public Join(Source source, List<KeyedFilter> queries, KeyedFilter until, Attribute timestampField) {
+    public Join(Source source, List<KeyedFilter> queries, KeyedFilter until, Attribute timestamp, Attribute tieBreaker) {
         super(source, CollectionUtils.combine(queries, until));
         this.queries = queries;
         this.until = until;
-        this.timestampField = timestampField;
+        this.timestamp = timestamp;
+        this.tieBreaker = tieBreaker;
     }
 
-    private Join(Source source, List<LogicalPlan> queries, LogicalPlan until, Attribute timestampField) {
-        this(source, asKeyed(queries), asKeyed(until), timestampField);
+    private Join(Source source, List<LogicalPlan> queries, LogicalPlan until, Attribute timestamp, Attribute tieBreaker) {
+        this(source, asKeyed(queries), asKeyed(until), timestamp, tieBreaker);
     }
 
     static List<KeyedFilter> asKeyed(List<LogicalPlan> list) {
@@ -56,7 +59,7 @@ public class Join extends LogicalPlan {
 
     @Override
     protected NodeInfo<? extends Join> info() {
-        return NodeInfo.create(this, Join::new, queries, until, timestampField);
+        return NodeInfo.create(this, Join::new, queries, until, timestamp, tieBreaker);
     }
 
     @Override
@@ -65,13 +68,18 @@ public class Join extends LogicalPlan {
             throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
         }
         int lastIndex = newChildren.size() - 1;
-        return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestampField);
+        return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestamp, tieBreaker);
     }
 
     @Override
     public List<Attribute> output() {
         List<Attribute> out = new ArrayList<>();
-        out.add(timestampField);
+
+        out.add(timestamp);
+        if (Expressions.isPresent(tieBreaker)) {
+            out.add(tieBreaker);
+        }
+
         for (KeyedFilter query : queries) {
             out.addAll(query.output());
         }
@@ -80,7 +88,7 @@ public class Join extends LogicalPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return timestampField.resolved() && until.resolved() && Resolvables.resolved(queries);
+        return timestamp.resolved() && tieBreaker.resolved() && until.resolved() && Resolvables.resolved(queries);
     }
 
     public List<KeyedFilter> queries() {
@@ -91,13 +99,17 @@ public class Join extends LogicalPlan {
         return until;
     }
 
-    public Attribute timestampField() {
-        return timestampField;
+    public Attribute timestamp() {
+        return timestamp;
+    }
+    
+    public Attribute tieBreaker() {
+        return tieBreaker;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestampField, queries, until);
+        return Objects.hash(timestamp, tieBreaker, queries, until);
     }
 
     @Override
@@ -113,7 +125,8 @@ public class Join extends LogicalPlan {
 
         return Objects.equals(queries, other.queries)
                 && Objects.equals(until, other.until)
-                && Objects.equals(timestampField, other.timestampField);
+                && Objects.equals(timestamp, other.timestamp)
+                && Objects.equals(tieBreaker, other.tieBreaker);
     }
 
     @Override

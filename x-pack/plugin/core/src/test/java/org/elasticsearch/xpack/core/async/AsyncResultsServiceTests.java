@@ -73,8 +73,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void cancelTask(TaskManager taskManager, Runnable runnable) {
-            taskManager.cancelTaskAndDescendants(this, "test", true, ActionListener.wrap(runnable));
+        public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
+            taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
         }
 
         public long getExpirationTime() {
@@ -167,7 +167,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
             PlainActionFuture<TestAsyncResponse> listener = new PlainActionFuture<>();
             service.retrieveResult(new GetAsyncResultRequest(task.getExecutionId().getEncoded())
-                .setWaitForCompletion(TimeValue.timeValueSeconds(5)), listener);
+                .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(5)), listener);
             if (randomBoolean()) {
                 // Test success
                 String expectedResponse = randomAlphaOfLength(10);

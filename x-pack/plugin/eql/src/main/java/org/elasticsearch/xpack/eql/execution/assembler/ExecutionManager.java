@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -57,18 +57,18 @@ public class ExecutionManager implements QueryClient {
         this.indices = cfg.indexAsWildcard();
     }
 
-    public Executable from(SequenceExec seqExec) {
+
+    public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Attribute timestamp, Attribute tieBreaker) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
         
-        List<List<Attribute>> listOfKeys = seqExec.keys();
-        List<PhysicalPlan> plans = seqExec.children();
         List<Criterion> criteria = new ArrayList<>(plans.size() - 1);
         
         // build a criterion for each query
         for (int i = 0; i < plans.size() - 1; i++) {
             List<Attribute> keys = listOfKeys.get(i);
             // fields
-            HitExtractor tsExtractor = timestampExtractor(hitExtractor(seqExec.timestamp(), extractorRegistry));
+            HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
+            HitExtractor tbExtractor = Expressions.isPresent(tieBreaker) ? hitExtractor(tieBreaker, extractorRegistry) : null;
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
 
             PhysicalPlan query = plans.get(i);
@@ -78,7 +78,7 @@ public class ExecutionManager implements QueryClient {
             QueryContainer container = ((EsQueryExec) query).queryContainer();
             SearchSourceBuilder searchSource = SourceGenerator.sourceBuilder(container, cfg.filter(), cfg.size());
             
-            criteria.add(new Criterion(searchSource, keyExtractors, tsExtractor));
+            criteria.add(new Criterion(searchSource, keyExtractors, tsExtractor, tbExtractor));
         }
         return new SequenceRuntime(criteria, this);
     }

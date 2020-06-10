@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 
-class KeyWithTime {
+class KeyAndOrdinal {
     final SequenceKey key;
     final long timestamp;
+    final Comparable<Object> tieBreaker;
 
-    KeyWithTime(SequenceKey key, long timestamp) {
+    KeyAndOrdinal(SequenceKey key, long timestamp, Comparable<Object> tieBreaker) {
         this.key = key;
         this.timestamp = timestamp;
+        this.tieBreaker = tieBreaker;
     }
 }

@@ -40,7 +40,7 @@ interface SignificantTermsAggregatorSupplier extends AggregatorSupplier {
                      SearchContext context,
                      Aggregator parent,
                      SignificanceHeuristic significanceHeuristic,
-                     SignificantTermsAggregatorFactory sigTermsFactory,
+                     SignificanceLookup lookup,
                      boolean collectsFromSingleBucket,
                      Map<String, Object> metadata) throws IOException;
 }

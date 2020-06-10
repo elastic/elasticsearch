@@ -559,20 +559,25 @@ You can use the `_source` parameter to exclude this property from the response
 or specify which source fields to return.
 
 `fields`::
++
+--
 (object)
-Contains <<doc-values,doc values>> for fields specified using the
-<<search-docvalue-fields-param,`docvalue_fields`>> parameter. This property is only
-returned if `docvalue_fields` is specified in the search request.
+Contains field values for the documents. These fields must be specified in the
+request using one or more of the following request parameters:
+
+* <<search-docvalue-fields-param,`docvalue_fields`>>
+* <<request-body-search-script-fields,`script_fields`>>
+* <<search-stored-fields-fields-param,`stored_fields`>>
+
+This property is returned only if one or more of these parameters are set.
+--
 +
 .Properties of `fields`
 [%collapsible%open]
 ======
 `<field>`::
 (array)
-Key is the field name. Value is the doc value for the field.
-+
-If no doc values are available for the field, the value is an empty array
-(`[ ]`).
+Key is the field name. Value is the value for the field.
 ======
 =====
 ====

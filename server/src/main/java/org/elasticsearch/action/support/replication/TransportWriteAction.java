@@ -69,6 +69,8 @@ public abstract class TransportWriteAction<
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
                                    Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary,
                                    WriteMemoryLimits writeMemoryLimits) {
+        // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
+        // ThreadPool.Names.WRITE thread pool in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
@@ -78,7 +80,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        if (coordinatingBytesNeedAccounted(request)) {
+        if (shouldMarkCoordinatingBytes(request)) {
             long operationSizeInBytes = primaryOperationSize(request);
             return writeMemoryLimits.markCoordinatingOperationStarted(operationSizeInBytes);
         } else {
@@ -86,8 +88,8 @@ public abstract class TransportWriteAction<
         }
     }
 
-    protected boolean coordinatingBytesNeedAccounted(Request request) {
-        return false;
+    protected boolean shouldMarkCoordinatingBytes(Request request) {
+        return true;
     }
 
     @Override

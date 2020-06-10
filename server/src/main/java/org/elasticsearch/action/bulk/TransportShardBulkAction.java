@@ -112,7 +112,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected boolean coordinatingBytesNeedAccounted(BulkShardRequest request) {
+    protected boolean shouldMarkCoordinatingBytes(BulkShardRequest request) {
         if (request.isCoordinatingBytesAccounted()) {
             return false;
         } else {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.node.NodeClient;
@@ -42,7 +41,6 @@ import static java.util.Collections.singletonMap;
  * Makes sure that tasks that attempt to store themselves on completion retry if
  * they don't succeed at first.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class TaskStorageRetryIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

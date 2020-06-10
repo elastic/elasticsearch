@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.bulk;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class BulkProcessorRetryIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "test";

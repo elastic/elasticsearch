@@ -434,8 +434,8 @@ GET /sec_logs/_eql/search
 ====
 
 [discrete]
-[[eql-search-specify-tiebreaker-field]]
-=== Specify a sort tiebreaker field
+[[eql-search-specify-a-sort-tiebreaker]]
+=== Specify a sort tiebreaker
 
 By default, the EQL search API sorts matching events in the search response by
 timestamp. However, if two or more events share the same timestamp, a tiebreaker

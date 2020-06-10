@@ -155,8 +155,17 @@ public class ValuesSourceConfig {
             valuesSourceType = defaultValueSourceType;
         }
         DocValueFormat docValueFormat = resolveFormat(format, valuesSourceType, timeZone, fieldType);
-        config = new ValuesSourceConfig(valuesSourceType, fieldContext, unmapped, aggregationScript, scriptValueType, missing,
-            timeZone, docValueFormat, context::nowInMillis);
+        config = new ValuesSourceConfig(
+            valuesSourceType,
+            fieldContext,
+            unmapped,
+            aggregationScript,
+            scriptValueType,
+            missing,
+            timeZone,
+            docValueFormat,
+            context::nowInMillis
+        );
         return config;
     }
 
@@ -253,8 +262,11 @@ public class ValuesSourceConfig {
     private final Object missing;
     private final ZoneId timeZone;
     private final LongSupplier nowSupplier;
-    private ValuesSource valuesSource;
+    private final ValuesSource valuesSource;
 
+    private ValuesSourceConfig() {
+        throw new UnsupportedOperationException();
+    }
 
     public ValuesSourceConfig(
         ValuesSourceType valuesSourceType,
@@ -285,7 +297,10 @@ public class ValuesSourceConfig {
             throw new IllegalStateException(
                 "value source config is invalid; must have either a field context or a script or marked as unwrapped");
         }
+        valuesSource = ConstructValuesSource(missing, format, nowSupplier);
+    }
 
+    private final ValuesSource ConstructValuesSource(Object missing, DocValueFormat format, LongSupplier nowSupplier) {
         final ValuesSource vs;
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
@@ -300,11 +315,10 @@ public class ValuesSourceConfig {
         }
 
         if (missing() != null) {
-            valuesSource = valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
+            return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
         } else {
-            valuesSource =  vs;
+            return vs;
         }
-
     }
 
     public ValuesSourceType valueSourceType() {

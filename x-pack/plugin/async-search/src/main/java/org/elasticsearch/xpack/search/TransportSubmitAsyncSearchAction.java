@@ -176,21 +176,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
         if (searchTask.isCancelled()) {
-            try {
-                // the task was cancelled so we ensure that there is nothing stored in the response index.
-                store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
-                    resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                    exc -> {
-                        logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
-                            searchTask.getExecutionId().getEncoded()), exc);
-                        unregisterTaskAndMoveOn(searchTask, nextAction);
-                    }));
-            } catch(Exception exc) {
-                logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
-                        searchTask.getExecutionId().getEncoded()),
-                    exc);
-                unregisterTaskAndMoveOn(searchTask, nextAction);
-            }
+            // the task was cancelled so we ensure that there is nothing stored in the response index.
+            store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
+                resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
+                exc -> {
+                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
+                        searchTask.getExecutionId().getEncoded()), exc);
+                    unregisterTaskAndMoveOn(searchTask, nextAction);
+                }));
             return;
        }
 

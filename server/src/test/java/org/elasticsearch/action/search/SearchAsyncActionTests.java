@@ -437,8 +437,9 @@ public class SearchAsyncActionTests extends ESTestCase {
                 TestSearchResponse response = new TestSearchResponse();
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard, SearchActionListener<TestSearchPhaseResult>
-                    listener) {
+                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                                                   ShardRouting shard,
+                                                   SearchActionListener<TestSearchPhaseResult> listener) {
                     assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
                     Transport.Connection connection = getConnection(null, shard.currentNodeId());
                     final TestSearchPhaseResult testSearchPhaseResult;
@@ -458,7 +459,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 }
 
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results,
+                                                   SearchPhaseContext context) {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {

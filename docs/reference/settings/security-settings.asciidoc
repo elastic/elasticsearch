@@ -580,7 +580,7 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. If the `url` and the `user_search_dn`
+The domain name of Active Directory. If the `url` and the `user_search.base_dn`
 settings are not specified, the cluster can derive those values from this 
 setting. Required.
 
@@ -1346,6 +1346,24 @@ id tokens with regards to their creation and expiration times.
 `populate_user_metadata`::
 Specifies whether to populate the {es} user's metadata with the values that are
 provided by the OpenID Connect claims. Defaults to `true`.
+
+`http.proxy.host`::
+Specifies the address of the proxy server that will be used by the internal
+http client for all back-channel communication to the OpenID Connect Provider
+endpoints. This includes requests to the Token Endpoint, the Userinfo Endpoint
+and requests to fetch the JSON Web Key Set from the OP if `op.jwkset_path` is
+set as a URL. 
+
+`http.proxy.scheme`::
+Specifies the protocol to use to connect to the proxy server that will be 
+used by the http client for all back-channel communication to the OpenID 
+Connect Provider endpoints. Defaults to `http`. Allowed values are 
+`http` or `https`.
+
+`http.proxy.port`::
+Specifies the port of the proxy server that will be used by the http
+client for all backchannel communication to the OpenID Connect Provider
+endpoints. Defaults to `80`.
 
 `http.connect_timeout`::
 Controls the behavior of the http client used for back-channel communication to

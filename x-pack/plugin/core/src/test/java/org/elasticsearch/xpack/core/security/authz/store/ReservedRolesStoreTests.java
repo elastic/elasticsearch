@@ -50,8 +50,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
@@ -1277,6 +1277,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
             assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+            if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
+                assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
+            } else {
+                assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
+            }
 
             Role role = Role.builder(roleDescriptor, null).build();
             assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
@@ -1318,7 +1323,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
     }
 
-    public void testDataFrameTransformsUserRole() {
+    public void testTransformUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = mock(Authentication.class);
 
@@ -1330,6 +1335,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
             assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+            if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
+                assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
+            } else {
+                assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
+            }
 
             Role role = Role.builder(roleDescriptor, null).build();
             assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));

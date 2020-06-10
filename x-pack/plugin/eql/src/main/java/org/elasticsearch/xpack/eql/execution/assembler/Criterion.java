@@ -6,7 +6,9 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
@@ -16,11 +18,14 @@ public class Criterion {
     private final SearchSourceBuilder searchSource;
     private final List<HitExtractor> keyExtractors;
     private final HitExtractor timestampExtractor;
+    private final HitExtractor tieBreakerExtractor;
 
-    public Criterion(SearchSourceBuilder searchSource, List<HitExtractor> searchAfterExractors, HitExtractor timestampExtractor) {
+    public Criterion(SearchSourceBuilder searchSource, List<HitExtractor> searchAfterExractors, HitExtractor timestampExtractor,
+                     HitExtractor tieBreakerExtractor) {
         this.searchSource = searchSource;
         this.keyExtractors = searchAfterExractors;
         this.timestampExtractor = timestampExtractor;
+        this.tieBreakerExtractor = tieBreakerExtractor;
     }
 
     public SearchSourceBuilder searchSource() {
@@ -35,8 +40,32 @@ public class Criterion {
         return timestampExtractor;
     }
 
-    public void fromTimestamp(long timestampMarker) {
+    public HitExtractor tieBreakerExtractor() {
+        return tieBreakerExtractor;
+    }
+
+    public long timestamp(SearchHit hit) {
+        Object ts = timestampExtractor.extract(hit);
+        if (ts instanceof Number) {
+            return ((Number) ts).longValue();
+        }
+        throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    public Comparable<Object> tieBreaker(SearchHit hit) {
+        if (tieBreakerExtractor == null) {
+            return null;
+        }
+        Object tb = tieBreakerExtractor.extract(hit);
+        if (tb instanceof Comparable) {
+            return (Comparable<Object>) tb;
+        }
+        throw new EqlIllegalArgumentException("Expected tiebreaker to be Comparable but got {}", tb);
+    }
+
+    public void fromMarkers(Object[] markers) {
         // TODO: this is likely to be rewritten afterwards
-        searchSource.searchAfter(new Object[] { timestampMarker });
+        searchSource.searchAfter(markers);
     }
 }

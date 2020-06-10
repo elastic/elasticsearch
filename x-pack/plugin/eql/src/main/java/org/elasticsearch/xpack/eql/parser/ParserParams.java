@@ -11,14 +11,15 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
 public class ParserParams {
 
     private final ZoneId zoneId;
     private String fieldEventCategory = FIELD_EVENT_CATEGORY;
     private String fieldTimestamp = FIELD_TIMESTAMP;
+    private String fieldTieBreaker = null;
     private String implicitJoinKey = FIELD_IMPLICIT_JOIN_KEY;
     private List<Object> queryParams = emptyList();
 
@@ -41,6 +42,15 @@ public class ParserParams {
 
     public ParserParams fieldTimestamp(String fieldTimestamp) {
         this.fieldTimestamp = fieldTimestamp;
+        return this;
+    }
+
+    public String fieldTieBreaker() {
+        return fieldTieBreaker;
+    }
+
+    public ParserParams fieldTieBreaker(String fieldTieBreaker) {
+        this.fieldTieBreaker = fieldTieBreaker;
         return this;
     }
 

@@ -549,13 +549,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    static PercolateQuery.QueryStore createStore(String queryBuilderFieldName,
+    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType,
                                                  QueryShardContext context) {
         Version indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
             LeafReader leafReader = ctx.reader();
-            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(queryBuilderFieldName);
+            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(queryBuilderFieldType.name());
             if (binaryDocValues == null) {
                 return docId -> null;
             }

@@ -1090,7 +1090,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 String queryToString = shardSearcher.doc(controlTopDocs.scoreDocs[i].doc).get("query_to_string");
                 logger.error("controlTopDocs.scoreDocs[{}].query_to_string={}", i, queryToString);
 
-                TermsEnum tenum = MultiTerms.getTerms(shardSearcher.getIndexReader(), fieldType.queryTermsField).iterator();
+                TermsEnum tenum = MultiTerms.getTerms(shardSearcher.getIndexReader(), fieldType.queryTermsField.name()).iterator();
                 StringBuilder builder = new StringBuilder();
                 for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
                     PostingsEnum penum = tenum.postings(null);
@@ -1101,7 +1101,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 logger.error("controlTopDocs.scoreDocs[{}].query_terms_field={}", i, builder.toString());
 
                 NumericDocValues numericValues =
-                    MultiDocValues.getNumericValues(shardSearcher.getIndexReader(), fieldType.minimumShouldMatchField);
+                    MultiDocValues.getNumericValues(shardSearcher.getIndexReader(), fieldType.minimumShouldMatchField.name());
                 boolean exact = numericValues.advanceExact(controlTopDocs.scoreDocs[i].doc);
                 if (exact) {
                     logger.error("controlTopDocs.scoreDocs[{}].minimum_should_match_field={}", i, numericValues.longValue());

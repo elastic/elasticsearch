@@ -131,7 +131,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model, future);
+            modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -139,12 +139,16 @@ public class ModelLoadingServiceTests extends ESTestCase {
         verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model2), any());
         verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(model3), any());
 
+        assertTrue(modelLoadingService.isModelCached(model1));
+        assertTrue(modelLoadingService.isModelCached(model2));
+        assertTrue(modelLoadingService.isModelCached(model3));
+
         // Test invalidate cache for model3
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model, future);
+            modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -196,7 +200,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             // Only reference models 1 and 2, so that cache is only invalidated once for model3 (after initial load)
             String model = modelIds[i%2];
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model, future);
+            modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -219,7 +223,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
             PlainActionFuture<Model> future3 = new PlainActionFuture<>();
-            modelLoadingService.getModel(model3, future3);
+            modelLoadingService.getModelForPipeline(model3, future3);
             assertThat(future3.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, times(2)).getTrainedModelForInference(eq(model3), any());
@@ -240,7 +244,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
             PlainActionFuture<Model> future1 = new PlainActionFuture<>();
-            modelLoadingService.getModel(model1, future1);
+            modelLoadingService.getModelForPipeline(model1, future1);
             assertThat(future1.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model1), any());
@@ -254,7 +258,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         // Load model 2
         for(int i = 0; i < 10; i++) {
             PlainActionFuture<Model> future2 = new PlainActionFuture<>();
-            modelLoadingService.getModel(model2, future2);
+            modelLoadingService.getModelForPipeline(model2, future2);
             assertThat(future2.get(), is(not(nullValue())));
         }
         verify(trainedModelProvider, atMost(3)).getTrainedModelForInference(eq(model2), any());
@@ -265,7 +269,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model, future);
+            modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
@@ -292,10 +296,11 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         for(int i = 0; i < 10; i++) {
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model1, future);
+            modelLoadingService.getModelForPipeline(model1, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
+        assertFalse(modelLoadingService.isModelCached(model1));
         verify(trainedModelProvider, times(10)).getTrainedModelForInference(eq(model1), any());
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
@@ -315,7 +320,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
         PlainActionFuture<Model> future = new PlainActionFuture<>();
-        modelLoadingService.getModel(model, future);
+        modelLoadingService.getModelForPipeline(model, future);
 
         try {
             future.get();
@@ -323,6 +328,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         } catch (Exception ex) {
             assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
+        assertFalse(modelLoadingService.isModelCached(model));
 
         verify(trainedModelProvider, atMost(2)).getTrainedModelForInference(eq(model), any());
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
@@ -342,13 +348,14 @@ public class ModelLoadingServiceTests extends ESTestCase {
             circuitBreaker);
 
         PlainActionFuture<Model> future = new PlainActionFuture<>();
-        modelLoadingService.getModel(model, future);
+        modelLoadingService.getModelForPipeline(model, future);
         try {
             future.get();
             fail("Should not have succeeded");
         } catch (Exception ex) {
             assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
+        assertFalse(modelLoadingService.isModelCached(model));
     }
 
     public void testGetModelEagerly() throws Exception {
@@ -366,11 +373,37 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         for(int i = 0; i < 3; i++) {
             PlainActionFuture<Model> future = new PlainActionFuture<>();
-            modelLoadingService.getModel(model, future);
+            modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
 
         verify(trainedModelProvider, times(3)).getTrainedModelForInference(eq(model), any());
+        assertFalse(modelLoadingService.isModelCached(model));
+        verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
+    }
+
+    public void testGetModelForSearch() throws Exception {
+        String modelId = "test-get-model-for-search";
+        withTrainedModel(modelId, 1L);
+
+        ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider,
+            auditor,
+            threadPool,
+            clusterService,
+            trainedModelStatsService,
+            Settings.EMPTY,
+            "test-node",
+            circuitBreaker);
+
+        for(int i = 0; i < 3; i++) {
+            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            modelLoadingService.getModelForSearch(modelId, future);
+            assertThat(future.get(), is(not(nullValue())));
+        }
+
+        assertTrue(modelLoadingService.isModelCached(modelId));
+
+        verify(trainedModelProvider, times(1)).getTrainedModelForInference(eq(modelId), any());
         verify(trainedModelStatsService, never()).queueStats(any(InferenceStats.class), anyBoolean());
     }
 

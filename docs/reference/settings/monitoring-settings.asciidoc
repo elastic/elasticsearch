@@ -34,9 +34,12 @@ This deprecated setting has no effect.
 [[monitoring-collection-settings]]
 ==== Monitoring Collection Settings
 
+[[monitoring-settings-description]]
+// tag::monitoring-settings-description-tag[]
 The `xpack.monitoring.collection` settings control how data is collected from
 your Elasticsearch nodes. You can dynamically change all monitoring collection
 settings using the <<cluster-update-settings,cluster update settings API>>.
+// end::monitoring-settings-description-tag[]
 
 `xpack.monitoring.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
 

@@ -1,6 +1,7 @@
 [[modules-http]]
 === HTTP
-
+[[modules-http-description]]
+// tag::modules-http-description-tag[]
 The HTTP layer exposes {es}'s REST APIs over HTTP.
 
 The HTTP mechanism is completely asynchronous in nature, meaning that
@@ -13,6 +14,7 @@ http://en.wikipedia.org/wiki/Keepalive#HTTP_Keepalive[HTTP keep alive]
 when connecting for better performance and try to get your favorite
 client not to do
 http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
+// end::modules-http-description-tag[]
 
 [http-settings]
 ==== HTTP settings

@@ -1,13 +1,15 @@
 [[disk-based-shard-allocation]]
 ==== Disk-based shard allocation settings
-
+[[disk-based-shard-allocation-description]]
+// tag::disk-based-shard-allocation-description-tag[]
 {es} considers the available disk space on a node before deciding
 whether to allocate new shards to that node or to actively relocate shards away
 from that node.
 
-Below are the settings that can be configured in the `elasticsearch.yml` config
-file or updated dynamically on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API:
+You can configure the following settings in the `elasticsearch.yml` config
+file or dynamically update settings on a live cluster with the
+<<cluster-update-settings,cluster-update-settings>> API.
+// end::disk-based-shard-allocation-description-tag[]
 
 [[cluster-routing-disk-threshold]]
 // tag::cluster-routing-disk-threshold-tag[]

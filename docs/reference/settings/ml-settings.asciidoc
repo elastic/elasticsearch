@@ -6,6 +6,8 @@
 <titleabbrev>Machine learning settings</titleabbrev>
 ++++
 
+[[ml-settings-description]]
+// tag::ml-settings-description-tag[]
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
 IMPORTANT: {ml-cap} uses SSE4.2 instructions, so will only work on machines whose
@@ -19,6 +21,8 @@ The dynamic settings can also be updated across a cluster with the
 
 TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml`
 file.
+
+// end::ml-settings-description-tag[]
 
 [float]
 [[general-ml-settings]]

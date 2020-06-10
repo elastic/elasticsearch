@@ -405,7 +405,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 --------------------------------------------------
 
 [[sql-functions-datetime-dateparse]]
-==== `DATEE_PARSE`
+==== `DATE_PARSE`
 
 .Synopsis:
 [source, sql]
@@ -428,8 +428,8 @@ https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/Da
 If any of the two arguments is `null` or an empty string `null` is returned.
 
 [NOTE]
-If the parsing pattern contains date units (e.g. 'HH:mm:ss', 'dd-MM HH:mm:ss', etc.) an error is returned
-as the function needs to return a value of `date` type which will contain only date.
+If the parsing pattern not contains date units completely (e.g. 'HH:mm:ss', 'dd-MM HH:mm:ss', etc.) an error is returned
+as the function needs to return a value of `date` type which will contain date part.
 
 [source, sql]
 --------------------------------------------------

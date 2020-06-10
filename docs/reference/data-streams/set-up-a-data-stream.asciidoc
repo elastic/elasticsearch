@@ -24,7 +24,9 @@ required to use data streams, we recommend the {ecs-ref}[Elastic Common Schema
 
 * Data streams are designed to be append-only. While you can index new documents
 directly to a data stream, you cannot use a data stream to directly update or
-delete individual documents.
+delete individual documents. To update or delete specific documents in a data
+stream, submit a <<docs-delete,delete>> or <<docs-update,update>> API request to
+the backing index containing the document.
 
 
 [discrete]

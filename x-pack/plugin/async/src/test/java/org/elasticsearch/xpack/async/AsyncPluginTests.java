@@ -14,7 +14,7 @@ public class AsyncPluginTests extends ESTestCase {
 
     public void testDummy() {
         // This is a dummy test case to satisfy the conventions
-        AsyncPlugin plugin = new AsyncPlugin();
+        AsyncPlugin plugin = new AsyncPlugin(Settings.EMPTY);
         assertThat(plugin.getSystemIndexDescriptors(Settings.EMPTY), Matchers.hasSize(1));
     }
 }

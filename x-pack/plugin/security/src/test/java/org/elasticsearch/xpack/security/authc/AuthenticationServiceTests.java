@@ -74,11 +74,8 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -111,7 +108,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -904,48 +900,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result.getUser(), sameInstance(SystemUser.INSTANCE));
         assertThat(result.getAuthenticationType(), is(AuthenticationType.INTERNAL));
         assertThreadContextContainsAuthentication(result);
-    }
-
-    public void testInheritAnonymousUserRoles() {
-        Settings settings = Settings.builder()
-            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
-            .build();
-        final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService);
-        User user1 = new User("username", "r1", "r2", "r3");
-        when(firstRealm.token(threadContext)).thenReturn(token);
-        when(firstRealm.supports(token)).thenReturn(true);
-        mockAuthenticate(firstRealm, token, user1);
-        // this call does not actually go async
-        final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
-            assertThat(authentication.getUser().roles(), arrayContainingInAnyOrder("r1", "r2", "r3", "r4", "r5"));
-            setCompletedToTrue(completed);
-        }, this::logAndFail));
-        assertTrue(completed.get());
-    }
-
-    public void testSystemUsersDoNotInheritAnonymousRoles() {
-        Settings settings = Settings.builder()
-            .putList(AnonymousUser.ROLES_SETTING.getKey(), "r3", "r4", "r5")
-            .build();
-        final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        service = new AuthenticationService(settings, realms, auditTrailService,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService);
-        when(firstRealm.token(threadContext)).thenReturn(token);
-        when(firstRealm.supports(token)).thenReturn(true);
-        final User sysUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
-        mockAuthenticate(firstRealm, token, sysUser);
-        // this call does not actually go async
-        final AtomicBoolean completed = new AtomicBoolean(false);
-        service.authenticate(restRequest, true, ActionListener.wrap(authentication -> {
-            assertThat(authentication.getUser().roles(), equalTo(sysUser.roles()));
-            setCompletedToTrue(completed);
-        }, this::logAndFail));
-        assertTrue(completed.get());
     }
 
     public void testRealmTokenThrowingException() throws Exception {

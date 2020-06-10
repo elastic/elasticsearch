@@ -121,8 +121,13 @@ Reserved for future use.
 
 `size`::
 (Optional, integer or float)
-Maximum number of matching events to return. Defaults to `50`. Values must be
-greater than `0`.
+For <<eql-basic-syntax,basic queries>>, the maximum number of matching events to
+return.
++
+For <<eql-sequences,sequence queries>>, the maximum number of matching sequences
+to return.
++
+Defaults to `50`. Values must be greater than `0`.
 
 [[eql-search-api-timestamp-field]]
 `timestamp_field`::

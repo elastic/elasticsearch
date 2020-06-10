@@ -333,7 +333,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testParseIndexNameReturnsCounter() {
-        assertThat(parseIndexNameCounter("logs-000003"), is(3));
+        assertThat(parseIndexNameCounter(".ds-logs-000003"), is(3));
         assertThat(parseIndexNameCounter("shrink-logs-000003"), is(3));
     }
 

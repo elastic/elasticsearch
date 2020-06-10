@@ -569,12 +569,10 @@ public class MetadataCreateIndexService {
                 Map<String, Object> innerTemplateNonProperties = new HashMap<>(innerTemplateMapping);
                 Map<String, Object> maybeProperties = (Map<String, Object>) innerTemplateNonProperties.remove("properties");
 
-                nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerTemplateNonProperties);
-                XContentHelper.mergeDefaults(innerTemplateNonProperties, nonProperties);
-                nonProperties = innerTemplateNonProperties;
+                nonProperties = mergeFailingOnReplacement(nonProperties, innerTemplateNonProperties);
 
                 if (maybeProperties != null) {
-                    properties = mergeIgnoringDots(properties, maybeProperties);
+                    properties = mergeFailingOnReplacement(properties, maybeProperties);
                 }
             }
         }
@@ -584,83 +582,16 @@ public class MetadataCreateIndexService {
             Map<String, Object> innerRequestNonProperties = new HashMap<>(innerRequestMappings);
             Map<String, Object> maybeRequestProperties = (Map<String, Object>) innerRequestNonProperties.remove("properties");
 
-            nonProperties = removeDuplicatedDynamicTemplates(nonProperties, innerRequestMappings);
-            XContentHelper.mergeDefaults(innerRequestNonProperties, nonProperties);
-            nonProperties = innerRequestNonProperties;
+            nonProperties = mergeFailingOnReplacement(nonProperties, innerRequestNonProperties);
 
             if (maybeRequestProperties != null) {
-                properties = mergeIgnoringDots(properties, maybeRequestProperties);
+                properties = mergeFailingOnReplacement(properties, maybeRequestProperties);
             }
         }
 
         Map<String, Object> finalMappings = dedupDynamicTemplates(nonProperties);
         finalMappings.put("properties", properties);
         return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, finalMappings);
-    }
-
-    /**
-     * Removes the already seen/processed dynamic templates from the previouslySeenMapping if they are defined (we're
-     * identifying the dynamic templates based on the name only, *not* on the full definition) in the newMapping we are about to
-     * process (and merge)
-     */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> removeDuplicatedDynamicTemplates(Map<String, Object> previouslySeenMapping,
-                                                                        Map<String, Object> newMapping) {
-        Map<String, Object> result = new HashMap<>(previouslySeenMapping);
-        List<Map<String, Object>> newDynamicTemplates = (List<Map<String, Object>>) newMapping.get("dynamic_templates");
-        List<Map<String, Object>> previouslySeenDynamicTemplates =
-            (List<Map<String, Object>>) previouslySeenMapping.get("dynamic_templates");
-
-        List<Map<String, Object>> filteredDynamicTemplates = removeOverlapping(previouslySeenDynamicTemplates, newDynamicTemplates);
-
-        // if we removed any mappings from the previously seen ones, we'll re-add them on merge time, see
-        // {@link XContentHelper#mergeDefaults}, so update the result to contain the filtered ones
-        if (filteredDynamicTemplates != previouslySeenDynamicTemplates) {
-            result.put("dynamic_templates", filteredDynamicTemplates);
-        }
-        return result;
-    }
-
-    /**
-     * Removes all the items from the first list that are already present in the second list
-     *
-     * Similar to {@link List#removeAll(Collection)} but the list parameters are not modified.
-     *
-     * This expects both list values to be Maps of size one and the "contains" operation that will determine if a value
-     * from the second list is present in the first list (and be removed from the first list) is based on key name.
-     *
-     * eg.
-     *      removeAll([ {"key1" : {}}, {"key2" : {}} ], [ {"key1" : {}}, {"key3" : {}} ])
-     * Returns:
-     *     [ {"key2" : {}} ]
-     */
-    private static List<Map<String, Object>> removeOverlapping(List<Map<String, Object>> first, List<Map<String, Object>> second) {
-        if (first == null) {
-            return first;
-        } else {
-            validateValuesAreMapsOfSizeOne(first);
-        }
-
-        if (second == null) {
-            return first;
-        } else {
-            validateValuesAreMapsOfSizeOne(second);
-        }
-
-        Set<String> keys = second.stream()
-            .map(value -> value.keySet().iterator().next())
-            .collect(Collectors.toSet());
-
-        return first.stream().filter(value -> keys.contains(value.keySet().iterator().next()) == false).collect(toList());
-    }
-
-    private static void validateValuesAreMapsOfSizeOne(List<Map<String, Object>> second) {
-        for (Map<String, Object> map : second) {
-            // all are in the form of [ {"key1" : {}}, {"key2" : {}} ]
-            if (map.size() != 1) {
-                throw new IllegalArgumentException("unexpected argument, expected maps with one key, but got " + map);
-            }
-        }
     }
 
     /**
@@ -689,18 +620,18 @@ public class MetadataCreateIndexService {
     }
 
     /**
-     * Add the objects in the second map to the first, where the keys in the {@code second} map have
-     * higher predecence and overwrite the keys in the {@code first} map. In the event of a key with
-     * a dot in it (ie, "foo.bar"), the keys are treated as only the prefix counting towards
-     * equality. If the {@code second} map has a key such as "foo", all keys starting from "foo." in
-     * the {@code first} map are discarded.
+     * Add the objects in the second map to the first, A duplicated field is treated as illegal and
+     * an exception is thrown.
      */
-    static Map<String, Object> mergeIgnoringDots(Map<String, Object> first, Map<String, Object> second) {
+    static Map<String, Object> mergeFailingOnReplacement(Map<String, Object> first, Map<String, Object> second) {
         Objects.requireNonNull(first, "merging requires two non-null maps but the first map was null");
         Objects.requireNonNull(second, "merging requires two non-null maps but the second map was null");
         Map<String, Object> results = new HashMap<>(first);
         Set<String> prefixes = second.keySet().stream().map(MetadataCreateIndexService::prefix).collect(Collectors.toSet());
-        results.keySet().removeIf(k -> prefixes.contains(prefix(k)));
+        List<String> matchedPrefixes = results.keySet().stream().filter(k -> prefixes.contains(prefix(k))).collect(Collectors.toList());
+        if (matchedPrefixes.size() > 0) {
+            throw new IllegalArgumentException("mapping fields " + matchedPrefixes + " cannot be replaced during template composition");
+        }
         results.putAll(second);
         return results;
     }

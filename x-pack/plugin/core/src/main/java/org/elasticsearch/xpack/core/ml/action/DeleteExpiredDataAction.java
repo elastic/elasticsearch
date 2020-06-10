@@ -71,7 +71,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 this.requestsPerSecond = null;
                 this.timeout = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO BWC for V_7_9_0
+            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
                 jobId = in.readString();
             }
         }
@@ -135,7 +135,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
                 out.writeOptionalFloat(requestsPerSecond);
                 out.writeOptionalTimeValue(timeout);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO BWC for V_7_9_0
+            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
                 out.writeString(jobId);
             }
         }

@@ -130,7 +130,7 @@ public class MetadataCreateDataStreamService {
 
         ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
 
-        String firstBackingIndexName = DataStream.getBackingIndexName(request.name, 1);
+        String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
         CreateIndexClusterStateUpdateRequest createIndexRequest =
             new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
                 .dataStreamName(request.name)

@@ -36,8 +36,9 @@ class SequenceRuntime implements Executable {
     SequenceRuntime(List<Criterion> criteria, QueryClient queryClient) {
         this.criteria = criteria;
         this.numberOfStages = criteria.size();
-        this.stateMachine = new SequenceStateMachine(numberOfStages);
         this.queryClient = queryClient;
+        boolean hasTieBreaker = criteria.get(0).tieBreakerExtractor() != null;
+        this.stateMachine = new SequenceStateMachine(numberOfStages, hasTieBreaker);
     }
 
     @Override
@@ -51,7 +52,7 @@ class SequenceRuntime implements Executable {
         queryClient.query(firstStage.searchSource(), wrap(payload -> {
 
             // 1. execute last stage (find keys)
-            startTracking(payload);
+            startTracking(payload, resultsListener);
 
             // 2. go descending through the rest of the stages, while adjusting the query
             inspectStage(1, resultsListener);
@@ -59,26 +60,40 @@ class SequenceRuntime implements Executable {
         }, resultsListener::onFailure));
     }
 
-    private void startTracking(Payload<SearchHit> payload) {
+    private void startTracking(Payload<SearchHit> payload, ActionListener<Results> resultsListener) {
         Criterion lastCriterion = criteria.get(0);
         List<SearchHit> hits = payload.values();
 
+        // nothing matches the first query, bail out early
+        if (hits.isEmpty()) {
+            resultsListener.onResponse(assembleResults());
+            return;
+        }
+        
         long tMin = Long.MAX_VALUE;
         long tMax = Long.MIN_VALUE;
+        
+        Comparable<Object> bMin = null;
         // we could have extracted that in the hit loop but that if would have been evaluated
         // for every document
         if (hits.isEmpty() == false) {
-            tMin = (Long) lastCriterion.timestampExtractor().extract(hits.get(0));
-            tMax = (Long) lastCriterion.timestampExtractor().extract(hits.get(hits.size() - 1));
+            tMin = lastCriterion.timestamp(hits.get(0));
+            tMax = lastCriterion.timestamp(hits.get(hits.size() - 1));
+            
+            if (lastCriterion.tieBreakerExtractor() != null) {
+               bMin = lastCriterion.tieBreaker(hits.get(0));
+            }
         }
 
         for (SearchHit hit : hits) {
-            KeyWithTime keyAndTime = findKey(hit, lastCriterion);
-            Sequence seq = new Sequence(keyAndTime.key, numberOfStages, keyAndTime.timestamp, hit);
+            KeyAndOrdinal ko = findKey(hit, lastCriterion);
+            Sequence seq = new Sequence(ko.key, numberOfStages, ko.timestamp, ko.tieBreaker, hit);
             stateMachine.trackSequence(seq, tMin, tMax);
         }
-        // TB: change
         stateMachine.setTimestampMarker(0, tMin);
+        if (bMin != null) {
+            stateMachine.setTieBreakerMarker(0, bMin);
+        }
     }
 
     private void inspectStage(int stage, ActionListener<Results> resultsListener) {
@@ -90,7 +105,7 @@ class SequenceRuntime implements Executable {
         // else continue finding matches
         Criterion currentCriterion = criteria.get(stage);
         // narrow by the previous stage timestamp marker
-        currentCriterion.fromTimestamp(stateMachine.getTimestampMarker(stage - 1));
+        currentCriterion.fromMarkers(stateMachine.getMarkers(stage - 1));
         
         queryClient.query(currentCriterion.searchSource(), wrap(payload -> {
             findMatches(stage, payload);
@@ -104,12 +119,12 @@ class SequenceRuntime implements Executable {
         
         // break the results per key
         for (SearchHit hit : hits) {
-            KeyWithTime kt = findKey(hit, currentCriterion);
-            stateMachine.match(currentStage, kt.key, kt.timestamp, hit);
+            KeyAndOrdinal ko = findKey(hit, currentCriterion);
+            stateMachine.match(currentStage, ko.key, ko.timestamp, ko.tieBreaker, hit);
         }
     }
 
-    private KeyWithTime findKey(SearchHit hit, Criterion criterion) {
+    private KeyAndOrdinal findKey(SearchHit hit, Criterion criterion) {
         List<HitExtractor> keyExtractors = criterion.keyExtractors();
 
         SequenceKey key;
@@ -123,7 +138,7 @@ class SequenceRuntime implements Executable {
             key = new SequenceKey(docKeys);
         }
 
-        return new KeyWithTime(key, (Long) criterion.timestampExtractor().extract(hit));
+        return new KeyAndOrdinal(key, criterion.timestamp(hit), criterion.tieBreaker(hit));
     }
 
     private Results assembleResults() {

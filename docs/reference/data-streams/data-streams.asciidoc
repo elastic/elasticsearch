@@ -1,7 +1,8 @@
-[chapter]
 [[data-streams]]
-= Data Streams
+= Data streams
 
+[partintro]
+--
 You can use data streams to index time-based data that's continuously generated.
 A data stream groups indices from the same time-based data source.
 A data stream tracks its indices, known as _backing indices_, using an ordered
@@ -45,76 +46,6 @@ conform to this naming convention if operations such as
 <<indices-shrink-index,shrink>> have been performed on them.
 
 [discrete]
-[[create-data-stream]]
-== Create a data stream
-
-Create a composable template with a `data_stream` definition:
-
-[source,console]
------------------------------------
-PUT /_index_template/logs_template
-{
-  "index_patterns": ["logs-*"],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
-}
------------------------------------
-
-Start indexing data to a target matching the composable template's wildcard
-pattern:
-
-[source,console]
-----
-POST /logs-foobar/_doc
-{
-  "@timestamp": "2050-11-15T14:12:12",
-  ...
-}
-----
-// TEST[continued]
-// TEST[s/,//]
-// TEST[s/\.\.\.//]
-
-Response:
-
-[source,console-result]
---------------------------------------------------
-{
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 1
-    },
-    "_index" : ".ds-logs-foobar-000001",
-    "_id" : "W0tpsmIBdwcYyG50zbta",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "result": "created"
-}
---------------------------------------------------
-// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/]
-
-Or create a data stream using the create data stream API:
-
-[source,console]
---------------------------------------------------
-PUT /_data_stream/logs-barbaz
---------------------------------------------------
-// TEST[continued]
-
-////
-[source,console]
------------------------------------
-DELETE /_data_stream/logs-foobar
-DELETE /_data_stream/logs-barbaz
-DELETE /_index_template/logs_template
------------------------------------
-// TEST[continued]
-////
-
-[discrete]
 [[data-streams-apis]]
 == Data stream APIs
 
@@ -123,3 +54,14 @@ The following APIs are available for managing data streams:
 * To get information about data streams, use the <<indices-get-data-stream, get data stream API>>.
 * To delete data streams, use the <<indices-delete-data-stream, delete data stream API>>.
 * To manually create a data stream, use the <<indices-create-data-stream, create data stream API>>.
+
+[discrete]
+[[data-streams-toc]]
+== In this section
+
+* <<set-up-a-data-stream>>
+* <<use-a-data-stream>>
+--
+
+include::set-up-a-data-stream.asciidoc[]
+include::use-a-data-stream.asciidoc[]

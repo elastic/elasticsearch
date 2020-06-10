@@ -49,7 +49,7 @@ public class SequenceFrame {
      * Returns the latest Sequence from the group that has its timestamp
      * less than the given argument alongside its position in the list.
      */
-    public Tuple<Sequence, Integer> before(long timestamp, Comparable<Object> tieBreaker) {
+    public Tuple<Sequence, Integer> before(long timestamp, Comparable<Object> tiebreaker) {
         Sequence matchSeq = null;
         int matchPos = -1;
         int position = -1;
@@ -61,9 +61,9 @@ public class SequenceFrame {
                 matchPos = position;
             }
             // apply tiebreaker (null first, that is null is less than any value)
-            else if (tieBreaker != null && sequence.currentTimestamp() == timestamp) {
-                Comparable<Object> tb = sequence.currentTieBreaker();
-                if (tb == null || tb.compareTo(tieBreaker) < 0) {
+            else if (tiebreaker != null && sequence.currentTimestamp() == timestamp) {
+                Comparable<Object> tb = sequence.currentTiebreaker();
+                if (tb == null || tb.compareTo(tiebreaker) < 0) {
                     matchSeq = sequence;
                     matchPos = position;
                 }
@@ -78,7 +78,7 @@ public class SequenceFrame {
      * Returns the first Sequence from the group that has its timestamp
      * greater than the given argument alongside its position in the list.
      */
-    public Tuple<Sequence, Integer> after(long timestamp, Comparable<Object> tieBreaker) {
+    public Tuple<Sequence, Integer> after(long timestamp, Comparable<Object> tiebreaker) {
         Sequence matchSeq = null;
         int matchPos = -1;
         int position = -1;
@@ -90,9 +90,9 @@ public class SequenceFrame {
                 matchPos = position;
             }
             // apply tiebreaker (null first, that is null is less than any value)
-            else if (tieBreaker != null && sequence.currentTimestamp() == timestamp) {
-                Comparable<Object> tb = sequence.currentTieBreaker();
-                if (tb == null || tb.compareTo(tieBreaker) > 0) {
+            else if (tiebreaker != null && sequence.currentTimestamp() == timestamp) {
+                Comparable<Object> tb = sequence.currentTiebreaker();
+                if (tb == null || tb.compareTo(tiebreaker) > 0) {
                     matchSeq = sequence;
                     matchPos = position;
                 }

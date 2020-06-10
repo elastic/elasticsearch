@@ -567,7 +567,7 @@ request using one or more of the following request parameters:
 
 * <<search-docvalue-fields-param,`docvalue_fields`>>
 * <<request-body-search-script-fields,`script_fields`>>
-* <<search-stored-fields-fields-param,`stored_fields`>>
+* <<request-body-search-stored-fields,`stored_fields`>>
 
 This property is returned only if one or more of these parameters are set.
 --

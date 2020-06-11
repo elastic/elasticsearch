@@ -45,8 +45,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -116,7 +118,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ResolveIndexAction.Request request = (ResolveIndexAction.Request) o;
+            Request request = (Request) o;
             return Arrays.equals(names, request.names);
         }
 
@@ -221,6 +223,23 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             builder.endObject();
             return builder;
         }
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ResolvedIndex, Void> PARSER = new ConstructingObjectParser<>(
+            "resolved_index",
+            args -> new ResolvedIndex((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY),
+                ((List<String>) args[2]).toArray(Strings.EMPTY_ARRAY), (String) args[3]));
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ALIASES_FIELD);
+            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ATTRIBUTES_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), DATA_STREAM_FIELD);
+        }
+
+        public static ResolvedIndex fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
     }
 
     public static class ResolvedAlias extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
@@ -263,6 +282,20 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             builder.endObject();
             return builder;
         }
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ResolvedAlias, Void> PARSER = new ConstructingObjectParser<>(
+            "resolved_alias",
+            args -> new ResolvedAlias((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY)));
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
+        }
+
+        public static ResolvedAlias fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
     }
 
     public static class ResolvedDataStream extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
@@ -293,6 +326,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return backingIndices;
         }
 
+        public String getTimestampField() {
+            return timestampField;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(getName());
@@ -308,6 +345,21 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestampField);
             builder.endObject();
             return builder;
+        }
+
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ResolvedDataStream, Void> PARSER = new ConstructingObjectParser<>(
+            "resolved_data_stream",
+            args -> new ResolvedDataStream((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY), (String) args[2]));
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), BACKING_INDICES_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD);
+        }
+
+        public static ResolvedDataStream fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
     }
 
@@ -383,6 +435,22 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return builder;
         }
 
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+            "resolve_index_response",
+            args -> new Response((List<ResolvedIndex>) args[0], (List<ResolvedAlias>) args[1], (List<ResolvedDataStream>) args[2]));
+
+        static {
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResolvedIndex.fromXContent(p), INDICES_FIELD);
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResolvedAlias.fromXContent(p), ALIASES_FIELD);
+            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResolvedDataStream.fromXContent(p),
+                DATA_STREAMS_FIELD);
+        }
+
+        public static Response fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -407,7 +475,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(NAME, transportService, actionFilters, ResolveIndexAction.Request::new);
+            super(NAME, transportService, actionFilters, Request::new);
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();

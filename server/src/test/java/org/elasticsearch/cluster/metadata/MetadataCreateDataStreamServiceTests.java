@@ -138,6 +138,18 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template"));
     }
 
+    public static ClusterState createDataStream(final String dataStreamName) throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+            new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest req =
+            new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
+        return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
+    }
+
     public void testValidateTimestampFieldMapping() throws Exception {
         String mapping = generateMapping("@timestamp", "date");
         validateTimestampFieldMapping("@timestamp", createMapperService(mapping));

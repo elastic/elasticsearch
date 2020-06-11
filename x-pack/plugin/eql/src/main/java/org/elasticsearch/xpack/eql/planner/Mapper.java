@@ -73,7 +73,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                         Expressions.asAttributes(s.until().keys()),
                         map(s.until().child()),
                         s.timestamp(),
-                        s.tieBreaker());
+                        s.tiebreaker());
             }
 
             if (p instanceof LocalRelation) {

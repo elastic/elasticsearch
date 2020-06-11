@@ -188,7 +188,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     protected EqlSearchResponse runQuery(String index, String query) throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
-        request.tieBreakerField("event.sequence");
+        request.tiebreakerField("event.sequence");
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }
 

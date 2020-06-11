@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -27,13 +26,15 @@ import org.elasticsearch.xpack.core.ml.inference.utils.Statistics;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
+import static org.apache.lucene.util.RamUsageEstimator.sizeOf;
+import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.classificationLabel;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNo
 
 public class TreeInferenceModel implements InferenceModel {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TreeInferenceModel.class);
+    public static final long SHALLOW_SIZE = shallowSizeOfInstance(TreeInferenceModel.class);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<TreeInferenceModel, Void> PARSER = new ConstructingObjectParser<>(
@@ -75,7 +76,7 @@ public class TreeInferenceModel implements InferenceModel {
     private final Node[] nodes;
     private String[] featureNames;
     private final TargetType targetType;
-    private final List<String> classificationLabels;
+    private List<String> classificationLabels;
     private final double highOrderCategory;
     private final int maxDepth;
     private final int leafSize;
@@ -302,18 +303,16 @@ public class TreeInferenceModel implements InferenceModel {
             treeNode.splitFeature = newSplitFeatureIndex;
         }
         this.featureNames = new String[0];
+        // Since we are not top level, we no longer need local classification labels
+        this.classificationLabels = null;
     }
 
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
-        size += RamUsageEstimator.sizeOfCollection(classificationLabels);
-        size += RamUsageEstimator.sizeOf(featureNames);
-        size += RamUsageEstimator.shallowSizeOf(nodes);
-        for (Node node : nodes) {
-            size += node.ramBytesUsed();
-        }
-        size += RamUsageEstimator.sizeOfCollection(Arrays.asList(nodes));
+        size += sizeOfCollection(classificationLabels);
+        size += sizeOf(featureNames);
+        size += sizeOf(nodes);
         return size;
     }
 
@@ -333,6 +332,10 @@ public class TreeInferenceModel implements InferenceModel {
             }
         }
         return max;
+    }
+
+    public Node[] getNodes() {
+        return nodes;
     }
 
     private static int getDepth(Node[] nodes, int nodeIndex, int depth) {
@@ -433,21 +436,21 @@ public class TreeInferenceModel implements InferenceModel {
         }
     }
 
-    private abstract static class Node implements Accountable {
+    public abstract static class Node implements Accountable {
         int compare(double[] features) {
             throw new IllegalArgumentException("cannot call compare against a leaf node.");
         }
 
         abstract long getNumberSamples();
 
-        boolean isLeaf() {
+        public boolean isLeaf() {
             return this instanceof LeafNode;
         }
     }
 
-    private static class InnerNode extends Node {
+    public static class InnerNode extends Node {
 
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InnerNode.class);
+        public static final long SHALLOW_SIZE = shallowSizeOfInstance(InnerNode.class);
 
         private final Operator operator;
         private final double threshold;
@@ -498,8 +501,8 @@ public class TreeInferenceModel implements InferenceModel {
         }
     }
 
-    private static class LeafNode extends Node {
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(LeafNode.class);
+    public static class LeafNode extends Node {
+        public static final long SHALLOW_SIZE = shallowSizeOfInstance(LeafNode.class);
         private final double[] leafValue;
         private final long numberSamples;
 
@@ -510,12 +513,16 @@ public class TreeInferenceModel implements InferenceModel {
 
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE;
+            return SHALLOW_SIZE + sizeOf(leafValue);
         }
 
         @Override
         long getNumberSamples() {
             return numberSamples;
+        }
+
+        public double[] getLeafValue() {
+            return leafValue;
         }
     }
 }

@@ -27,18 +27,18 @@ public class Join extends LogicalPlan {
     private final List<KeyedFilter> queries;
     private final KeyedFilter until;
     private final Attribute timestamp;
-    private final Attribute tieBreaker;
+    private final Attribute tiebreaker;
 
-    public Join(Source source, List<KeyedFilter> queries, KeyedFilter until, Attribute timestamp, Attribute tieBreaker) {
+    public Join(Source source, List<KeyedFilter> queries, KeyedFilter until, Attribute timestamp, Attribute tiebreaker) {
         super(source, CollectionUtils.combine(queries, until));
         this.queries = queries;
         this.until = until;
         this.timestamp = timestamp;
-        this.tieBreaker = tieBreaker;
+        this.tiebreaker = tiebreaker;
     }
 
-    private Join(Source source, List<LogicalPlan> queries, LogicalPlan until, Attribute timestamp, Attribute tieBreaker) {
-        this(source, asKeyed(queries), asKeyed(until), timestamp, tieBreaker);
+    private Join(Source source, List<LogicalPlan> queries, LogicalPlan until, Attribute timestamp, Attribute tiebreaker) {
+        this(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker);
     }
 
     static List<KeyedFilter> asKeyed(List<LogicalPlan> list) {
@@ -59,7 +59,7 @@ public class Join extends LogicalPlan {
 
     @Override
     protected NodeInfo<? extends Join> info() {
-        return NodeInfo.create(this, Join::new, queries, until, timestamp, tieBreaker);
+        return NodeInfo.create(this, Join::new, queries, until, timestamp, tiebreaker);
     }
 
     @Override
@@ -68,7 +68,7 @@ public class Join extends LogicalPlan {
             throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
         }
         int lastIndex = newChildren.size() - 1;
-        return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestamp, tieBreaker);
+        return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestamp, tiebreaker);
     }
 
     @Override
@@ -76,8 +76,8 @@ public class Join extends LogicalPlan {
         List<Attribute> out = new ArrayList<>();
 
         out.add(timestamp);
-        if (Expressions.isPresent(tieBreaker)) {
-            out.add(tieBreaker);
+        if (Expressions.isPresent(tiebreaker)) {
+            out.add(tiebreaker);
         }
 
         for (KeyedFilter query : queries) {
@@ -88,7 +88,7 @@ public class Join extends LogicalPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return timestamp.resolved() && tieBreaker.resolved() && until.resolved() && Resolvables.resolved(queries);
+        return timestamp.resolved() && tiebreaker.resolved() && until.resolved() && Resolvables.resolved(queries);
     }
 
     public List<KeyedFilter> queries() {
@@ -103,13 +103,13 @@ public class Join extends LogicalPlan {
         return timestamp;
     }
     
-    public Attribute tieBreaker() {
-        return tieBreaker;
+    public Attribute tiebreaker() {
+        return tiebreaker;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, tieBreaker, queries, until);
+        return Objects.hash(timestamp, tiebreaker, queries, until);
     }
 
     @Override
@@ -126,7 +126,7 @@ public class Join extends LogicalPlan {
         return Objects.equals(queries, other.queries)
                 && Objects.equals(until, other.until)
                 && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tieBreaker, other.tieBreaker);
+                && Objects.equals(tiebreaker, other.tiebreaker);
     }
 
     @Override

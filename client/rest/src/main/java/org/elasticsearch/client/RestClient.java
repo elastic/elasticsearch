@@ -736,7 +736,6 @@ public class RestClient implements Closeable {
             }
         }
 
-
         RequestContext createContextForNextAttempt(Node node, AuthCache authCache) {
             this.httpRequest.reset();
             return new RequestContext(this, node, authCache);

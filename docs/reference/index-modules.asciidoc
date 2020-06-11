@@ -12,6 +12,8 @@ an index.
 [[index-modules-settings]]
 == Index Settings
 
+[[index-modules-settings-description]]
+// tag::index-modules-settings-description-tag[]
 Index level settings can be set per-index.  Settings may be:
 
 _static_::
@@ -23,6 +25,7 @@ _dynamic_::
 
 They can be changed on a live index using the
 <<indices-update-settings,update-index-settings>> API.
+// end::index-modules-settings-description-tag[]
 
 WARNING: Changing static or dynamic index settings on a closed index could
 result in incorrect settings that are impossible to rectify without deleting
@@ -34,15 +37,14 @@ and recreating the index.
 Below is a list of all _static_ index settings that are not associated with any
 specific index module:
 
-`index.number_of_shards`::
+[[index-number-of-shards]]
+// tag::index-number-of-shards-tag[]
+`index.number_of_shards` {ess-icon}::
+The number of primary shards that an index should have. Defaults to `1`. This setting can only be set at index creation time. It cannot be changed on a closed index.
++
+NOTE: The number of shards are limited to `1024` per index. This limitation is a safety limit to prevent accidental creation of indices that can destabilize a cluster due to resource allocation. The limit can be modified by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is part of the cluster.
 
-    The number of primary shards that an index should have.  Defaults to 1.
-    This setting can only be set at index creation time.  It cannot be
-    changed on a closed index. Note: the number of shards are limited to `1024` per
-    index. This limitation is a safety limit to prevent accidental creation of indices
-    that can destabilize a cluster due to resource allocation. The limit can be modified
-    by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is
-    part of the cluster.
+// end::index-number-of-shards-tag[]
 
 `index.shard.check_on_startup`::
 

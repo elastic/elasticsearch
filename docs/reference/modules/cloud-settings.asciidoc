@@ -5,8 +5,11 @@ The following {es} settings are supported on {ess}:
 * <<cloud-circuit-breaker-settings,Circuit breaker settings>>
 * <<cloud-disk-based-shard-allocation-settings,Disk-based shard allocation settings>>
 * <<cloud-http-settings,HTTP settings>>
+* <<cloud-index-settings,Index settings>>
 * <<cloud-machine-learning-settings,Machine learning settings>>
 * <<cloud-monitoring-collection-settings,Monitoring collection settings>>
+* <<cloud-reindex-settings,Reindex settings>>
+* <<cloud-snapshot-restore-settings,Snapshot and restore settings>>
 * <<cloud-watcher-settings,Watcher settings>>
 
 
@@ -38,6 +41,15 @@ include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-methods-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-headers-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-credentials-tag]
 
+[[cloud-index-settings]]
+==== Index settings
+include::{es-repo-dir}/index-modules.asciidoc[tag=index-modules-settings-description-tag]
+
+include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-auto-create-index-tag]
+include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-action-destructive-requires-name-tag]
+include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-cluster-indices-close-enable-tag]
+include::{es-repo-dir}/index-modules.asciidoc[tag=index-number-of-shards-tag]
+
 [[cloud-machine-learning-settings]]
 ==== Machine learning settings
 include::{es-repo-dir}/settings/ml-settings.asciidoc[tag=ml-settings-description-tag]
@@ -48,6 +60,16 @@ include::{es-repo-dir}/settings/ml-settings.asciidoc[tag=interference-model-ttl-
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-settings-description-tag]
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-collection-interval-tag]
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-history-duration-tag]
+
+[[cloud-reindex-settings]]
+==== Reindex settings
+include::{es-repo-dir}/docs/reindex.asciidoc[tag=docs-reindex-api-desc-tag]
+include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-reindex-remote-whitelist]
+
+[[cloud-snapshot-restore-settings]]
+==== Snapshot and restore settings
+include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=snapshots-register-repository-tag]
+include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-repositories-url-allowed]
 
 [[cloud-watcher-settings]]
 ==== Watcher settings

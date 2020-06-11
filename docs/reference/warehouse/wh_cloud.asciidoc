@@ -1,0 +1,40 @@
+== Cloud warehouse
+This file contains warehouse information for {ess} as it relates to {es}.
+
+NOTE: This file is not published anywhere in the {ess} or {es} documentation. Instead, it contains settings, notes, and other information that is pulled into other files using `include::` directives.
+
+=== Settings
+[[cloud-auto-create-index]]
+// tag::cloud-auto-create-index-tag[]
+`action.auto_create_index` {ess-icon}::
+<<index-creation,Automatically create an index>> if it doesn't already exist and apply any configured index templates. Default: `true`.
+// end::cloud-auto-create-index-tag[]
+
+[[cloud-action-destructive-requires-name]]
+// tag::cloud-action-destructive-requires-name-tag[]
+`action.destructive_requires_name` {ess-icon}::
+When set to `true`, you must <<indices-delete-index,specify the index name>> to delete an index. It is not possible to `delete _all` or use wildcards.
+// end::cloud-action-destructive-requires-name-tag[]
+
+[[cloud-cluster-indices-close-enable]]
+// tag::cloud-cluster-indices-close-enable-tag[]
+`cluster.indices.close.enable` {ess-icon}::
+Enables closing indices in {es} version 2.2 and later. You might enable this setting temporarily to change the analyzer configuration for an existing index. We strongly recommend leaving this set to `false` (the default) otherwise.
++
+IMPORTANT: Closed indices are a data loss risk because they are not included when you make cluster configuration changes, such as scaling to a different capacity, failover, and many other operations. Additionally, closed indices can lead to inaccurate disk space counts.
++
+See <<open-index-api-desc,Open index API>> for more information.
+
+// end::cloud-cluster-indices-close-enable-tag[]
+
+[[cloud-repositories-url-allowed]]
+// tag::cloud-repositories-url-allowed[]
+`repositories.url.allowed_urls` {ess-icon}::
+Enables whitelisting of <<snapshots-read-only-repository,read-only URL repositories>>.
+// end::cloud-repositories-url-allowed[]
+
+[[cloud-reindex-remote-whitelist]]
+// tag::cloud-reindex-remote-whitelist[]
+`reindex.remote.whitelist` {ess-icon}::
+Whitelists the hosts that can be <<reindex-from-remote,reindexed from remotely>>. Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
+// end::cloud-reindex-remote-whitelist[]

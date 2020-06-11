@@ -169,7 +169,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       Map<String, Object> metadata) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
-        if (config.unmapped() == false) {
+        if (config.hasValues()) {
             if (config.fieldContext().fieldType().isSearchable() == false) {
                 throw new IllegalArgumentException("SignificantText aggregation requires fields to be searchable, but ["
                     + config.fieldContext().fieldType().name() + "] is not");
@@ -198,11 +198,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             SignificantTermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
@@ -230,7 +229,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         SignificanceLookup lookup = new SignificanceLookup(queryShardContext, config, backgroundFilter);
 
-        return sigTermsAggregatorSupplier.build(name, factories, valuesSource, config.format(),
+        return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
             significanceHeuristic, lookup, collectsFromSingleBucket, metadata);
     }

@@ -164,7 +164,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-            prohibitAppendWritesInBackingIndices(actionRequest, metadata);
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
@@ -489,6 +488,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
+                            prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
                             MappingMetadata mappingMd = indexMetadata.mapping();

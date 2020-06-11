@@ -144,7 +144,8 @@ GET /logs/_search
 === Manually roll over a data stream
 
 A rollover creates a new backing index for a data stream. This new backing index
-becomes the stream's new write index and increments the stream's generation.
+becomes the stream's <<data-stream-write-index,write index>> and increments
+the stream's <<data-streams-generation,generation>>.
 
 In most cases, we recommend using <<index-lifecycle-management,{ilm-init}>> to
 automate rollovers for data streams. This lets you automatically roll over the

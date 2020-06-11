@@ -266,11 +266,6 @@ public class Reindexer {
              */
             index.routing(mainRequest.getDestination().routing());
             index.setPipeline(mainRequest.getDestination().getPipeline());
-
-            // (For ensuring no document exists, the op_type create doesn't need to be copied, since Versions.MATCH_DELETED
-            //  will copied from the 'mainRequest.getDestination().version()' a few lines back)
-            // (In order to be able to index into a data stream, the op_type must be create. So in order to support that
-            //  the op_type must be copied)
             if (mainRequest.getDestination().opType() == DocWriteRequest.OpType.CREATE) {
                 index.opType(mainRequest.getDestination().opType());
             }

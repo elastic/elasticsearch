@@ -776,16 +776,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 LongPoint.encodeDimension(value, longBytes, 0);
                 w.add(longBytes, docId);
             }
-            try (IndexOutput metaout = dir.createOutput("bkdmeta", IOContext.DEFAULT);
-                 IndexOutput indexout = dir.createOutput("bkdindex", IOContext.DEFAULT);
-                 IndexOutput dataout = dir.createOutput("bkddata", IOContext.DEFAULT)) {
-                w.finish(metaout, indexout, dataout).run();
+            long indexFP;
+            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
+                Runnable finalizer = w.finish(out, out, out);
+                indexFP = out.getFilePointer();
+                finalizer.run();;
             }
-            try (IndexInput metain = dir.openInput("bkdmeta", IOContext.DEFAULT);
-                 IndexInput indexin = dir.openInput("bkdindex", IOContext.DEFAULT);
-                 IndexInput datain = dir.openInput("bkddata", IOContext.DEFAULT)) {
-                BKDReader r = new BKDReader(metain, indexin, datain);
-                assertTrue(pointsHaveDuplicateData(r, r.getDocCount() / 2));
+            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
+                in.seek(indexFP);
+                BKDReader r = new BKDReader(in, in, in);
+                assertFalse(pointsHaveDuplicateData(r, r.getDocCount() / 2));
             }
         }
     }

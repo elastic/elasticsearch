@@ -114,6 +114,10 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return compressionVersion;
     }
 
+    public String getDocId() {
+        return docId(modelId, docNum);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

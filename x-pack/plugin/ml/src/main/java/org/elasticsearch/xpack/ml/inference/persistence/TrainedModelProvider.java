@@ -14,10 +14,14 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -140,6 +144,74 @@ public class TrainedModelProvider {
         }
 
         storeTrainedModelAndDefinition(trainedModelConfig, listener);
+    }
+
+    public void storeTrainedModelMetadata(TrainedModelConfig trainedModelConfig,
+                                          ActionListener<Boolean> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
+            return;
+        }
+        assert trainedModelConfig.getModelDefinition() == null;
+
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            IndexAction.INSTANCE,
+            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig),
+            ActionListener.wrap(
+                indexResponse -> listener.onResponse(true),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e,
+                                trainedModelConfig.getModelId()));
+                    }
+                }
+            ));
+    }
+
+    public void storeTrainedModelDefinitionDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc, ActionListener<Void> listener) {
+        if (MODELS_STORED_AS_RESOURCE.contains(trainedModelDefinitionDoc.getModelId())) {
+            listener.onFailure(new ResourceAlreadyExistsException(
+                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelDefinitionDoc.getModelId())));
+            return;
+        }
+
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            IndexAction.INSTANCE,
+            createRequest(trainedModelDefinitionDoc.getDocId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelDefinitionDoc),
+            ActionListener.wrap(
+                indexResponse -> listener.onResponse(null),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_DOC_EXISTS,
+                                trainedModelDefinitionDoc.getModelId(),
+                                trainedModelDefinitionDoc.getDocNum())));
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e,
+                                trainedModelDefinitionDoc.getModelId()));
+                    }
+                }
+            ));
+    }
+
+    public void refreshInferenceIndex(ActionListener<RefreshResponse> listener) {
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            RefreshAction.INSTANCE,
+            new RefreshRequest(InferenceIndexConstants.INDEX_PATTERN),
+            listener);
     }
 
     private void storeTrainedModelAndDefinition(TrainedModelConfig trainedModelConfig,
@@ -831,14 +903,18 @@ public class TrainedModelProvider {
         }
     }
 
+    private IndexRequest createRequest(String docId, String index, ToXContentObject body) {
+        return createRequest(new IndexRequest(index), docId, body);
+    }
+
     private IndexRequest createRequest(String docId, ToXContentObject body) {
+        return createRequest(new IndexRequest(), docId, body);
+    }
+
+    private IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
-
-            return new IndexRequest()
-                .opType(DocWriteRequest.OpType.CREATE)
-                .id(docId)
-                .source(source);
+            return request.opType(DocWriteRequest.OpType.CREATE).id(docId).source(source);
         } catch (IOException ex) {
             // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
             // that is not the users fault. We did something wrong and should throw.

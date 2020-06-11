@@ -287,8 +287,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
-        // At this point with write op is targeting a data stream directly,so
-        // checking if write op is append-only and if so fail.
+        // At this point with write op is targeting a backing index of a data stream directly,
+        // so checking if write op is append-only and if so fail.
         // (Updates and deletes are allowed to target a backing index)
 
         DocWriteRequest.OpType opType = writeRequest.opType();
@@ -299,7 +299,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (opType == DocWriteRequest.OpType.CREATE ||
             (opType == DocWriteRequest.OpType.INDEX && writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM &&
                 writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO)) {
-            throw new IllegalArgumentException("append-only write targeting backing indices is disallowed," +
+            throw new IllegalArgumentException("append-only write targeting backing indices is disallowed, " +
                 "target corresponding data stream instead");
         }
     }

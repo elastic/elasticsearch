@@ -306,14 +306,14 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(invalidRequest1, metadata));
-        assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed," +
+        assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed, " +
             "target corresponding data stream instead"));
 
         // Testing index op against backing index fails:
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(invalidRequest2, metadata));
-        assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed," +
+        assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed, " +
             "target corresponding data stream instead"));
 
         // Testing valid writes ops against a backing index:

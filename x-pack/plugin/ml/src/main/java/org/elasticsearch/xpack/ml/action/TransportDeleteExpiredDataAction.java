@@ -114,8 +114,6 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
                                    List<MlDataRemover> dataRemovers,
                                    ActionListener<DeleteExpiredDataAction.Response> listener,
                                    Supplier<Boolean> isTimedOutSupplier) {
-
-
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);
         // If there is no throttle provided, default to none
         float requestsPerSec = request.getRequestsPerSecond() == null ? Float.POSITIVE_INFINITY : request.getRequestsPerSecond();

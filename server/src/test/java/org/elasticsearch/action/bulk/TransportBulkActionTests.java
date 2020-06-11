@@ -296,7 +296,7 @@ public class TransportBulkActionTests extends ESTestCase {
         }
     }
 
-    public void testProhibitAppendOnlyWritesInBackingIndices() throws Exception {
+    public void testProhibitAppendWritesInBackingIndices() throws Exception {
         String dataStreamName = "logs-foobar";
         ClusterState clusterState = createDataStream(dataStreamName);
         Metadata metadata = clusterState.metadata();
@@ -305,43 +305,43 @@ public class TransportBulkActionTests extends ESTestCase {
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(invalidRequest1, metadata));
-        assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed, " +
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata));
+        assertThat(e.getMessage(), equalTo("index request with op_type=create targeting backing indices is disallowed, " +
             "target corresponding data stream instead"));
 
         // Testing index op against backing index fails:
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(invalidRequest2, metadata));
-        assertThat(e.getMessage(), equalTo("append-only write targeting backing indices is disallowed, " +
-            "target corresponding data stream instead"));
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, metadata));
+        assertThat(e.getMessage(), equalTo("index request with op_type=index and no if_primary_term and if_seq_no set " +
+            "targeting backing indices is disallowed, target corresponding data stream instead"));
 
         // Testing valid writes ops against a backing index:
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1).setIfPrimaryTerm(1);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
         validRequest = new DeleteRequest(backingIndexName);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
         validRequest = new UpdateRequest(backingIndexName, "_id");
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
 
         // Testing append only write via ds name
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
 
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
 
         // Append only for a backing index that doesn't exist is allowed:
         validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1))
             .opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
 
         // Some other index names:
         validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendOnlyWritesInBackingIndices(validRequest, metadata);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
     }
 
 }

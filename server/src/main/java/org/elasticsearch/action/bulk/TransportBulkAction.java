@@ -160,8 +160,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         long indexingBytes = DocWriteRequest.writeSizeInBytes(bulkRequest.requests.stream());
         final Releasable releasable = writeMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
-        final ActionListener<BulkResponse> releasingListener = ActionListener.runAfter(listener, releasable::close);
-        doInternalExecute(task, bulkRequest, releasingListener);
+        final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
+        try {
+            doInternalExecute(task, bulkRequest, releasingListener);
+        } catch (Exception e) {
+            releasingListener.onFailure(e);
+        }
     }
 
     protected void doInternalExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {

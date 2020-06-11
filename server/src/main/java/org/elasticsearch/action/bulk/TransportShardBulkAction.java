@@ -507,10 +507,4 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
         return result;
     }
-
-    private static long operationSizeInBytes(BulkItemRequest[] items) {
-        return DocWriteRequest.writeSizeInBytes(Stream.of(items).map(BulkItemRequest::request));
-    }
-
-
 }

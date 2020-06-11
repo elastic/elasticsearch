@@ -159,22 +159,18 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             latchBlockingReplicationSend.countDown();
 
             IndexRequest request1 = new IndexRequest(index).source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            IndexRequest request2 = new IndexRequest(index).source(Collections.singletonMap("key", randomAlphaOfLength(50)));
 
             ActionFuture<IndexResponse> future1 = client(replicaName).index(request1);
-            ActionFuture<IndexResponse> future2 = client(replicaName).index(request2);
 
-            int newOperationSizes = request1.source().length() + request2.source().length() +
-                (WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD * 2);
+            int newOperationSizes = request1.source().length() + (WriteMemoryLimits.WRITE_REQUEST_BYTES_OVERHEAD);
 
             assertEquals(operationSize + newOperationSizes, replicaWriteLimits.getCoordinatingBytes());
-            assertBusy(() -> assertEquals(operationSize, replicaWriteLimits.getReplicaBytes()));
+            assertBusy(() -> assertEquals(operationSize + newOperationSizes, replicaWriteLimits.getReplicaBytes()));
 
             latchBlockingReplication.countDown();
 
             successFuture.actionGet();
             future1.actionGet();
-            future2.actionGet();
 
             assertEquals(0, primaryWriteLimits.getCoordinatingBytes());
             assertEquals(0, primaryWriteLimits.getPrimaryBytes());

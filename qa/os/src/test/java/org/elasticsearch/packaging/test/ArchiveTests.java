@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -40,12 +41,7 @@ import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
-import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.cp;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
-import static org.elasticsearch.packaging.util.FileUtils.mkdir;
-import static org.elasticsearch.packaging.util.FileUtils.mv;
-import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.elasticsearch.packaging.util.FileUtils.*;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -139,7 +135,9 @@ public class ArchiveTests extends PackagingTestCase {
             throw e;
         }
 
-        assertThat(installation.home.resolve("elasticsearch.pid"), fileExists());
+        List<String> existingFiles = lsGlob(installation.logs, "gc*").stream().map(Path::toString).collect(Collectors.toList());
+        final String gcLogName = Platforms.LINUX && distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
+        assertThat("existing gc files: " + String.join("\n", existingFiles), installation.logs.resolve(gcLogName), fileExists());
         ServerUtils.runElasticsearchTests();
 
         stopElasticsearch();

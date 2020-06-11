@@ -51,13 +51,23 @@ class GeoShapeCellValues extends ByteTrackingSortingNumericDocValues {
     }
 
     void resizeCell(int newSize) {
+        boolean resizing = false;
         int oldValuesLength = values.length;
-        if (values.length < newSize) {
+        long oldValuesSizeInBytes = ((long) oldValuesLength) * Long.BYTES;
+        if (newSize > values.length) {
             int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
             long bytesDiff = (newValuesLength - oldValuesLength) * Long.BYTES;
             circuitBreakerConsumer.accept(bytesDiff);
+            resizing = true;
+        }
+
+        if (resizing) {
+            circuitBreakerConsumer.accept(oldValuesSizeInBytes);
         }
         resize(newSize);
+        if (resizing) {
+            circuitBreakerConsumer.accept(-oldValuesSizeInBytes);
+        }
     }
 
     /**

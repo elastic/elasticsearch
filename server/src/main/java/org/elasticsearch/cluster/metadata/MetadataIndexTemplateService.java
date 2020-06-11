@@ -630,11 +630,11 @@ public class MetadataIndexTemplateService {
     }
 
     static Set<String> dataStreamsUsingTemplate(final ClusterState state, final String templateName) {
-        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         if (template == null) {
             return Collections.emptySet();
         }
+        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
         Set<String> matches = new HashSet<>();
         template.indexPatterns().forEach(indexPattern ->
             matches.addAll(dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).collect(Collectors.toList())));

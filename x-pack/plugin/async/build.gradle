@@ -1,18 +1,3 @@
-evaluationDependsOn(xpackModule('core'))
-
-apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.internal-cluster-test'
-esplugin {
-    name 'x-pack-async-search'
-    description 'A module which allows to track the progress of a search asynchronously.'
-    classname 'org.elasticsearch.xpack.search.AsyncSearch'
-    extendedPlugins = ['x-pack-core']
-}
-archivesBaseName = 'x-pack-async-search'
-
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -32,22 +17,21 @@ compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
  * under the License.
  */
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'x-pack-async'
+    description 'A module which handles common async operations'
+    classname 'org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
+    extendedPlugins = ['x-pack-core']
 }
+archivesBaseName = 'x-pack-async'
 
 dependencies {
   compileOnly project(":server")
-
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ilm'))
-  testCompile project(path: xpackModule('async'))
 }
 
 dependencyLicenses {

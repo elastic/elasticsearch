@@ -199,7 +199,7 @@ public class TermVectorsService  {
                 continue;
             }
             // already retrieved, only if the analyzer hasn't been overridden at the field
-            if (indexShard.mapperService().getLuceneFieldType(field).storeTermVectors() &&
+            if (fieldType.getTextSearchInfo().getLuceneFieldType().storeTermVectors() &&
                     (request.perFieldAnalyzer() == null || !request.perFieldAnalyzer().containsKey(field))) {
                 continue;
             }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -93,35 +94,40 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         assertThat(mapperService.fieldType("name"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("name").indexOptions());
-        assertThat(mapperService.getLuceneFieldType("name").stored(), equalTo(true));
-        assertThat(mapperService.getLuceneFieldType("name").tokenized(), equalTo(true));
+        FieldType ft = mapperService.fieldType("name").getTextSearchInfo().getLuceneFieldType();
+        assertNotSame(IndexOptions.NONE, ft.indexOptions());
+        assertThat(ft.stored(), equalTo(true));
+        assertThat(ft.tokenized(), equalTo(true));
 
         assertThat(mapperService.fieldType("name.indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("name.indexed").indexOptions());
-        assertThat(mapperService.getLuceneFieldType("name.indexed").stored(), equalTo(false));
-        assertThat(mapperService.getLuceneFieldType("name.indexed").tokenized(), equalTo(true));
+        ft = mapperService.fieldType("name.indexed").getTextSearchInfo().getLuceneFieldType();
+        assertNotSame(IndexOptions.NONE, ft.indexOptions());
+        assertThat(ft.stored(), equalTo(false));
+        assertThat(ft.tokenized(), equalTo(true));
 
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertEquals(IndexOptions.NONE, mapperService.getLuceneFieldType("name.not_indexed").indexOptions());
-        assertThat(mapperService.getLuceneFieldType("name.not_indexed").stored(), equalTo(true));
-        assertThat(mapperService.getLuceneFieldType("name.not_indexed").tokenized(), equalTo(true));
+        ft = mapperService.fieldType("name.not_indexed").getTextSearchInfo().getLuceneFieldType();
+        assertEquals(IndexOptions.NONE, ft.indexOptions());
+        assertThat(ft.stored(), equalTo(true));
+        assertThat(ft.tokenized(), equalTo(true));
 
         assertThat(mapperService.fieldType("name.test1"), notNullValue());
         assertThat(mapperService.fieldType("name"), instanceOf(TextFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("name.test1").indexOptions());
-        assertThat(mapperService.getLuceneFieldType("name.test1").stored(), equalTo(true));
-        assertThat(mapperService.getLuceneFieldType("name.test1").tokenized(), equalTo(true));
+        ft = mapperService.fieldType("name.test1").getTextSearchInfo().getLuceneFieldType();
+        assertNotSame(IndexOptions.NONE, ft.indexOptions());
+        assertThat(ft.stored(), equalTo(true));
+        assertThat(ft.tokenized(), equalTo(true));
         assertThat(mapperService.fieldType("name.test1").eagerGlobalOrdinals(), equalTo(true));
 
         assertThat(mapperService.fieldType("object1.multi1"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1"), instanceOf(DateFieldMapper.DateFieldType.class));
         assertThat(mapperService.fieldType("object1.multi1.string"), notNullValue());
         assertThat(mapperService.fieldType("object1.multi1.string"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertNotSame(IndexOptions.NONE, mapperService.getLuceneFieldType("object1.multi1.string").indexOptions());
-        assertThat(mapperService.getLuceneFieldType("object1.multi1.string").tokenized(), equalTo(false));
+        ft = mapperService.fieldType("object1.multi1.string").getTextSearchInfo().getLuceneFieldType();
+        assertNotSame(IndexOptions.NONE, ft.indexOptions());
+        assertThat(ft.tokenized(), equalTo(false));
     }
 
     public void testBuildThenParse() throws Exception {

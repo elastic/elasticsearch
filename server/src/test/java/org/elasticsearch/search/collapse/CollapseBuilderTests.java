@@ -196,7 +196,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, true, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", true, true, null, Collections.emptyMap()) {
                 @Override
                 public MappedFieldType clone() {
                     return null;

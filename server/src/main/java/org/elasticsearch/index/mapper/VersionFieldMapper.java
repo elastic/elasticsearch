@@ -74,7 +74,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 
         private VersionFieldType() {
-            super(NAME, false, true, Collections.emptyMap());
+            super(NAME, false, true, TextSearchInfo.NUMERIC, Collections.emptyMap());
         }
 
         protected VersionFieldType(VersionFieldType ref) {

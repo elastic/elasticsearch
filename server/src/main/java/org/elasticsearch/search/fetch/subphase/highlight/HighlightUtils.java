@@ -53,7 +53,7 @@ public final class HighlightUtils {
                                                boolean forceSource) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         List<Object> textsToHighlight;
-        FieldType luceneFieldType = context.getMapperService().getLuceneFieldType(fieldType.name());
+        FieldType luceneFieldType = fieldType.getTextSearchInfo().getLuceneFieldType();
         if (forceSource == false && luceneFieldType.stored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);

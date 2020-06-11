@@ -85,7 +85,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final class SparseVectorFieldType extends MappedFieldType {
 
         public SparseVectorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, meta);
+            super(name, false, false, null, meta);
         }
 
         protected SparseVectorFieldType(SparseVectorFieldType ref) {

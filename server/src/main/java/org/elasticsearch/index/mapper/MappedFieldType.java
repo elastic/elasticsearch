@@ -63,11 +63,11 @@ public abstract class MappedFieldType {
     private final String name;
     private final boolean docValues;
     private final boolean isIndexed;
+    private final TextSearchInfo textSearchInfo;
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
-    protected boolean hasPositions;
     private SimilarityProvider similarity;
     private boolean eagerGlobalOrdinals;
     private Map<String, String> meta;
@@ -83,14 +83,15 @@ public abstract class MappedFieldType {
         this.similarity = ref.similarity();
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
         this.meta = ref.meta;
-        this.hasPositions = ref.hasPositions;
+        this.textSearchInfo = ref.textSearchInfo;
     }
 
-    public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
+    public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         setBoost(1.0f);
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
         this.docValues = hasDocValues;
+        this.textSearchInfo = textSearchInfo;
         this.meta = meta;
     }
 
@@ -149,10 +150,6 @@ public abstract class MappedFieldType {
 
     public void setBoost(float boost) {
         this.boost = boost;
-    }
-
-    public boolean hasPositions() {
-        return hasPositions;
     }
 
     public boolean hasDocValues() {
@@ -410,5 +407,9 @@ public abstract class MappedFieldType {
      */
     public void updateMeta(Map<String, String> meta) {
         this.meta = Map.copyOf(Objects.requireNonNull(meta));
+    }
+
+    public TextSearchInfo getTextSearchInfo() {
+        return textSearchInfo;
     }
 }

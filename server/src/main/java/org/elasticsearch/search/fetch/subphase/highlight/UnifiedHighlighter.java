@@ -20,7 +20,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
@@ -56,7 +55,7 @@ import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTI
 
 public class UnifiedHighlighter implements Highlighter {
     @Override
-    public boolean canHighlight(FieldType fieldType) {
+    public boolean canHighlight(MappedFieldType fieldType) {
         return true;
     }
 
@@ -88,8 +87,7 @@ public class UnifiedHighlighter implements Highlighter {
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
-            FieldInfo fi = hitContext.reader().getFieldInfos().fieldInfo(field.field());
-            final OffsetSource offsetSource = getOffsetSource(highlighterContext.luceneFieldType);
+            final OffsetSource offsetSource = getOffsetSource(fieldType);
             int fieldValueLength = fieldValue.length();
             if (keywordIgnoreAbove != null  && fieldValueLength > keywordIgnoreAbove) {
                 return null; // skip highlighting keyword terms that were ignored during indexing
@@ -104,7 +102,7 @@ public class UnifiedHighlighter implements Highlighter {
             }
             if (numberOfFragments == 0
                     // non-tokenized fields should not use any break iterator (ignore boundaryScannerType)
-                    || highlighterContext.luceneFieldType.tokenized() == false) {
+                    || fieldType.getTextSearchInfo().getLuceneFieldType().tokenized() == false) {
                 // we use a control char to separate values, which is the only char that the custom break iterator
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
@@ -219,12 +217,15 @@ public class UnifiedHighlighter implements Highlighter {
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 
-    protected OffsetSource getOffsetSource(FieldType fieldType) {
-        if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-            return fieldType.storeTermVectors() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
-        }
-        if (fieldType.storeTermVectorOffsets()) {
-            return OffsetSource.TERM_VECTORS;
+    protected OffsetSource getOffsetSource(MappedFieldType fieldType) {
+        if (fieldType.getTextSearchInfo() != null) {
+            FieldType ft = fieldType.getTextSearchInfo().getLuceneFieldType();
+            if (ft.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                return ft.storeTermVectors() ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
+            }
+            if (ft.storeTermVectorOffsets()) {
+                return OffsetSource.TERM_VECTORS;
+            }
         }
         return OffsetSource.ANALYSIS;
     }

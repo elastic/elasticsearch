@@ -99,7 +99,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
 
         public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
-            super(name, false, false, meta);
+            super(name, false, false, null, meta);
             this.dims = dims;
         }
 

@@ -42,7 +42,7 @@ import java.util.Map;
 public abstract class ConstantFieldType extends MappedFieldType {
 
     public ConstantFieldType(String name, Map<String, String> meta) {
-        super(name, true, true, meta);
+        super(name, true, true, TextSearchInfo.KEYWORD, meta);
     }
 
     public ConstantFieldType(ConstantFieldType other) {

@@ -198,7 +198,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         boolean mapUnmappedFieldsAsText;
 
         PercolatorFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, meta);
+            super(name, false, false, null, meta);
         }
 
         PercolatorFieldType(PercolatorFieldType ref) {

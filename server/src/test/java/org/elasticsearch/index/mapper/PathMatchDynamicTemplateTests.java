@@ -51,26 +51,24 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("top_level"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        FieldType fieldType = mapperService.getLuceneFieldType("name");
+        FieldType fieldType = mapperService.fieldType("name").getTextSearchInfo().getLuceneFieldType();
         assertThat(fieldType.stored(), equalTo(false));
 
         f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        fieldType = mapperService.getLuceneFieldType("obj1.name");
+        fieldType = mapperService.fieldType("obj1.name").getTextSearchInfo().getLuceneFieldType();
         assertThat(fieldType.stored(), equalTo(true));
 
         f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        fieldType = mapperService.getLuceneFieldType("obj1.obj2.name");
+        fieldType = mapperService.fieldType("obj1.obj2.name").getTextSearchInfo().getLuceneFieldType();
         assertThat(fieldType.stored(), equalTo(false));
 
         // verify more complex path_match expressions
-
-        fieldType = mapperService.getLuceneFieldType("obj3.obj4.prop1");
-        assertNotNull(fieldType);
+        assertNotNull(mapperService.fieldType("obj3.obj4.prop1").getTextSearchInfo());
     }
 }

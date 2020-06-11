@@ -51,7 +51,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        FieldType fieldType = mapperService.getLuceneFieldType("name");
+        FieldType fieldType = mapperService.fieldType("name").getTextSearchInfo().getLuceneFieldType();
         assertThat(fieldType.stored(), equalTo(true));
 
         boolean stored = false;
@@ -59,8 +59,5 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
             stored |=  field.fieldType().stored();
         }
         assertTrue(stored);
-
-        fieldType = mapperService.getLuceneFieldType("age");
-        assertThat(fieldType.stored(), equalTo(true));
     }
 }

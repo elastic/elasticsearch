@@ -166,7 +166,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // TODO should this be a Lucene global analyzer as well?
                 searchAnalyzer = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
             }
-            return new KeywordFieldType(buildFullName(context), indexed, hasDocValues, fieldType.omitNorms() == false,
+            return new KeywordFieldType(buildFullName(context), hasDocValues, fieldType,
                 eagerGlobalOrdinals, normalizer, searchAnalyzer, similarity, meta, boost);
         }
 
@@ -220,11 +220,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         boolean hasNorms;
 
-        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, boolean hasNorms,
+        public KeywordFieldType(String name, boolean hasDocValues, FieldType fieldType,
                                 boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
                                 SimilarityProvider similarity, Map<String, String> meta, float boost) {
-            super(name, isSearchable, hasDocValues, meta);
-            this.hasNorms = hasNorms;
+            super(name, fieldType.indexOptions() != IndexOptions.NONE,
+                hasDocValues, TextSearchInfo.fromFieldType(fieldType), meta);
+            this.hasNorms = fieldType.omitNorms() == false;
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
             setIndexAnalyzer(normalizer);
             setSearchAnalyzer(searchAnalyzer);
@@ -233,11 +234,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            this(name, isSearchable, hasDocValues, true, false, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, meta, 1.0f);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.KEYWORD, meta);
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public KeywordFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
+            this(name, true, Defaults.FIELD_TYPE, false,
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, Collections.emptyMap(), 1f);
         }
 
         protected KeywordFieldType(KeywordFieldType ref) {

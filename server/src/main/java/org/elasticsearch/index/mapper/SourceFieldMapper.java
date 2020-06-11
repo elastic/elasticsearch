@@ -149,7 +149,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         public static final SourceFieldType INSTANCE = new SourceFieldType();
 
         private SourceFieldType() {
-            super(NAME, false, false, Collections.emptyMap());
+            super(NAME, false, false, null, Collections.emptyMap());
         }
 
         protected SourceFieldType(SourceFieldType ref) {

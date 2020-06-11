@@ -105,7 +105,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         static RoutingFieldType INSTANCE = new RoutingFieldType();
 
         private RoutingFieldType() {
-            super(NAME, true, false, Collections.emptyMap());
+            super(NAME, true, false, TextSearchInfo.KEYWORD, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }

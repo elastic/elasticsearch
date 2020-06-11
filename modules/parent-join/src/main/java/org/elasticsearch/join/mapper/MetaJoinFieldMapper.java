@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -78,7 +79,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         private final String joinField;
 
         MetaJoinFieldType(String joinField) {
-            super(NAME, false, false, Collections.emptyMap());
+            super(NAME, false, false, TextSearchInfo.KEYWORD, Collections.emptyMap());
             this.joinField = joinField;
         }
 

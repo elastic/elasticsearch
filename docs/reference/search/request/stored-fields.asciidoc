@@ -3,7 +3,7 @@
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
 stored in the mapping, which is off by default and generally not recommended.
-Use <<search-fields,source filtering>> instead to select
+Use <<source-filtering,source filtering>> instead to select
 subsets of the original source document to be returned.
 
 Allows to selectively load specific stored fields for each document represented
@@ -62,5 +62,5 @@ GET /_search
 }
 --------------------------------------------------
 
-NOTE: <<search-fields,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
+NOTE: <<source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
 

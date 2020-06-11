@@ -76,7 +76,7 @@ stored.
 WARNING: Removing fields from the `_source` has similar downsides to disabling
 `_source`, especially the fact that you cannot reindex documents from one
 Elasticsearch index to another. Consider using
-<<search-fields,source filtering>> instead.
+<<source-filtering,source filtering>> instead.
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used
 as follows:

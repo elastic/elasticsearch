@@ -595,6 +595,8 @@ POST _transform/_preview
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
+
 <1> The data is grouped by `sessionid`.
 <2> The aggregations counts the number of paths and enumerate the viewed pages 
 during the session.

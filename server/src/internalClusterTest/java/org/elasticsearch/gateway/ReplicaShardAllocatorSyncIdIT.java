@@ -246,7 +246,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
     }
 
     /**
-     * If the recovery source is on an old node (before {@link org.elasticsearch.Version#V_7_2_1), then the recovery target
+     * If the recovery source is on an old node (before <pre>{@link org.elasticsearch.Version#V_7_2_0}</pre>) then the recovery target
      * won't have the safe commit after phase1 because the recovery source does not send the global checkpoint in the clean_files
      * step. And if the recovery fails and retries, then the recovery stage might not transition properly. This test simulates
      * this behavior by changing the global checkpoint in phase1 to unassigned.

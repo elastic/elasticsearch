@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -647,6 +648,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals(NULL, commonType(NULL, NULL));
         assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
         assertEquals(DOUBLE, commonType(DOUBLE, CONSTANT_KEYWORD));
+        assertEquals(LONG, commonType(LONG, WILDCARD));
         assertEquals(LONG, commonType(TEXT, LONG));
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
@@ -654,13 +656,22 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
 
         // strings
+        assertEquals(TEXT, commonType(TEXT, TEXT));
         assertEquals(TEXT, commonType(TEXT, KEYWORD));
         assertEquals(TEXT, commonType(KEYWORD, TEXT));
         assertEquals(TEXT, commonType(TEXT, CONSTANT_KEYWORD));
         assertEquals(TEXT, commonType(CONSTANT_KEYWORD, TEXT));
+        assertEquals(TEXT, commonType(TEXT, WILDCARD));
+        assertEquals(TEXT, commonType(WILDCARD, TEXT));
+        assertEquals(KEYWORD, commonType(KEYWORD, KEYWORD));
         assertEquals(KEYWORD, commonType(KEYWORD, CONSTANT_KEYWORD));
         assertEquals(KEYWORD, commonType(CONSTANT_KEYWORD, KEYWORD));
+        assertEquals(KEYWORD, commonType(KEYWORD, WILDCARD));
+        assertEquals(KEYWORD, commonType(WILDCARD, KEYWORD));
         assertEquals(CONSTANT_KEYWORD, commonType(CONSTANT_KEYWORD, CONSTANT_KEYWORD));
+        assertEquals(CONSTANT_KEYWORD, commonType(CONSTANT_KEYWORD, WILDCARD));
+        assertEquals(CONSTANT_KEYWORD, commonType(WILDCARD, CONSTANT_KEYWORD));
+        assertEquals(WILDCARD, commonType(WILDCARD, WILDCARD));
 
         // numeric and intervals
         assertEquals(INTERVAL_YEAR_TO_MONTH, commonType(INTERVAL_YEAR_TO_MONTH, LONG));

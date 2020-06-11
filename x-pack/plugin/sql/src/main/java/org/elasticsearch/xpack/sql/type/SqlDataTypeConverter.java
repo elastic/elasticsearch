@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -160,7 +161,7 @@ public final class SqlDataTypeConverter {
         }
         // extend the default converter with DATE and TIME
         if (from == DATE || from == TIME) {
-            if (to == KEYWORD || to == TEXT || to == CONSTANT_KEYWORD) {
+            if (to == KEYWORD || to == TEXT || to == WILDCARD || to == CONSTANT_KEYWORD) {
                 return conversionToString(from);
             }
             if (to == LONG) {

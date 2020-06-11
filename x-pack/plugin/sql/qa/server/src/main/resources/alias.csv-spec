@@ -52,6 +52,7 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |constant_keyword
 salary              |INTEGER        |integer
+wildcard_name       |VARCHAR        |wildcard
 ;
 
 describePattern
@@ -81,6 +82,7 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |constant_keyword
 salary              |INTEGER        |integer
+wildcard_name       |VARCHAR        |wildcard
 ;
 
 showAlias

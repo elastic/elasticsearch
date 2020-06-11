@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 /**
  * Extractor for ES fields. Works for both 'normal' fields but also nested ones (which require hitName to be set).
  * The latter is used as metadata in assembling the results in the tabular response.
@@ -214,6 +215,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above.
                     || dataType == DATETIME
+                    || dataType == WILDCARD // because of ignore_above.
                     || dataType == CONSTANT_KEYWORD // because a non-existent value is considered the constant value itself
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }

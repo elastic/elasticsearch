@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 public class SqlDataTypes {
@@ -271,6 +272,7 @@ public class SqlDataTypes {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
                 || dataType == DATE         // because of date formats
                 || dataType == DATETIME
+                || dataType == WILDCARD // because of ignore_above
                 || dataType == SCALED_FLOAT // because of scaling_factor
                 || dataType == CONSTANT_KEYWORD
                 || dataType == GEO_POINT
@@ -338,6 +340,9 @@ public class SqlDataTypes {
             return JDBCType.VARCHAR;
         }
         if (dataType == CONSTANT_KEYWORD) {
+            return JDBCType.VARCHAR;
+        }
+        if (dataType == WILDCARD) {
             return JDBCType.VARCHAR;
         }
         if (dataType == DATETIME) {
@@ -466,6 +471,9 @@ public class SqlDataTypes {
         if (dataType == CONSTANT_KEYWORD) {
             return 15;
         }
+        if (dataType == WILDCARD) {
+            return 15;
+        }
         if (dataType == DATETIME) {
             return 3;
         }
@@ -587,6 +595,9 @@ public class SqlDataTypes {
             return dataType.size();
         }
         if (dataType == CONSTANT_KEYWORD) {
+            return 32766;
+        }
+        if (dataType == WILDCARD) {
             return 32766;
         }
         if (dataType == DATETIME) {

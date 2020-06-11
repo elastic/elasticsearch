@@ -26,6 +26,7 @@ public enum EsType implements SQLType {
     KEYWORD(                  Types.VARCHAR),
     TEXT(                     Types.VARCHAR),
     CONSTANT_KEYWORD(         Types.VARCHAR),
+    WILDCARD(                 Types.VARCHAR),
     OBJECT(                   Types.STRUCT),
     NESTED(                   Types.STRUCT),
     BINARY(                   Types.VARBINARY),

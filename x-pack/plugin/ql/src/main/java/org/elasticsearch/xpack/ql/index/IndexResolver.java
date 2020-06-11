@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
 import org.elasticsearch.xpack.ql.type.TextEsField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.ql.type.WildcardEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 
@@ -71,6 +72,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 
 public class IndexResolver {
 
@@ -450,6 +452,9 @@ public class IndexResolver {
         }
         if (esType == CONSTANT_KEYWORD) {
             return new ConstantKeywordEsField(fieldName);
+        }
+        if (esType == WILDCARD) {
+            return new WildcardEsField(fieldName);
         }
         if (esType == UNSUPPORTED) {
             return new UnsupportedEsField(fieldName, typeName, null, props);

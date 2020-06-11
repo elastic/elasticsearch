@@ -21,6 +21,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.WILDCARD;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -136,10 +137,11 @@ public class TypesTests extends ESTestCase {
         assertThat(DataTypes.isPrimitive(field.getDataType()), is(true));
         assertThat(field.getDataType(), is(TEXT));
         Map<String, EsField> fields = field.getProperties();
-        assertThat(fields.size(), is(3));
+        assertThat(fields.size(), is(4));
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
         assertThat(fields.get("constant").getDataType(), is(CONSTANT_KEYWORD));
+        assertThat(fields.get("wildcard").getDataType(), is(WILDCARD));
     }
 
     public void testMultiFieldTooManyOptions() {
@@ -150,10 +152,11 @@ public class TypesTests extends ESTestCase {
         assertThat(DataTypes.isPrimitive(field.getDataType()), is(true));
         assertThat(field, instanceOf(TextEsField.class));
         Map<String, EsField> fields = field.getProperties();
-        assertThat(fields.size(), is(3));
+        assertThat(fields.size(), is(4));
         assertThat(fields.get("raw").getDataType(), is(KEYWORD));
         assertThat(fields.get("english").getDataType(), is(TEXT));
         assertThat(fields.get("constant").getDataType(), is(CONSTANT_KEYWORD));
+        assertThat(fields.get("wildcard").getDataType(), is(WILDCARD));
     }
 
     public void testNestedDoc() {
@@ -181,6 +184,13 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField dt = mapping.get("full_name");
         assertThat(dt.getDataType().typeName(), is("constant_keyword"));
+    }
+
+    public void testWildcardField() {
+        Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("full_name");
+        assertThat(dt.getDataType().typeName(), is("wildcard"));
     }
 
     public void testUnsupportedTypes() {

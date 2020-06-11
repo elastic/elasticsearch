@@ -246,9 +246,10 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
     }
 
     /**
-     * If the recovery source is on an old node (before 7.2), then the recovery target won't have the safe commit after phase1
-     * because the recovery source does not send the global checkpoint. And if the recovery fails and retries, then the recovery
-     * state might not transition properly. This test simulates this behavior by setting the global checkpoint in phase1 to unassigned.
+     * If the recovery source is on an old node (before {@link org.elasticsearch.Version#V_7_2_1), then the recovery target
+     * won't have the safe commit after phase1 because the recovery source does not send the global checkpoint in the clean_files
+     * step. And if the recovery fails and retries, then the recovery stage might not transition properly. This test simulates
+     * this behavior by changing the global checkpoint in phase1 to unassigned.
      */
     public void testSimulateRecoverySourceOnOldNode() throws Exception {
         internalCluster().startMasterOnlyNode();

@@ -35,11 +35,11 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
-public class AsyncPlugin extends Plugin implements SystemIndexPlugin {
+public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin {
 
     protected final Settings settings;
 
-    public AsyncPlugin(Settings settings) {
+    public AsyncResultsIndexPlugin(Settings settings) {
         this.settings = settings;
     }
 

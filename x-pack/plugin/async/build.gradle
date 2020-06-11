@@ -24,7 +24,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-async'
     description 'A module which handles common async operations'
-    classname 'org.elasticsearch.xpack.async.AsyncPlugin'
+    classname 'org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-async'

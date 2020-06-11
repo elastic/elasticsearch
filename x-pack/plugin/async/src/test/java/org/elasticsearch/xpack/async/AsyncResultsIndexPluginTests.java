@@ -10,11 +10,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-public class AsyncPluginTests extends ESTestCase {
+public class AsyncResultsIndexPluginTests extends ESTestCase {
 
     public void testDummy() {
         // This is a dummy test case to satisfy the conventions
-        AsyncPlugin plugin = new AsyncPlugin(Settings.EMPTY);
+        AsyncResultsIndexPlugin plugin = new AsyncResultsIndexPlugin(Settings.EMPTY);
         assertThat(plugin.getSystemIndexDescriptors(Settings.EMPTY), Matchers.hasSize(1));
     }
 }

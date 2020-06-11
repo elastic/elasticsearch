@@ -152,3 +152,16 @@ Pseudo-Huber loss functions. These additions enable you to choose the
 loss function that fits best with your data set.
 
 // end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+[[release-highlights-7.8.0-data-visualizer]]
+=== Extended upload limit and explanations for Data Visualizer
+
+You can now upload files up to 1 GB in Data Visualizer. The file structure 
+finder functionality of the Data Visualizer provides more detailed explanations 
+after both successful and unsuccessful analysis which makes it easier to 
+diagnose issues with file upload.
+
+// end::notable-highlights[]
+

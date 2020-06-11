@@ -541,9 +541,10 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             Bucket curBucket = buckets.get(i);
             Bucket prevBucket = buckets.get(i-1);
             if(curBucket.bounds.min < prevBucket.bounds.max){
-                // Overlap -> there are more values than indicated in prevBucket, less values than indicated in curBucket
-                // Choosing midpoint between prevBucket.max and curBucket.min should have more accuracy
+                // We don't want overlapping buckets --> Adjust their bounds
+                // TODO: Think of a fairer way to do this. Should prev.max = cur.min?
                 curBucket.bounds.min = (prevBucket.bounds.max + curBucket.bounds.min) / 2;
+                prevBucket.bounds.max = curBucket.bounds.min;
             }
         }
     }

@@ -74,12 +74,14 @@ TIP: Parameters `buckets`, `shard_size`, and `initial_buffer` are optional. By d
 
 ==== Initial Buffer
 The `initial_buffer` parameter can be used to specify the number of individual documents that will be stored in memory
-on a shard before the initial bucketing algorithm is run. Bucket distribution is determined using this initial sample
+on a shard before the initial bucketing algorithm is run. Bucket distribution is determined using this sample
 of `initial_buffer` documents. So, although a higher `initial_buffer` will use more memory, it will lead to more representative
 clusters.
 
 ==== Bucket bounds are approximate
 During the reduce step, the master node continuously merges the two buckets with the nearest centroids. If two buckets have
 overlapping bounds but distant centroids, then it is possible that they will not be merged. Because of this, after
-reduction it is possible that the maximum value in some interval (`max`) will be greater than the minimum value in the subsequent
+reduction the maximum value in some interval (`max`) might be greater than the minimum value in the subsequent
 bucket (`min`). To reduce the impact of this error, when such an overlap occurs the bound between these intervals is adjusted to be `(max + min) / 2`.
+
+TIP: Bucket bounds are very sensitive to outliers

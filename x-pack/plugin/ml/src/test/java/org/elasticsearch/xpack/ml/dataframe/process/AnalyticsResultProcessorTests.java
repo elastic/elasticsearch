@@ -106,8 +106,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     public void testProcess_GivenEmptyResults() {
         givenDataFrameRows(2);
         givenProcessResults(Arrays.asList(
-            new AnalyticsResult(null, null,null, null, null, null, null),
-            new AnalyticsResult(null, null, null, null, null, null, null)));
+            new AnalyticsResult(null, null, null,null, null, null, null, null),
+            new AnalyticsResult(null, null, null, null, null, null, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -122,8 +122,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null,null, null, null, null, null),
-            new AnalyticsResult(rowResults2, null, null, null, null, null, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null, null,null, null, null, null, null),
+            new AnalyticsResult(rowResults2, null, null, null, null, null, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -140,8 +140,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         givenDataFrameRows(2);
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null,null, null, null, null, null),
-            new AnalyticsResult(rowResults2, null, null, null, null, null, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null, null,null, null, null, null, null),
+            new AnalyticsResult(rowResults2, null, null, null, null, null, null, null)));
 
         doThrow(new RuntimeException("some failure")).when(dataFrameRowsJoiner).processRowResults(any(RowResults.class));
 
@@ -175,7 +175,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         extractedFieldList.add(new DocValueField("baz", Collections.emptySet()));
         TargetType targetType = analyticsConfig.getAnalysis() instanceof Regression ? TargetType.REGRESSION : TargetType.CLASSIFICATION;
         TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder(targetType);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null, null, null, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null, null, null, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor(extractedFieldList);
 
         resultProcessor.process(process);
@@ -239,7 +239,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         TargetType targetType = analyticsConfig.getAnalysis() instanceof Regression ? TargetType.REGRESSION : TargetType.CLASSIFICATION;
         TrainedModelDefinition.Builder inferenceModel = TrainedModelDefinitionTests.createRandomBuilder(targetType);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null, null, null, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null, inferenceModel, null, null, null, null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);

@@ -345,6 +345,7 @@ public class AutodetectResultProcessor {
                 bulkResultsPersister.executeRequest();
                 bulkAnnotationsPersister.executeRequest();
                 persister.commitResultWrites(jobId);
+                persister.commitAnnotationWrites();
                 LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
             } catch (Exception e) {
                 LOGGER.error(
@@ -469,6 +470,7 @@ public class AutodetectResultProcessor {
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
             waitUntilRenormalizerIsIdle();
             persister.commitResultWrites(jobId);
+            persister.commitAnnotationWrites();
             persister.commitStateWrites(jobId);
 
         } catch (InterruptedException e) {

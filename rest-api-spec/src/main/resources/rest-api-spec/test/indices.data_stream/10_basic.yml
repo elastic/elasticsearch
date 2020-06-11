@@ -200,3 +200,59 @@ setup:
       catch: missing
       indices.get:
         index: ".ds-simple-data-stream1-000001"
+
+---
+"append-only writes to backing indices prohobited":
+  - skip:
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream:
+            timestamp_field: timestamp
+
+  - do:
+      index:
+        index:  logs-foobar
+        body:   { foo: bar }
+  - match: { _index: .ds-logs-foobar-000001 }
+
+  - do:
+      catch: bad_request
+      index:
+        index:  .ds-logs-foobar-000001
+        body:   { foo: bar }
+
+  - do:
+      bulk:
+        body:
+          - create:
+              _index: .ds-logs-foobar-000001
+          - foo: bar
+          - index:
+              _index: .ds-logs-foobar-000001
+          - foo: bar
+          - create:
+              _index: logs-foobar
+          - foo: bar
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: illegal_argument_exception }
+  - match: { items.0.create.error.reason: "index request with op_type=create targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
+  - match: { items.1.index.status: 400 }
+  - match: { items.1.index.error.type: illegal_argument_exception }
+  - match: { items.1.index.error.reason: "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
+  - match: { items.2.create.result: created }
+  - match: { items.2.create._index: .ds-logs-foobar-000001 }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

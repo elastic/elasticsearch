@@ -111,16 +111,44 @@ GROUP BY b
 HAVING
   MAX(CASE WHEN a IS NULL then -1 ELSE abs(a * 10) + 1 END) > 5
 ----
-// end::notable-highlights[]
 
+// end::notable-highlights[]
 // tag::notable-highlights[]
 [float]
-=== Add configurable transform throttling
+[[release-highlights-7.8.0-throttling]]
+=== Increase the performance and scalability of {transforms} with throttling
 
-Running transforms can increase load on the cluster. This can have a
-detrimental affect on a cluster, especially in batch mode and for the first
-checkpoint of a continuous transform. Transforms now support the optional
-`docs_per_second` throttling configuration setting, similar to reindex.
-See the {ref}//put-transform.html[Create transform API].
+{transforms-cap} achieved GA status in 7.7 and now in 7.8 they are even better
+with the introduction of
+{ref}/transform-overview.html#transform-performance[throttling]. You can spread
+out the impact of the {transforms} on your cluster by defining the rate at which
+they perform search and index requests. Set the `docs_per_second` limit when you
+create or update your {transform}. 
+
+// end::notable-highlights[]
+// tag::notable-highlights[]
+[float]
+[[release-highlights-7.8.0-mml]]
+=== Better estimates for {ml} model memory usage
+
+For 7.8, we introduce dynamic estimation of the model memory limit for jobs in
+{ml-docs}/ootb-ml-jobs.html[ML solution modules]. The estimate is generated
+during the job creation. It uses a calculation based on the specific detectors
+of the job and the cardinality of the partitioning and influencer fields. It
+means the job setup has better default values depending on the size of the data
+being analyzed.
+ 
+// end::notable-highlights[]
+// tag::notable-highlights[]
+[float]
+[[release-highlights-7.8.0-loss-functions]]
+=== Additional loss functions for {regression}
+
+{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[Loss functions]
+measure how well a {ml} model fits a specific data set. In 7.8, we added two new
+loss functions for {regression} analysis. In addition to the existing mean
+squared error function, there are now mean squared logarithmic error and
+Pseudo-Huber loss functions. These additions enable you to choose the
+loss function that fits best with your data set.
 
 // end::notable-highlights[]

@@ -307,14 +307,14 @@ public class TransportBulkActionTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata));
         assertThat(e.getMessage(), equalTo("index request with op_type=create targeting backing indices is disallowed, " +
-            "target corresponding data stream instead"));
+            "target corresponding data stream [logs-foobar] instead"));
 
         // Testing index op against backing index fails:
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, metadata));
         assertThat(e.getMessage(), equalTo("index request with op_type=index and no if_primary_term and if_seq_no set " +
-            "targeting backing indices is disallowed, target corresponding data stream instead"));
+            "targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead"));
 
         // Testing valid writes ops against a backing index:
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)

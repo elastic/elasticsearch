@@ -245,10 +245,10 @@ setup:
   - match: { errors: true }
   - match: { items.0.create.status: 400 }
   - match: { items.0.create.error.type: illegal_argument_exception }
-  - match: { items.0.create.error.reason: "index request with op_type=create targeting backing indices is disallowed, target corresponding data stream instead" }
+  - match: { items.0.create.error.reason: "index request with op_type=create targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
   - match: { items.1.index.status: 400 }
   - match: { items.1.index.error.type: illegal_argument_exception }
-  - match: { items.1.index.error.reason: "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream instead" }
+  - match: { items.1.index.error.reason: "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
   - match: { items.2.create.result: created }
   - match: { items.2.create._index: .ds-logs-foobar-000001 }
 

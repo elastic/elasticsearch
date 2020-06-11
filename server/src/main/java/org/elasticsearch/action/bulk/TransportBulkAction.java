@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -285,6 +286,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return;
         }
 
+        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+
         // At this point with write op is targeting a backing index of a data stream directly,
         // so checking if write op is append-only and if so fail.
         // (Updates and deletes are allowed to target a backing index)
@@ -296,12 +299,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // that an engine level change is needed and for now this check is sufficient.)
         if (opType == DocWriteRequest.OpType.CREATE) {
             throw new IllegalArgumentException("index request with op_type=create targeting backing indices is disallowed, " +
-                "target corresponding data stream instead");
+                "target corresponding data stream [" + dataStream.getName() + "] instead");
         }
         if (opType == DocWriteRequest.OpType.INDEX && writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM &&
             writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("index request with op_type=index and no if_primary_term and if_seq_no set " +
-                "targeting backing indices is disallowed, target corresponding data stream instead");
+                "targeting backing indices is disallowed, target corresponding data stream [" + dataStream.getName() + "] instead");
         }
     }
 

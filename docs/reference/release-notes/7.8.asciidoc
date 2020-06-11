@@ -173,6 +173,37 @@ Machine Learning::
 * Skip daily maintenance activity if upgrade mode is enabled {pull}54565[#54565] (issue: {issue}54326[#54326])
 * Start gathering and storing inference stats {pull}53429[#53429]
 * Unassign DFA tasks in SetUpgradeModeAction {pull}54523[#54523] (issue: {issue}54326[#54326])
+* Speed up anomaly detection for the lat_long function {ml-pull}1102[#1102]
+* Reduce CPU scheduling priority of native analysis processes to favor the ES
+JVM when CPU is constrained. This change is implemented only for Linux and macOS,
+not for Windows {ml-pull}1109[#1109]
+* Take `training_percent` into account when estimating memory usage for
+classification and regression {ml-pull}1111[#1111]
+* Support maximize minimum recall when assigning class labels for multiclass
+classification {ml-pull}1113[#1113]
+* Improve robustness of anomaly detection to bad input data {ml-pull}1114[#1114]
+* Add new `num_matches` and `preferred_to_categories` fields to category output
+{ml-pull}1062[#1062]
+* Add mean squared logarithmic error (MSLE) for regression {ml-pull}1101[#1101]
+* Add pseudo-Huber loss for regression {ml-pull}1168[#1168]
+* Reduce peak memory usage and memory estimates for classification and regression
+{ml-pull}1125[#1125].)
+* Reduce variability of classification and regression results across our target
+operating systems {ml-pull}1127[#1127]
+* Switched data frame analytics model memory estimates from kilobytes to
+megabytes {ml-pull}1126[#1126] (issue: {issue}54506[#54506])
+* Add a {ml} native code build for Linux on AArch64 {ml-pull}1132[#1132],
+{ml-pull}1135[#1135]
+* Improve data frame analysis runtime by optimising memory alignment for intrinsic
+operations {ml-pull}1142[#1142]
+* Fix spurious anomalies for count and sum functions after no data are received
+for long periods of time {ml-pull}1158[#1158]
+* Improve false positive rates from periodicity test for time series anomaly
+detection {ml-pull}1177[#1177]
+* Break progress reporting of data frame analyses into multiple phases {ml-pull}1179[#1179]
+* Really centre the data before training for classification and regression begins. This
+means we can choose more optimal smoothing bias and should reduce the number of trees
+{ml-pull}1192[#1192]
 
 Mapping::
 * Merge V2 index/component template mappings in specific manner {pull}55607[#55607] (issue: {issue}53101[#53101])
@@ -260,9 +291,22 @@ Infra/Core::
 * Add generic Set support to streams {pull}54769[#54769] (issue: {issue}54708[#54708])
 
 Machine Learning::
-* Fixing GET _ml/inference so size param is respected {pull}57303[#57303] (issue: {issue}57298[#57298])
-* Fixing file structure finder multiline merge max for delimited formats {pull}56023[#56023]
+* Fix GET _ml/inference so size param is respected {pull}57303[#57303] (issue: {issue}57298[#57298])
+* Fix file structure finder multiline merge max for delimited formats {pull}56023[#56023]
 * Validate at least one feature is available for DF analytics {pull}55876[#55876] (issue: {issue}55593[#55593])
+* Trap and fail if insufficient features are supplied to data frame analyses.
+Otherwise, classification and regression got stuck at zero analyzing progress
+{ml-pull}1160[#1160] (issue: {issue}55593[#55593])
+* Make categorization respect the model_memory_limit {ml-pull}1167[#1167]
+(issue: {ml-issue}1130[#1130])
+* Respect user overrides for max_trees for classification and regression
+{ml-pull}1185[#1185]
+* Reset memory status from soft_limit to ok when pruning is no longer required
+{ml-pull}1193[#1193] (issue: {ml-issue}1131[#1131])
+* Fix restore from training state for classification and regression
+{ml-pull}1197[#1197]
+* Improve the initialization of seasonal components for anomaly detection
+{ml-pull}1201[#1201] (issue: {ml-issue}#1178[#1178])
 
 Network::
 * Fix issue with pipeline releasing bytes early {pull}54458[#54458]
@@ -280,7 +324,7 @@ Security::
 
 Transform::
 * Fix count when matching exact ids {pull}56544[#56544] (issue: {issue}56196[#56196])
-* Fixes http status code when bad scripts are provided {pull}56117[#56117] (issue: {issue}55994[#55994])
+* Fix http status code when bad scripts are provided {pull}56117[#56117] (issue: {issue}55994[#55994])
 
 
 

@@ -135,9 +135,8 @@ public class ArchiveTests extends PackagingTestCase {
             throw e;
         }
 
-        List<String> existingFiles = lsGlob(installation.logs, "gc*").stream().map(Path::toString).collect(Collectors.toList());
-        final String gcLogName = Platforms.LINUX && distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
-        assertThat("existing gc files: " + String.join("\n", existingFiles), installation.logs.resolve(gcLogName), fileExists());
+        final String gcLogName = distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
+        assertThat(installation.logs.resolve(gcLogName), fileExists());
         ServerUtils.runElasticsearchTests();
 
         stopElasticsearch();

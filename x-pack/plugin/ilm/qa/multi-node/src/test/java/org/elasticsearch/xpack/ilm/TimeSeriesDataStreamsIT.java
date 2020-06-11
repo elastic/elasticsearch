@@ -6,15 +6,17 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.ilm.ReplaceDataStreamBackingIndexStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
 import java.util.concurrent.TimeUnit;
@@ -22,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -104,5 +107,37 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             60, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("the shrunken index was deleted by the delete action", indexExists(shrunkenIndex)),
             30, TimeUnit.SECONDS);
+    }
+
+    public void testSearchableSnapshotAction() throws Exception {
+        String snapshotRepo = randomAlphaOfLengthBetween(5, 10);
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        String policyName = "logs-policy";
+        createNewSingletonPolicy(client(), policyName, "cold", new SearchableSnapshotAction(snapshotRepo));
+
+        Settings settings = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .build();
+        Template template = new Template(settings, null, null);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
+
+        assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));
+        assertBusy(() -> assertThat(
+            "original index must wait in the " + ReplaceDataStreamBackingIndexStep.NAME + " until it is not the write index anymore",
+            (Integer) explainIndex(client(), backingIndexName).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+            30, TimeUnit.SECONDS);
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        assertBusy(() -> assertFalse(indexExists(backingIndexName)), 60, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
+            TimeUnit.SECONDS);
     }
 }

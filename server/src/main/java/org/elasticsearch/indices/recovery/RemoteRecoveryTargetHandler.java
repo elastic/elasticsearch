@@ -100,6 +100,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         this.retriesSupported = targetNode.getVersion().onOrAfter(Version.V_7_9_0);
     }
 
+    public DiscoveryNode targetNode() {
+        return targetNode;
+    }
+
     @Override
     public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
         final String action = PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG;

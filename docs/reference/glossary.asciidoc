@@ -342,7 +342,7 @@ during the following processes:
 +
 --
 // tag::reindex-def[]
-Copies documents from a _source_ to an existing _destination_. The source and
+Copies documents from a _source_ to a _destination_. The source and
 destination can be any pre-existing index, index alias, or
 {ref}/data-streams.html[data stream].
 

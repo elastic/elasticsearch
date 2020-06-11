@@ -23,16 +23,16 @@ import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ModelSize implements Accountable, ToXContentObject {
+public class ModelSizeInfo implements Accountable, ToXContentObject {
 
     private static final ParseField PREPROCESSORS = new ParseField("preprocessors");
     private static final ParseField TRAINED_MODEL_SIZE = new ParseField("trained_model_size");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<ModelSize, Void> PARSER = new ConstructingObjectParser<>(
+    public static ConstructingObjectParser<ModelSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "model_size",
         false,
-        a -> new ModelSize((EnsembleSize)a[0], (List<PreprocessorSize>)a[1])
+        a -> new ModelSizeInfo((EnsembleSize)a[0], (List<PreprocessorSize>)a[1])
     );
     static {
         PARSER.declareNamedObject(constructorArg(),
@@ -47,7 +47,7 @@ public class ModelSize implements Accountable, ToXContentObject {
     private final EnsembleSize ensembleSize;
     private final List<PreprocessorSize> preprocessorSizes;
 
-    public ModelSize(EnsembleSize ensembleSize, List<PreprocessorSize> preprocessorSizes) {
+    public ModelSizeInfo(EnsembleSize ensembleSize, List<PreprocessorSize> preprocessorSizes) {
         this.ensembleSize = ensembleSize;
         this.preprocessorSizes = preprocessorSizes == null ? Collections.emptyList() : preprocessorSizes;
     }
@@ -60,7 +60,7 @@ public class ModelSize implements Accountable, ToXContentObject {
     public long ramBytesUsed() {
         long size = InferenceDefinition.SHALLOW_SIZE;
         size += ensembleSize.ramBytesUsed();
-        size += this.preprocessorSizes.stream().mapToLong(PreprocessorSize::ramBytesUsed).sum();
+        size += preprocessorSizes.stream().mapToLong(PreprocessorSize::ramBytesUsed).sum();
         return alignObjectSize(size);
     }
 
@@ -79,9 +79,9 @@ public class ModelSize implements Accountable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ModelSize modelSize = (ModelSize) o;
-        return Objects.equals(ensembleSize, modelSize.ensembleSize) &&
-            Objects.equals(preprocessorSizes, modelSize.preprocessorSizes);
+        ModelSizeInfo modelSizeInfo = (ModelSizeInfo) o;
+        return Objects.equals(ensembleSize, modelSizeInfo.ensembleSize) &&
+            Objects.equals(preprocessorSizes, modelSizeInfo.preprocessorSizes);
     }
 
     @Override

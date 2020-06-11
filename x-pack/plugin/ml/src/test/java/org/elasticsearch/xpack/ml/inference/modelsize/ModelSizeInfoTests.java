@@ -20,10 +20,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ModelSizeTests extends AbstractXContentTestCase<ModelSize> {
+public class ModelSizeInfoTests extends AbstractXContentTestCase<ModelSizeInfo> {
 
-    public static ModelSize createRandom() {
-        return new ModelSize(EnsembleSizeTests.createRandom(),
+    public static ModelSizeInfo createRandom() {
+        return new ModelSizeInfo(EnsembleSizeTests.createRandom(),
             randomBoolean() ?
                 null :
                 Stream.generate(() -> randomFrom(
@@ -42,13 +42,13 @@ public class ModelSizeTests extends AbstractXContentTestCase<ModelSize> {
     }
 
     @Override
-    protected ModelSize createTestInstance() {
+    protected ModelSizeInfo createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected ModelSize doParseInstance(XContentParser parser) {
-        return ModelSize.PARSER.apply(parser, null);
+    protected ModelSizeInfo doParseInstance(XContentParser parser) {
+        return ModelSizeInfo.PARSER.apply(parser, null);
     }
 
     @Override

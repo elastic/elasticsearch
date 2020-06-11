@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierD
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.ml.inference.modelsize.ModelSize;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,7 +47,7 @@ public class AnalyticsResult implements ToXContentObject {
                 (OutlierDetectionStats) a[4],
                 (ClassificationStats) a[5],
                 (RegressionStats) a[6],
-                (ModelSize) a[7]
+                (ModelSizeInfo) a[7]
             ));
 
     static {
@@ -59,7 +59,7 @@ public class AnalyticsResult implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), OutlierDetectionStats.STRICT_PARSER, OUTLIER_DETECTION_STATS);
         PARSER.declareObject(optionalConstructorArg(), ClassificationStats.STRICT_PARSER, CLASSIFICATION_STATS);
         PARSER.declareObject(optionalConstructorArg(), RegressionStats.STRICT_PARSER, REGRESSION_STATS);
-        PARSER.declareObject(optionalConstructorArg(), ModelSize.PARSER, MODEL_SIZE_INFO);
+        PARSER.declareObject(optionalConstructorArg(), ModelSizeInfo.PARSER, MODEL_SIZE_INFO);
     }
 
     private final RowResults rowResults;
@@ -70,7 +70,7 @@ public class AnalyticsResult implements ToXContentObject {
     private final OutlierDetectionStats outlierDetectionStats;
     private final ClassificationStats classificationStats;
     private final RegressionStats regressionStats;
-    private final ModelSize modelSize;
+    private final ModelSizeInfo modelSizeInfo;
 
     public AnalyticsResult(@Nullable RowResults rowResults,
                            @Nullable PhaseProgress phaseProgress,
@@ -79,7 +79,7 @@ public class AnalyticsResult implements ToXContentObject {
                            @Nullable OutlierDetectionStats outlierDetectionStats,
                            @Nullable ClassificationStats classificationStats,
                            @Nullable RegressionStats regressionStats,
-                           @Nullable ModelSize modelSize) {
+                           @Nullable ModelSizeInfo modelSizeInfo) {
         this.rowResults = rowResults;
         this.phaseProgress = phaseProgress;
         this.inferenceModelBuilder = inferenceModelBuilder;
@@ -88,7 +88,7 @@ public class AnalyticsResult implements ToXContentObject {
         this.outlierDetectionStats = outlierDetectionStats;
         this.classificationStats = classificationStats;
         this.regressionStats = regressionStats;
-        this.modelSize = modelSize;
+        this.modelSizeInfo = modelSizeInfo;
     }
 
     public RowResults getRowResults() {
@@ -119,8 +119,8 @@ public class AnalyticsResult implements ToXContentObject {
         return regressionStats;
     }
 
-    public ModelSize getModelSize() {
-        return modelSize;
+    public ModelSizeInfo getModelSizeInfo() {
+        return modelSizeInfo;
     }
 
     @Override
@@ -149,8 +149,8 @@ public class AnalyticsResult implements ToXContentObject {
         if (regressionStats != null) {
             builder.field(REGRESSION_STATS.getPreferredName(), regressionStats, params);
         }
-        if (modelSize != null) {
-            builder.field(MODEL_SIZE_INFO.getPreferredName(), modelSize);
+        if (modelSizeInfo != null) {
+            builder.field(MODEL_SIZE_INFO.getPreferredName(), modelSizeInfo);
         }
         builder.endObject();
         return builder;
@@ -172,7 +172,7 @@ public class AnalyticsResult implements ToXContentObject {
             && Objects.equals(memoryUsage, that.memoryUsage)
             && Objects.equals(outlierDetectionStats, that.outlierDetectionStats)
             && Objects.equals(classificationStats, that.classificationStats)
-            && Objects.equals(modelSize, that.modelSize)
+            && Objects.equals(modelSizeInfo, that.modelSizeInfo)
             && Objects.equals(regressionStats, that.regressionStats);
     }
 

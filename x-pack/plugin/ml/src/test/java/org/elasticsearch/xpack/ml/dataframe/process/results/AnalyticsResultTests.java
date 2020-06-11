@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
-import org.elasticsearch.xpack.ml.inference.modelsize.ModelSize;
-import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeTests;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,7 +51,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         OutlierDetectionStats outlierDetectionStats = null;
         ClassificationStats classificationStats = null;
         RegressionStats regressionStats = null;
-        ModelSize modelSize = null;
+        ModelSizeInfo modelSizeInfo = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
@@ -74,10 +74,10 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
             regressionStats = RegressionStatsTests.createRandom();
         }
         if (randomBoolean()) {
-            modelSize = ModelSizeTests.createRandom();
+            modelSizeInfo = ModelSizeInfoTests.createRandom();
         }
         return new AnalyticsResult(rowResults, phaseProgress, inferenceModel, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats, modelSize);
+            classificationStats, regressionStats, modelSizeInfo);
     }
 
     @Override

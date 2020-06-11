@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
-import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -106,7 +106,7 @@ public class DocumentFieldTests extends ESTestCase {
             Predicate<String> excludeMetaFieldFilter) {
         if (isMetafield) {
             String metaField = randomValueOtherThanMany(excludeMetaFieldFilter,
-                () -> randomFrom(IndicesModule.getBuiltInMetadataFields()));
+                () -> randomFrom(MapperService.META_FIELDS_BEFORE_7DOT8));
             DocumentField documentField;
             if (metaField.equals(IgnoredFieldMapper.NAME)) {
                 int numValues = randomIntBetween(1, 3);

@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
@@ -28,8 +27,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
 public class RequestOptionsTests extends RestClientTestCase {

@@ -228,8 +228,8 @@ public final class RequestOptions {
         /**
          * set RequestConfig, which can set socketTimeout, connectTimeout
          * and so on by request
-         * @param requestConfig
-         * @return
+         * @param requestConfig http client RequestConfig
+         * @return Builder
          */
         public Builder setRequestConfig(RequestConfig requestConfig) {
             this.requestConfig = requestConfig;

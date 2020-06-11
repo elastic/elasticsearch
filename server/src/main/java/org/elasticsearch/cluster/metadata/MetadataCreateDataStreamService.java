@@ -47,6 +47,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
+    private static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
+        new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -162,9 +164,6 @@ public class MetadataCreateDataStreamService {
         }
         return composableIndexTemplate;
     }
-
-    private static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
-        new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     public static void validateTimestampFieldMapping(String timestampFieldName, Map<?, ?> mapping) {
         String timestampFieldMapperPath = "properties." + timestampFieldName;

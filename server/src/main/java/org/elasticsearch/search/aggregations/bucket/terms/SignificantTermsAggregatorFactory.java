@@ -187,14 +187,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       Map<String, Object> metadata) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
-        if (config.unmapped() == false) {
+        if (config.hasValues()) {
             if (config.fieldContext().fieldType().isSearchable() == false) {
                 throw new IllegalArgumentException("SignificantText aggregation requires fields to be searchable, but ["
                     + config.fieldContext().fieldType().name() + "] is not");
             }
         }
 
-        if (config.unmapped() == false) {
+        if (config.hasValues()) {
             if (config.fieldContext().fieldType().isSearchable() == false) {
                 throw new IllegalArgumentException("SignificantText aggregation requires fields to be searchable, but ["
                     + config.fieldContext().fieldType().name() + "] is not");
@@ -293,11 +293,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             SignificantTermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
@@ -325,7 +324,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         }
 
         // TODO we should refactor so that we don't need to use this Factory as a singleton (e.g. stop passing `this` to the aggregators)
-        return sigTermsAggregatorSupplier.build(name, factories, valuesSource, config.format(),
+        return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
             significanceHeuristic, this, collectsFromSingleBucket, metadata);
     }
@@ -398,7 +397,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                      **/
                     remapGlobalOrd = false;
                 }
-                
+
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,

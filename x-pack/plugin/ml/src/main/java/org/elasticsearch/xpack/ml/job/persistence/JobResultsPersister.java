@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
@@ -384,6 +385,21 @@ public class JobResultsPersister {
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            client.admin().indices().refresh(refreshRequest).actionGet();
+        }
+    }
+
+    /**
+     * Makes annotations searchable as they are considered part of a job's results
+     * to fulfil the contract that job results are searchable immediately after a
+     * close or flush.
+     */
+    public void commitAnnotationWrites() {
+        // We refresh using the read alias in order to ensure all indices will
+        // be refreshed even if a rollover occurs in between.
+        RefreshRequest refreshRequest = new RefreshRequest(AnnotationIndex.READ_ALIAS_NAME);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();

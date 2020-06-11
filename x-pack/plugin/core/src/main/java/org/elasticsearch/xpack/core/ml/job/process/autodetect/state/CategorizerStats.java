@@ -247,7 +247,7 @@ public class CategorizerStats implements ToXContentObject, Writeable {
         CategorizerStats that = (CategorizerStats) other;
 
         return Objects.equals(this.jobId, that.jobId)
-            &&Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
             && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
             && Objects.equals(this.categorizedDocCount, that.categorizedDocCount)
             && Objects.equals(this.totalCategoryCount, that.totalCategoryCount)

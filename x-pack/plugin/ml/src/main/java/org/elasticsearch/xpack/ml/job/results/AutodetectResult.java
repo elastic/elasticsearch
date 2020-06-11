@@ -143,8 +143,8 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         } else {
             this.categoryDefinition = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean()) {
-            this.categorizerStats = new CategorizerStats(in);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.categorizerStats = in.readOptionalWriteable(CategorizerStats::new);
         } else {
             this.categorizerStats = null;
         }
@@ -177,7 +177,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         writeNullable(annotation, out);
         writeNullable(categoryDefinition, out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            writeNullable(categorizerStats, out);
+            out.writeOptionalWriteable(categorizerStats);
         }
         writeNullable(flushAcknowledgement, out);
         writeNullable(forecast, out);

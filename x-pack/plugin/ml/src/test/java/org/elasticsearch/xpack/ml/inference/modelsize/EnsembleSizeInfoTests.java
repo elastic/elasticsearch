@@ -20,10 +20,10 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInfoInfo, EnsembleInferenceModel> {
+public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInfo, EnsembleInferenceModel> {
 
-    static EnsembleSizeInfoInfo createRandom() {
-        return new EnsembleSizeInfoInfo(
+    static EnsembleSizeInfo createRandom() {
+        return new EnsembleSizeInfo(
             Stream.generate(TreeSizeInfoTests::createRandom).limit(randomIntBetween(1, 100)).collect(Collectors.toList()),
             randomIntBetween(1, 10000),
             Stream.generate(() -> randomIntBetween(1, 10)).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
@@ -33,7 +33,7 @@ public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInf
         );
     }
 
-    static EnsembleSizeInfoInfo translateToEstimate(EnsembleInferenceModel ensemble) {
+    static EnsembleSizeInfo translateToEstimate(EnsembleInferenceModel ensemble) {
         TreeInferenceModel tree = (TreeInferenceModel)ensemble.getModels().get(0);
         int numClasses = Arrays.stream(tree.getNodes())
             .filter(TreeInferenceModel.Node::isLeaf)
@@ -42,7 +42,7 @@ public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInf
             .get()
             .getLeafValue()
             .length;
-        return new EnsembleSizeInfoInfo(
+        return new EnsembleSizeInfo(
             ensemble.getModels()
                 .stream()
                 .map(m -> TreeSizeInfoTests.translateToEstimate((TreeInferenceModel)m))
@@ -55,13 +55,13 @@ public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInf
     }
 
     @Override
-    protected EnsembleSizeInfoInfo createTestInstance() {
+    protected EnsembleSizeInfo createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected EnsembleSizeInfoInfo doParseInstance(XContentParser parser) {
-        return EnsembleSizeInfoInfo.fromXContent(parser);
+    protected EnsembleSizeInfo doParseInstance(XContentParser parser) {
+        return EnsembleSizeInfo.fromXContent(parser);
     }
 
     @Override
@@ -82,7 +82,7 @@ public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInf
     }
 
     @Override
-    EnsembleSizeInfoInfo translateObject(EnsembleInferenceModel originalObject) {
+    EnsembleSizeInfo translateObject(EnsembleInferenceModel originalObject) {
         return translateToEstimate(originalObject);
     }
 }

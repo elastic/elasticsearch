@@ -25,7 +25,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfDoubleArray;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfStringCollection;
 
-public class EnsembleSizeInfoInfo implements TrainedModelSizeInfo {
+public class EnsembleSizeInfo implements TrainedModelSizeInfo {
 
     public static final ParseField NAME = new ParseField("ensemble_model_size");
     private static final ParseField TREE_SIZES = new ParseField("tree_sizes");
@@ -36,10 +36,10 @@ public class EnsembleSizeInfoInfo implements TrainedModelSizeInfo {
     private static final ParseField NUM_CLASSES = new ParseField("num_classes");
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<EnsembleSizeInfoInfo, Void> PARSER = new ConstructingObjectParser<>(
+    static ConstructingObjectParser<EnsembleSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "ensemble_size",
         false,
-        a -> new EnsembleSizeInfoInfo((List<TreeSizeInfo>)a[0],
+        a -> new EnsembleSizeInfo((List<TreeSizeInfo>)a[0],
             (Integer)a[1],
             (List<Integer>)a[2],
             a[3] == null ? 0 : (Integer)a[3],
@@ -55,7 +55,7 @@ public class EnsembleSizeInfoInfo implements TrainedModelSizeInfo {
         PARSER.declareInt(optionalConstructorArg(), NUM_CLASSES);
     }
 
-    public static EnsembleSizeInfoInfo fromXContent(XContentParser parser) {
+    public static EnsembleSizeInfo fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -67,12 +67,12 @@ public class EnsembleSizeInfoInfo implements TrainedModelSizeInfo {
     private final int numClassificationWeights;
     private final int numClasses;
 
-    public EnsembleSizeInfoInfo(List<TreeSizeInfo> treeSizeInfos,
-                                int numOperations,
-                                List<Integer> inputFieldNameLengths,
-                                int numOutputProcessorWeights,
-                                int numClassificationWeights,
-                                int numClasses) {
+    public EnsembleSizeInfo(List<TreeSizeInfo> treeSizeInfos,
+                            int numOperations,
+                            List<Integer> inputFieldNameLengths,
+                            int numOutputProcessorWeights,
+                            int numClassificationWeights,
+                            int numClasses) {
         this.treeSizeInfos = treeSizeInfos;
         this.numOperations = numOperations;
         this.inputFieldNameLengths = inputFieldNameLengths.stream().mapToInt(Integer::intValue).toArray();
@@ -113,7 +113,7 @@ public class EnsembleSizeInfoInfo implements TrainedModelSizeInfo {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        EnsembleSizeInfoInfo that = (EnsembleSizeInfoInfo) o;
+        EnsembleSizeInfo that = (EnsembleSizeInfo) o;
         return numOperations == that.numOperations &&
             numOutputProcessorWeights == that.numOutputProcessorWeights &&
             numClassificationWeights == that.numClassificationWeights &&

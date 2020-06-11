@@ -32,7 +32,7 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
     public static ConstructingObjectParser<ModelSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "model_size",
         false,
-        a -> new ModelSizeInfo((EnsembleSizeInfoInfo)a[0], (List<PreprocessorSize>)a[1])
+        a -> new ModelSizeInfo((EnsembleSizeInfo)a[0], (List<PreprocessorSize>)a[1])
     );
     static {
         PARSER.declareNamedObject(constructorArg(),
@@ -44,10 +44,10 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
             PREPROCESSORS);
     }
 
-    private final EnsembleSizeInfoInfo ensembleSizeInfo;
+    private final EnsembleSizeInfo ensembleSizeInfo;
     private final List<PreprocessorSize> preprocessorSizes;
 
-    public ModelSizeInfo(EnsembleSizeInfoInfo ensembleSizeInfo, List<PreprocessorSize> preprocessorSizes) {
+    public ModelSizeInfo(EnsembleSizeInfo ensembleSizeInfo, List<PreprocessorSize> preprocessorSizes) {
         this.ensembleSizeInfo = ensembleSizeInfo;
         this.preprocessorSizes = preprocessorSizes == null ? Collections.emptyList() : preprocessorSizes;
     }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
@@ -60,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
@@ -86,6 +88,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
     @After
     public void deleteAllComposableTemplates() {
+        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request("*");
+        client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
         DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
         client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
     }
@@ -360,6 +364,29 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().cluster().prepareState().setIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
+    }
+
+    public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
+        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        String dataStreamName = "metrics-foobar-baz";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+        createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName + "-eggplant");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        DeleteComposableIndexTemplateAction.Request req = new DeleteComposableIndexTemplateAction.Request("id");
+        Exception e = expectThrows(Exception.class, () -> client().execute(DeleteComposableIndexTemplateAction.INSTANCE, req).get());
+        Optional<Exception> maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e, err ->
+                err.getMessage().contains("unable to remove composable templates [id] " +
+                    "as they are in use by a data streams [metrics-foobar-baz, metrics-foobar-baz-eggplant]"));
+        assertTrue(maybeE.isPresent());
+
+        DeleteComposableIndexTemplateAction.Request req2 = new DeleteComposableIndexTemplateAction.Request("i*");
+        Exception e2 = expectThrows(Exception.class, () -> client().execute(DeleteComposableIndexTemplateAction.INSTANCE, req2).get());
+        maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e2, err ->
+            err.getMessage().contains("unable to remove composable templates [id] " +
+                "as they are in use by a data streams [metrics-foobar-baz, metrics-foobar-baz-eggplant]"));
+        assertTrue(maybeE.isPresent());
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {

@@ -23,20 +23,20 @@ public class Sequence extends Join {
     private final TimeValue maxSpan;
 
     public Sequence(Source source, List<KeyedFilter> queries, KeyedFilter until, TimeValue maxSpan, Attribute timestamp,
-                    Attribute tieBreaker) {
-        super(source, queries, until, timestamp, tieBreaker);
+                    Attribute tiebreaker) {
+        super(source, queries, until, timestamp, tiebreaker);
         this.maxSpan = maxSpan;
     }
 
     private Sequence(Source source, List<LogicalPlan> queries, LogicalPlan until, TimeValue maxSpan, Attribute timestamp,
-                     Attribute tieBreaker) {
-        super(source, asKeyed(queries), asKeyed(until), timestamp, tieBreaker);
+                     Attribute tiebreaker) {
+        super(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker);
         this.maxSpan = maxSpan;
     }
 
     @Override
     protected NodeInfo<Sequence> info() {
-        return NodeInfo.create(this, Sequence::new, queries(), until(), maxSpan, timestamp(), tieBreaker());
+        return NodeInfo.create(this, Sequence::new, queries(), until(), maxSpan, timestamp(), tiebreaker());
     }
 
     @Override
@@ -45,7 +45,7 @@ public class Sequence extends Join {
             throw new EqlIllegalArgumentException("expected at least [2] children but received [{}]", newChildren.size());
         }
         int lastIndex = newChildren.size() - 1;
-        return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestamp(), tieBreaker());
+        return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestamp(), tiebreaker());
     }
 
     public TimeValue maxSpan() {

@@ -67,7 +67,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         ParserParams params = new ParserParams(zoneId)
             .fieldEventCategory(request.eventCategoryField())
             .fieldTimestamp(request.timestampField())
-            .fieldTieBreaker(request.tieBreakerField())
+            .fieldTiebreaker(request.tiebreakerField())
             .implicitJoinKey(request.implicitJoinKeyField());
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),

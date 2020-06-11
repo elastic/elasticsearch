@@ -21,17 +21,20 @@ public class IndexOfFunctionProcessor implements Processor {
     private final Processor source;
     private final Processor substring;
     private final Processor start;
+    private final boolean isCaseSensitive;
 
-    public IndexOfFunctionProcessor(Processor source, Processor substring, Processor start) {
+    public IndexOfFunctionProcessor(Processor source, Processor substring, Processor start, boolean isCaseSensitive) {
         this.source = source;
         this.substring = substring;
         this.start = start;
+        this.isCaseSensitive = isCaseSensitive;
     }
 
     public IndexOfFunctionProcessor(StreamInput in) throws IOException {
         source = in.readNamedWriteable(Processor.class);
         substring = in.readNamedWriteable(Processor.class);
         start = in.readNamedWriteable(Processor.class);
+        isCaseSensitive = in.readBoolean();
     }
 
     @Override
@@ -39,14 +42,15 @@ public class IndexOfFunctionProcessor implements Processor {
         out.writeNamedWriteable(source);
         out.writeNamedWriteable(substring);
         out.writeNamedWriteable(start);
+        out.writeBoolean(isCaseSensitive);
     }
 
     @Override
     public Object process(Object input) {
-        return doProcess(source.process(input), substring.process(input), start.process(input));
+        return doProcess(source.process(input), substring.process(input), start.process(input), isCaseSensitive());
     }
 
-    public static Object doProcess(Object source, Object substring, Object start) {
+    public static Object doProcess(Object source, Object substring, Object start, boolean isCaseSensitive) {
         if (source == null) {
             return null;
         }
@@ -64,7 +68,14 @@ public class IndexOfFunctionProcessor implements Processor {
             throw new EqlIllegalArgumentException("A number is required; received [{}]", start);
         }
         int startIndex = start == null ? 0 : ((Number) start).intValue();
-        int result = source.toString().toLowerCase(Locale.ROOT).indexOf(substring.toString().toLowerCase(Locale.ROOT), startIndex);
+
+        int result;
+
+        if (isCaseSensitive) {
+            result =  source.toString().indexOf(substring.toString(), startIndex);
+        } else {
+            result = source.toString().toLowerCase(Locale.ROOT).indexOf(substring.toString().toLowerCase(Locale.ROOT), startIndex);
+        }
 
         return result < 0 ? null : result;
     }
@@ -80,7 +91,11 @@ public class IndexOfFunctionProcessor implements Processor {
     protected Processor start() {
         return start;
     }
-    
+
+    protected boolean isCaseSensitive() {
+        return isCaseSensitive;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -94,12 +109,13 @@ public class IndexOfFunctionProcessor implements Processor {
         IndexOfFunctionProcessor other = (IndexOfFunctionProcessor) obj;
         return Objects.equals(source(), other.source())
                 && Objects.equals(substring(), other.substring())
-                && Objects.equals(start(), other.start());
+                && Objects.equals(start(), other.start())
+                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(source(), substring(), start());
+        return Objects.hash(source(), substring(), start(), isCaseSensitive());
     }
     
 

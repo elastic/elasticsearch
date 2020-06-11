@@ -3,10 +3,18 @@
         "command_line" : {
             "type" : "keyword"
         },
+        "event_type" : {
+            "type" : "keyword"
+        },
         "event" : {
             "properties" : {
                 "category" : {
-                    "type" : "keyword"
+                    "type" : "alias",
+                    "path" : "event_type"
+                },
+                "sequence" : {
+                    "type" : "alias",
+                    "path" : "serial_event_id"
                 }
             }
         },
@@ -34,8 +42,12 @@
         "subtype" : {
             "type" : "keyword"
         },
-        "@timestamp" : {
+        "timestamp" : {
             "type" : "date"
+        },
+        "@timestamp" : {
+            "type" : "alias",
+            "path" : "timestamp"
         },
         "user" : {
             "type" : "keyword"

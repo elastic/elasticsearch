@@ -18,6 +18,8 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
+include::data-streams/data-streams.asciidoc[]
+
 include::search/index.asciidoc[]
 
 include::query-dsl.asciidoc[]

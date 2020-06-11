@@ -54,8 +54,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
-        assertThat(newState.metadata().index(DataStream.getBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(newState.metadata().index(DataStream.getBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
             equalTo("true"));
     }
 
@@ -132,6 +132,18 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             () -> MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req));
         assertThat(e.getMessage(),
             equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template"));
+    }
+
+    public static ClusterState createDataStream(final String dataStreamName) throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+            new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest req =
+            new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
+        return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {

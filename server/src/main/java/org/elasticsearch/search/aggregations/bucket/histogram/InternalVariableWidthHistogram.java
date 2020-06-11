@@ -139,7 +139,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
          * are buckets, which is incorrect.
          */
         @Override
-        public Object getKey() { return bounds.min; }
+        public Object getKey() { return centroid; }
 
         public double min() { return bounds.min; }
 
@@ -161,10 +161,22 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String keyAsString = format.format((double) getKey()).toString();
             builder.startObject();
+
+            builder.field(CommonFields.MIN.getPreferredName(), min());
+            if (format != DocValueFormat.RAW) {
+                builder.field(CommonFields.MIN_AS_STRING.getPreferredName(), format.format(min()));
+            }
+
+            builder.field(CommonFields.KEY.getPreferredName(), getKey());
             if (format != DocValueFormat.RAW) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), keyAsString);
             }
-            builder.field(CommonFields.KEY.getPreferredName(), getKey());
+
+            builder.field(CommonFields.MAX.getPreferredName(), max());
+            if (format != DocValueFormat.RAW) {
+                builder.field(CommonFields.MAX_AS_STRING.getPreferredName(), format.format(max()));
+            }
+
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();

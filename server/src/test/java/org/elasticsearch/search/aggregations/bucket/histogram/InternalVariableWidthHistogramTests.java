@@ -164,13 +164,13 @@ public class InternalVariableWidthHistogramTests extends
         // Final centroids should be [ 3, 11, 200 ]
         // Final keys should be [ 1, 5, 200 ]
         double double_error = 1d / 10000d;
-        assertEquals((8d/3d), reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(1d, (double) reduced_buckets.get(0).getKey(), double_error);
+        assertEquals(1d, reduced_buckets.get(0).min(), double_error);
+        assertEquals((8d/3d), (double) reduced_buckets.get(0).getKey(), double_error);
         assertEquals(9, reduced_buckets.get(0).getDocCount());
-        assertEquals(11d, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(10d, (double) reduced_buckets.get(1).getKey(), double_error);
+        assertEquals(10d, reduced_buckets.get(1).min(), double_error);
+        assertEquals(11d, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(6, reduced_buckets.get(1).getDocCount());
-        assertEquals(200d, reduced_buckets.get(2).centroid(), double_error);
+        assertEquals(200d, reduced_buckets.get(2).min(), double_error);
         assertEquals(200d, (double) reduced_buckets.get(2).getKey(), double_error);
         assertEquals(3, reduced_buckets.get(2).getDocCount());
     }
@@ -203,14 +203,14 @@ public class InternalVariableWidthHistogramTests extends
         // Final centroids should be [ -1.3, 12.5, 22.25 ]
         // Final keys should be [ -1.3, 11.7, 19.7 ]
         double double_error = 1d / 10000d;
-        assertEquals(-1.3, reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(-2.0, (double)reduced_buckets.get(0).getKey(), double_error);
+        assertEquals(-2.0, reduced_buckets.get(0).min(), double_error);
+        assertEquals(-1.3, (double)reduced_buckets.get(0).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(0).getDocCount());
-        assertEquals(12.5, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(11.3, (double)reduced_buckets.get(1).getKey(), double_error);
+        assertEquals(11.3, reduced_buckets.get(1).min(), double_error);
+        assertEquals(12.5, (double)reduced_buckets.get(1).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(1).getDocCount());
-        assertEquals(22.25, reduced_buckets.get(2).centroid(), double_error);
-        assertEquals(19.3, (double)reduced_buckets.get(2).getKey(), double_error);
+        assertEquals(19.3, reduced_buckets.get(2).min(), double_error);
+        assertEquals(22.25, (double)reduced_buckets.get(2).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(2).getDocCount());
     }
 
@@ -268,14 +268,14 @@ public class InternalVariableWidthHistogramTests extends
         // Final centroids should be [ 2, 6, 11 ]
         // Final keys should be [ 1, 5, 10 ]
         double double_error = 1d / 10000d;
-        assertEquals(1.6d, reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(0d, (double)reduced_buckets.get(0).getKey(), double_error);
+        assertEquals(0d, reduced_buckets.get(0).min(), double_error);
+        assertEquals(1.6d, (double)reduced_buckets.get(0).getKey(), double_error);
         assertEquals(5, reduced_buckets.get(0).getDocCount());
-        assertEquals(6d, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(5d, (double) reduced_buckets.get(1).getKey(), double_error);
+        assertEquals(5d, reduced_buckets.get(1).min(), double_error);
+        assertEquals(6d, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(1).getDocCount());
-        assertEquals(11d, reduced_buckets.get(2).centroid(), double_error);
-        assertEquals(10d, (double) reduced_buckets.get(2).getKey(), double_error);
+        assertEquals(10d, reduced_buckets.get(2).min(), double_error);
+        assertEquals(11d, (double) reduced_buckets.get(2).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(2).getDocCount());
     }
 
@@ -311,13 +311,13 @@ public class InternalVariableWidthHistogramTests extends
         // Expected keys: [ 1, 4.5, 10 ]
         // Expected doc counts: [8, 4, 4]
         double double_error = 1d / 10000d;
-        assertEquals(1.5, reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(1d, (double) reduced_buckets.get(0).getKey(), double_error);
+        assertEquals(1d, reduced_buckets.get(0).min(), double_error);
+        assertEquals(1.5, (double) reduced_buckets.get(0).getKey(), double_error);
         assertEquals(8, reduced_buckets.get(0).getDocCount());
-        assertEquals(4d, reduced_buckets.get(1).centroid(), double_error);
-        assertEquals(4.5, (double) reduced_buckets.get(1).getKey(), double_error);
+        assertEquals(4.5, reduced_buckets.get(1).min(), double_error);
+        assertEquals(4d, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(1).getDocCount());
-        assertEquals(10d, reduced_buckets.get(2).centroid(), double_error);
+        assertEquals(10d, reduced_buckets.get(2).min(), double_error);
         assertEquals(10d, (double) reduced_buckets.get(2).getKey(), double_error);
         assertEquals(4, reduced_buckets.get(2).getDocCount());
     }
@@ -365,10 +365,10 @@ public class InternalVariableWidthHistogramTests extends
         // Expected doc counts: [2, 1]
         double double_error = 1d / 10000d;
         assertEquals(2, reduced_buckets.size());
-        assertEquals((101d/2d), reduced_buckets.get(0).centroid(), double_error);
-        assertEquals(1d, (double) reduced_buckets.get(0).getKey(), double_error);
+        assertEquals(1d, reduced_buckets.get(0).min(), double_error);
+        assertEquals((101d/2d), (double) reduced_buckets.get(0).getKey(), double_error);
         assertEquals(2, reduced_buckets.get(0).getDocCount());
-        assertEquals(700d, reduced_buckets.get(1).centroid(), double_error);
+        assertEquals(700d, reduced_buckets.get(1).min(), double_error);
         assertEquals(700d, (double) reduced_buckets.get(1).getKey(), double_error);
         assertEquals(1, reduced_buckets.get(1).getDocCount());
     }

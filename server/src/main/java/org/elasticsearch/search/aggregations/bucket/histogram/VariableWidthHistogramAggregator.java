@@ -361,8 +361,9 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 // Finally, the new cluster moves to index
                 mergeMap[numClusters - 1] = index;
 
-                // TODO: Create a moveLastCluster() method that is like mergeBuckets but doesn't require a merge map
-                //       This would be more efficient as there would be no need to create a merge map on every call
+                // TODO: Create a moveLastCluster() method in BucketsAggregator which is like BucketsAggregator::mergeBuckets,
+                //  except it doesn't require a merge map. This would be more efficient as there would be no need to create a
+                //  merge map on every call.
                 mergeBuckets(mergeMap, numClusters);
                 if (deferringCollector != null) {
                     deferringCollector.mergeBuckets(mergeMap);

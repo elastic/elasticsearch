@@ -69,7 +69,8 @@ all its backing indices.
 image::images/data-streams/data-streams-search-request.svg[align="center"]
 
 However, the most recently created backing index is the data stream’s only
-_write index_. The data stream routes all indexing requests to this index.
+_write index_. The data stream routes all indexing requests for new documents to
+this index.
 
 image::images/data-streams/data-streams-index-request.svg[align="center"]
 

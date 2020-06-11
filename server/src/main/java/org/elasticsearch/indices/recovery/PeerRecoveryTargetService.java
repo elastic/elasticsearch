@@ -119,7 +119,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             RecoveryCleanFilesRequest::new, new CleanFilesRequestHandler());
         transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
                 RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, RecoveryTranslogOperationsRequest::new,
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.WRITE, RecoveryTranslogOperationsRequest::new,
             new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, ThreadPool.Names.GENERIC, RecoveryFinalizeRecoveryRequest::new,
             new FinalizeRecoveryRequestHandler());

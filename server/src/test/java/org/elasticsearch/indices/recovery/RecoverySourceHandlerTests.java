@@ -42,6 +42,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,10 +54,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -94,8 +97,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -248,7 +254,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
-        assertThat(result.totalOperations, equalTo(expectedOps));
+        assertThat(result.sentOperations, equalTo(expectedOps));
         shippedOps.sort(Comparator.comparing(Translog.Operation::seqNo));
         assertThat(shippedOps.size(), equalTo(expectedOps));
         for (int i = 0; i < shippedOps.size(); i++) {
@@ -289,8 +295,67 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(ops, Collections.emptyList()),
             randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
         if (wasFailed.get()) {
-            assertThat(expectThrows(RuntimeException.class, () -> future.actionGet()).getMessage(), equalTo("test - failed to index"));
+            final RecoveryEngineException error = expectThrows(RecoveryEngineException.class, future::actionGet);
+            assertThat(error.getMessage(), equalTo("Phase[2] failed to send/replay operations"));
+            assertThat(error.getCause().getMessage(), equalTo("test - failed to index"));
         }
+    }
+
+    public void testSendOperationsConcurrently() throws Throwable {
+        final IndexShard shard = mock(IndexShard.class);
+        when(shard.state()).thenReturn(IndexShardState.STARTED);
+        Set<Long> receivedSeqNos = ConcurrentCollections.newConcurrentSet();
+        long maxSeenAutoIdTimestamp = randomBoolean() ? -1 : randomNonNegativeLong();
+        long maxSeqNoOfUpdatesOrDeletes = randomBoolean() ? -1 : randomNonNegativeLong();
+        RetentionLeases retentionLeases = new RetentionLeases(randomNonNegativeLong(), randomNonNegativeLong(), List.of());
+        long mappingVersion = randomNonNegativeLong();
+        AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        int numOps = randomIntBetween(0, 1000);
+        AtomicBoolean received = new AtomicBoolean();
+        RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
+            @Override
+            public void indexTranslogOperations(List<Translog.Operation> operations, int receivedTotalOps,
+                                                long receivedMaxSeenAutoIdTimestamp, long receivedMaxSeqNoOfUpdatesOrDeletes,
+                                                RetentionLeases receivedRetentionLease, long receivedMappingVersion,
+                                                ActionListener<Long> listener) {
+                received.set(true);
+                assertThat(receivedMaxSeenAutoIdTimestamp, equalTo(maxSeenAutoIdTimestamp));
+                assertThat(receivedMaxSeqNoOfUpdatesOrDeletes, equalTo(maxSeqNoOfUpdatesOrDeletes));
+                assertThat(receivedRetentionLease, equalTo(retentionLeases));
+                assertThat(receivedMappingVersion, equalTo(mappingVersion));
+                assertThat(receivedTotalOps, equalTo(numOps));
+                for (Translog.Operation operation : operations) {
+                    receivedSeqNos.add(operation.seqNo());
+                }
+                if (randomBoolean()) {
+                    localCheckpoint.addAndGet(randomIntBetween(1, 100));
+                }
+                listener.onResponse(localCheckpoint.get());
+            }
+        };
+
+        PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> sendFuture = new PlainActionFuture<>();
+        long startingSeqNo = randomIntBetween(0, 1000);
+        long endingSeqNo = startingSeqNo + randomIntBetween(0, 10000);
+        List<Translog.Operation> operations = generateOperations(numOps);
+        Randomness.shuffle(operations);
+        List<Translog.Operation> skipOperations = randomSubsetOf(operations);
+        Translog.Snapshot snapshot = newTranslogSnapshot(operations, skipOperations);
+        RecoverySourceHandler handler = new RecoverySourceHandler(shard, new AsyncRecoveryTarget(target, recoveryExecutor),
+            threadPool, getStartRecoveryRequest(), between(1, 10 * 1024), between(1, 5));
+        handler.phase2(startingSeqNo, endingSeqNo, snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases,
+            mappingVersion, sendFuture);
+        RecoverySourceHandler.SendSnapshotResult sendSnapshotResult = sendFuture.actionGet();
+        assertTrue(received.get());
+        assertThat(sendSnapshotResult.targetLocalCheckpoint, equalTo(localCheckpoint.get()));
+        assertThat(sendSnapshotResult.sentOperations, equalTo(receivedSeqNos.size()));
+        Set<Long> sentSeqNos = new HashSet<>();
+        for (Translog.Operation op : operations) {
+            if (startingSeqNo <= op.seqNo() && op.seqNo() <= endingSeqNo && skipOperations.contains(op) == false) {
+                sentSeqNos.add(op.seqNo());
+            }
+        }
+        assertThat(receivedSeqNos, equalTo(sentSeqNos));
     }
 
     private Engine.Index getIndex(final String id) {
@@ -823,8 +888,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     private Translog.Snapshot newTranslogSnapshot(List<Translog.Operation> operations, List<Translog.Operation> operationsToSkip) {
+        Iterator<Translog.Operation> iterator = operations.iterator();
         return new Translog.Snapshot() {
-            int index = 0;
             int skippedCount = 0;
 
             @Override
@@ -839,8 +904,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             @Override
             public Translog.Operation next() {
-                while (index < operations.size()) {
-                    Translog.Operation op = operations.get(index++);
+                while (iterator.hasNext()) {
+                    Translog.Operation op = iterator.next();
                     if (operationsToSkip.contains(op)) {
                         skippedCount++;
                     } else {
@@ -855,5 +920,23 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             }
         };
+    }
+
+    private static List<Translog.Operation> generateOperations(int numOps) {
+        final List<Translog.Operation> operations = new ArrayList<>(numOps);
+        long seqNo = randomIntBetween(0, 1);
+        for (int i = 0; i < numOps; i++) {
+            final Translog.Operation op;
+            if (randomBoolean()) {
+                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), "{}".getBytes(), null, -1);
+            } else if (randomBoolean()) {
+                op = new Translog.Delete("id", new Term("_id", "id"), seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+            } else {
+                op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
+            }
+            operations.add(op);
+            seqNo += randomIntBetween(1, 2);
+        }
+        return operations;
     }
 }

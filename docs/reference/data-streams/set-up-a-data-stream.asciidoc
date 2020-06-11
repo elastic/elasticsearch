@@ -22,11 +22,11 @@ TIP: Data streams work well with most common log formats. While no schema is
 required to use data streams, we recommend the {ecs-ref}[Elastic Common Schema
 (ECS)].
 
-* Data streams are designed to be append-only. While you can index new documents
-directly to a data stream, you cannot use a data stream to directly update or
-delete individual documents. To update or delete specific documents in a data
-stream, submit a <<docs-delete,delete>> or <<docs-update,update>> API request to
-the backing index containing the document.
+* Data streams are designed to be <<data-streams-append-only,append-only>>.
+While you can index new documents directly to a data stream, you cannot use a
+data stream to directly update or delete individual documents. To update or
+delete specific documents in a data stream, submit a <<docs-delete,delete>> or
+<<docs-update,update>> API request to the backing index containing the document.
 
 
 [discrete]
@@ -57,8 +57,9 @@ The following <<ilm-put-lifecycle,create lifecycle policy API>> request
 configures the `logs_policy` lifecycle policy.
 
 The `logs_policy` policy uses the <<ilm-rollover,`rollover` action>> to create a
-new write index for the data stream when the current one reaches 25GB in size.
-The policy also deletes backing indices 30 days after their rollover.
+new <<data-stream-write-index,write index>> for the data stream when the current
+one reaches 25GB in size. The policy also deletes backing indices 30 days after
+their rollover.
 
 [source,console]
 ----

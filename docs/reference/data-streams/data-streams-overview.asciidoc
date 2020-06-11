@@ -83,7 +83,7 @@ following requests directly to any backing index, except the write index:
 * A <<docs-bulk,Bulk API>> request using a `create` action
 
 Because it's the only index capable of ingesting new documents, you cannot
-perform operations on a write index that might prohibit indexing. These
+perform operations on a write index that might hinder indexing. These
 prohibited operations include:
 
 * <<indices-close,Closing the write index>>

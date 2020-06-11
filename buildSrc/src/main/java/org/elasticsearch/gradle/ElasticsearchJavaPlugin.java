@@ -117,6 +117,21 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
         testImplementationConfig.extendsFrom(compileOnlyConfig);
 
+        // fail on using deprecated testCompile
+        project.getConfigurations()
+            .getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME)
+            .getIncoming()
+            .beforeResolve(resolvableDependencies -> {
+                if (resolvableDependencies.getDependencies().size() > 0) {
+                    throw new GradleException(
+                        "Usage of configuration "
+                            + JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME
+                            + " is no longer supported. Use "
+                            + JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME
+                            + " instead."
+                    );
+                }
+            });
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
             return;

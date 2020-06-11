@@ -240,6 +240,20 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public static ResolvedIndex fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ResolvedIndex index = (ResolvedIndex) o;
+            return getName().equals(index.getName()) && Objects.equals(dataStream, index.dataStream) &&
+                Arrays.equals(aliases, index.aliases) && Arrays.equals(attributes, index.attributes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getName(), aliases, attributes, dataStream);
+        }
     }
 
     public static class ResolvedAlias extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
@@ -295,6 +309,19 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         public static ResolvedAlias fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ResolvedAlias alias = (ResolvedAlias) o;
+            return getName().equals(alias.getName()) && Arrays.equals(indices, alias.indices);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getName(), indices);
         }
     }
 
@@ -360,6 +387,20 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         public static ResolvedDataStream fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ResolvedDataStream dataStream = (ResolvedDataStream) o;
+            return getName().equals(dataStream.getName()) && timestampField.equals(dataStream.timestampField) &&
+                Arrays.equals(backingIndices, dataStream.backingIndices);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getName(), backingIndices, timestampField);
         }
     }
 

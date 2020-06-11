@@ -88,7 +88,7 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
         return new ResolvedDataStream(name, backingIndices, timestampField);
     }
 
-    private static String[] randomStringArray(int minLength, int maxLength) {
+    static String[] randomStringArray(int minLength, int maxLength) {
         int num = randomIntBetween(minLength, maxLength);
         String[] stringArray = new String[num];
         for (int k = 0; k < num; k++) {

@@ -32,11 +32,11 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
     public static ConstructingObjectParser<ModelSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "model_size",
         false,
-        a -> new ModelSizeInfo((EnsembleSize)a[0], (List<PreprocessorSize>)a[1])
+        a -> new ModelSizeInfo((EnsembleSizeInfoInfo)a[0], (List<PreprocessorSize>)a[1])
     );
     static {
         PARSER.declareNamedObject(constructorArg(),
-            (p, c, n) -> p.namedObject(TrainedModelSize.class, n, null),
+            (p, c, n) -> p.namedObject(TrainedModelSizeInfo.class, n, null),
             TRAINED_MODEL_SIZE);
         PARSER.declareNamedObjects(optionalConstructorArg(),
             (p, c, n) -> p.namedObject(PreprocessorSize.class, n, null),
@@ -44,22 +44,22 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
             PREPROCESSORS);
     }
 
-    private final EnsembleSize ensembleSize;
+    private final EnsembleSizeInfoInfo ensembleSizeInfo;
     private final List<PreprocessorSize> preprocessorSizes;
 
-    public ModelSizeInfo(EnsembleSize ensembleSize, List<PreprocessorSize> preprocessorSizes) {
-        this.ensembleSize = ensembleSize;
+    public ModelSizeInfo(EnsembleSizeInfoInfo ensembleSizeInfo, List<PreprocessorSize> preprocessorSizes) {
+        this.ensembleSizeInfo = ensembleSizeInfo;
         this.preprocessorSizes = preprocessorSizes == null ? Collections.emptyList() : preprocessorSizes;
     }
 
     public int numOperations() {
-        return this.preprocessorSizes.size() + this.ensembleSize.getNumOperations();
+        return this.preprocessorSizes.size() + this.ensembleSizeInfo.getNumOperations();
     }
 
     @Override
     public long ramBytesUsed() {
         long size = InferenceDefinition.SHALLOW_SIZE;
-        size += ensembleSize.ramBytesUsed();
+        size += ensembleSizeInfo.ramBytesUsed();
         size += preprocessorSizes.stream().mapToLong(PreprocessorSize::ramBytesUsed).sum();
         return alignObjectSize(size);
     }
@@ -67,7 +67,7 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        NamedXContentObjectHelper.writeNamedObject(builder, params, TRAINED_MODEL_SIZE.getPreferredName(), ensembleSize);
+        NamedXContentObjectHelper.writeNamedObject(builder, params, TRAINED_MODEL_SIZE.getPreferredName(), ensembleSizeInfo);
         if (preprocessorSizes.size() > 0) {
             NamedXContentObjectHelper.writeNamedObjects(builder, params, true, PREPROCESSORS.getPreferredName(), preprocessorSizes);
         }
@@ -80,12 +80,12 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ModelSizeInfo modelSizeInfo = (ModelSizeInfo) o;
-        return Objects.equals(ensembleSize, modelSizeInfo.ensembleSize) &&
+        return Objects.equals(ensembleSizeInfo, modelSizeInfo.ensembleSizeInfo) &&
             Objects.equals(preprocessorSizes, modelSizeInfo.preprocessorSizes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ensembleSize, preprocessorSizes);
+        return Objects.hash(ensembleSizeInfo, preprocessorSizes);
     }
 }

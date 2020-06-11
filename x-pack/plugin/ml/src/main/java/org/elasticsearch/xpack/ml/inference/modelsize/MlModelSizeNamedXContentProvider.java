@@ -28,9 +28,9 @@ public class MlModelSizeNamedXContentProvider implements NamedXContentProvider {
             new NamedXContentRegistry.Entry(PreprocessorSize.class,
                 TargetMeanEncoding.NAME,
                 TargetMeanEncodingSize::fromXContent),
-            new NamedXContentRegistry.Entry(TrainedModelSize.class,
-                EnsembleSize.NAME,
-                EnsembleSize::fromXContent)
+            new NamedXContentRegistry.Entry(TrainedModelSizeInfo.class,
+                EnsembleSizeInfoInfo.NAME,
+                EnsembleSizeInfoInfo::fromXContent)
         );
     }
 }

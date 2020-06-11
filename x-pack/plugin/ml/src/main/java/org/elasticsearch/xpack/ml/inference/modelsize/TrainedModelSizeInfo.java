@@ -9,5 +9,5 @@ package org.elasticsearch.xpack.ml.inference.modelsize;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-interface TrainedModelSize extends Accountable, NamedXContentObject {
+interface TrainedModelSizeInfo extends Accountable, NamedXContentObject {
 }

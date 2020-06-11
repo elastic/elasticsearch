@@ -16,13 +16,13 @@ import java.io.IOException;
 import java.util.Arrays;
 
 
-public class TreeSizeTests extends SizeEstimatorTestCase<TreeSize, TreeInferenceModel> {
+public class TreeSizeInfoTests extends SizeEstimatorTestCase<TreeSizeInfo, TreeInferenceModel> {
 
-    static TreeSize createRandom() {
-        return new TreeSize(randomIntBetween(1, 100), randomIntBetween(0, 100), randomIntBetween(0, 10));
+    static TreeSizeInfo createRandom() {
+        return new TreeSizeInfo(randomIntBetween(1, 100), randomIntBetween(0, 100), randomIntBetween(0, 10));
     }
 
-    static TreeSize translateToEstimate(TreeInferenceModel tree) {
+    static TreeSizeInfo translateToEstimate(TreeInferenceModel tree) {
         int numClasses = Arrays.stream(tree.getNodes())
             .filter(TreeInferenceModel.Node::isLeaf)
             .map(n -> (TreeInferenceModel.LeafNode)n)
@@ -30,19 +30,19 @@ public class TreeSizeTests extends SizeEstimatorTestCase<TreeSize, TreeInference
             .get()
             .getLeafValue()
             .length;
-        return new TreeSize((int)Arrays.stream(tree.getNodes()).filter(TreeInferenceModel.Node::isLeaf).count(),
+        return new TreeSizeInfo((int)Arrays.stream(tree.getNodes()).filter(TreeInferenceModel.Node::isLeaf).count(),
             (int)Arrays.stream(tree.getNodes()).filter(t -> t.isLeaf() == false).count(),
             numClasses);
     }
 
     @Override
-    protected TreeSize createTestInstance() {
+    protected TreeSizeInfo createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected TreeSize doParseInstance(XContentParser parser) {
-        return TreeSize.fromXContent(parser);
+    protected TreeSizeInfo doParseInstance(XContentParser parser) {
+        return TreeSizeInfo.fromXContent(parser);
     }
 
     @Override
@@ -62,7 +62,7 @@ public class TreeSizeTests extends SizeEstimatorTestCase<TreeSize, TreeInference
     }
 
     @Override
-    TreeSize translateObject(TreeInferenceModel originalObject) {
+    TreeSizeInfo translateObject(TreeInferenceModel originalObject) {
         return translateToEstimate(originalObject);
     }
 }

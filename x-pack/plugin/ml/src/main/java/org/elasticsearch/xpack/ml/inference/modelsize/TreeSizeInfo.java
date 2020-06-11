@@ -25,16 +25,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfDoubleArray;
 
-public class TreeSize implements Accountable, ToXContentObject {
+public class TreeSizeInfo implements Accountable, ToXContentObject {
 
     private static final ParseField NUM_NODES = new ParseField("num_nodes");
     private static final ParseField NUM_LEAVES = new ParseField("num_leaves");
     private static final ParseField NUM_CLASSES = new ParseField("num_classes");
 
-    static ConstructingObjectParser<TreeSize, Void> PARSER = new ConstructingObjectParser<>(
+    static ConstructingObjectParser<TreeSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "tree_size",
         false,
-        a -> new TreeSize((Integer)a[0], a[1] == null ? 0 : (Integer)a[1], a[2] == null ? 0 : (Integer)a[2])
+        a -> new TreeSizeInfo((Integer)a[0], a[1] == null ? 0 : (Integer)a[1], a[2] == null ? 0 : (Integer)a[2])
     );
     static {
         PARSER.declareInt(constructorArg(), NUM_LEAVES);
@@ -42,7 +42,7 @@ public class TreeSize implements Accountable, ToXContentObject {
         PARSER.declareInt(optionalConstructorArg(), NUM_CLASSES);
     }
 
-    public static TreeSize fromXContent(XContentParser parser) {
+    public static TreeSizeInfo fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -50,13 +50,13 @@ public class TreeSize implements Accountable, ToXContentObject {
     private final int numLeaves;
     private int numClasses;
 
-    TreeSize(int numLeaves, int numNodes, int numClasses) {
+    TreeSizeInfo(int numLeaves, int numNodes, int numClasses) {
         this.numLeaves = numLeaves;
         this.numNodes = numNodes;
         this.numClasses = numClasses;
     }
 
-    public TreeSize setNumClasses(int numClasses) {
+    public TreeSizeInfo setNumClasses(int numClasses) {
         this.numClasses = numClasses;
         return this;
     }
@@ -88,10 +88,10 @@ public class TreeSize implements Accountable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TreeSize treeSize = (TreeSize) o;
-        return numNodes == treeSize.numNodes &&
-            numLeaves == treeSize.numLeaves &&
-            numClasses == treeSize.numClasses;
+        TreeSizeInfo treeSizeInfo = (TreeSizeInfo) o;
+        return numNodes == treeSizeInfo.numNodes &&
+            numLeaves == treeSizeInfo.numLeaves &&
+            numClasses == treeSizeInfo.numClasses;
     }
 
     @Override

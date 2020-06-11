@@ -25,7 +25,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfDoubleArray;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfStringCollection;
 
-public class EnsembleSize implements TrainedModelSize {
+public class EnsembleSizeInfoInfo implements TrainedModelSizeInfo {
 
     public static final ParseField NAME = new ParseField("ensemble_model_size");
     private static final ParseField TREE_SIZES = new ParseField("tree_sizes");
@@ -36,10 +36,10 @@ public class EnsembleSize implements TrainedModelSize {
     private static final ParseField NUM_CLASSES = new ParseField("num_classes");
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<EnsembleSize, Void> PARSER = new ConstructingObjectParser<>(
+    static ConstructingObjectParser<EnsembleSizeInfoInfo, Void> PARSER = new ConstructingObjectParser<>(
         "ensemble_size",
         false,
-        a -> new EnsembleSize((List<TreeSize>)a[0],
+        a -> new EnsembleSizeInfoInfo((List<TreeSizeInfo>)a[0],
             (Integer)a[1],
             (List<Integer>)a[2],
             a[3] == null ? 0 : (Integer)a[3],
@@ -47,7 +47,7 @@ public class EnsembleSize implements TrainedModelSize {
             a[5] == null ? 0 : (Integer)a[5])
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), TreeSize.PARSER::apply, TREE_SIZES);
+        PARSER.declareObjectArray(constructorArg(), TreeSizeInfo.PARSER::apply, TREE_SIZES);
         PARSER.declareInt(constructorArg(), NUM_OPERATIONS);
         PARSER.declareIntArray(constructorArg(), INPUT_FIELD_NAME_LENGHTS);
         PARSER.declareInt(optionalConstructorArg(), NUM_OUTPUT_PROCESSOR_WEIGHTS);
@@ -55,25 +55,25 @@ public class EnsembleSize implements TrainedModelSize {
         PARSER.declareInt(optionalConstructorArg(), NUM_CLASSES);
     }
 
-    public static EnsembleSize fromXContent(XContentParser parser) {
+    public static EnsembleSizeInfoInfo fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
 
-    private final List<TreeSize> treeSizes;
+    private final List<TreeSizeInfo> treeSizeInfos;
     private final int numOperations;
     private final int[] inputFieldNameLengths;
     private final int numOutputProcessorWeights;
     private final int numClassificationWeights;
     private final int numClasses;
 
-    public EnsembleSize(List<TreeSize> treeSizes,
-                        int numOperations,
-                        List<Integer> inputFieldNameLengths,
-                        int numOutputProcessorWeights,
-                        int numClassificationWeights,
-                        int numClasses) {
-        this.treeSizes = treeSizes;
+    public EnsembleSizeInfoInfo(List<TreeSizeInfo> treeSizeInfos,
+                                int numOperations,
+                                List<Integer> inputFieldNameLengths,
+                                int numOutputProcessorWeights,
+                                int numClassificationWeights,
+                                int numClasses) {
+        this.treeSizeInfos = treeSizeInfos;
         this.numOperations = numOperations;
         this.inputFieldNameLengths = inputFieldNameLengths.stream().mapToInt(Integer::intValue).toArray();
         this.numOutputProcessorWeights = numOutputProcessorWeights;
@@ -88,8 +88,8 @@ public class EnsembleSize implements TrainedModelSize {
     @Override
     public long ramBytesUsed() {
         long size = EnsembleInferenceModel.SHALLOW_SIZE;
-        treeSizes.forEach(t -> t.setNumClasses(numClasses).ramBytesUsed());
-        size += sizeOfCollection(treeSizes);
+        treeSizeInfos.forEach(t -> t.setNumClasses(numClasses).ramBytesUsed());
+        size += sizeOfCollection(treeSizeInfos);
         size += sizeOfStringCollection(inputFieldNameLengths);
         size += LogisticRegression.SHALLOW_SIZE + sizeOfDoubleArray(numOutputProcessorWeights);
         size += sizeOfDoubleArray(numClassificationWeights);
@@ -99,7 +99,7 @@ public class EnsembleSize implements TrainedModelSize {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TREE_SIZES.getPreferredName(), treeSizes);
+        builder.field(TREE_SIZES.getPreferredName(), treeSizeInfos);
         builder.field(NUM_OPERATIONS.getPreferredName(), numOperations);
         builder.field(NUM_CLASSES.getPreferredName(), numClasses);
         builder.field(INPUT_FIELD_NAME_LENGHTS.getPreferredName(), inputFieldNameLengths);
@@ -113,18 +113,18 @@ public class EnsembleSize implements TrainedModelSize {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        EnsembleSize that = (EnsembleSize) o;
+        EnsembleSizeInfoInfo that = (EnsembleSizeInfoInfo) o;
         return numOperations == that.numOperations &&
             numOutputProcessorWeights == that.numOutputProcessorWeights &&
             numClassificationWeights == that.numClassificationWeights &&
             numClasses == that.numClasses &&
-            Objects.equals(treeSizes, that.treeSizes) &&
+            Objects.equals(treeSizeInfos, that.treeSizeInfos) &&
             Arrays.equals(inputFieldNameLengths, that.inputFieldNameLengths);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(treeSizes, numOperations, numOutputProcessorWeights, numClassificationWeights, numClasses);
+        int result = Objects.hash(treeSizeInfos, numOperations, numOutputProcessorWeights, numClassificationWeights, numClasses);
         result = 31 * result + Arrays.hashCode(inputFieldNameLengths);
         return result;
     }

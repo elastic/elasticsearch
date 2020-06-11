@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 public class ModelSizeInfoTests extends AbstractXContentTestCase<ModelSizeInfo> {
 
     public static ModelSizeInfo createRandom() {
-        return new ModelSizeInfo(EnsembleSizeTests.createRandom(),
+        return new ModelSizeInfo(EnsembleSizeInfoTests.createRandom(),
             randomBoolean() ?
                 null :
                 Stream.generate(() -> randomFrom(

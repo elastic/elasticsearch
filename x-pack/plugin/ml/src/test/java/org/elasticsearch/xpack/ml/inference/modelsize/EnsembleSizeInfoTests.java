@@ -20,10 +20,11 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class EnsembleSizeTests extends SizeEstimatorTestCase<EnsembleSize, EnsembleInferenceModel> {
+public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInfoInfo, EnsembleInferenceModel> {
 
-    static EnsembleSize createRandom() {
-        return new EnsembleSize(Stream.generate(TreeSizeTests::createRandom).limit(randomIntBetween(1, 100)).collect(Collectors.toList()),
+    static EnsembleSizeInfoInfo createRandom() {
+        return new EnsembleSizeInfoInfo(
+            Stream.generate(TreeSizeInfoTests::createRandom).limit(randomIntBetween(1, 100)).collect(Collectors.toList()),
             randomIntBetween(1, 10000),
             Stream.generate(() -> randomIntBetween(1, 10)).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
             randomIntBetween(0, 10),
@@ -32,7 +33,7 @@ public class EnsembleSizeTests extends SizeEstimatorTestCase<EnsembleSize, Ensem
         );
     }
 
-    static EnsembleSize translateToEstimate(EnsembleInferenceModel ensemble) {
+    static EnsembleSizeInfoInfo translateToEstimate(EnsembleInferenceModel ensemble) {
         TreeInferenceModel tree = (TreeInferenceModel)ensemble.getModels().get(0);
         int numClasses = Arrays.stream(tree.getNodes())
             .filter(TreeInferenceModel.Node::isLeaf)
@@ -41,8 +42,11 @@ public class EnsembleSizeTests extends SizeEstimatorTestCase<EnsembleSize, Ensem
             .get()
             .getLeafValue()
             .length;
-        return new EnsembleSize(
-            ensemble.getModels().stream().map(m -> TreeSizeTests.translateToEstimate((TreeInferenceModel)m)).collect(Collectors.toList()),
+        return new EnsembleSizeInfoInfo(
+            ensemble.getModels()
+                .stream()
+                .map(m -> TreeSizeInfoTests.translateToEstimate((TreeInferenceModel)m))
+                .collect(Collectors.toList()),
             randomIntBetween(0, 10),
             Arrays.stream(ensemble.getFeatureNames()).map(String::length).collect(Collectors.toList()),
             ensemble.getOutputAggregator().expectedValueSize() == null ? 0 : ensemble.getOutputAggregator().expectedValueSize(),
@@ -51,13 +55,13 @@ public class EnsembleSizeTests extends SizeEstimatorTestCase<EnsembleSize, Ensem
     }
 
     @Override
-    protected EnsembleSize createTestInstance() {
+    protected EnsembleSizeInfoInfo createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected EnsembleSize doParseInstance(XContentParser parser) {
-        return EnsembleSize.fromXContent(parser);
+    protected EnsembleSizeInfoInfo doParseInstance(XContentParser parser) {
+        return EnsembleSizeInfoInfo.fromXContent(parser);
     }
 
     @Override
@@ -78,7 +82,7 @@ public class EnsembleSizeTests extends SizeEstimatorTestCase<EnsembleSize, Ensem
     }
 
     @Override
-    EnsembleSize translateObject(EnsembleInferenceModel originalObject) {
+    EnsembleSizeInfoInfo translateObject(EnsembleInferenceModel originalObject) {
         return translateToEstimate(originalObject);
     }
 }

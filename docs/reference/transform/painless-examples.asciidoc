@@ -573,28 +573,20 @@ POST _transform/_preview
               }
             }
             all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].millis.compareTo(o2['@timestamp'].millis)); 
-            
             def size = all_docs.size();
-            
             def min_time = all_docs[0]['@timestamp'];
             def max_time = all_docs[size-1]['@timestamp'];
-            
             def duration = max_time.millis - min_time.millis;
-            
             def entry_page = all_docs[0]['url'];
             def exit_path = all_docs[size-1]['url'];
-            
             def first_referrer = all_docs[0]['referrer'];
-
             def ret = new HashMap();
-            
             ret['first_time'] = min_time;
             ret['last_time'] = max_time;
             ret['duration'] = duration;
             ret['entry_page'] = entry_page;
             ret['exit_path'] = exit_path;
             ret['first_referrer'] = first_referrer;
-            
             return ret;
           """
         }

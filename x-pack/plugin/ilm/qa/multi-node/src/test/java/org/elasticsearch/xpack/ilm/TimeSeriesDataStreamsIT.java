@@ -68,11 +68,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
 
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
         Settings settings = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .build();
-        Template template = new Template(settings, null, null);
+        Template template = new Template(settings, new CompressedXContent(mapping), null);
         createComposableTemplate(client(), "logs-template", "logs-foo*", template);
 
         String dataStream = "logs-foo";
@@ -97,11 +104,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createFullPolicy(client(), policyName, TimeValue.ZERO);
 
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
         Settings settings = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .build();
-        Template template = new Template(settings, null, null);
+        Template template = new Template(settings, new CompressedXContent(mapping), null);
         createComposableTemplate(client(), "logs-template", "logs-foo*", template);
 
         String dataStream = "logs-foo";
@@ -123,11 +137,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "cold", new SearchableSnapshotAction(snapshotRepo));
 
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
         Settings settings = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .build();
-        Template template = new Template(settings, null, null);
+        Template template = new Template(settings, new CompressedXContent(mapping), null);
         createComposableTemplate(client(), "logs-template", "logs-foo*", template);
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);

@@ -55,7 +55,6 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -120,8 +119,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT,
             Property.Dynamic, Property.IndexScope, Property.Deprecated);
+    // Deprecated set of meta-fields, for checking if a field is meta, use an instance method isMetadataField instead
     @Deprecated
-    private static final Set<String> META_FIELDS_BEFORE_7_8 =
+    public static final Set<String> META_FIELDS_BEFORE_7DOT8 =
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         "_id", IgnoredFieldMapper.NAME, "_index", "_routing", "_size", "_timestamp", "_ttl", "_type")));
 
@@ -807,18 +807,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     @Override
     public void close() throws IOException {
         indexAnalyzers.close();
-    }
-
-    /**
-     * @return Whether a field is a metadata field
-     * Deserialization of SearchHit objects sent from pre 7.8 nodes and GetResults objects sent from pre 7.3 nodes,
-     * uses this method to divide fields into meta and document fields.
-     * TODO: remove in v 9.0
-     * @deprecated  Use an instance method isMetadataField instead
-     */
-    @Deprecated
-    public static boolean isMetadataFieldStatic(String fieldName) {
-        return META_FIELDS_BEFORE_7_8.contains(fieldName);
     }
 
     /**

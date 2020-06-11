@@ -1291,6 +1291,54 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, fieldType);
     }
 
+    public void testThreeLayerStringViaGlobalOrds() throws IOException {
+        threeLayerStringTestCase("global_ordinals");
+    }
+
+    public void testThreeLayerStringViaMap() throws IOException {
+        threeLayerStringTestCase("map");
+    }
+
+    private void threeLayerStringTestCase(String executionHint) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (int i = 0; i < 10; i++) {
+                    for (int j = 0; j < 10; j++) {
+                        for (int k = 0; k < 10; k++) {
+                            Document d = new Document();
+                            d.add(new SortedDocValuesField("i", new BytesRef(Integer.toString(i))));
+                            d.add(new SortedDocValuesField("j", new BytesRef(Integer.toString(j))));
+                            d.add(new SortedDocValuesField("k", new BytesRef(Integer.toString(k))));
+                            writer.addDocument(d);
+                        }
+                    }
+                }
+                try (IndexReader reader = maybeWrapReaderEs(writer.getReader())) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    TermsAggregationBuilder request = new TermsAggregationBuilder("i").field("i").executionHint(executionHint)
+                        .subAggregation(new TermsAggregationBuilder("j").field("j").executionHint(executionHint)
+                            .subAggregation(new TermsAggregationBuilder("k").field("k").executionHint(executionHint)));
+                    StringTerms result = search(searcher, new MatchAllDocsQuery(), request,
+                        keywordField("i"), keywordField("j"), keywordField("k"));
+                    for (int i = 0; i < 10; i++) {
+                        StringTerms.Bucket iBucket = result.getBucketByKey(Integer.toString(i));
+                        assertThat(iBucket.getDocCount(), equalTo(100L));
+                        StringTerms jAgg = iBucket.getAggregations().get("j");
+                        for (int j = 0; j < 10; j++) {
+                            StringTerms.Bucket jBucket = jAgg.getBucketByKey(Integer.toString(j));
+                            assertThat(jBucket.getDocCount(), equalTo(10L));
+                            StringTerms kAgg = jBucket.getAggregations().get("k");
+                            for (int k = 0; k < 10; k++) {
+                                StringTerms.Bucket kBucket = kAgg.getBucketByKey(Integer.toString(k));
+                                assertThat(kBucket.getDocCount(), equalTo(1L));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testThreeLayerLong() throws IOException {
         try (Directory dir = newDirectory()) {
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {

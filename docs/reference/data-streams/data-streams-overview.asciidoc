@@ -17,7 +17,7 @@ the stream's backing indices. It contains:
 * A name or wildcard (`*`) pattern for the data stream.
 
 * The data stream's _timestamp field_. This field must be mapped as a
-  <<date,`date`>> or <<date_nanos,`date_nanos`>> field datatype and be
+  <<date,`date`>> or <<date_nanos,`date_nanos`>> field datatype and must be
   included in every document indexed to the data stream.
 
 * The mappings and settings applied to each backing index when it's created.
@@ -73,11 +73,23 @@ _write index_. The data stream routes all indexing requests to this index.
 
 image::images/data-streams/data-streams-index-request.svg[align="center"]
 
-You cannot add new documents to a stream's other backing indices, even
-by sending indexing requests directly to the index.
+You cannot add new documents to a stream's other backing indices, even by
+sending requests directly to the index. This means you cannot submit the
+following requests directly to any backing index, except the write index:
 
-Because it's the only index capable of handling indexing requests, you also
-cannot <<indices-close,close>> a data stream's write index.
+* A <<docs-index_,Index API>> request with an
+  <<docs-index-api-op_type,`op_type`>> of `create`. The `op_type` parameter
+  defaults to `create` when adding new documents.
+* A <<docs-bulk,Bulk API>> request using a `create` action
+
+Because it's the only index capable of ingesting new documents, you cannot
+perform operations on a write index that might prohibit indexing. These
+prohibited operations include:
+
+* <<indices-close,Closing the write index>>
+* <<indices-delete-index,Deleting the write index>>
+* <<freeze-index-api,Freezing the write index>>
+* <<indices-shrink-index,Shrinking the write index>>
 
 [discrete]
 [[data-streams-rollover]]
@@ -104,13 +116,24 @@ manually perform a rollover. See <<manually-roll-over-a-data-stream>>.
 === Append-only
 
 For most time-series use cases, existing data is rarely, if ever, updated.
-Because of this, data streams are designed to append-only. This means you can
+Because of this, data streams are designed to be append-only. This means you can
 send indexing requests for new documents directly to a data stream. However, you
 cannot send update or deletion requests for existing documents to a data stream.
 
-To update or delete specific documents in a data stream, submit a
-<<docs-delete,delete>> or <<docs-update,update>> API request to the backing
-index containing the document.
+To update or delete specific documents in a data stream, submit one of the
+following requests to the backing index containing the document:
+
+* An <<docs-index_,Index API>> request with an
+  <<docs-index-api-op_type,`op_type`>> of `index`.
+  These requests must include valid <<optimistic-concurrency-control,`if_seq_no`
+  and `if_primary_term`>> arguments.
+
+* A <<docs-bulk,Bulk API>> request using the `delete`, `index`, or `update`
+  action. If the action type is `index`, the action must include valid
+  <<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
+  arguments.
+
+* A <<docs-delete,Delete API>> request
 
 TIP: If you need to frequently update or delete existing documents across
 multiple indices, we recommend using an <<indices-add-alias,index alias>> and

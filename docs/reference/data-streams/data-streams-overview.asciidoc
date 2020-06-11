@@ -78,7 +78,7 @@ You cannot add new documents to a stream's other backing indices, even by
 sending requests directly to the index. This means you cannot submit the
 following requests directly to any backing index except the write index:
 
-* A <<docs-index_,Index API>> request with an
+* An <<docs-index_,Index API>> request with an
   <<docs-index-api-op_type,`op_type`>> of `create`. The `op_type` parameter
   defaults to `create` when adding new documents.
 * A <<docs-bulk,Bulk API>> request using a `create` action

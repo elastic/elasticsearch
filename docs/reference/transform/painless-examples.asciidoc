@@ -527,7 +527,7 @@ By using the `sessionid` as a group-by field, you are able to enumerate events
 through the session and get more details of the session by using scripted metric 
 aggregation.
 
-[source,console]
+[source,js]
 --------------------------------------------------
 POST _transform/_preview
 {

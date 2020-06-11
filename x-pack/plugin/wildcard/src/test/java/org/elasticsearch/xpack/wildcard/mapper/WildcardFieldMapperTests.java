@@ -303,6 +303,76 @@ public class WildcardFieldMapperTests extends ESTestCase {
         dir.close();
     }
     
+    private void indexDoc(RandomIndexWriter iw, String value) throws IOException {
+        Document doc = new Document();
+        ParseContext.Document parseDoc = new ParseContext.Document();
+        addFields(parseDoc, doc, value);
+        indexDoc(parseDoc, doc, iw);        
+    }
+    
+    public void testRangeQueryVersusKeywordField() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        // Tests for acceleration strategy based on long common prefix
+        indexDoc(iw, "C:\\Program Files\\a.txt");
+        indexDoc(iw, "C:\\Program Files\\n.txt");
+        indexDoc(iw, "C:\\Program Files\\z.txt");
+
+        // Tests for acceleration strategy based on no common prefix
+        indexDoc(iw, "a.txt");
+        indexDoc(iw, "n.txt");
+        indexDoc(iw, "z.txt");
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+        
+        String [][] rangeTests = {
+            {"C:\\Program Files\\a", "C:\\Program Files\\z"}, 
+            {"C:\\Program Files\\a", "C:\\Program Files\\n"}, 
+            {null, "C:\\Program Files\\z"}, 
+            {"C:\\Program Files\\a", null},
+            
+            {"a.txt", "z.txt"}, 
+            {"a.txt", "n.txt"}, 
+            {null, "z.txt"}, 
+            {"a.txt", null} 
+        };
+        
+        for (String[] bounds : rangeTests) {
+            BytesRef lower = bounds[0] == null ? null :new BytesRef(bounds[0]);
+            BytesRef upper = bounds[1] == null ? null :new BytesRef(bounds[1]);
+            TermRangeQuery trq = new TermRangeQuery(WILDCARD_FIELD_NAME, lower, upper, randomBoolean(), randomBoolean());
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(), 
+                trq.includesUpper(), null, null, null, MOCK_QSC);
+            Query keywordFieldQuery = keywordFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(), 
+                trq.includesUpper(), null, null, null, MOCK_QSC);
+
+            
+            TopDocs kwTopDocs = searcher.search(keywordFieldQuery, 10, Sort.RELEVANCE);
+            TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.RELEVANCE);
+            assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(kwTopDocs.totalHits.value));
+
+            HashSet<Integer> expectedDocs = new HashSet<>();
+            for (ScoreDoc topDoc : kwTopDocs.scoreDocs) {
+                expectedDocs.add(topDoc.doc);
+            }
+            for (ScoreDoc wcTopDoc : wildcardFieldTopDocs.scoreDocs) {
+                assertTrue(expectedDocs.remove(wcTopDoc.doc));
+            }
+            assertThat(expectedDocs.size(), equalTo(0));
+
+        }
+        reader.close();
+        dir.close();
+    }
+    
+    
     public void testRegexAcceleration() throws IOException, ParseException {
         // All these expressions should rewrite to a match all with no verification step required at all
         String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)", "@"};

@@ -705,7 +705,7 @@ public class WildcardFieldMapper extends FieldMapper {
                         ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
             }
             BytesRef lower = lowerTerm == null ? null : BytesRefs.toBytesRef(lowerTerm);
-            BytesRef upper = lowerTerm == null ? null : BytesRefs.toBytesRef(upperTerm);
+            BytesRef upper = upperTerm == null ? null : BytesRefs.toBytesRef(upperTerm);
             Query accelerationQuery = null;
             if (lowerTerm != null && upperTerm != null) {
                 // Long common prefixes e.g. "C:/Program Files/a,txt" to "C:/Program Files/z,txt"

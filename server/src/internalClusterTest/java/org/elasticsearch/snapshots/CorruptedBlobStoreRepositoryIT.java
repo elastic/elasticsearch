@@ -28,15 +28,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -96,8 +91,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> move index-N blob to next generation");
-        final RepositoryData repositoryData =
-            getRepositoryData(internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repoName));
+        final RepositoryData repositoryData = getRepositoryData(repoName);
         Files.move(repo.resolve("index-" + repositoryData.getGenId()), repo.resolve("index-" + (repositoryData.getGenId() + 1)));
 
         assertRepositoryBlocked(client, repoName, snapshot);
@@ -156,7 +150,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
 
         logger.info("--> move index-N blob to next generation");
-        final RepositoryData repositoryData = getRepositoryData(repository);
+        final RepositoryData repositoryData = getRepositoryData(repoName);
         final long beforeMoveGen = repositoryData.getGenId();
         Files.move(repo.resolve("index-" + beforeMoveGen), repo.resolve("index-" + (beforeMoveGen + 1)));
 
@@ -189,16 +183,14 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         internalCluster().fullRestart();
         ensureGreen();
 
-        Repository repositoryAfterRestart = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
-
         logger.info("--> verify index-N blob is found at the new location");
-        assertThat(getRepositoryData(repositoryAfterRestart).getGenId(), is(beforeMoveGen + 1));
+        assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 1));
 
         logger.info("--> delete snapshot");
         client().admin().cluster().prepareDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> verify index-N blob is found at the expected location");
-        assertThat(getRepositoryData(repositoryAfterRestart).getGenId(), is(beforeMoveGen + 2));
+        assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 2));
 
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(SnapshotMissingException.class, () -> client().admin().cluster().prepareGetSnapshots(repoName)
@@ -229,8 +221,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
                 equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
         }
-        final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
-        final RepositoryData repositoryData = getRepositoryData(repository);
+        final RepositoryData repositoryData = getRepositoryData(repoName);
 
         final SnapshotId snapshotToCorrupt = randomFrom(repositoryData.getSnapshotIds());
         logger.info("--> delete root level snapshot metadata blob for snapshot [{}]", snapshotToCorrupt);
@@ -254,7 +245,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
             ActionRunnable.supply(f, () ->
-                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repository), null)))),
+                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)))),
             is(SnapshotsService.OLD_SNAPSHOT_FORMAT));
 
         logger.info("--> verify that snapshot with missing root level metadata can be deleted");
@@ -263,9 +254,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> verify that repository is assumed in new metadata format after removing corrupted snapshot");
         assertThat(PlainActionFuture.get(f -> threadPool.generic().execute(
             ActionRunnable.supply(f, () ->
-                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repository), null)))),
+                snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)))),
             is(Version.CURRENT));
-        final RepositoryData finalRepositoryData = getRepositoryData(repository);
+        final RepositoryData finalRepositoryData = getRepositoryData(repoName);
         for (SnapshotId snapshotId : finalRepositoryData.getSnapshotIds()) {
             assertThat(finalRepositoryData.getVersion(snapshotId), is(Version.CURRENT));
         }
@@ -295,7 +286,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> corrupt index-N blob");
         final Repository repository = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
-        final RepositoryData repositoryData = getRepositoryData(repository);
+        final RepositoryData repositoryData = getRepositoryData(repoName);
         Files.write(repo.resolve("index-" + repositoryData.getGenId()), randomByteArrayOfLength(randomIntBetween(1, 100)));
 
         logger.info("--> verify loading repository data throws RepositoryException");
@@ -317,27 +308,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
-
-        // Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
-        // generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
-        final String oldVersionSnapshot = "old-version-snapshot";
-        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster()
-                .prepareCreateSnapshot(repoName, oldVersionSnapshot).setIndices().setWaitForCompletion(true).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), is(0));
-
-        logger.info("--> writing downgraded RepositoryData");
-        final RepositoryData repositoryData = getRepositoryData(repoName);
-        final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
-        repositoryData.snapshotsToXContent(jsonBuilder, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-        final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), SnapshotsService.OLD_SNAPSHOT_FORMAT.toString())),
-                repositoryData.getGenId(), randomBoolean());
-        Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
-                BytesReference.toBytes(BytesReference.bytes(
-                        downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT))),
-                StandardOpenOption.TRUNCATE_EXISTING);
+        final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
 
         logger.info("--> recreating repository to clear caches");
         client().admin().cluster().prepareDeleteRepository(repoName).get();
@@ -367,27 +338,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
-
-        // Workaround to simulate BwC situation: taking a snapshot without indices here so that we don't create any new version shard
-        // generations (the existence of which would short-circuit checks for the repo containing old version snapshots)
-        final String oldVersionSnapshot = "old-version-snapshot";
-        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster()
-                .prepareCreateSnapshot(repoName, oldVersionSnapshot).setIndices().setWaitForCompletion(true).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), is(0));
-
-        logger.info("--> writing downgraded RepositoryData");
-        final RepositoryData repositoryData = getRepositoryData(repoName);
-        final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
-        repositoryData.snapshotsToXContent(jsonBuilder, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-        final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                Strings.toString(jsonBuilder).replace(Version.CURRENT.toString(), SnapshotsService.OLD_SNAPSHOT_FORMAT.toString())),
-                repositoryData.getGenId(), randomBoolean());
-        Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
-                BytesReference.toBytes(BytesReference.bytes(
-                        downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT))),
-                StandardOpenOption.TRUNCATE_EXISTING);
+        final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
 
         logger.info("--> recreating repository to clear caches");
         client().admin().cluster().prepareDeleteRepository(repoName).get();

@@ -19,11 +19,13 @@ public class EndsWithFunctionPipe extends Pipe {
 
     private final Pipe source;
     private final Pipe pattern;
+    private final boolean isCaseSensitive;
 
-    public EndsWithFunctionPipe(Source source, Expression expression, Pipe src, Pipe pattern) {
+    public EndsWithFunctionPipe(Source source, Expression expression, Pipe src, Pipe pattern, boolean isCaseSensitive) {
         super(source, expression, Arrays.asList(src, pattern));
         this.source = src;
         this.pattern = pattern;
+        this.isCaseSensitive = isCaseSensitive;
     }
 
     @Override
@@ -55,7 +57,7 @@ public class EndsWithFunctionPipe extends Pipe {
     }
 
     protected Pipe replaceChildren(Pipe newSource, Pipe newPattern) {
-        return new EndsWithFunctionPipe(source(), expression(), newSource, newPattern);
+        return new EndsWithFunctionPipe(source(), expression(), newSource, newPattern, isCaseSensitive);
     }
 
     @Override
@@ -66,12 +68,12 @@ public class EndsWithFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<EndsWithFunctionPipe> info() {
-        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), source, pattern);
+        return NodeInfo.create(this, EndsWithFunctionPipe::new, expression(), source, pattern, isCaseSensitive);
     }
 
     @Override
     public EndsWithFunctionProcessor asProcessor() {
-        return new EndsWithFunctionProcessor(source.asProcessor(), pattern.asProcessor());
+        return new EndsWithFunctionProcessor(source.asProcessor(), pattern.asProcessor(), isCaseSensitive);
     }
     
     public Pipe src() {
@@ -84,7 +86,7 @@ public class EndsWithFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, pattern);
+        return Objects.hash(source, pattern, isCaseSensitive);
     }
 
     @Override
@@ -99,6 +101,7 @@ public class EndsWithFunctionPipe extends Pipe {
 
         EndsWithFunctionPipe other = (EndsWithFunctionPipe) obj;
         return Objects.equals(source, other.source)
-                && Objects.equals(pattern, other.pattern);
+                && Objects.equals(pattern, other.pattern)
+                && Objects.equals(isCaseSensitive, other.isCaseSensitive);
     }
 }

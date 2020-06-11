@@ -6,25 +6,8 @@
 
 Creates a new data stream.
 
-Data streams provide a convenient way to ingest, search, and manage time series
-data. Documents containing time series data may be indexed directly into a data
-stream and searched through the data stream. Behind the scenes, data streams
-contain one or more hidden backing indices and a generation attribute that
-indicates which of the backing indices is the write index, the index into which
-documents will be ingested.
-
-Backing indices are generated with the naming convention
-`<data-stream-name>-zzzzzz` where `zzzzzz` is the six-digit, zero-padded
-generation of the data stream. For example, a data stream named
-`web-server-logs` with a generation of 34 would have a write index named
-`web-server-logs-000034`. While nothing prevents backing indices from being
-addressed directly, data streams are integrated with the
-<<indices-rollover-index, rollover index API>> and
-<<index-lifecycle-management, index lifecycle management (ILM)>> to facilitate
-the management of the time series data contained in their backing indices.
-
 A data stream can only be created if the namespace it targets has a component
-template exists with a `data_stream` definition.
+template that exists with a `data_stream` definition.
 
 [source,console]
 -----------------------------------

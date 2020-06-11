@@ -330,6 +330,10 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
 
+    public ClusterService clusterService() {
+        return clusterService;
+    }
+
     @Override
     protected void doStop() {
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);

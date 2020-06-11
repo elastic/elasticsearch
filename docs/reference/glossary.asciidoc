@@ -342,8 +342,8 @@ during the following processes:
 
 // tag::reindex-def[]
 Copies documents from a _source_ to an existing _destination_. The source and
-destination can be any pre-existing index, index alias, or <<data-streams,data
-stream>>.
+destination can be any pre-existing index, index alias, or
+{ref}/data-streams.html[data stream].
 
 You can reindex all documents from a source or select a subset of documents to
 copy. You can also reindex to a destination in a remote cluster.

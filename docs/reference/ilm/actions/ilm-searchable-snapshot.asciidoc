@@ -6,6 +6,14 @@ Phases allowed: cold.
 
 Takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.
+If the managed index is part of a <<data-streams, data stream>>,
+the mounted index will replace the original index in the data stream.
+
+[NOTE]
+This action will fail if the managed index is a <<data-streams, data stream's>>
+write index. Manually rolling over the data stream will change the <<data-streams, data stream's>>
+write index and the action will be able to continue converting the managed
+index to a searchable snapshot.
 
 By default, this snapshot is deleted by the <<ilm-delete-action, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.

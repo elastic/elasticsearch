@@ -11,7 +11,8 @@ This tutorial demonstrates how to use {ilm}
 ({ilm-init}) to manage indices that contain time-series data.
 
 When you continuously index timestamped documents into {es},
-you typically use an index alias so you can periodically roll over to a new index.
+you typically a data stream so you can periodically roll over to a
+new index.
 This enables you to implement a hot-warm-cold architecture to meet your performance
 requirements for your newest data, control costs over time, enforce retention policies,
 and still get the most out of your data.
@@ -19,18 +20,19 @@ and still get the most out of your data.
 To automate rollover and management of time-series indices with {ilm-init}, you:
 
 . <<ilm-gs-create-policy, Create a lifecycle policy>> that defines the appropriate
-phases and actions.  
-. <<ilm-gs-apply-policy, Create an index template>> to apply the policy to each new index.
-. <<ilm-gs-bootstrap, Bootstrap an index>> as the initial write index.
-. <<ilm-gs-check-progress, Verify indices are moving through the lifecycle phases>> 
+phases and actions.
+. <<ilm-gs-apply-policy, Create a composable template>> to create the data stream and
+apply the ILM policy and the indices settings and mappings configurations for the backing
+indices.
+. <<ilm-gs-check-progress, Verify indices are moving through the lifecycle phases>>
 as expected.
 
 For an introduction to rolling indices, see <<index-rollover>>. 
 
-IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
-lifecycle policies are set up automatically. 
-You do not need bootstrap the initial index or take any other actions.
-You can modify the default policies through 
+IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin,
+lifecycle policies are set up automatically.
+You do not need to take any other actions.
+You can modify the default policies through
 {kibana-ref}/example-using-index-lifecycle-policy.html[{kib} Management]
 or the {ilm-init} APIs.
 
@@ -89,45 +91,47 @@ For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
 
 [discrete]
 [[ilm-gs-apply-policy]]
-=== Create an index template to apply the lifecycle policy
+=== Create a composable template to create the data stream and apply the lifecycle policy
 
-To automatically apply a lifecycle policy to the new write index on rollover,
-specify the policy in the index template used to create new indices.
+To create a data stream we'll create a composable template with a `data_stream` definition
+that will specify the lifecycle policy.
 
-For example, you might create a `timeseries_template` that is applied to new indices
-whose names match the `timeseries-*` index pattern. 
+For example, you might create a `timeseries_template` that is will bootstrap a data stream
+named `timeseries`.
 
-To enable automatic rollover, the template configures two {ilm-init} settings:
+To enable the ILM to manage the data stream, the template configures one {ilm-init} setting:
 
-* `index.lifecycle.name` specifies the name of the lifecycle policy to apply to new indices
-that match the index pattern.
-* `index.lifecycle.rollover_alias` specifies the index alias to be rolled over
-when the rollover action is triggered for an index.
+* `index.lifecycle.name` specifies the name of the lifecycle policy to apply to the data stream.
 
-You can use the {kib} Create template wizard to add the template. 
-This wizard invokes the put template API to create the template with the options you specify. 
+You can use the {kib} Create template wizard to add the template.
+This wizard invokes the put _index_template API to create the <<indices-templates,composable index template>>
+with the options you specify.
 
 The underlying request looks like this:
 
 [source,console]
 -----------------------
-PUT _template/timeseries_template
+PUT _index_template/timeseries_template
 {
-  "index_patterns": ["timeseries-*"],                 <1>
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "index.lifecycle.name": "timeseries_policy",      <2>
-    "index.lifecycle.rollover_alias": "timeseries"    <3>
+  "index_patterns": ["timeseries"],                 <1>
+  "data_stream": {
+    "timestamp_field": "@timestamp"                  <2>
+  },
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "timeseries_policy"     <3>
+    }
   }
 }
 -----------------------
 // TEST[continued]
 
-<1> Apply the template to a new index if its name starts with `timeseries-`.
-<2> The name of the lifecycle policy to apply to each new index.
-<3> The name of the alias used to reference these indices.
-Required for policies that use the rollover action.
+<1> Apply the template when a document is indexed into the `timeseries` target.
+<2> Identifies the timestamp field for the data source, a field that must be present
+in all documents indexed into the `timeseries` data stream.
+<3> The name of the ILM policy used to manage the data stream.
 
 You can also invoke this API directly to add templates.
 
@@ -144,38 +148,41 @@ DELETE /_template/timeseries_template
 
 [discrete]
 [[ilm-gs-bootstrap]]
-=== Bootstrap the initial time-series index
+=== Bootstrap the data stream
 
-To get things started, you need to bootstrap an initial index and
-designate it as the write index for the rollover alias specified in your index template.
-The name of this index must match the template's index pattern and end with a number.
-On rollover, this value is incremented to generate a name for the new index.
+To get things started, you simply index a document into the name or wildcard pattern defined
+in the `index_patterns` of the <<indices-templates,composable index template>> that will
+create the data stream.
+{es} will automatically create the corresponding data stream and will index the document into
+the first backing index.
 
-For example, the following request creates an index called `timeseries-000001`
-and makes it the write index for the `timeseries` alias.
+For example, the following request creates the `timeseries` data stream and the first generation
+backing index called `.ds-timeseries-000001`.
 
 [source,console]
 -----------------------
-PUT timeseries-000001
+POST timeseries/_doc
 {
-  "aliases": {
-    "timeseries": {
-      "is_write_index": true
-    }
-  }
+  "message": "logged the request",
+  "@timestamp": "1591890611"
 }
+
 -----------------------
 // TEST[continued]
 
 When the rollover conditions are met, the `rollover` action:
 
-* Creates a new index called `timeseries-000002`.
-This matches the `timeseries-*` pattern, so the settings from `timeseries_template` are applied to the new index.
-* Designates the new index as the write index and makes the bootstrap index read-only.
+* Creates the second generation backing index, name `.ds-timeseries-000002`.
+As it is the backing index of the `timeseries` data stream which was created using the `timeseries_template`
+the template configuration will be applied to the new index.
+* As it is the latest generation index of the `timeseries` data stream, the newly created
+backing index `.ds-timeseries-000002` becomes the data stream's write index.
 
 This process repeats each time rollover conditions are met.
-You can search across all of the indices managed by the `timeseries_policy` with the `timeseries` alias.
-Write operations are routed to the current write index.
+You can search across all of the data stream's backing indices, managed by the `timeseries_policy`,
+with the `timeseries` data stream name.
+Write operations are routed to the current write index, whilst read operations will be handled by all
+backing indices.
 
 [discrete]
 [[ilm-gs-check-progress]]
@@ -192,21 +199,22 @@ For example, the following request gets information about the `timeseries` indic
 
 [source,console]
 --------------------------------------------------
-GET timeseries-*/_ilm/explain
+GET .ds-timeseries-*/_ilm/explain
 --------------------------------------------------
 // TEST[continued]
 
-The response below shows that the bootstrap index is waiting in the `hot` phase's `rollover` action.
-It remains in this state and {ilm-init} continues to call `attempt-rollover`
-until the rollover conditions are met.
+The response below shows that the data stream's first generation backing index is waiting in the `hot`
+phase's `rollover` action.
+It remains in this state and {ilm-init} continues to call `attempt-rollover` until the rollover conditions
+are met.
 
 // [[36818c6d9f434d387819c30bd9addb14]]
 [source,console-result]
 --------------------------------------------------
 {
   "indices": {
-    "timeseries-000001": {
-      "index": "timeseries-000001",
+    ".ds-timeseries-000001": {
+      "index": ".ds-timeseries-000001",
       "managed": true,
       "policy": "timeseries_policy",             <1>
       "lifecycle_date_millis": 1538475653281,

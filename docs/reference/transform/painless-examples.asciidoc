@@ -481,7 +481,7 @@ This example shows how to derive multiple features from a single transaction.
 Let's take a look on the example source document from the data:
 
 .Source document
-[%collapsible]
+[%collapsible%open]
 =====
 [source,js]
 --------------------------------------------------

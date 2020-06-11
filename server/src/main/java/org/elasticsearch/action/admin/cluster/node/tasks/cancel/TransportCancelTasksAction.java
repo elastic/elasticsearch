@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -117,7 +119,11 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         final boolean canceled;
         if (cancellableTask.shouldCancelChildrenOnCancellation()) {
             DiscoveryNodes childNodes = clusterService.state().nodes();
-            final BanLock banLock = new BanLock(childNodes.getSize(), () -> removeBanOnNodes(cancellableTask, childNodes));
+            // If the task runs with a user, and it's cancelled after we have sent ban requests, then the unban request
+            // will be denied as it must not execute with a user. We need to wrap it with the current thread context.
+            final Runnable removeBans = transportService.getThreadPool().getThreadContext()
+                .preserveContext(() -> removeBanOnNodes(cancellableTask, childNodes));
+            final BanLock banLock = new BanLock(childNodes.getSize(), removeBans);
             canceled = taskManager.cancel(cancellableTask, request.getReason(), banLock::onTaskFinished);
             if (canceled) {
                 // /In case the task has some child tasks, we need to wait for until ban is set on all nodes
@@ -190,6 +196,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
                     @Override
                     public void handleException(TransportException exp) {
+                        assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
                         logger.warn("Cannot send ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.key);
                         listener.onFailure(exp);
                     }
@@ -200,8 +207,14 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     private void sendRemoveBanRequest(DiscoveryNodes nodes, BanParentTaskRequest request) {
         for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getNodes()) {
             logger.debug("Sending remove ban for tasks with the parent [{}] to the node [{}]", request.parentTaskId, node.key);
-            transportService.sendRequest(node.value, BAN_PARENT_ACTION_NAME, request, EmptyTransportResponseHandler
-                .INSTANCE_SAME);
+            transportService.sendRequest(node.value, BAN_PARENT_ACTION_NAME, request,
+                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assert ExceptionsHelper.unwrapCause(exp) instanceof ElasticsearchSecurityException == false;
+                        logger.info("failed to remove the parent ban for task {} on node {}", request.parentTaskId, node);
+                    }
+                });
         }
     }
 

@@ -339,7 +339,8 @@ during the following processes:
 --
 
 [[glossary-reindex]] reindex ::
-
++
+--
 // tag::reindex-def[]
 Copies documents from a _source_ to an existing _destination_. The source and
 destination can be any pre-existing index, index alias, or
@@ -351,6 +352,7 @@ copy. You can also reindex to a destination in a remote cluster.
 A reindex is often performed to update mappings, change static index settings,
 or upgrade {es} between incompatible versions.
 // end::reindex-def[]
+--
 
 [[glossary-remote-cluster]] remote cluster ::
 

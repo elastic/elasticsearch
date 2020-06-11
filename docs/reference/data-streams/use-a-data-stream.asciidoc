@@ -1,7 +1,7 @@
 [[use-a-data-stream]]
 == Use a data stream
 
-After you <<set-up-a-data-stream,set up a data stream set up>>, you can do
+After you <<set-up-a-data-stream,set up a data stream>>, you can do
 the following:
 
 * <<add-documents-to-a-data-stream>>

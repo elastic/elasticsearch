@@ -60,6 +60,25 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
+        {
+            Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+            assertThat("this branch is not needed if we aren't compatible with 6.0",
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+            if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
+                XContentBuilder template = jsonBuilder();
+                template.startObject();
+                {
+                    template.field("index_patterns", "token_backwards_compatibility_it");
+                    template.startObject("settings");
+                    template.field("number_of_shards", 5);
+                    template.endObject();
+                }
+                template.endObject();
+                Request createTemplate = new Request("PUT", "/_template/gen-tokens-old-cluster-template");
+                createTemplate.setJsonEntity(Strings.toString(template));
+                client().performRequest(createTemplate);
+            }
+        }
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
         // mixed/upgraded clusters
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");

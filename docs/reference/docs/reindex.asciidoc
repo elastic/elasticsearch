@@ -10,7 +10,7 @@ Copies documents from one index to another.
 Copies documents from a _source_ to a _destination_.
 
 The source and destination can be any pre-existing index, index alias, or
-<<data-streams,data stream>>. However, the source and destination must be 
+<<data-streams,data stream>>. However, the source and destination must be
 different. For example, you cannot reindex a data stream into itself.
 >>>>>>> master
 
@@ -19,13 +19,9 @@ different. For example, you cannot reindex a data stream into itself.
 Reindex requires <<mapping-source-field,`_source`>> to be enabled for
 all documents in the source.
 
-<<<<<<< HEAD
-You must set up the destination index before calling `_reindex`.
-Reindex does not copy the settings from the source index.
-=======
 The destination must exist and should be configured as wanted before calling `_reindex`.
-Reindex does not copy the settings from the source or its associated template. 
->>>>>>> master
+Reindex does not copy the settings from the source or its associated template.
+
 Mappings, shard counts, replicas, and so on must be configured ahead of time.
 =================================================
 
@@ -85,8 +81,8 @@ You can copy all documents to the destination index, or reindex a subset of the 
 // end::docs-reindex-api-desc-tag[]
 =======
 
-Extracts the <<mapping-source-field,document source>> from the reindex request's source and indexes the documents into the destination. 
-You can copy all documents to the destination, or reindex a subset of the documents. 
+Extracts the <<mapping-source-field,document source>> from the reindex request's source and indexes the documents into the destination.
+You can copy all documents to the destination, or reindex a subset of the documents.
 
 >>>>>>> master
 Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
@@ -477,8 +473,8 @@ Defaults to `abort`.
 (Required, string) The name of the index you are copying _from_.
 Also accepts a comma-separated list of indices to reindex from multiple sources.
 =======
-(Required, string) The name of the data stream, index, or index alias you are copying _from_. 
-Also accepts a comma-separated list to reindex from multiple sources.  
+(Required, string) The name of the data stream, index, or index alias you are copying _from_.
+Also accepts a comma-separated list to reindex from multiple sources.
 >>>>>>> master
 
 `max_docs`:::

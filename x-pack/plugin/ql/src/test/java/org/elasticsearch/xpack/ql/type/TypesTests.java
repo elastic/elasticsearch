@@ -187,7 +187,7 @@ public class TypesTests extends ESTestCase {
     }
 
     public void testWildcardField() {
-        Map<String, EsField> mapping = loadMapping("mapping-constant-keyword.json");
+        Map<String, EsField> mapping = loadMapping("mapping-wildcard.json");
         assertThat(mapping.size(), is(1));
         EsField dt = mapping.get("full_name");
         assertThat(dt.getDataType().typeName(), is("wildcard"));

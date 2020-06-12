@@ -40,8 +40,10 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -66,6 +68,7 @@ import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.generateMapping;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -223,7 +226,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         createTemplateRequest.indexTemplate(
             new ComposableIndexTemplate(
                 List.of("logs-foo*"),
-                null,
+                new Template(null, new CompressedXContent(generateMapping("@timestamp")), null),
                 null, null, null, null,
                 new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
         );

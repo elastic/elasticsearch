@@ -14,6 +14,15 @@ template that exists with a `data_stream` definition.
 PUT _index_template/template
 {
   "index_patterns": ["my-data-stream*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  },
   "data_stream": {
     "timestamp_field": "@timestamp"
   }

@@ -279,10 +279,6 @@ Features/Indices APIs::
 Features/Watcher::
 * Ensure watcher email action message ids are always unique {pull}56574[#56574]
 
-Geo::
-* ES crashes with OOM error when running fine-grained geotile_grid aggs on geo_shape [OPEN] [ISSUE] {pull}57847[#57847]
-* Rasterization artefacts for geotile_grid and geo_centroid aggregations on geo_shape [OPEN] [ISSUE] {pull}57846[#57846]
-
 Infra/Core::
 * Add generic Set support to streams {pull}54769[#54769] (issue: {issue}54708[#54708])
 

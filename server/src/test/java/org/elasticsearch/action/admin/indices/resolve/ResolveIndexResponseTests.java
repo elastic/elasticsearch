@@ -79,7 +79,8 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
     private static ResolvedIndex createTestResolvedIndexInstance() {
         String name = randomAlphaOfLength(6);
         String[] aliases = randomStringArray(0, 5);
-        String[] attributes = randomSubsetOf(List.of("open", "hidden", "frozen")).toArray(Strings.EMPTY_ARRAY);
+        String[] attributes = randomSubsetOf(
+            org.elasticsearch.common.collect.List.of("open", "hidden", "frozen")).toArray(Strings.EMPTY_ARRAY);
         String dataStream = randomBoolean() ? randomAlphaOfLength(6) : null;
 
         return new ResolvedIndex(name, aliases, attributes, dataStream);

@@ -68,7 +68,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
                                           Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
-        if (cardinality == CardinalityUpperBound.ONE) {
+        if (cardinality == CardinalityUpperBound.MANY) {
             return asMultiBucketAggregator(this, searchContext, parent);
         }
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,

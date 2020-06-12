@@ -98,7 +98,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
                 // need to take care of dups
                 for (int i = 0; i < valuesCount; ++i) {
                     BytesRef bytes = values.nextValue();
-                    if (filter != null && !filter.accept(bytes)) {
+                    if (filter != null && false == filter.accept(bytes)) {
                         continue;
                     }
                     if (i > 0 && previous.get().equals(bytes)) {
@@ -128,28 +128,29 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         long keepCount = 0;
         long[] mergeMap = new long[(int) bucketOrds.size()];
         Arrays.fill(mergeMap, -1);
-        long size = 0;
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            try (BytesRefHash ordsToCollect = new BytesRefHash(1, context.bigArrays())) {
-                filters[ordIdx] = newFilter();
-                List<StringRareTerms.Bucket> buckets = new ArrayList<>();
-                BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+        long offset = 0;
+        for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
+            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, context.bigArrays())) {
+                filters[owningOrdIdx] = newFilter();
+                List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
+                BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);
                 BytesRef scratch = new BytesRef();
-                while (ordsEnum.next()) {
-                    ordsEnum.readValue(scratch);
-                    long docCount = bucketDocCount(ordsEnum.ord());
+                while (collectedBuckets.next()) {
+                    collectedBuckets.readValue(scratch);
+                    long docCount = bucketDocCount(collectedBuckets.ord());
                     // if the key is below threshold, reinsert into the new ords
                     if (docCount <= maxDocCount) {
                         StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(BytesRef.deepCopyOf(scratch), docCount, null, format);
-                        bucket.bucketOrd = mergeMap[(int) ordsEnum.ord()] = size + ordsToCollect.add(scratch);
-                        buckets.add(bucket);
+                        bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(scratch);
+                        mergeMap[(int) collectedBuckets.ord()] = bucket.bucketOrd;
+                        builtBuckets.add(bucket);
                         keepCount++;
                     } else {
-                        filters[ordIdx].add(scratch);
+                        filters[owningOrdIdx].add(scratch);
                     }
                 }
-                rarestPerOrd[ordIdx] = buckets.toArray(StringRareTerms.Bucket[]::new);
-                size += ordsToCollect.size();
+                rarestPerOrd[owningOrdIdx] = builtBuckets.toArray(StringRareTerms.Bucket[]::new);
+                offset += bucketsInThisOwningBucketToCollect.size();
             }
         }
 
@@ -158,7 +159,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
          * to save on some redundant work.
          */
         if (keepCount != mergeMap.length) {
-            mergeBuckets(mergeMap, size);
+            mergeBuckets(mergeMap, offset);
             if (deferringCollector != null) {
                 deferringCollector.mergeBuckets(mergeMap);
             }

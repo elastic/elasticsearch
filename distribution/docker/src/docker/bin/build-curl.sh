@@ -20,6 +20,8 @@ GPG_KEY_URL="https://daniel.haxx.se/mykey.asc"
 GPG_KEY_PATH="/work/curl-gpg.pub"
 
 
+mkdir /work
+
 # Print failure message if we exit unexpectedly
 trap 'RC="$?"; echo "*** FAILED! RC=${RC}"; exit ${RC}' EXIT
 

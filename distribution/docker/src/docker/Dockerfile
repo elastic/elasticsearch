@@ -10,24 +10,40 @@
 
   https://docs.groovy-lang.org/latest/html/api/groovy/text/SimpleTemplateEngine.html
 */ %>
-################################################################################
-# Build stage 0 `builder`:
-# Extract elasticsearch artifact
-# Set gid=0 and make group perms==owner perms
-################################################################################
 
+################################################################################
+# Step 1. Build curl statically. Installing it from RPM on CentOS pulls in too
+# many dependencies.
+################################################################################
+FROM alpine:latest AS curl
+COPY bin/build-curl.sh /
+RUN /build-curl.sh
+
+
+################################################################################
+# Step 2. Create a minimal root filesystem directory. This will form the basis
+# for our image.
+################################################################################
+FROM centos:7 AS rootfs
+COPY bin/build-rootfs.sh /
+RUN /build-rootfs.sh /rootfs
+COPY --from=curl /work/curl /rootfs/usr/bin/curl
+
+
+################################################################################
+# Step 3. Fetch the Elasticsearch distribution and configure it for Docker
+################################################################################
 FROM centos:7 AS builder
 
-ENV PATH /usr/share/elasticsearch/bin:\$PATH
-
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
-
+RUN mkdir -p /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
+# Fetch the appropriate Elasticsearch distribution for this architecture
 ${source_elasticsearch}
 
 RUN tar zxf /opt/elasticsearch.tar.gz --strip-components=1
+
+# Configure the distribution for Docker
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' /usr/share/elasticsearch/bin/elasticsearch-env
 RUN mkdir -p config config/jvm.options.d data logs
 RUN chmod 0775 config config/jvm.options.d data logs
@@ -35,20 +51,16 @@ COPY config/elasticsearch.yml config/log4j2.properties config/
 RUN chmod 0660 config/elasticsearch.yml config/log4j2.properties
 
 ################################################################################
-# Build stage 1 (the actual elasticsearch image):
-# Copy elasticsearch from stage 0
-# Add entrypoint
+# Step 4. Build the final image, using the rootfs above as the basis, and
+# copying in the Elasticsearch distribution
 ################################################################################
-
-FROM --platform=${platform} scratch
+FROM scratch
 
 # Setup the initial filesystem.
-ADD ${base_image_tar} /
+COPY --from=rootfs /rootfs /
 
 ENV ELASTIC_CONTAINER true
 
-# Most of the utilities are provided with Busybox, hence the different user
-# management commands here compared to the builder image.
 RUN addgroup -g 1000 elasticsearch && \\
     adduser -D -u 1000 -G elasticsearch -g elasticsearch -h /usr/share/elasticsearch elasticsearch && \\
     addgroup elasticsearch root && \\

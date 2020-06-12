@@ -27,10 +27,6 @@ dependencies {
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
-private static String baseImageFilename(final String architecture) {
-  return "elasticsearch-baseimage-${architecture}.tar.gz"
-}
-
 ext.expansions = { architecture, oss, local ->
   String classifier
   if (local) {
@@ -65,11 +61,10 @@ ext.expansions = { architecture, oss, local ->
 RUN curl --retry 8 -S -L \\
       --output /opt/elasticsearch.tar.gz \\
       https://artifacts.elastic.co/downloads/elasticsearch/$elasticsearch
-"""
+""".trim()
   }
 
   return [
-    'base_image_tar'      : baseImageFilename(architecture),
     'build_date'          : BuildParams.buildDate,
     'git_revision'        : BuildParams.gitRevision,
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
@@ -107,19 +102,12 @@ project.ext {
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
         expand(expansions(architecture, oss, local))
       }
-
-      from("${projectDir}/build") {
-        include baseImageFilename(architecture)
-      }
     }
   }
 }
 
 void addCopyDockerContextTask(final String architecture, final boolean oss) {
   task(taskName("copy", architecture, oss, "DockerContext"), type: Sync) {
-    TaskProvider<Sync> buildBaseLayerTask = tasks.named(taskName("build", architecture, false, "BaseDockerLayer"))
-    dependsOn(buildBaseLayerTask)
-
     expansions(architecture, oss, true).findAll { it.key != 'build_date' }.each { k, v ->
       inputs.property(k, { v.toString() })
     }
@@ -210,65 +198,6 @@ task integTest(type: Test) {
 
 check.dependsOn integTest
 
-// The `curl` RPM on CentOS pulls in all kinds of dependencies that we
-// don't want in the final image. We want to include `curl` because it is
-// commonly used for things like readiness checks, or simple diagnostics.
-// We therefore compile our own static binary, using Alpine Linux because
-// it makes the process of building a static binary  much easier. The end
-// result still runs fine in e.g. CentOS.
-void addBuildStaticCurl(final String architecture) {
-  def installer = "${projectDir}/src/docker/bin/build-curl.sh"
-  def workDir = "${buildDir}/static-curl-${architecture}"
-  def outputPath = "${workDir}/curl"
-  def image = ("aarch64".equals(architecture) ? 'arm64v8/' : '') + 'alpine:latest'
-
-  final Task buildStaticCurlTask = task(taskName("build", architecture, false, "StaticCurl"), type: LoggedExec) {
-    inputs.file(installer).withPropertyName('static curl binary builder').withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.property('architecture', architecture)
-    outputs.file(outputPath)
-    outputs.cacheIf({ true })
-
-    executable 'docker'
-    args 'run', '--rm', '-t',
-      '-v', "${workDir}:/work",
-      '-v', "${installer}:/build-curl.sh",
-      image, '/build-curl.sh'
-  }
-
-  buildStaticCurlTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
-}
-
-// In order to reduce the footprint of the Docker image, we build our own
-// base filesystem. This allows us to control what makes it inot the final
-// image.
-void addBuildBaseDockerLayer(final String architecture) {
-  def installer = "${projectDir}/src/docker/bin/install-baseimage.sh"
-  def outputFile = baseImageFilename(architecture)
-  def outputPath = "${buildDir}/${outputFile}"
-  def platform = "aarch64".equals(architecture) ? 'linux/arm64' : 'linux/amd64'
-  def image = "aarch64".equals(architecture) ? 'arm64v8/centos:7' : 'centos:7'
-  def curlPath = "${buildDir}/static-curl-${architecture}/curl"
-
-  final Task buildBaseDockerLayerTask = task(taskName("build", architecture, false, "BaseDockerLayer"), type: LoggedExec) {
-    TaskProvider<Sync> buildStaticCurlTask = tasks.named(taskName("build", architecture, false, "StaticCurl"))
-    dependsOn(buildStaticCurlTask)
-
-    inputs.file(installer).withPropertyName('base filesystem builder').withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.property('architecture', architecture)
-    outputs.file(outputPath)
-    outputs.cacheIf({ true })
-
-    executable 'docker'
-    args 'run', '--rm', '-t',
-      '-v', "${buildDir}:/build",
-      '-v', "${installer}:/install-baseimage.sh",
-      '-v', "${curlPath}:/curl",
-      image, '/install-baseimage.sh', platform, "/build/${outputFile}"
-  }
-
-  buildBaseDockerLayerTask.onlyIf { Architecture.current().name().toLowerCase().equals(architecture) }
-}
-
 void addBuildDockerImage(final String architecture, final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", architecture, oss, "DockerImage"), type: DockerBuildTask) {
     TaskProvider<Sync> copyContextTask = tasks.named(taskName("copy", architecture, oss, "DockerContext"))
@@ -295,8 +224,6 @@ void addBuildDockerImage(final String architecture, final boolean oss) {
 }
 
 for (final String architecture : ["aarch64", "x64"]) {
-  addBuildStaticCurl(architecture)
-  addBuildBaseDockerLayer(architecture)
   for (final boolean oss : [false, true]) {
     addCopyDockerContextTask(architecture, oss)
     addBuildDockerImage(architecture, oss)

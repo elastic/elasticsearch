@@ -35,7 +35,8 @@ set -e
 yum update --setopt=tsflags=nodocs -y
 
 # Create a temporary directory into which we will install files
-target=$(mktemp -d --tmpdir $(basename $0).XXXXXX)
+target="$1"
+mkdir $target
 
 set -x
 
@@ -88,8 +89,8 @@ curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.
 curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/${TINI_BIN}.sha256sum
 sha256sum -c ${TINI_BIN}.sha256sum
 rm ${TINI_BIN}.sha256sum
-mv ${TINI_BIN} /tini
-chmod +x /tini
+mv ${TINI_BIN} "$target"/bin/tini
+chmod +x "$target"/bin/tini
 
 # Use busybox instead of installing more RPMs, which can pull in all kinds of
 # stuff we don't want. There's no RPM for busybox available for CentOS.
@@ -102,9 +103,6 @@ for path in $( "$target"/bin/busybox --list-full | grep -v bin/sh ); do
   ln "$target"/bin/busybox "$target"/$path
 done
 set -x
-
-# Copy in our static curl build.
-cp /curl-$(arch) "$target"/usr/bin/curl
 
 # Curl needs files under here. More importantly, we change Elasticsearch's
 # bundled JDK to use /etc/pki/ca-trust/extracted/java/cacerts instead of
@@ -148,7 +146,3 @@ rm -rf \
 # ldconfig
 rm -rf "$target"/etc/ld.so.cache "$target"/var/cache/ldconfig
 mkdir -p --mode=0755 "$target"/var/cache/ldconfig
-
-# Write out the base filesystem. The -C option changes directory to $target,
-# so '.' refers to that directory
-tar czf /base-filesystem.tar.gz --numeric-owner -C "$target" .

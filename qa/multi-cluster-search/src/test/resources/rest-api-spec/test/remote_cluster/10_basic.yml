@@ -147,7 +147,8 @@
 ---
 "Set up data stream tests":
   - skip:
-      version: "all" # muting for now
+      version: "all"
+      reason: muting for now
       features: allowed_warnings
 
   - do:

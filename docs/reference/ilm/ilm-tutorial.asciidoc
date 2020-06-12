@@ -135,17 +135,6 @@ in all documents indexed into the `timeseries` data stream.
 
 You can also invoke this API directly to add templates.
 
-
-//////////////////////////
-
-[source,console]
---------------------------------------------------
-DELETE /_index_template/timeseries_template
---------------------------------------------------
-// TEST[continued]
-
-//////////////////////////
-
 [discrete]
 [[ilm-gs-bootstrap]]
 === Bootstrap the data stream
@@ -249,6 +238,27 @@ are met.
 <2> The age of the index
 <3> The step {ilm-init} is performing on the index
 <4> The definition of the current phase (the `hot` phase)
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_data_stream/timeseries
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_index_template/timeseries_template
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 
 [discrete]
 [[ilm-gs-create-policy]]
@@ -377,3 +387,12 @@ api call:
 GET timeseries-*/_ilm/explain
 --------------------------------------------------
 // TEST[continued]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /timeseries-000001
+--------------------------------------------------
+// TEST[continued]
+//////////////////////////

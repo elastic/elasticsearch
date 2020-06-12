@@ -9,6 +9,11 @@ setup:
         name: logs_template
         body:
           index_patterns: logs-foobar
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
           data_stream:
             timestamp_field: '@timestamp'
 

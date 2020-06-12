@@ -33,6 +33,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
@@ -114,9 +115,24 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public static void configureConfigurations(Project project) {
         // we want to test compileOnly deps!
         Configuration compileOnlyConfig = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
-        Configuration testCompileConfig = project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
-        testCompileConfig.extendsFrom(compileOnlyConfig);
+        Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
+        testImplementationConfig.extendsFrom(compileOnlyConfig);
 
+        // fail on using deprecated testCompile
+        project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME).withDependencies(new Action<DependencySet>() {
+            @Override
+            public void execute(DependencySet dependencies) {
+                if (dependencies.size() > 0) {
+                    throw new GradleException(
+                        "Usage of configuration "
+                            + JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME
+                            + " is no longer supported. Use "
+                            + JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME
+                            + " instead."
+                    );
+                }
+            }
+        });
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
             return;
@@ -130,7 +146,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             configuration.resolutionStrategy(ResolutionStrategy::failOnVersionConflict);
         });
 
-        // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
+        // force all dependencies added directly to compile/testImplementation to be non-transitive, except for ES itself
         Consumer<String> disableTransitiveDeps = configName -> {
             Configuration config = project.getConfigurations().getByName(configName);
             config.getDependencies().all(dep -> {
@@ -142,9 +158,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             });
         };
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
     }
 
     private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");

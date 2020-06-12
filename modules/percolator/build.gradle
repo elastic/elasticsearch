@@ -24,12 +24,12 @@ esplugin {
 }
 
 dependencies {
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+  testImplementation project(path: ':modules:parent-join', configuration: 'runtime')
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search', 'msearch'  
+    includeCore '_common', 'indices', 'index', 'search', 'msearch'
   }
 }
 dependencyLicenses {

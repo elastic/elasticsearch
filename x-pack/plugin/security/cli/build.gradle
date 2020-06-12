@@ -11,8 +11,8 @@ dependencies {
   compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
   testImplementation 'com.google.jimfs:jimfs:1.1'
-  testCompile project(":test:framework")
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(":test:framework")
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses {

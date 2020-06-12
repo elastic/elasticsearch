@@ -12,16 +12,16 @@ archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 
   // monitoring deps
   compile project(':client:rest')
   compile project(':client:sniffer')
 
   // baz - this goes away after we separate out the actions #27759
-  testCompile project(xpackModule('watcher'))
+  testImplementation project(xpackModule('watcher'))
 
-  testCompile project(xpackModule('ilm'))
+  testImplementation project(xpackModule('ilm'))
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
@@ -30,6 +30,7 @@ compileInternalClusterTestJava.options.compilerArgs << "-Xlint:-rawtypes"
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
 }
 task testJar(type: Jar) {
   appendix 'test'

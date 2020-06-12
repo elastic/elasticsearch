@@ -8,6 +8,11 @@ setup:
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
           data_stream:
             timestamp_field: '@timestamp'
   - do:
@@ -17,6 +22,11 @@ setup:
         name: my-template2
         body:
           index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp2':
+                  type: date
           data_stream:
             timestamp_field: '@timestamp2'
 
@@ -215,6 +225,11 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
+          template:
+            mappings:
+              properties:
+                'timestamp':
+                  type: date
           data_stream:
             timestamp_field: timestamp
 

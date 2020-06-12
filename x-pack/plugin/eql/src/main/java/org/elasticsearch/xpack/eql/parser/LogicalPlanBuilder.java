@@ -21,11 +21,10 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceParamsContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceTermContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.StatementContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SubqueryContext;
-import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
-import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -301,11 +301,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         switch (name) {
             case "head":
                 Expression headLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
-                return new Head(source(ctx), headLimit, plan);
+                return new LimitWithOffset(source(ctx), headLimit, 0, plan);
 
             case "tail":
                 Expression tailLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
-                return new Tail(source(ctx), tailLimit, plan);
+                // negate the limit
+                return new LimitWithOffset(source(ctx), new Neg(tailLimit.source(), tailLimit), plan);
 
             default:
                 throw new ParsingException(source(ctx), "Pipe [{}] is not supported yet", name);

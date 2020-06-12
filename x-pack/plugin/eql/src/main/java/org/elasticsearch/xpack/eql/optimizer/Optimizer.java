@@ -6,12 +6,15 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 
@@ -61,7 +65,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineBinaryComparisons(),
                 // prune/elimination
                 new PruneFilters(),
-                new PruneLiteralsInOrderBy()
+                new PruneLiteralsInOrderBy(), new CombineLimits()
                 );
 
         Batch local = new Batch("Skip Elasticsearch",
@@ -74,6 +78,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         return Arrays.asList(substitutions, operators, local, label);
     }
 
+    
     private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         private static boolean isWildcard(Expression expr) {
@@ -155,6 +160,55 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
     
+    /**
+     * Combine tail and head into one limit.
+     * The rules moves up since the first limit is the one that defines whether it's the head (positive) or
+     * the tail (negative) limit of the data and the rest simply work in this space.
+     */
+    static final class CombineLimits extends OptimizerRule<LimitWithOffset> {
+
+        public CombineLimits() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(LimitWithOffset limit) {
+            if (limit.child() instanceof LimitWithOffset) {
+                LimitWithOffset primary = (LimitWithOffset) limit.child();
+
+                int primaryLimit = (Integer) primary.limit().fold();
+                int primaryOffset = primary.offset();
+                // +1 means ASC, -1 descending and 0 if there are no results
+                int sign = Integer.signum(primaryLimit);
+
+                int secondaryLimit = (Integer) limit.limit().fold();
+                if (limit.offset() != 0) {
+                    throw new EqlIllegalArgumentException("Limits with different offset not implemented yet");
+                }
+
+                // for the same direction
+                if (primaryLimit > 0 && secondaryLimit > 0) {
+                    // consider the minimum
+                    primaryLimit = Math.min(primaryLimit, secondaryLimit);
+                } else if (primaryLimit < 0 && secondaryLimit < 0) {
+                    primaryLimit = Math.max(primaryLimit, secondaryLimit);
+                } else {
+                    // the secondary limit cannot go beyond the primary - if it does it gets ignored
+                    if (Math.abs(secondaryLimit) < Math.abs(primaryLimit)) {
+                        primaryOffset += Math.abs(primaryLimit + secondaryLimit);
+                        // preserve order
+                        primaryLimit = Math.abs(secondaryLimit) * sign;
+                    }
+                }
+
+                Literal literal = new Literal(primary.limit().source(), primaryLimit, DataTypes.INTEGER);
+                return new LimitWithOffset(primary.source(), literal, primaryOffset, primary.child());
+            }
+
+            return limit;
+        }
+    }
+
     static class SkipEmptyJoin extends OptimizerRule<Join> {
 
         @Override

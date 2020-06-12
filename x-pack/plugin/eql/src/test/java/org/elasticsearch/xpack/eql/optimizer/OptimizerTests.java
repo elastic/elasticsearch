@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -174,5 +175,52 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(like.pattern().asJavaRegex(), "^.* %bar_ .* \\\\ \n \r \t$");
         assertEquals(like.pattern().asLuceneWildcard(), "* %bar_ * \\\\ \n \r \t");
         assertEquals(like.pattern().asIndexNameWildcard(), "* %bar_ * \\ \n \r \t");
+    }
+
+    public void testCombineHeadBigHeadSmall() {
+        checkOffsetAndLimit(accept("process where true | head 10 | head 1"), 0, 1);
+    }
+
+    public void testCombineHeadSmallHeadBig() {
+        checkOffsetAndLimit(accept("process where true | head 1 | head 12"), 0, 1);
+    }
+
+    public void testCombineTailBigTailSmall() {
+        checkOffsetAndLimit(accept("process where true | tail 10 | tail 1"), 0, -1);
+    }
+
+    public void testCombineTailSmallTailBig() {
+        checkOffsetAndLimit(accept("process where true | tail 1 | tail 12"), 0, -1);
+    }
+
+    public void testCombineHeadBigTailSmall() {
+        checkOffsetAndLimit(accept("process where true | head 10 | tail 7"), 3, 7);
+    }
+
+    public void testCombineTailBigHeadSmall() {
+        checkOffsetAndLimit(accept("process where true | tail 10 | head 7"), 3, -7);
+    }
+
+    public void testCombineTailSmallHeadBig() {
+        checkOffsetAndLimit(accept("process where true | tail 7 | head 10"), 0, -7);
+    }
+
+    public void testCombineHeadBigTailBig() {
+        checkOffsetAndLimit(accept("process where true | head 1 | tail 7"), 0, 1);
+    }
+
+    public void testCombineHeadTailWithHeadAndTail() {
+        checkOffsetAndLimit(accept("process where true | head 10 | tail 7 | head 5 | tail 3"), 5, 3);
+    }
+
+    public void testCombineTailHeadWithTailAndHead() {
+        checkOffsetAndLimit(accept("process where true | tail 10 | head 7 | tail 5 | head 3"), 5, -3);
+    }
+
+    private void checkOffsetAndLimit(LogicalPlan plan, int offset, int limit) {
+        assertTrue(plan instanceof LimitWithOffset);
+        LimitWithOffset lo = (LimitWithOffset) plan;
+        assertEquals("Incorrect offset", offset, lo.offset());
+        assertEquals("Incorrect limit", limit, lo.limit().fold());
     }
 }

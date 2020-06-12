@@ -7,58 +7,24 @@
 package org.elasticsearch.xpack.eql.plan.logical;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.Objects;
-
-public class Head extends UnaryPlan {
-
-    private final Expression limit;
+public class Head extends Limit {
 
     public Head(Source source, Expression limit, LogicalPlan child) {
-        super(source, child);
-        this.limit = limit;
+        super(source, limit, child);
     }
 
     @Override
-    protected NodeInfo<Head> info() {
-        return NodeInfo.create(this, Head::new, limit, child());
+    protected NodeInfo<Limit> info() {
+        return NodeInfo.create(this, Head::new, limit(), child());
     }
 
     @Override
     protected Head replaceChild(LogicalPlan newChild) {
-        return new Head(source(), limit, newChild);
-    }
-
-    public Expression limit() {
-        return limit;
-    }
-
-    @Override
-    public boolean expressionsResolved() {
-        return limit.resolved();
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(limit, child());
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
-        Head other = (Head) obj;
-
-        return Objects.equals(limit, other.limit)
-                && Objects.equals(child(), other.child());
+        return new Head(source(), limit(), newChild);
     }
 }

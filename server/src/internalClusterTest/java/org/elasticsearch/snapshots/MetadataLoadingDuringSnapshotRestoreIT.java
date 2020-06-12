@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * This class tests whether global and index metadata are only loaded from the repository when needed.
- */
+*/
 public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Override
@@ -76,9 +76,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         // Creating a snapshot does not load any metadata
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("repository", "snap")
-            .setIncludeGlobalState(true)
-            .setWaitForCompletion(true)
-            .get();
+                                                                                    .setIncludeGlobalState(true)
+                                                                                    .setWaitForCompletion(true)
+                                                                                    .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 0);
@@ -103,24 +103,24 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         assertAcked(client().admin().indices().prepareDelete("docs", "others"));
 
-        // Restoring a snapshot loads the global state
+        // Restoring a snapshot loads indices metadata but not the global state
         RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("repository", "snap")
-            .setWaitForCompletion(true)
-            .get();
+                                                                                    .setWaitForCompletion(true)
+                                                                                    .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertGlobalMetadataLoads("snap", 1);
+        assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 2);
         assertIndexMetadataLoads("snap", "others", 2);
 
         assertAcked(client().admin().indices().prepareDelete("docs"));
 
-        // Restoring a snapshot with selective indices loads global state
+        // Restoring a snapshot with selective indices loads only required index metadata
         restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("repository", "snap")
-            .setIndices("docs")
-            .setWaitForCompletion(true)
-            .get();
+                                                            .setIndices("docs")
+                                                            .setWaitForCompletion(true)
+                                                            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertGlobalMetadataLoads("snap", 2);
+        assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 3);
         assertIndexMetadataLoads("snap", "others", 2);
 
@@ -133,13 +133,13 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             .setWaitForCompletion(true)
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertGlobalMetadataLoads("snap", 3);
+        assertGlobalMetadataLoads("snap", 1);
         assertIndexMetadataLoads("snap", "docs", 4);
         assertIndexMetadataLoads("snap", "others", 3);
 
         // Deleting a snapshot does not load the global metadata state but loads each index metadata
         assertAcked(client().admin().cluster().prepareDeleteSnapshot("repository", "snap").get());
-        assertGlobalMetadataLoads("snap", 3);
+        assertGlobalMetadataLoads("snap", 1);
         assertIndexMetadataLoads("snap", "docs", 4);
         assertIndexMetadataLoads("snap", "others", 3);
     }

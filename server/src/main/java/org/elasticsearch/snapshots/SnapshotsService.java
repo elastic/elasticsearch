@@ -105,7 +105,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.cluster.SnapshotsInProgress.DATA_STREAMS_IN_SNAPSHOT;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -196,7 +195,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return;
         }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
-        final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
+
+        Map<String, Object> requestUserMeta = repository.adaptUserMetadata(request.userMetadata());
+        final Map<String, Object> userMeta = requestUserMeta == null ? new HashMap<>() : requestUserMeta;
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newEntry;
@@ -238,11 +239,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
                 }
 
-                Version minNodeVersion = currentState.nodes().getMinNodeVersion();
-                if (dataStreams.isEmpty() == false && minNodeVersion.before(DATA_STREAMS_IN_SNAPSHOT)) {
-                    throw new SnapshotException(repositoryName, snapshotName, "cannot snapshot data streams if any node is older than [" +
-                        DATA_STREAMS_IN_SNAPSHOT + "], current lowest " + "version is [" + minNodeVersion + "]");
-                }
+                userMeta.put(DataStream.DATA_STREAMS_METADATA_FIELD, dataStreams);
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 
@@ -261,14 +258,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // TODO: We should just throw here instead of creating a FAILED and hence useless snapshot in the repository
                         newEntry = new SnapshotsInProgress.Entry(
                                 new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), false,
-                                State.FAILED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                                State.FAILED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
                                 "Indices don't have primary shards " + missing, userMeta, version);
                     }
                 }
                 if (newEntry == null) {
                     newEntry = new SnapshotsInProgress.Entry(
                             new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
-                            State.STARTED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                            State.STARTED, indexIds, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
                             null, userMeta, version);
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
@@ -372,17 +369,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
 
-            Map<String, DataStream> dataStreams = new HashMap<>();
-            for (String dataStreamName : snapshot.dataStreams()) {
-                DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-                if (dataStream == null) {
-                    assert snapshot.partial() : "Data stream [" + dataStreamName +
-                        "] was deleted during a snapshot but snapshot was not partial.";
-                } else {
-                    dataStreams.put(dataStreamName, dataStream);
+            if (snapshot.userMetadata().containsKey(DataStream.DATA_STREAMS_METADATA_FIELD)) {
+                @SuppressWarnings("unchecked")
+                List<String> dataStreamNames = (List<String>) snapshot.userMetadata().get(DataStream.DATA_STREAMS_METADATA_FIELD);
+                Map<String, DataStream> dataStreams = new HashMap<>();
+                for (String dataStreamName : dataStreamNames) {
+                    DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+                    if (dataStream == null) {
+                        assert snapshot.partial() : "Data stream [" + dataStreamName +
+                            "] was deleted during a snapshot but snapshot was not partial.";
+                    } else {
+                        dataStreams.put(dataStreamName, dataStream);
+                    }
                 }
+                builder.dataStreams(dataStreams);
             }
-            builder.dataStreams(dataStreams);
             metadata = builder.build();
         }
         return metadata;

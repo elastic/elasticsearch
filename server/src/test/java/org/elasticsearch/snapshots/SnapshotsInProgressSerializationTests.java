@@ -70,7 +70,6 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final List<Index> esIndices =
             indices.stream().map(i -> new Index(i.getName(), randomAlphaOfLength(10))).collect(Collectors.toList());
-        List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
             for (int j = 0; j < shardsCount; j++) {
@@ -82,7 +81,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             }
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
-        return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards,
+        return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards,
             SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
     }
 

@@ -205,21 +205,23 @@ public class RestoreService implements ClusterStateApplier {
                 // Make sure that we can restore from this snapshot
                 validateSnapshotRestorable(repositoryName, snapshotInfo);
 
-                SnapshotException snapshotException = null;
                 Metadata globalMetadata = null;
                 // Resolve the indices from the snapshot that need to be restored
-                try {
-                    globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
-                } catch (SnapshotException e) {
-                    snapshotException = e;
-                    logger.warn("Failed to read global metadata, no data streams will be restored");
-                }
-                Map<String, DataStream> dataStreams =
-                    globalMetadata == null ? new HashMap<>() : new HashMap<>(globalMetadata.dataStreams());
+                Map<String, DataStream> dataStreams;
                 List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
-                List<String> requestedDataStreams = filterIndices(new ArrayList<>(dataStreams.keySet()),
-                    requestIndices.toArray(String[]::new), IndicesOptions.fromOptions(true, true, true, true));
-                dataStreams.keySet().retainAll(requestedDataStreams);
+                @SuppressWarnings("unchecked")
+                List<String> dataStreamNames = (List<String>) snapshotInfo.userMetadata().get(DataStream.DATA_STREAMS_METADATA_FIELD);
+                List<String> requestedDataStreams = filterIndices(dataStreamNames, requestIndices.toArray(String[]::new),
+                    IndicesOptions.fromOptions(true, true, true, true));
+                if (requestedDataStreams.isEmpty()) {
+                    dataStreams = new HashMap<>();
+                } else {
+                    globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                    dataStreams = globalMetadata.dataStreams();
+                    if (request.includeGlobalState() == false) {
+                        dataStreams.keySet().retainAll(requestedDataStreams);
+                    }
+                }
                 requestIndices.removeAll(dataStreams.keySet());
                 Set<String> dataStreamIndices = dataStreams.values().stream()
                     .flatMap(ds -> ds.getIndices().stream())
@@ -232,8 +234,9 @@ public class RestoreService implements ClusterStateApplier {
 
                 final Metadata.Builder metadataBuilder;
                 if (request.includeGlobalState()) {
-                    if (snapshotException != null)
-                        throw snapshotException;
+                    if (globalMetadata == null) {
+                        globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
+                    }
                     metadataBuilder = Metadata.builder(globalMetadata);
                 } else {
                     metadataBuilder = Metadata.builder();

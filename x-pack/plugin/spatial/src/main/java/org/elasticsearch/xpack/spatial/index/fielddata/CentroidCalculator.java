@@ -246,27 +246,20 @@ public class CentroidCalculator {
         }
 
         private void visitLine(int length, CoordinateSupplier x, CoordinateSupplier y) {
-            // check line has length
-            double originDiffX = x.get(0) - x.get(1);
-            double originDiffY = y.get(0) - y.get(1);
-            if (originDiffX != 0 || originDiffY != 0) {
-                // a line's centroid is calculated by summing the center of each
-                // line segment weighted by the line segment's length in degrees
-                for (int i = 0; i < length - 1; i++) {
-                    double diffX = x.get(i) - x.get(i + 1);
-                    double diffY = y.get(i) - y.get(i + 1);
-                    double xAvg = (x.get(i) + x.get(i + 1)) / 2;
-                    double yAvg = (y.get(i) + y.get(i + 1)) / 2;
-                    double weight = Math.sqrt(diffX * diffX + diffY * diffY);
-                    if (weight == 0) {
-                        // degenerated line, it can be considered a point
-                        visitPoint(x.get(0), y.get(0));
-                    } else {
-                        calculator.addCoordinate(xAvg, yAvg, weight, DimensionalShapeType.LINE);
-                    }
+            // a line's centroid is calculated by summing the center of each
+            // line segment weighted by the line segment's length in degrees
+            for (int i = 0; i < length - 1; i++) {
+                double diffX = x.get(i) - x.get(i + 1);
+                double diffY = y.get(i) - y.get(i + 1);
+                double xAvg = (x.get(i) + x.get(i + 1)) / 2;
+                double yAvg = (y.get(i) + y.get(i + 1)) / 2;
+                double weight = Math.sqrt(diffX * diffX + diffY * diffY);
+                if (weight == 0) {
+                    // degenerated line, it can be considered a point
+                    visitPoint(x.get(i), y.get(i));
+                } else {
+                    calculator.addCoordinate(xAvg, yAvg, weight, DimensionalShapeType.LINE);
                 }
-            } else {
-                visitPoint(x.get(0), y.get(0));
             }
         }
 

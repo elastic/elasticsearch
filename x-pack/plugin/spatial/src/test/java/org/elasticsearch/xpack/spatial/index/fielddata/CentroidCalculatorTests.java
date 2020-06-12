@@ -250,7 +250,7 @@ public class CentroidCalculatorTests extends ESTestCase {
         CentroidCalculator calculator = new CentroidCalculator(polygon);
         assertThat(calculator.getX(), equalTo(GeoUtils.normalizeLon(point.getX())));
         assertThat(calculator.getY(), equalTo(GeoUtils.normalizeLat(point.getY())));
-        assertThat(calculator.sumWeight(), equalTo(1.0));
+        assertThat(calculator.sumWeight(), equalTo(3.0));
         assertThat(calculator.getDimensionalShapeType(), equalTo(POINT));
     }
 

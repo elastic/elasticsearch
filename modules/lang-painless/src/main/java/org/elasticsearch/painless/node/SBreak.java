@@ -30,8 +30,8 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  */
 public class SBreak extends AStatement {
 
-    public SBreak(Location location) {
-        super(location);
+    public SBreak(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
@@ -48,7 +48,7 @@ public class SBreak extends AStatement {
         output.statementCount = 1;
 
         BreakNode breakNode = new BreakNode();
-        breakNode.setLocation(location);
+        breakNode.setLocation(getLocation());
 
         output.statementNode = breakNode;
 

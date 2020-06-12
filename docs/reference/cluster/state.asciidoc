@@ -26,8 +26,8 @@ whole cluster. This includes information such as
 
 * the locations of all the shards in the cluster.
 
-The response is an internal representation of the cluster state and its format
-may change from version to version. If possible, you should obtain any
+NOTE: The response is an internal representation of the cluster state and its
+format may change from version to version. If possible, you should obtain any
 information from the cluster state using the other, more stable,
 <<cluster,cluster APIs>>.
 

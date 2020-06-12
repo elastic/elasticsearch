@@ -35,14 +35,22 @@ import java.util.Objects;
  */
 public class SDo extends AStatement {
 
-    protected final SBlock block;
-    protected final AExpression condition;
+    private final AExpression conditionNode;
+    private final SBlock blockNode;
 
-    public SDo(Location location, SBlock block, AExpression condition) {
-        super(location);
+    public SDo(int identifier, Location location, AExpression conditionNode, SBlock blockNode) {
+        super(identifier, location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.block = block;
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.blockNode = blockNode;
+    }
+
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
@@ -50,14 +58,14 @@ public class SDo extends AStatement {
         Output output = new Output();
         scope = scope.newLocalScope();
 
-        if (block == null) {
+        if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
         Input blockInput = new Input();
         blockInput.beginLoop = true;
         blockInput.inLoop = true;
-        Output blockOutput = block.analyze(classNode, scriptRoot, scope, blockInput);
+        Output blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
 
         if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -65,15 +73,15 @@ public class SDo extends AStatement {
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
-        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, scriptRoot, scope, conditionInput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
 
         boolean continuous = false;
 
-        if (condition.getChildIf(EBoolean.class) != null) {
-            continuous = ((EBoolean)condition).constant;
+        if (conditionNode instanceof EBoolean) {
+            continuous = ((EBoolean)conditionNode).getBool();
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -90,7 +98,7 @@ public class SDo extends AStatement {
         DoWhileLoopNode doWhileLoopNode = new DoWhileLoopNode();
         doWhileLoopNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         doWhileLoopNode.setBlockNode((BlockNode)blockOutput.statementNode);
-        doWhileLoopNode.setLocation(location);
+        doWhileLoopNode.setLocation(getLocation());
         doWhileLoopNode.setContinuous(continuous);
 
         output.statementNode = doWhileLoopNode;

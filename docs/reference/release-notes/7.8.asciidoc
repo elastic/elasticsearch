@@ -161,8 +161,8 @@ Machine Learning::
 * Add effective max model memory limit to ML info {pull}55529[#55529] (issue: {issue}63942[#63942])
 * Add loss_function to regression {pull}56118[#56118]
 * Add new inference_config field to trained model config {pull}54421[#54421]
-* Adding failed_category_count to model_size_stats {pull}55716[#55716] (issue: {issue}1130[#1130])
-* Adding prediction_field_type to inference config {pull}55128[#55128]
+* Add failed_category_count to model_size_stats {pull}55716[#55716] (issue: {issue}1130[#1130])
+* Add prediction_field_type to inference config {pull}55128[#55128]
 * Allow a certain number of ill-formatted rows when delimited format is specified {pull}55735[#55735] (issue: {issue}38890[#38890])
 * Apply default timeout in StopDataFrameAnalyticsAction.Request {pull}55512[#55512]
 * Create an annotation when a model snapshot is stored {pull}53783[#53783] (issue: {issue}52149[#52149])
@@ -172,7 +172,7 @@ Machine Learning::
 * Return assigned node in start/open job/datafeed response {pull}55473[#55473] (issue: {issue}54067[#54067])
 * Skip daily maintenance activity if upgrade mode is enabled {pull}54565[#54565] (issue: {issue}54326[#54326])
 * Start gathering and storing inference stats {pull}53429[#53429]
-* Unassign DFA tasks in SetUpgradeModeAction {pull}54523[#54523] (issue: {issue}54326[#54326])
+* Unassign data frame analytics tasks in SetUpgradeModeAction {pull}54523[#54523] (issue: {issue}54326[#54326])
 * Speed up anomaly detection for the lat_long function {ml-pull}1102[#1102]
 * Reduce CPU scheduling priority of native analysis processes to favor the ES
 JVM when CPU is constrained. This change is implemented only for Linux and macOS,
@@ -190,11 +190,11 @@ classification {ml-pull}1113[#1113]
 {ml-pull}1125[#1125].)
 * Reduce variability of classification and regression results across our target
 operating systems {ml-pull}1127[#1127]
-* Switched data frame analytics model memory estimates from kilobytes to
+* Switch data frame analytics model memory estimates from kilobytes to
 megabytes {ml-pull}1126[#1126] (issue: {issue}54506[#54506])
 * Add a {ml} native code build for Linux on AArch64 {ml-pull}1132[#1132],
 {ml-pull}1135[#1135]
-* Improve data frame analysis runtime by optimising memory alignment for intrinsic
+* Improve data frame analytics runtime by optimising memory alignment for intrinsic
 operations {ml-pull}1142[#1142]
 * Fix spurious anomalies for count and sum functions after no data are received
 for long periods of time {ml-pull}1158[#1158]
@@ -268,9 +268,6 @@ Allocation::
 * Fix Broken ExistingStoreRecoverySource Deserialization {pull}55657[#55657] (issue: {issue}55513[#55513])
 
 
-Authorization::
-* Resolve anonymous roles and deduplicate roles during authentication {pull}53453[#53453] (issues: {issue}31589[#31589], {issue}47195[#47195])
-
 Features/ILM+SLM::
 * ILM stop step execution if writeIndex is false {pull}54805[#54805]
 
@@ -334,5 +331,4 @@ Transform::
 
 Infra/Scripting::
 * Don't double-wrap expression values {pull}54432[#54432] (issue: {issue}53661[#53661])
-
 

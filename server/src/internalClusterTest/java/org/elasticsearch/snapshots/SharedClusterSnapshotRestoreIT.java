@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -90,7 +91,6 @@ import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -141,6 +141,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+// The tests in here do a lot of state updates and other writes to disk and are slowed down too much by WindowsFS
+@LuceneTestCase.SuppressFileSystems(value = "WindowsFS")
 public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Override
@@ -1619,20 +1621,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true).setIndices("test-idx-*").get();
 
         logger.info("--> deleting shard level index file");
-        try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
-            files.forEach(indexPath -> {
-                try {
-                    final Path shardGen;
-                    try (Stream<Path> shardFiles = Files.list(indexPath.resolve("0"))) {
-                        shardGen = shardFiles
-                            .filter(file -> file.getFileName().toString().startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
-                            .findFirst().orElseThrow(() -> new AssertionError("Failed to find shard index blob"));
-                    }
-                    Files.delete(shardGen);
-                } catch (IOException e) {
-                    throw new RuntimeException("Failed to delete expected file", e);
-                }
-            });
+        final Path indicesPath = repo.resolve("indices");
+        for (IndexId indexId : getRepositoryData("test-repo").getIndices().values()) {
+            final Path shardGen;
+            try (Stream<Path> shardFiles = Files.list(indicesPath.resolve(indexId.getId()).resolve("0"))) {
+                shardGen = shardFiles.filter(file -> file.getFileName().toString().startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
+                        .findFirst().orElseThrow(() -> new AssertionError("Failed to find shard index blob"));
+            }
+            Files.delete(shardGen);
         }
 
         logger.info("--> creating another snapshot");

@@ -68,11 +68,11 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
-                                          SearchContext searchContext, Aggregator parent,
+    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
 
+        ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
                 "is not supported for aggregation " + this.name());

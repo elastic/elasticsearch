@@ -9,7 +9,7 @@ setup:
         body: >
           {
             "description": "super complex model for tests",
-            "input": {"field_names": ["avg_cost"]},
+            "input": {"field_names": ["avg_cost", "item"]},
             "inference_config": {
               "regression": {
                 "results_field": "regression-value",
@@ -17,6 +17,16 @@ setup:
               }
             },
             "definition": {
+              "preprocessors" : [{
+                "one_hot_encoding": {
+                  "field": "product_type",
+                  "hot_map": {
+                    "TV": "type_tv",
+                    "VCR": "type_vcr",
+                    "Laptop": "type_laptop"
+                  }
+                }
+              }],
               "trained_model": {
                 "ensemble": {
                   "feature_names": [],
@@ -25,7 +35,7 @@ setup:
                   {
                     "tree": {
                       "feature_names": [
-                        "avg_cost"
+                        "avg_cost", "type_tv", "type_vcr", "type_laptop"
                       ],
                       "tree_structure": [
                       {
@@ -68,6 +78,8 @@ setup:
                 type: keyword
               cost:
                 type: integer
+              time:
+                type: date
 
   - do:
       headers:
@@ -78,17 +90,64 @@ setup:
         refresh: true
         body: |
           { "index": {} }
-          { "product": "TV", "cost": 300 }
+          { "product": "TV", "cost": 300, "time": 1587501233000 }
           { "index": {} }
-          { "product": "TV", "cost": 400 }
+          { "product": "TV", "cost": 400, "time": 1587501233000}
           { "index": {} }
-          { "product": "VCR", "cost": 150 }
+          { "product": "VCR", "cost": 150, "time": 1587501233000 }
           { "index": {} }
-          { "product": "VCR", "cost": 180 }
+          { "product": "VCR", "cost": 180, "time": 1587501233000 }
           { "index": {} }
-          { "product": "Laptop", "cost": 15000 }
+          { "product": "Laptop", "cost": 15000, "time": 1587501233000 }
 ---
 "Test pipeline regression":
+
+  - do:
+      search:
+        index: store
+        body: |
+            {
+              "size": 0,
+              "query": {
+                "match_all": {}
+              },
+              "aggs": {
+                "date_histo": {
+                  "date_histogram": {
+                    "field": "time",
+                    "fixed_interval": "1d"
+                  },
+                  "aggs": {
+                    "good": {
+                      "terms": {
+                        "field": "product",
+                        "size": 10
+                      },
+                      "aggs": {
+                        "avg_cost_agg": {
+                          "avg": {
+                            "field": "cost"
+                          }
+                        }
+                      }
+                    },
+                    "regression_agg": {
+                      "inference_model": {
+                        "model_id": "a-complex-regression-model",
+                        "buckets_path": {
+                          "avg_cost": "good['TV']>avg_cost_agg",
+                          "product_type": "good['TV']"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+  - match: { aggregations.good.buckets.0.regression_agg.regression-value: 2.0 }
+
+---
+"Test all fields missing warning":
 
   - do:
       search:
@@ -113,7 +172,7 @@ setup:
                     "inference_model": {
                       "model_id": "a-complex-regression-model",
                       "buckets_path": {
-                        "avg_cost" : "avg_cost_agg"
+                        "cost" : "avg_cost_agg"
                       }
                     }
                   }
@@ -121,5 +180,4 @@ setup:
               }
             }
           }
-  - match: { aggregations.good.buckets.0.key: "VVVCR" }
-
+  - match: { aggregations.good.buckets.0.regression_agg.warning: "Model [a-complex-regression-model] could not be inferred as all fields were missing" }

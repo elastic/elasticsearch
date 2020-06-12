@@ -8,13 +8,17 @@ package org.elasticsearch.xpack.ml.inference.aggs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -27,7 +31,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class InferencePipelineAggregator extends PipelineAggregator {
 
@@ -65,8 +68,11 @@ public class InferencePipelineAggregator extends PipelineAggregator {
             for (Map.Entry<String, String> entry : bucketPathMap.entrySet()) {
                 String aggName = entry.getKey();
                 String bucketPath = entry.getValue();
-                Double value = resolveBucketValue(originalAgg, bucket, bucketPath, gapPolicy);
-                if (BucketHelpers.GapPolicy.SKIP == gapPolicy && (value == null || Double.isNaN(value))) {
+                logger.warn("bucket path {} ", bucketPath);
+                Object value = resolveBucketValue(originalAgg, bucket, bucketPath, gapPolicy);
+
+                if (BucketHelpers.GapPolicy.SKIP == gapPolicy && value == null) {
+                    logger.info("skipping");
                     skipBucket = true;
                     break;
                 }
@@ -98,5 +104,53 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
         }
         return originalAgg.create(newBuckets);
+    }
+
+    public static Object resolveBucketValue(MultiBucketsAggregation agg,
+                                            InternalMultiBucketAggregation.InternalBucket bucket,
+                                            String aggPath,
+                                            BucketHelpers.GapPolicy gapPolicy) {
+        List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
+        return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
+    }
+
+    public static Object resolveBucketValue(MultiBucketsAggregation agg,
+                                            InternalMultiBucketAggregation.InternalBucket bucket,
+                                            List<String> aggPathAsList, BucketHelpers.GapPolicy gapPolicy) {
+        try {
+            Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
+
+            if (propertyValue == null) {
+                throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                    + " must reference either a number value or a single value numeric metric aggregation");
+            } else {
+                return propertyValue;
+            }
+        } catch (InvalidAggregationPathException e) {
+            logger.error("parse error", e);
+            return null;
+        }
+    }
+
+    private static AggregationExecutionException formatResolutionError(MultiBucketsAggregation agg,
+                                                                       List<String> aggPathAsList, Object propertyValue) {
+        String currentAggName;
+        Object currentAgg;
+        if (aggPathAsList.isEmpty()) {
+            currentAggName = agg.getName();
+            currentAgg = agg;
+        } else {
+            currentAggName = aggPathAsList.get(0);
+            currentAgg = propertyValue;
+        }
+        if (currentAgg instanceof InternalNumericMetricsAggregation.MultiValue) {
+            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference either a number value or a single value numeric metric aggregation, but [" + currentAggName
+                + "] contains multiple values. Please specify which to use.");
+        } else {
+            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference either a number value or a single value numeric metric aggregation, got: ["
+                + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+        }
     }
 }

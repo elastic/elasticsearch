@@ -7,6 +7,7 @@ the following:
 * <<add-documents-to-a-data-stream>>
 * <<search-a-data-stream>>
 * <<manually-roll-over-a-data-stream>>
+* <<reindex-with-a-data-stream>>
 
 ////
 [source,console]
@@ -169,6 +170,109 @@ POST /logs/_rollover/
 {
   "conditions": {
     "max_docs":   "1"
+  }
+}
+----
+// TEST[continued]
+====
+
+[discrete]
+[[reindex-with-a-data-stream]]
+=== Reindex with a data stream
+
+You can use the <<docs-reindex,reindex API>> to copy documents to a data stream
+from an existing index, index alias, or data stream.
+
+A reindex copies documents from a _source_ to a _destination_. The source and
+destination can be any pre-existing index, index alias, or data stream. However,
+the source and destination must be different. You cannot reindex a data stream
+into itself.
+
+Because data streams are <<data-streams-append-only,append-only>>, a reindex
+request to a data stream destination must have an `op_type` of `create`. This
+means a reindex can only add new documents to a data stream. It cannot update
+existing documents in the data stream destination.
+
+A reindex can be used to:
+
+* Convert an existing index alias and collection of time-based indices into a
+  data stream.
+
+* Apply a new or updated <<create-a-data-stream-template,composable template>>
+  by reindexing an existing data stream into a new one. This applies mapping
+  and setting changes in the template to each document and backing index of the
+  data stream destination.
+
+TIP: If you only want to update the mappings or settings of a data stream's
+write index, we recommend you update the <<create-a-data-stream-template,data
+stream's template>> and perform a <<manually-roll-over-a-data-stream,rollover>>.
+
+.*Example*
+[%collapsible]
+====
+The following reindex request copies documents from the `archive` index alias to
+the existing `logs` data stream. Because the destination is a data stream, the
+the request's `op_type` is `create`.
+
+////
+[source,console]
+----
+PUT /_bulk?refresh=wait_for
+{"create":{"_index" : "archive_1"}}
+{ "@timestamp": "2020-12-08T11:04:05.000Z" }
+{"create":{"_index" : "archive_2"}}
+{ "@timestamp": "2020-12-08T11:06:07.000Z" }
+{"create":{"_index" : "archive_2"}}
+{ "@timestamp": "2020-12-09T11:07:08.000Z" }
+{"create":{"_index" : "archive_2"}}
+{ "@timestamp": "2020-12-09T11:07:08.000Z" }
+
+POST /_aliases
+{
+  "actions" : [
+    { "add" : { "index" : "archive_1", "alias" : "archive" } },
+    { "add" : { "index" : "archive_2", "alias" : "archive", "is_write_index" : true} }
+  ]
+}
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "archive"
+  },
+  "dest": {
+    "index": "logs",
+    "op_type": "create"
+  }
+}
+----
+// TEST[continued]
+====
+
+You can also reindex documents from a data stream to an index, index
+alias, or data stream.
+
+.*Example*
+[%collapsible]
+====
+The following reindex request copies documents from the `logs` data stream
+to the existing `archive` index alias. Because the destination is not a data
+stream, the `op_type` does not need to be specified.
+
+[source,console]
+----
+POST /_reindex
+{
+  "source": {
+    "index": "logs"
+  },
+  "dest": {
+    "index": "archive"
   }
 }
 ----

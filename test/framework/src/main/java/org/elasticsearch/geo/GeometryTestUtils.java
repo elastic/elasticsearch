@@ -40,6 +40,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
+
 public class GeometryTestUtils {
 
     public static double randomLat() {
@@ -96,10 +98,7 @@ public class GeometryTestUtils {
     }
 
     public static Polygon randomPolygon(boolean hasAlt) {
-        org.apache.lucene.geo.Polygon lucenePolygon = GeoTestUtil.nextPolygon();
-        while(area(lucenePolygon) == 0) {
-            lucenePolygon = GeoTestUtil.nextPolygon();
-        }
+        org.apache.lucene.geo.Polygon lucenePolygon = randomValueOtherThanMany(p -> area(p) == 0, GeoTestUtil::nextPolygon);
         if (lucenePolygon.numHoles() > 0) {
             org.apache.lucene.geo.Polygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();

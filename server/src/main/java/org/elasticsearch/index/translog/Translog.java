@@ -805,13 +805,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         // we only need to sync the max location since it will sync all other
         // locations implicitly
         if (max.isPresent()) {
-            Location location = max.get();
-            if (location == Location.MAX_LOCATION) {
-                sync();
-                return true;
-            } else {
-                return ensureSynced(location);
-            }
+            return ensureSynced(max.get());
         } else {
             return false;
         }

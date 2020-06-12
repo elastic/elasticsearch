@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -60,7 +61,7 @@ public class EnsembleInferenceModel implements InferenceModel {
             (List<String>)a[4],
             (List<Double>)a[5]));
     static {
-        PARSER.declareStringArray(constructorArg(), FEATURE_NAMES);
+        PARSER.declareStringArray(optionalConstructorArg(), FEATURE_NAMES);
         PARSER.declareNamedObjects(constructorArg(),
             (p, c, n) -> p.namedObject(InferenceModel.class, n, null),
             (ensembleBuilder) -> {},
@@ -84,13 +85,13 @@ public class EnsembleInferenceModel implements InferenceModel {
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
 
-    EnsembleInferenceModel(List<String> featureNames,
+    EnsembleInferenceModel(@Nullable List<String> featureNames,
                            List<InferenceModel> models,
                            OutputAggregator outputAggregator,
                            TargetType targetType,
                            List<String> classificationLabels,
                            List<Double> classificationWeights) {
-        this.featureNames = ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES).toArray(String[]::new);
+        this.featureNames = featureNames == null ? new String[0] : featureNames.toArray(String[]::new);
         this.models = ExceptionsHelper.requireNonNull(models, TRAINED_MODELS);
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);

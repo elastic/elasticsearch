@@ -30,12 +30,20 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModelTestUtils.deserializeFromTrainedModel;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TreeInferenceModelTests extends ESTestCase {
 
     private final double eps = 1.0E-8;
+
+    public static TreeInferenceModel serializeFromTrainedModel(Tree tree) throws IOException {
+        NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        return deserializeFromTrainedModel(tree,
+            registry,
+            TreeInferenceModel::fromXContent);
+    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -51,7 +59,7 @@ public class TreeInferenceModelTests extends ESTestCase {
         builder.setFeatureNames(Collections.emptyList());
 
         Tree treeObject = builder.build();
-        TreeInferenceModel tree = InferenceModelTestUtils.deserializeFromTrainedModel(treeObject,
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
             xContentRegistry(),
             TreeInferenceModel::fromXContent);
         List<String> featureNames = Arrays.asList("foo", "bar");
@@ -74,7 +82,7 @@ public class TreeInferenceModelTests extends ESTestCase {
 
         List<String> featureNames = Arrays.asList("foo", "bar");
         Tree treeObject = builder.setFeatureNames(featureNames).build();
-        TreeInferenceModel tree = InferenceModelTestUtils.deserializeFromTrainedModel(treeObject,
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
             xContentRegistry(),
             TreeInferenceModel::fromXContent);
         // This feature vector should hit the right child of the root node
@@ -129,7 +137,7 @@ public class TreeInferenceModelTests extends ESTestCase {
 
         List<String> featureNames = Arrays.asList("foo", "bar");
         Tree treeObject = builder.setFeatureNames(featureNames).setClassificationLabels(Arrays.asList("cat", "dog")).build();
-        TreeInferenceModel tree = InferenceModelTestUtils.deserializeFromTrainedModel(treeObject,
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
             xContentRegistry(),
             TreeInferenceModel::fromXContent);
         double eps = 0.000001;
@@ -203,7 +211,7 @@ public class TreeInferenceModelTests extends ESTestCase {
                 TreeNode.builder(5).setLeafValue(13.0).setNumberSamples(1L),
                 TreeNode.builder(6).setLeafValue(18.0).setNumberSamples(1L)).build();
 
-        TreeInferenceModel tree = InferenceModelTestUtils.deserializeFromTrainedModel(treeObject,
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject,
             xContentRegistry(),
             TreeInferenceModel::fromXContent);
 

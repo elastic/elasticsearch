@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -367,14 +368,19 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
      * Builds results for the {@code significant_terms} aggregation.
      */
     class SignificantTermsResults extends ResultStrategy<SignificantStringTerms, SignificantStringTerms.Bucket> {
-        // TODO a reference to the factory is weird - probably should be reference to what we need from it.
-        private final SignificantTermsAggregatorFactory termsAggFactory;
+        private final BackgroundFrequencyForBytes backgroundFrequencies;
+        private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
         private LongArray subsetSizes = context.bigArrays().newLongArray(1, true);
 
-        SignificantTermsResults(SignificantTermsAggregatorFactory termsAggFactory, SignificanceHeuristic significanceHeuristic) {
-            this.termsAggFactory = termsAggFactory;
+        SignificantTermsResults(
+            SignificanceLookup significanceLookup,
+            SignificanceHeuristic significanceHeuristic,
+            boolean collectsFromSingleBucket
+        ) {
+            backgroundFrequencies = significanceLookup.bytesLookup(context.bigArrays(), collectsFromSingleBucket);
+            supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
         }
 
@@ -416,8 +422,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             ordsEnum.readValue(spare.termBytes);
             spare.bucketOrd = ordsEnum.ord();
             spare.subsetDf = docCount;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
-            spare.supersetSize = termsAggFactory.getSupersetNumDocs();
+            spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
+            spare.supersetSize = supersetSize;
             /*
              * During shard-local down-selection we use subset/superset stats
              * that are for this shard only. Back at the central reducer these
@@ -460,7 +466,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 metadata(),
                 format,
                 subsetSizes.get(owningBucketOrd),
-                termsAggFactory.getSupersetNumDocs(),
+                supersetSize,
                 significanceHeuristic,
                 Arrays.asList(topBuckets)
             );
@@ -473,7 +479,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
         @Override
         public void close() {
-            Releasables.close(termsAggFactory, subsetSizes);
+            Releasables.close(backgroundFrequencies, subsetSizes);
         }
     }
 }

@@ -68,9 +68,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -609,12 +611,35 @@ public class MetadataIndexTemplateService {
             }
             throw new IndexTemplateMissingException(name);
         }
+
+        Optional<Set<String>> dataStreamsUsingTemplates = templateNames.stream()
+            .map(templateName -> dataStreamsUsingTemplate(currentState, templateName))
+            .reduce(Sets::union);
+        dataStreamsUsingTemplates.ifPresent(set -> {
+            if (set.size() > 0) {
+                throw new IllegalArgumentException("unable to remove composable templates " + new TreeSet<>(templateNames) +
+                    " as they are in use by a data streams " + new TreeSet<>(set));
+            }
+        });
+
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         for (String templateName : templateNames) {
             logger.info("removing index template [{}]", templateName);
             metadata.removeIndexTemplate(templateName);
         }
         return ClusterState.builder(currentState).metadata(metadata).build();
+    }
+
+    static Set<String> dataStreamsUsingTemplate(final ClusterState state, final String templateName) {
+        final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
+        if (template == null) {
+            return Collections.emptySet();
+        }
+        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
+        Set<String> matches = new HashSet<>();
+        template.indexPatterns().forEach(indexPattern ->
+            matches.addAll(dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).collect(Collectors.toList())));
+        return matches;
     }
 
     public void putTemplate(final PutRequest request, final PutListener listener) {
@@ -1023,6 +1048,10 @@ public class MetadataIndexTemplateService {
                         // TODO: Eventually change this to:
                         // dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
                         dummyMapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MergeReason.MAPPING_UPDATE);
+                    }
+                    if (template.getDataStreamTemplate() != null) {
+                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
+                        validateTimestampFieldMapping(tsFieldName, dummyMapperService);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

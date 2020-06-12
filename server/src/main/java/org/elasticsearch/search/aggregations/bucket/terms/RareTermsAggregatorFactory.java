@@ -164,11 +164,10 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             RareTermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof RareTermsAggregatorSupplier == false) {
@@ -176,7 +175,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
 
-        return ((RareTermsAggregatorSupplier) aggregatorSupplier).build(name, factories, valuesSource, config.format(),
+        return ((RareTermsAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), config.format(),
             maxDocCount, precision, includeExclude, searchContext, parent, collectsFromSingleBucket, metadata);
     }
 

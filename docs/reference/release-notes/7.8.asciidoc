@@ -131,7 +131,6 @@ Features/Java High Level REST Client::
 * Enable support for decompression of compressed response within RestHighLevelClient {pull}53533[#53533]
 
 Features/Stats::
-* Add Bulk stats track the bulk per shard {pull}52208[#52208] (issues: {issue}47345[#47345], {issue}50536[#50536])
 * Fix available / total disk cluster stats {pull}32480[#32480] (issue: {issue}32478[#32478])
 
 Features/Watcher::

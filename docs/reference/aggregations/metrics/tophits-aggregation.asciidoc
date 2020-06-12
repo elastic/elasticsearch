@@ -20,10 +20,10 @@ The top_hits aggregation returns regular search hits, because of this many per h
 * <<request-body-search-highlighting,Highlighting>>
 * <<request-body-search-explain,Explain>>
 * <<request-body-search-queries-and-filters,Named filters and queries>>
-* <<search-fields,Source filtering>>
+* <<source-filtering,Source filtering>>
 * <<request-body-search-stored-fields,Stored fields>>
 * <<request-body-search-script-fields,Script fields>>
-* <<request-body-search-docvalue-fields,Doc value fields>>
+* <<docvalue-fields,Doc value fields>>
 * <<request-body-search-version,Include versions>>
 * <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 

@@ -56,6 +56,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -138,7 +139,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testProcess() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.process();
         processorUnderTest.awaitCompletion();
@@ -147,6 +148,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).waitUntilIdle();
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
     }
 
@@ -243,6 +245,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(bulkResultsPersister).executeRequest();
     }
 
@@ -264,6 +267,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         inOrder.verify(persister).persistCategoryDefinition(eq(categoryDefinition), any());
         inOrder.verify(bulkResultsPersister).executeRequest();
         inOrder.verify(persister).commitResultWrites(JOB_ID);
+        inOrder.verify(persister).commitAnnotationWrites();
         inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
     }
 
@@ -453,7 +457,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testAwaitCompletion() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.process();
         processorUnderTest.awaitCompletion();
@@ -462,6 +466,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer).waitUntilIdle();
     }
@@ -503,7 +508,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
     public void testKill() throws TimeoutException {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        when(process.readAutodetectResults()).thenReturn(Arrays.asList(autodetectResult).iterator());
+        when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
         processorUnderTest.setProcessKilled();
         processorUnderTest.process();
@@ -513,6 +518,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
         verify(persister).commitResultWrites(JOB_ID);
+        verify(persister).commitAnnotationWrites();
         verify(persister).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());
         verify(renormalizer).shutdown();

@@ -61,6 +61,11 @@ include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-sett
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-collection-interval-tag]
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-history-duration-tag]
 
+[[cloud-node-settings]]
+==== Node settings
+include::{es-repo-dir}/modules/node.asciidoc[tag=modules-node-description-tag]
+include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-node-ingest-tag]
+
 [[cloud-reindex-settings]]
 ==== Reindex settings
 include::{es-repo-dir}/docs/reindex.asciidoc[tag=docs-reindex-api-desc-tag]

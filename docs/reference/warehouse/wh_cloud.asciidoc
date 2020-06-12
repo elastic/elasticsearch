@@ -27,6 +27,12 @@ See <<open-index-api-desc,Open index API>> for more information.
 
 // end::cloud-cluster-indices-close-enable-tag[]
 
+[[cloud-node-ingest]]
+// tag::cloud-node-ingest-tag[]
+`node.ingest` {ess-icon}::
+Determines whether a node is an ingest node. <<ingest,Ingest nodes>> can apply an ingest pipeline to transform and enrich a document before indexing. Default: `true`.
+// end::cloud-node-ingest-tag[]
+
 [[cloud-repositories-url-allowed]]
 // tag::cloud-repositories-url-allowed[]
 `repositories.url.allowed_urls` {ess-icon}::

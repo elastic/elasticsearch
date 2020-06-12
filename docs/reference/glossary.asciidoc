@@ -76,7 +76,7 @@ data stream's data is stored across multiple hidden, auto-generated
 <<glossary-index,indices>>. You can automate management of these indices to more
 efficiently store large data volumes.
 
-See {ref}/data-streams[Data streams].
+See {ref}/data-streams.html[Data streams].
 // end::data-stream-def[]
 --
 

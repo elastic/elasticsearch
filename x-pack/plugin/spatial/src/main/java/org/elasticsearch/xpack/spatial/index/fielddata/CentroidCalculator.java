@@ -259,7 +259,7 @@ public class CentroidCalculator {
                     double yAvg = (y.get(i) + y.get(i + 1)) / 2;
                     double weight = Math.sqrt(diffX * diffX + diffY * diffY);
                     if (weight == 0) {
-                        // degenerated line, it can be consider a point
+                        // degenerated line, it can be considered a point
                         visitPoint(x.get(0), y.get(0));
                     } else {
                         calculator.addCoordinate(xAvg, yAvg, weight, DimensionalShapeType.LINE);

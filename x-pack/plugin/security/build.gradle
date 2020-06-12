@@ -67,7 +67,6 @@ dependencies {
 
   testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  //testImplementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   // Test dependencies for Kerberos (MiniKdc)
   testImplementation('commons-io:commons-io:2.5')

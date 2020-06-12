@@ -157,7 +157,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             });
         };
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);

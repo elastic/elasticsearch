@@ -164,4 +164,3 @@ after both successful and unsuccessful analysis which makes it easier to
 diagnose issues with file upload.
 
 // end::notable-highlights[]
-

@@ -50,16 +50,16 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     }
 
     /**
-     * Create the {@linkplain Aggregator} for a field that couldn't be resolved
-     * to a {@link ValuesSource}.
+     * Create the {@linkplain Aggregator} for a {@link ValuesSource} that
+     * doesn't have values.
      */
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                  Aggregator parent,
                                                  Map<String, Object> metadata) throws IOException;
 
     /**
-     * Create the {@linkplain Aggregator} for a field that was resolved to a
-     * {@link ValuesSource}.
+     * Create the {@linkplain Aggregator} for a {@link ValuesSource} that has
+     * values.
      *
      * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
      *                    that the {@link Aggregator} created by this method

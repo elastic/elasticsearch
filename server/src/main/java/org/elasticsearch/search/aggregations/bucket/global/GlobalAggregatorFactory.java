@@ -50,7 +50,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
                     + "]. Global aggregations can only be defined as top level aggregations");
         }
         if (cardinality != CardinalityUpperBound.ONE) {
-            throw new IllegalStateException();
+            throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");
         }
         return new GlobalAggregator(name, factories, searchContext, metadata);
     }

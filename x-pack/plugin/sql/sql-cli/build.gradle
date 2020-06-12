@@ -31,7 +31,7 @@ dependencies {
   compile project(":libs:elasticsearch-cli")
   compile project(':libs:elasticsearch-x-content')
   runtime "org.elasticsearch:jna:${versions.jna}"
-  testCompile project(":test:framework")
+  testImplementation project(":test:framework")
 }
 
 dependencyLicenses {

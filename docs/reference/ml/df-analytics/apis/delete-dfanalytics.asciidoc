@@ -35,7 +35,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-delete-dfanalytics-query-params]]
 ==== {api-query-parms-title}
@@ -43,6 +43,11 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 `force`::
   (Optional, boolean) If `true`, it deletes a job that is not stopped; this method is
   quicker than stopping and deleting the job.
+
+`timeout`::
+  (Optional, <<time-units,time units>>) The time to wait for the job to be deleted.
+  Defaults to 1 minute.
+
 
 
 [[ml-delete-dfanalytics-example]]

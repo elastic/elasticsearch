@@ -171,6 +171,7 @@ final class MLRequestConverters {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml")
             .addPathPartAsIs("_delete_expired_data")
+            .addPathPart(deleteExpiredDataRequest.getJobId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         request.setEntity(createEntity(deleteExpiredDataRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -712,6 +713,9 @@ final class MLRequestConverters {
         if (deleteRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteRequest.getForce()));
         }
+        if (deleteRequest.getTimeout() != null) {
+            params.withTimeout(deleteRequest.getTimeout());
+        }
         request.addParameters(params.asMap());
 
         return request;
@@ -769,6 +773,9 @@ final class MLRequestConverters {
         }
         if (getTrainedModelsRequest.getTags() != null) {
             params.putParam(GetTrainedModelsRequest.TAGS, Strings.collectionToCommaDelimitedString(getTrainedModelsRequest.getTags()));
+        }
+        if (getTrainedModelsRequest.getForExport() != null) {
+            params.putParam(GetTrainedModelsRequest.FOR_EXPORT, Boolean.toString(getTrainedModelsRequest.getForExport()));
         }
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.addParameters(params.asMap());

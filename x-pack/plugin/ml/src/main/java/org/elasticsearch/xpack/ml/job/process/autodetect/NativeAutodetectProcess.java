@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -78,6 +79,12 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
     @Override
     public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
         newMessageWriter().writeUpdateModelPlotMessage(modelPlotConfig);
+    }
+
+    @Override
+    public void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig)
+        throws IOException {
+        // TODO: write the control message once it's been implemented on the C++ side
     }
 
     @Override

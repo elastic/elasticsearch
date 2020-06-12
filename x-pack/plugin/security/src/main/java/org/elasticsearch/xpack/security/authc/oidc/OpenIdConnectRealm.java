@@ -257,9 +257,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
         final ResponseType responseType;
         try {
-            // This should never happen as it's already validated in the settings
             responseType = ResponseType.parse(require(config, RP_RESPONSE_TYPE));
         } catch (ParseException e) {
+            // This should never happen as it's already validated in the settings
             throw new SettingsException("Invalid value for " + RP_RESPONSE_TYPE.getKey(), e);
         }
 

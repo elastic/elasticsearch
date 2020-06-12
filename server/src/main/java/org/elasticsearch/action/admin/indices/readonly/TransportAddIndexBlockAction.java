@@ -82,6 +82,10 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
 
     @Override
     protected ClusterBlockException checkBlock(AddIndexBlockRequest request, ClusterState state) {
+        if (request.getBlock().getBlock().levels().contains(ClusterBlockLevel.METADATA_WRITE) &&
+            state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty())  {
+            return null;
+        }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
             indexNameExpressionResolver.concreteIndexNames(state, request));
     }

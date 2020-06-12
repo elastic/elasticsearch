@@ -274,12 +274,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
-            // Second add block should be acked too, unless it was a METADATA block
-            try {
-                assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
-            } catch (ClusterBlockException e) {
-                assertTrue(block.getBlock().levels().stream().anyMatch(cbl -> cbl == METADATA_WRITE));
-            }
+            // Second add block should be acked too, even if it was a METADATA block
+            assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);

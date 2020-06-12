@@ -96,11 +96,11 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testBasicScenario() throws Exception {
-        createIndexTemplate("id1", "@timestamp1", "metrics-foo*");
+        createIndexTemplate("id1", "metrics-foo*", "@timestamp1");
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        createIndexTemplate("id2", "@timestamp2", "metrics-bar*");
+        createIndexTemplate("id2", "metrics-bar*", "@timestamp2");
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
@@ -184,7 +184,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testOtherWriteOps() throws Exception {
-        createIndexTemplate("id", "@timestamp1", "metrics-foobar*");
+        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
         String dataStreamName = "metrics-foobar";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(createDataStreamRequest).get();
@@ -350,7 +350,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {
-        createIndexTemplate("id", "ts", "logs-*");
+        createIndexTemplate("id", "logs-*", "ts");
         String dataStreamName = "logs-foobar";
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request(dataStreamName);
         client().admin().indices().createDataStream(request).actionGet();

@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -162,6 +163,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             IndexService indexService = indicesService.indexService(shard.index());
             IndexShard indexShard = indexService.getShardOrNull(shard.id());
             assertEquals(indexShard.shardPath().getRootDataPath().toString(), dataPath);
+
+            assertTrue(info.getReservedSpace(nodeId, dataPath).containsShardId(shard.shardId()));
         }
     }
 
@@ -232,6 +235,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.shardSizes.size(), equalTo(0));
+        assertThat(info.reservedSpace.size(), equalTo(0));
 
         // check we recover
         blockingActionFilter.blockActions();
@@ -241,6 +245,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.shardSizes.size(), greaterThan(0));
+
+        RoutingTable routingTable = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
+        for (ShardRouting shard : routingTable.allShards()) {
+            assertTrue(info.getReservedSpace(shard.currentNodeId(), info.getDataPath(shard)).containsShardId(shard.shardId()));
+        }
 
     }
 }

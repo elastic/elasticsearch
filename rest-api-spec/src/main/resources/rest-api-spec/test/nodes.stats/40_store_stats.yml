@@ -1,0 +1,19 @@
+---
+"Store stats":
+  - skip:
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info:
+        node_id: _master
+  - set:
+      nodes._arbitrary_key_: master
+
+  - do:
+      nodes.stats:
+        metric: [ store ]
+
+  - is_false: nodes.$master.discovery
+  - is_true:  nodes.$master.store
+  - gte: { nodes.$master.store.size_in_bytes: 0 }
+  - gte: { nodes.$master.store.reserved_in_bytes: -1 }

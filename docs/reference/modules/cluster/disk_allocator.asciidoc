@@ -93,15 +93,3 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-
-{es} accounts for the future disk usage of ongoing shard relocations and
-recoveries to help prevent these shard movements from breaching a watermark.
-This mechanism may double-count some data that has already been relocated onto
-a node. For instance, if a relocation of a 100GB shard is 90% complete then
-{es} has copied 90GB of data onto the target node. This 90GB consumes disk
-space and will be reflected in the node's disk usage statistics. However {es}
-also treats the relocation as if it will consume another full 100GB in the
-future, even though the shard may really only consume a further 10GB of space.
-If the node's disks are close to a watermark then this may temporarily prevent
-other shards from moving onto the same node. Eventually the relocation will
-complete and then {es} will use the node's true disk usage statistics again.

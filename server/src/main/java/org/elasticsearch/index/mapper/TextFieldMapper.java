@@ -69,7 +69,6 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -764,13 +763,14 @@ public class TextFieldMapper extends FieldMapper {
                     + "keyword field instead. Alternatively, set fielddata=true on [" + name() + "] in order to load "
                     + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
-            return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
+            return new PagedBytesIndexFieldData.Builder(
+                fielddataMinFrequency,
+                fielddataMaxFrequency,
+                fielddataMinSegmentSize,
+                CoreValuesSourceType.BYTES
+            );
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
     }
 
     private int positionIncrementGap;
@@ -846,18 +846,6 @@ public class TextFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        TextFieldMapper mapper = (TextFieldMapper) super.updateFieldType(fullNameToFieldType);
-        if (mapper.prefixFieldMapper != null) {
-            mapper.prefixFieldMapper = (PrefixFieldMapper) mapper.prefixFieldMapper.updateFieldType(fullNameToFieldType);
-        }
-        if (mapper.phraseFieldMapper != null) {
-            mapper.phraseFieldMapper = (PhraseFieldMapper) mapper.phraseFieldMapper.updateFieldType(fullNameToFieldType);
-        }
-        return mapper;
     }
 
     @Override

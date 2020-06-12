@@ -83,6 +83,36 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testUnmappedWeight() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(singleton(new SortedNumericDocValuesField("value_field", 7)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField("value_field", 3)));
+        }, avg -> {
+            assertEquals(Double.NaN, avg.getValue(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(avg));
+        });
+    }
+
+    public void testUnmappedValue() throws IOException {
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
+        WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder("_name")
+            .value(valueConfig)
+            .weight(weightConfig);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(singleton(new SortedNumericDocValuesField("weight_field", 7)));
+            iw.addDocument(singleton(new SortedNumericDocValuesField("weight_field", 3)));
+        }, avg -> {
+            assertEquals(Double.NaN, avg.getValue(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(avg));
+        });
+    }
+
     public void testSomeMatchesSortedNumericDocValuesNoWeight() throws IOException {
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();

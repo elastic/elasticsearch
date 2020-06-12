@@ -35,6 +35,7 @@ public class FieldConfigWriter {
     private static final String INFLUENCER_PREFIX = "influencer.";
     private static final String CATEGORIZATION_FIELD_OPTION = " categorizationfield=";
     private static final String CATEGORIZATION_FILTER_PREFIX = "categorizationfilter.";
+    private static final String PER_PARTITION_CATEGORIZATION_OPTION = " perpartitioncategorization=";
 
     // Note: for the Engine API summarycountfield is currently passed as a
     // command line option to autodetect rather than in the field config file
@@ -94,14 +95,16 @@ public class FieldConfigWriter {
     }
 
     private void writeDetectorClause(int detectorId, Detector detector, StringBuilder contents) {
-        contents.append(DETECTOR_PREFIX).append(detectorId)
-        .append(DETECTOR_CLAUSE_SUFFIX).append(EQUALS);
+        contents.append(DETECTOR_PREFIX).append(detectorId).append(DETECTOR_CLAUSE_SUFFIX).append(EQUALS);
 
         DefaultDetectorDescription.appendOn(detector, contents);
 
         if (Strings.isNullOrEmpty(config.getCategorizationFieldName()) == false) {
-            contents.append(CATEGORIZATION_FIELD_OPTION)
-            .append(quoteField(config.getCategorizationFieldName()));
+            contents.append(CATEGORIZATION_FIELD_OPTION).append(quoteField(config.getCategorizationFieldName()));
+            if (Strings.isNullOrEmpty(detector.getPartitionFieldName()) == false &&
+                config.getPerPartitionCategorizationConfig().isEnabled()) {
+                contents.append(PER_PARTITION_CATEGORIZATION_OPTION).append("true");
+            }
         }
 
         contents.append(NEW_LINE);

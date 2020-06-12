@@ -44,13 +44,13 @@ difficult to notice these discrepancies.
 [[cluster-update-settings-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
     (Optional, boolean) If `true`, returns all default cluster settings. 
     Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[cluster-update-settings-api-example]]

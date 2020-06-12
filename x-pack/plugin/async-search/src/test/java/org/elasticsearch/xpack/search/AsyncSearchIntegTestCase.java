@@ -121,12 +121,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         final ClusterStateResponse clusterState = client().admin().cluster()
             .prepareState().clear().setNodes(true).get();
         DiscoveryNode node = clusterState.getState().nodes().get(searchId.getTaskId().getNodeId());
-        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return super.onNodeStopped(nodeName);
-            }
-        });
+        stopMaintenanceService();
+        internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {});
+        startMaintenanceService();
         ensureYellow(INDEX, indexName);
     }
 
@@ -240,7 +237,7 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                 queryLatch.countDownAndReset();
                 AsyncSearchResponse newResponse = client().execute(GetAsyncSearchAction.INSTANCE,
                     new GetAsyncSearchAction.Request(response.getId())
-                        .setWaitForCompletion(TimeValue.timeValueMillis(10))).get();
+                        .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10))).get();
 
                 if (newResponse.isRunning()) {
                     assertThat(newResponse.status(), equalTo(RestStatus.OK));

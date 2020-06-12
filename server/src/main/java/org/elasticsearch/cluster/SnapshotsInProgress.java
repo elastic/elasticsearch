@@ -540,9 +540,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 // generations.
                 version = in.readBoolean() ? SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION : SnapshotsService.OLD_SNAPSHOT_FORMAT;
             }
-            List<String> dataStreams = Collections.emptyList();
+            final  List<String> dataStreams;
             if (in.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)){
-                dataStreams = Arrays.asList(in.readStringArray());
+                dataStreams = in.readStringList();
+            } else {
+                dataStreams = Collections.emptyList();
             }
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
@@ -588,7 +590,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 out.writeBoolean(SnapshotsService.useShardGenerations(entry.version));
             }
             if (out.getVersion().onOrAfter(DATA_STREAMS_IN_SNAPSHOT)) {
-                out.writeStringArray(entry.dataStreams.toArray(new String[0]));
+                out.writeStringCollection(entry.dataStreams);
             }
         }
     }

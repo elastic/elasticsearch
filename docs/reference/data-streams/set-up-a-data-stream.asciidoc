@@ -255,8 +255,7 @@ information about one or more data streams, including:
 
 * The timestamp field
 * The current backing indices, which is returned as an array. The last item in
-  the array contains information about the stream's current
-  write index.
+  the array contains information about the stream's current write index.
 * The current generation
 
 This is also handy way to verify that a recently created data stream exists.
@@ -265,7 +264,7 @@ This is also handy way to verify that a recently created data stream exists.
 [%collapsible]
 ====
 The following get data stream API request retrieves information about any data
-streams starting with `logs*`.
+streams starting with `logs`.
 
 [source,console]
 ----

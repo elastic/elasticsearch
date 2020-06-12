@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
@@ -30,19 +32,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceModelTestUtils.deserializeFromTrainedModel;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EnsembleInferenceModelTests extends ESTestCase {
 
+    private static final int NUMBER_OF_TEST_RUNS = 20;
     private final double eps = 1.0E-8;
 
     public static EnsembleInferenceModel serializeFromTrainedModel(Ensemble ensemble) throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        return deserializeFromTrainedModel(ensemble,
+        EnsembleInferenceModel model = deserializeFromTrainedModel(ensemble,
             registry,
             EnsembleInferenceModel::fromXContent);
+        model.rewriteFeatureIndices(Collections.emptyMap());
+        return model;
     }
 
     @Override
@@ -50,6 +59,27 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
+    }
+
+    public void testSerializationFromEnsemble() throws Exception {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
+            int numberOfFeatures = randomIntBetween(1, 10);
+            Ensemble ensemble = EnsembleTests.createRandom(randomFrom(TargetType.values()),
+                randomBoolean() ?
+                    Collections.emptyList() :
+                    Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList()));
+            assertThat(serializeFromTrainedModel(ensemble), is(not(nullValue())));
+        }
+    }
+
+    public void testInferenceWithoutPreparing() throws IOException {
+        Ensemble ensemble = EnsembleTests.createRandom(TargetType.REGRESSION,
+            Stream.generate(() -> randomAlphaOfLength(10)).limit(4).collect(Collectors.toList()));
+
+        EnsembleInferenceModel model = deserializeFromTrainedModel(ensemble,
+            xContentRegistry(),
+            EnsembleInferenceModel::fromXContent);
+        expectThrows(ElasticsearchException.class, () -> model.infer(Collections.emptyMap(), RegressionConfig.EMPTY_PARAMS, null));
     }
 
     public void testClassificationProbability() throws IOException {
@@ -100,6 +130,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         EnsembleInferenceModel ensemble = deserializeFromTrainedModel(ensembleObject,
             xContentRegistry(),
             EnsembleInferenceModel::fromXContent);
+        ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
@@ -205,6 +236,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         EnsembleInferenceModel ensemble = deserializeFromTrainedModel(ensembleObject,
             xContentRegistry(),
             EnsembleInferenceModel::fromXContent);
+        ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
@@ -284,6 +316,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         EnsembleInferenceModel ensemble = deserializeFromTrainedModel(ensembleObject,
             xContentRegistry(),
             EnsembleInferenceModel::fromXContent);
+        ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
@@ -349,6 +382,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         EnsembleInferenceModel ensemble = deserializeFromTrainedModel(ensembleObject,
             xContentRegistry(),
             EnsembleInferenceModel::fromXContent);
+        ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
@@ -373,6 +407,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         ensemble = deserializeFromTrainedModel(ensembleObject,
             xContentRegistry(),
             EnsembleInferenceModel::fromXContent);
+        ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         featureVector = Arrays.asList(0.4, 0.0);
         featureMap = zipObjMap(featureNames, featureVector);
@@ -466,6 +501,7 @@ public class EnsembleInferenceModelTests extends ESTestCase {
         EnsembleInferenceModel ensemble = deserializeFromTrainedModel(ensembleObject,
             xContentRegistry(),
             EnsembleInferenceModel::fromXContent);
+        ensemble.rewriteFeatureIndices(Collections.emptyMap());
 
         double[][] featureImportance = ensemble.featureImportance(new double[]{0.0, 0.9});
         assertThat(featureImportance[0][0], closeTo(-1.653200025, eps));

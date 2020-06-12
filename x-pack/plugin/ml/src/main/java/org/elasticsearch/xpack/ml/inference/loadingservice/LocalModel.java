@@ -32,7 +32,6 @@ public class LocalModel implements Model {
 
     private final InferenceDefinition trainedModelDefinition;
     private final String modelId;
-    private final String nodeId;
     private final Set<String> fieldNames;
     private final Map<String, String> defaultFieldMap;
     private final InferenceStats.Accumulator statsAccumulator;
@@ -50,7 +49,6 @@ public class LocalModel implements Model {
                       TrainedModelStatsService trainedModelStatsService ) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
-        this.nodeId = nodeId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
         this.statsAccumulator = new InferenceStats.Accumulator(modelId, nodeId);
         this.trainedModelStatsService = trainedModelStatsService;

@@ -43,9 +43,11 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private int fetchSize = 50;
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
+    private String tiebreakerField;
 
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
+    static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
@@ -64,6 +66,9 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             builder.field(KEY_FILTER, filter);
         }
         builder.field(KEY_TIMESTAMP_FIELD, timestampField());
+        if (tiebreakerField != null) {
+            builder.field(KEY_TIEBREAKER_FIELD, tiebreakerField());
+        }
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
         if (implicitJoinKeyField != null) {
             builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
@@ -104,6 +109,16 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     public EqlSearchRequest timestampField(String timestampField) {
         Objects.requireNonNull(timestampField, "timestamp field must not be null");
         this.timestampField = timestampField;
+        return this;
+    }
+
+    public String tiebreakerField() {
+        return this.tiebreakerField;
+    }
+
+    public EqlSearchRequest tiebreakerField(String tiebreakerField) {
+        Objects.requireNonNull(tiebreakerField, "tiebreaker field must not be null");
+        this.tiebreakerField = tiebreakerField;
         return this;
     }
 
@@ -180,6 +195,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
                 Objects.equals(timestampField, that.timestampField) &&
+                Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
@@ -194,6 +210,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             filter,
             fetchSize,
             timestampField,
+                tiebreakerField,
             eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,

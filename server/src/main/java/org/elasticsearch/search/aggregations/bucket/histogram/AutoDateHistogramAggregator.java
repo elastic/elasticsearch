@@ -22,7 +22,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.common.lease.Releasables;
@@ -42,6 +41,7 @@ import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringColle
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -70,8 +70,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         int targetBuckets,
         RoundingInfo[] roundingInfos,
         Function<Rounding, Rounding.Prepared> roundingPreparer,
-        @Nullable ValuesSource valuesSource,
-        DocValueFormat formatter,
+        ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
         boolean collectsFromSingleBucket,
@@ -84,8 +83,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 targetBuckets,
                 roundingInfos,
                 roundingPreparer,
-                valuesSource,
-                formatter,
+                valuesSourceConfig,
                 aggregationContext,
                 parent,
                 metadata
@@ -96,8 +94,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 targetBuckets,
                 roundingInfos,
                 roundingPreparer,
-                valuesSource,
-                formatter,
+                valuesSourceConfig,
                 aggregationContext,
                 parent,
                 metadata
@@ -122,8 +119,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         int targetBuckets,
         RoundingInfo[] roundingInfos,
         Function<Rounding, Rounding.Prepared> roundingPreparer,
-        @Nullable ValuesSource valuesSource,
-        DocValueFormat formatter,
+        ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
         Map<String, Object> metadata
@@ -131,8 +127,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = targetBuckets;
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
-        this.formatter = formatter;
+        // TODO: Remove null usage here, by using a different aggregator for create
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
         this.roundingPreparer = roundingPreparer;
     }
@@ -254,8 +251,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             int targetBuckets,
             RoundingInfo[] roundingInfos,
             Function<Rounding, Prepared> roundingPreparer,
-            ValuesSource valuesSource,
-            DocValueFormat formatter,
+            ValuesSourceConfig valuesSourceConfig,
             SearchContext aggregationContext,
             Aggregator parent,
             Map<String, Object> metadata
@@ -266,8 +262,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 targetBuckets,
                 roundingInfos,
                 roundingPreparer,
-                valuesSource,
-                formatter,
+                valuesSourceConfig,
                 aggregationContext,
                 parent,
                 metadata
@@ -462,8 +457,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             int targetBuckets,
             RoundingInfo[] roundingInfos,
             Function<Rounding, Rounding.Prepared> roundingPreparer,
-            @Nullable ValuesSource valuesSource,
-            DocValueFormat formatter,
+            ValuesSourceConfig valuesSourceConfig,
             SearchContext aggregationContext,
             Aggregator parent,
             Map<String, Object> metadata
@@ -475,8 +469,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 targetBuckets,
                 roundingInfos,
                 roundingPreparer,
-                valuesSource,
-                formatter,
+                valuesSourceConfig,
                 aggregationContext,
                 parent,
                 metadata

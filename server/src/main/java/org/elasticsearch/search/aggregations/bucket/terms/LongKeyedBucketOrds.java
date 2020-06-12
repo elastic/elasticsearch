@@ -40,19 +40,25 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     private LongKeyedBucketOrds() {}
 
     /**
-     * Add the {@code owningBucketOrd, term} pair. Return the ord for
+     * Add the {@code owningBucketOrd, value} pair. Return the ord for
      * their bucket if they have yet to be added, or {@code -1-ord}
      * if they were already present.
      */
     public abstract long add(long owningBucketOrd, long value);
 
     /**
-     * The buckets in {@code owningBucketOrd}.
+     * Count the buckets in {@code owningBucketOrd}.
      * <p>
      * Some aggregations expect this to be fast but most wouldn't
      * mind particularly if it weren't.
      */
     public abstract long bucketsInOrd(long owningBucketOrd);
+
+    /**
+     * Find the {@code owningBucketOrd, value} pair. Return the ord for
+     * their bucket if they have been added or {@code -1} if they haven't.
+     */
+   public abstract long find(long owningBucketOrd, long value);
 
     /**
      * The number of collected buckets.
@@ -118,6 +124,12 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         public long add(long owningBucketOrd, long value) {
             assert owningBucketOrd == 0;
             return ords.add(value);
+        }
+
+        @Override
+        public long find(long owningBucketOrd, long value) {
+            assert owningBucketOrd == 0;
+            return ords.find(value);
         }
 
         @Override
@@ -227,6 +239,22 @@ public abstract class LongKeyedBucketOrds implements Releasable {
                 owningOrdToBuckets.set(owningBucketOrd, buckets);
             }
             return buckets;
+        }
+
+        @Override
+        public long find(long owningBucketOrd, long value) {
+            if (owningBucketOrd >= owningOrdToBuckets.size()) {
+                return -1;
+            }
+            Buckets buckets = owningOrdToBuckets.get(owningBucketOrd);
+            if (buckets == null) {
+                return -1;
+            }
+            long thisBucketOrd = buckets.valueToThisBucketOrd.find(value);
+            if (thisBucketOrd < 0) {
+                return -1;
+            }
+            return buckets.thisBucketOrdToGlobalOrd.get(thisBucketOrd);
         }
 
         @Override

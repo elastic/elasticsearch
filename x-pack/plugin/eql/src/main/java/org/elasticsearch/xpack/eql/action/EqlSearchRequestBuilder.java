@@ -30,6 +30,11 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
+    public EqlSearchRequestBuilder tiebreakerField(String tiebreakerField) {
+        request.tiebreakerField(tiebreakerField);
+        return this;
+    }
+
     public EqlSearchRequestBuilder eventCategoryField(String eventCategoryField) {
         request.eventCategoryField(eventCategoryField);
         return this;

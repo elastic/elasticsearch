@@ -1147,7 +1147,9 @@ The API returns the following response:
       },
       "store": {
          "size": "16.2kb",
-         "size_in_bytes": 16684
+         "size_in_bytes": 16684,
+         "reserved": "0b",
+         "reserved_in_bytes": 0
       },
       "fielddata": {
          "memory_size": "0b",

@@ -11,9 +11,10 @@
 
   - do:
       nodes.stats:
-        metric: [ store ]
+        metric: [ indices ]
+        index_metric: [ store ]
 
   - is_false: nodes.$master.discovery
-  - is_true:  nodes.$master.store
-  - gte: { nodes.$master.store.size_in_bytes: 0 }
-  - gte: { nodes.$master.store.reserved_in_bytes: -1 }
+  - is_true:  nodes.$master.indices.store
+  - gte: { nodes.$master.indices.store.size_in_bytes: 0 }
+  - gte: { nodes.$master.indices.store.reserved_in_bytes: -1 }

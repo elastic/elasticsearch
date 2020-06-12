@@ -25,7 +25,6 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 

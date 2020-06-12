@@ -22,6 +22,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
@@ -63,8 +64,7 @@ public class SystemIndices {
         Optional<Automaton> automaton = descriptors.stream()
             .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
             .reduce(Operations::union);
-        // TODO make it minimal?
-        return new CharacterRunAutomaton(automaton.orElse(Automata.makeEmpty()));
+        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
     }
 
     /**

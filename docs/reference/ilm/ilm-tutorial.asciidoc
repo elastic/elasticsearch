@@ -140,7 +140,7 @@ You can also invoke this API directly to add templates.
 
 [source,console]
 --------------------------------------------------
-DELETE /_template/timeseries_template
+DELETE /_index_template/timeseries_template
 --------------------------------------------------
 // TEST[continued]
 

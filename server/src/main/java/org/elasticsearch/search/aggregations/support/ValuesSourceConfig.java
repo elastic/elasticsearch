@@ -154,10 +154,18 @@ public class ValuesSourceConfig {
         if (valuesSourceType == null) {
             valuesSourceType = defaultValueSourceType;
         }
-        config = new ValuesSourceConfig(valuesSourceType, fieldContext, unmapped, aggregationScript, scriptValueType, context::nowInMillis);
-        config.format(resolveFormat(format, valuesSourceType, timeZone, fieldType));
-        config.missing(missing);
-        config.timezone(timeZone);
+        DocValueFormat docValueFormat = resolveFormat(format, valuesSourceType, timeZone, fieldType);
+        config = new ValuesSourceConfig(
+            valuesSourceType,
+            fieldContext,
+            unmapped,
+            aggregationScript,
+            scriptValueType,
+            missing,
+            timeZone,
+            docValueFormat,
+            context::nowInMillis
+        );
         return config;
     }
 
@@ -231,6 +239,9 @@ public class ValuesSourceConfig {
             false,
             null,
             null,
+            null,
+            null,
+            null,
             queryShardContext::nowInMillis
         );
     }
@@ -239,19 +250,23 @@ public class ValuesSourceConfig {
      * Convenience method for creating unmapped configs
      */
     public static ValuesSourceConfig resolveUnmapped(ValuesSourceType valuesSourceType, QueryShardContext queryShardContext) {
-        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, queryShardContext::nowInMillis);
+        return new ValuesSourceConfig(valuesSourceType, null, true, null, null, null, null, null, queryShardContext::nowInMillis);
     }
 
     private final ValuesSourceType valuesSourceType;
-    private FieldContext fieldContext;
-    private AggregationScript.LeafFactory script;
-    private ValueType scriptValueType;
-    private boolean unmapped;
-    private DocValueFormat format = DocValueFormat.RAW;
-    private Object missing;
-    private ZoneId timeZone;
-    private LongSupplier nowSupplier;
+    private final FieldContext fieldContext;
+    private final AggregationScript.LeafFactory script;
+    private final ValueType scriptValueType;
+    private final boolean unmapped;
+    private final DocValueFormat format;
+    private final Object missing;
+    private final ZoneId timeZone;
+    private final LongSupplier nowSupplier;
+    private final ValuesSource valuesSource;
 
+    private ValuesSourceConfig() {
+        throw new UnsupportedOperationException();
+    }
 
     public ValuesSourceConfig(
         ValuesSourceType valuesSourceType,
@@ -259,6 +274,9 @@ public class ValuesSourceConfig {
         boolean unmapped,
         AggregationScript.LeafFactory script,
         ValueType scriptValueType,
+        Object missing,
+        ZoneId timeZone,
+        DocValueFormat format,
         LongSupplier nowSupplier
     ) {
         if (unmapped && fieldContext != null) {
@@ -269,8 +287,38 @@ public class ValuesSourceConfig {
         this.unmapped = unmapped;
         this.script = script;
         this.scriptValueType = scriptValueType;
+        this.missing = missing;
+        this.timeZone = timeZone;
+        this.format = format == null ? DocValueFormat.RAW : format;
         this.nowSupplier = nowSupplier;
 
+        if (!valid()) {
+            // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
+            throw new IllegalStateException(
+                "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+        }
+        valuesSource = ConstructValuesSource(missing, format, nowSupplier);
+    }
+
+    private ValuesSource ConstructValuesSource(Object missing, DocValueFormat format, LongSupplier nowSupplier) {
+        final ValuesSource vs;
+        if (this.unmapped) {
+            vs = valueSourceType().getEmpty();
+        } else {
+            if (fieldContext() == null) {
+                // Script case
+                vs = valueSourceType().getScript(script(), scriptValueType());
+            } else {
+                // Field or Value Script case
+                vs = valueSourceType().getField(fieldContext(), script());
+            }
+        }
+
+        if (missing() != null) {
+            return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
+        } else {
+            return vs;
+        }
     }
 
     public ValuesSourceType valueSourceType() {
@@ -285,8 +333,12 @@ public class ValuesSourceConfig {
         return script;
     }
 
-    public boolean unmapped() {
-        return unmapped;
+    /**
+     * Returns true if the values source configured by this object can yield values.  We might not be able to yield values if, for example,
+     * the specified field does not exist on this index.
+     */
+    public boolean hasValues() {
+        return fieldContext != null || script != null || missing != null;
     }
 
     public boolean valid() {
@@ -297,23 +349,8 @@ public class ValuesSourceConfig {
         return this.scriptValueType;
     }
 
-    private ValuesSourceConfig format(final DocValueFormat format) {
-        this.format = format;
-        return this;
-    }
-
-    private ValuesSourceConfig missing(final Object missing) {
-        this.missing = missing;
-        return this;
-    }
-
     public Object missing() {
         return this.missing;
-    }
-
-    private ValuesSourceConfig timezone(final ZoneId timeZone) {
-        this.timeZone = timeZone;
-        return this;
     }
 
     public ZoneId timezone() {
@@ -324,41 +361,11 @@ public class ValuesSourceConfig {
         return format;
     }
 
-    /**
-     * Transform the {@link ValuesSourceType} we selected in resolve into the specific {@link ValuesSource} instance to use for this shard
-     * @return - A {@link ValuesSource} ready to be read from by an aggregator
-     */
-    @Nullable
-    public ValuesSource toValuesSource() {
-        if (!valid()) {
-            // TODO: resolve no longer generates invalid configs.  Once VSConfig is immutable, we can drop this check
-            throw new IllegalStateException(
-                "value source config is invalid; must have either a field context or a script or marked as unwrapped");
-        }
+    public ValuesSource getValuesSource() {
+        return valuesSource;
+    }
 
-        final ValuesSource vs;
-        if (unmapped()) {
-            if (missing() == null) {
-                /* Null values source signals to the AggregationBuilder to use the createUnmapped method, which aggregator factories can
-                 * override to provide an aggregator optimized to return empty values
-                 */
-                vs = null;
-            } else {
-                vs = valueSourceType().getEmpty();
-            }
-        } else {
-            if (fieldContext() == null) {
-                // Script case
-                vs = valueSourceType().getScript(script(), scriptValueType());
-            } else {
-                // Field or Value Script case
-                vs = valueSourceType().getField(fieldContext(), script());
-            }
-        }
-
-        if (missing() == null) {
-            return vs;
-        }
-        return valueSourceType().replaceMissing(vs, missing, format, nowSupplier);
+    public boolean hasGlobalOrdinals() {
+        return valuesSource.hasGlobalOrdinals();
     }
 }

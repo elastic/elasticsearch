@@ -34,12 +34,16 @@ import java.util.Objects;
  */
 public class SThrow extends AStatement {
 
-    protected final AExpression expression;
+    private final AExpression expressionNode;
 
-    public SThrow(Location location, AExpression expression) {
-        super(location);
+    public SThrow(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.expressionNode = Objects.requireNonNull(expressionNode);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
@@ -48,8 +52,8 @@ public class SThrow extends AStatement {
 
         AExpression.Input expressionInput = new AExpression.Input();
         expressionInput.expected = Exception.class;
-        AExpression.Output expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
-        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, scriptRoot, scope, expressionInput);
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
                 expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         output.methodEscape = true;
@@ -59,7 +63,7 @@ public class SThrow extends AStatement {
 
         ThrowNode throwNode = new ThrowNode();
         throwNode.setExpressionNode(AExpression.cast(expressionOutput.expressionNode, expressionCast));
-        throwNode.setLocation(location);
+        throwNode.setLocation(getLocation());
 
         output.statementNode = throwNode;
 

@@ -41,10 +41,10 @@ setup:
                 buckets: 3
   - match: { hits.total.value: 5 }
   - length: { aggregations.histo.buckets: 3 }
-  - match: { aggregations.histo.buckets.0.key: -3.0 }
+  - match: { aggregations.histo.buckets.0.key: -2.5 }
   - match: { aggregations.histo.buckets.0.doc_count: 2 }
   - match: { aggregations.histo.buckets.1.key: 1.0 }
   - match: { aggregations.histo.buckets.1.doc_count: 1 }
-  - match: { aggregations.histo.buckets.2.key: 4.0 }
+  - match: { aggregations.histo.buckets.2.key: 4.5 }
   - match: { aggregations.histo.buckets.2.doc_count: 2 }
 

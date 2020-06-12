@@ -9,13 +9,13 @@ For detailed information about this release, see the
 // Add previous release to the list
 Other versions: 
 {ref-bare}/7.7/release-highlights.html[7.7]
-| {ref-bare}/7.7/highlights-7.6.0.html[7.6]
-| {ref-bare}/7.7/highlights-7.5.0.html[7.5]
-| {ref-bare}/7.7/highlights-7.4.0.html[7.4]
-| {ref-bare}/7.7/highlights-7.3.0.html[7.3]
-| {ref-bare}/7.7/highlights-7.2.0.html[7.2]
-| {ref-bare}/7.7/highlights-7.1.0.html[7.1]
-| {ref-bare}/7.7/highlights-7.0.0.html[7.0]
+| {ref-bare}/7.6/highlights-7.6.0.html[7.6]
+| {ref-bare}/7.5/highlights-7.5.0.html[7.5]
+| {ref-bare}/7.4/highlights-7.4.0.html[7.4]
+| {ref-bare}/7.3/highlights-7.3.0.html[7.3]
+| {ref-bare}/7.2/highlights-7.2.0.html[7.2]
+| {ref-bare}/7.1/highlights-7.1.0.html[7.1]
+| {ref-bare}/7.0/highlights-7.0.0.html[7.0]
 
 coming[{minor-version}]
 

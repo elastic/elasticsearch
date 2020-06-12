@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -44,11 +43,14 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        String jobId = restRequest.param(Job.ID.getPreferredName());
+
         DeleteExpiredDataAction.Request request;
         if (restRequest.hasContent()) {
-            request = DeleteExpiredDataAction.Request.PARSER.apply(restRequest.contentParser(), null);
+            request = DeleteExpiredDataAction.Request.parseRequest(jobId, restRequest.contentParser());
         } else {
             request = new DeleteExpiredDataAction.Request();
+            request.setJobId(jobId);
 
             String perSecondParam = restRequest.param(DeleteExpiredDataAction.Request.REQUESTS_PER_SECOND.getPreferredName());
             if (perSecondParam != null) {
@@ -65,11 +67,6 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
             if (timeoutParam != null) {
                 request.setTimeout(restRequest.paramAsTime(timeoutParam, null));
             }
-        }
-
-        String jobId = restRequest.param(Job.ID.getPreferredName());
-        if (Strings.isNullOrEmpty(jobId) == false) {
-            request.setJobId(jobId);
         }
 
         return channel -> client.execute(DeleteExpiredDataAction.INSTANCE, request, new RestToXContentListener<>(channel));

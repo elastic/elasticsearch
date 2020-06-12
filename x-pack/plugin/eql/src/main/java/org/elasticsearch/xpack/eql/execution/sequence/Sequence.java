@@ -31,19 +31,19 @@ public class Sequence {
 
     private int currentStage = 0;
 
-    public Sequence(SequenceKey key, int stages, long timestamp, Comparable<Object> tieBreaker, SearchHit firstHit) {
+    public Sequence(SequenceKey key, int stages, long timestamp, Comparable<Object> tiebreaker, SearchHit firstHit) {
         Check.isTrue(stages >= 2, "A sequence requires at least 2 criteria, given [{}]", stages);
         this.key = key;
         this.stages = stages;
         this.matches = new Match[stages];
-        this.matches[0] = new Match(timestamp, tieBreaker, firstHit);
+        this.matches[0] = new Match(timestamp, tiebreaker, firstHit);
     }
 
-    public int putMatch(int stage, SearchHit hit, long timestamp, Comparable<Object> tieBreaker) {
+    public int putMatch(int stage, SearchHit hit, long timestamp, Comparable<Object> tiebreaker) {
         if (stage == currentStage + 1) {
             int previousStage = currentStage;
             currentStage = stage;
-            matches[currentStage] = new Match(timestamp, tieBreaker, hit);
+            matches[currentStage] = new Match(timestamp, tiebreaker, hit);
             return previousStage;
         }
         throw new EqlIllegalArgumentException("Incorrect stage [{}] specified for Sequence[key={}, stage=]", stage, key, currentStage);
@@ -61,8 +61,8 @@ public class Sequence {
         return matches[currentStage].timestamp();
     }
 
-    public Comparable<Object> currentTieBreaker() {
-        return matches[currentStage].tieBreaker();
+    public Comparable<Object> currentTiebreaker() {
+        return matches[currentStage].tiebreaker();
     }
 
     public long timestamp(int stage) {

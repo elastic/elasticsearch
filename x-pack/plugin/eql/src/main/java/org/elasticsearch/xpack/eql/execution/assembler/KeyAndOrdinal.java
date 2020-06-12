@@ -11,11 +11,11 @@ import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 class KeyAndOrdinal {
     final SequenceKey key;
     final long timestamp;
-    final Comparable<Object> tieBreaker;
+    final Comparable<Object> tiebreaker;
 
-    KeyAndOrdinal(SequenceKey key, long timestamp, Comparable<Object> tieBreaker) {
+    KeyAndOrdinal(SequenceKey key, long timestamp, Comparable<Object> tiebreaker) {
         this.key = key;
         this.timestamp = timestamp;
-        this.tieBreaker = tieBreaker;
+        this.tiebreaker = tiebreaker;
     }
 }

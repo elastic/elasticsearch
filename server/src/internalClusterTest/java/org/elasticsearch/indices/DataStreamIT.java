@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
@@ -46,6 +47,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ObjectPath;
@@ -61,6 +63,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
 import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
@@ -87,6 +90,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
     @After
     public void deleteAllComposableTemplates() {
+        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request("*");
+        client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
         DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
         client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
     }
@@ -240,6 +245,9 @@ public class DataStreamIT extends ESIntegTestCase {
             "      \"properties\": {\n" +
             "        \"baz_field\": {\n" +
             "          \"type\": \"keyword\"\n" +
+            "        },\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
             "        }\n" +
             "      }\n" +
             "    }";
@@ -302,6 +310,46 @@ public class DataStreamIT extends ESIntegTestCase {
                 DataStream.getDefaultBackingIndexName(dataStreamName, 2))).actionGet());
     }
 
+    public void testTimeStampValidationNoFieldMapping() throws Exception {
+        // Adding a template without a mapping for timestamp field and expect template creation to fail.
+        PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
+        createTemplateRequest.indexTemplate(
+            new ComposableIndexTemplate(
+                Collections.singletonList("logs-*"),
+                new Template(null, new CompressedXContent("{}"), null),
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet());
+        assertThat(e.getCause().getCause().getMessage(), equalTo("expected timestamp field [@timestamp], but found no timestamp field"));
+    }
+
+    public void testTimeStampValidationInvalidFieldMapping() throws Exception {
+        // Adding a template with an invalid mapping for timestamp field and expect template creation to fail.
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"keyword\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
+        createTemplateRequest.indexTemplate(
+            new ComposableIndexTemplate(
+                Collections.singletonList("logs-*"),
+                new Template(null, new CompressedXContent(mapping), null),
+                null, null, null, null,
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+        );
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet());
+        assertThat(e.getCause().getCause().getMessage(), equalTo("expected timestamp field [@timestamp] to be of types " +
+            "[date, date_nanos], but instead found type [keyword]"));
+    }
+
     public void testDataStreamsResolvability() throws Exception {
         createIndexTemplate("id", "logs-*", "ts");
         String dataStreamName = "logs-foobar";
@@ -361,6 +409,29 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().cluster().prepareState().setIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
+    }
+
+    public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
+        createIndexTemplate("id", "metrics-foobar*", "@timestamp1");
+        String dataStreamName = "metrics-foobar-baz";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+        createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName + "-eggplant");
+        client().admin().indices().createDataStream(createDataStreamRequest).get();
+
+        DeleteComposableIndexTemplateAction.Request req = new DeleteComposableIndexTemplateAction.Request("id");
+        Exception e = expectThrows(Exception.class, () -> client().execute(DeleteComposableIndexTemplateAction.INSTANCE, req).get());
+        Optional<Exception> maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e, err ->
+                err.getMessage().contains("unable to remove composable templates [id] " +
+                    "as they are in use by a data streams [metrics-foobar-baz, metrics-foobar-baz-eggplant]"));
+        assertTrue(maybeE.isPresent());
+
+        DeleteComposableIndexTemplateAction.Request req2 = new DeleteComposableIndexTemplateAction.Request("i*");
+        Exception e2 = expectThrows(Exception.class, () -> client().execute(DeleteComposableIndexTemplateAction.INSTANCE, req2).get());
+        maybeE = ExceptionsHelper.unwrapCausesAndSuppressed(e2, err ->
+            err.getMessage().contains("unable to remove composable templates [id] " +
+                "as they are in use by a data streams [metrics-foobar-baz, metrics-foobar-baz-eggplant]"));
+        assertTrue(maybeE.isPresent());
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
@@ -442,7 +513,8 @@ public class DataStreamIT extends ESIntegTestCase {
         request.indexTemplate(
             new ComposableIndexTemplate(
                 Collections.singletonList(pattern),
-                null,
+                new Template(null,
+                    new CompressedXContent(MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName)), null),
                 null, null, null, null,
                 new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName))
         );

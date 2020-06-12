@@ -47,13 +47,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -71,6 +74,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -543,7 +547,14 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
-            IndicesService indicesService = mockIndicesServices();
+            DocumentMapper documentMapper = mock(DocumentMapper.class);
+            when(documentMapper.type()).thenReturn("_doc");
+            CompressedXContent mapping = new CompressedXContent(generateMapping(dataStream.getTimeStampField()));
+            when(documentMapper.mappingSource()).thenReturn(mapping);
+            RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
+            when(routingFieldMapper.required()).thenReturn(false);
+            when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);
+            IndicesService indicesService = mockIndicesServices(documentMapper);
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
@@ -688,6 +699,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     }
 
     private IndicesService mockIndicesServices() throws Exception {
+        return mockIndicesServices(null);
+    }
+
+    private IndicesService mockIndicesServices(DocumentMapper documentMapper) throws Exception {
         /*
          * Throws Exception because Eclipse uses the lower bound for
          * CheckedFunction's exception type so it thinks the "when" call
@@ -702,7 +717,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 when(indexService.index()).thenReturn(indexMetadata.getIndex());
                 MapperService mapperService = mock(MapperService.class);
                 when(indexService.mapperService()).thenReturn(mapperService);
-                when(mapperService.documentMapper()).thenReturn(null);
+                when(mapperService.documentMapper()).thenReturn(documentMapper);
                 when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                 //noinspection unchecked

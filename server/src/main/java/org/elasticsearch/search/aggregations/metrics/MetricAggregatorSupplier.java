@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -30,7 +29,6 @@ import java.util.Map;
 public interface MetricAggregatorSupplier extends AggregatorSupplier {
     Aggregator build(String name,
                      ValuesSourceConfig valuesSourceConfig,
-                     ValuesSource valuesSource,
                      SearchContext context,
                      Aggregator parent,
                      Map<String, Object> metadata) throws IOException;

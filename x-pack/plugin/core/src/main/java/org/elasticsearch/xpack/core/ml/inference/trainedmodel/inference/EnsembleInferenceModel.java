@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.En
 
 public class EnsembleInferenceModel implements InferenceModel {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EnsembleInferenceModel.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(EnsembleInferenceModel.class);
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnsembleInferenceModel, Void> PARSER = new ConstructingObjectParser<>(
@@ -275,4 +275,21 @@ public class EnsembleInferenceModel implements InferenceModel {
         size += outputAggregator.ramBytesUsed();
         return size;
     }
+
+    public List<InferenceModel> getModels() {
+        return models;
+    }
+
+    public OutputAggregator getOutputAggregator() {
+        return outputAggregator;
+    }
+
+    public TargetType getTargetType() {
+        return targetType;
+    }
+
+    public double[] getClassificationWeights() {
+        return classificationWeights;
+    }
+
 }

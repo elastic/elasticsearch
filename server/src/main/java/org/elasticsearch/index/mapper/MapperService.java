@@ -55,7 +55,6 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -63,6 +62,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -119,6 +119,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT,
             Property.Dynamic, Property.IndexScope, Property.Deprecated);
+    // Deprecated set of meta-fields, for checking if a field is meta, use an instance method isMetadataField instead
+    @Deprecated
+    public static final Set<String> META_FIELDS_BEFORE_7DOT8 =
+        Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        "_id", IgnoredFieldMapper.NAME, "_index", "_routing", "_size", "_timestamp", "_ttl", "_type")));
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
     static final String DEFAULT_MAPPING_ERROR_MESSAGE = "[_default_] mappings are not allowed on new indices and should no " +
@@ -802,22 +807,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     @Override
     public void close() throws IOException {
         indexAnalyzers.close();
-    }
-
-    /**
-     * @return Whether a field is a metadata field
-     * Deserialization of SearchHit objects sent from pre 7.8 nodes and GetResults objects sent from pre 7.3 nodes,
-     * uses this method to divide fields into meta and document fields.
-     * TODO: remove in v 9.0
-     * @deprecated  Use an instance method isMetadataField instead
-     */
-    @Deprecated
-    public static boolean isMetadataFieldStatic(String fieldName) {
-        if (IndicesModule.getBuiltInMetadataFields().contains(fieldName)) {
-            return true;
-        }
-        // if a node had Size Plugin installed, _size field should also be considered a meta-field
-        return fieldName.equals("_size");
     }
 
     /**

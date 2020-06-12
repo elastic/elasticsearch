@@ -16,7 +16,7 @@ longer needed, reducing overhead and storage costs.
 
 A data stream is designed to give you the best of both worlds:
 
-* The simplicity of a single, named resource you can use for requests
+* The simplicity of a single named resource you can use for requests
 * The storage, scalability, and cost-saving benefits of multiple indices
 
 You can submit indexing and search requests directly to a data stream. The

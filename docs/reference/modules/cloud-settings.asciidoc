@@ -2,16 +2,35 @@
 === Cloud settings
 The following {es} settings are supported on {ess}:
 
+* <<cloud-auditing-settings,Auditing settings>>
 * <<cloud-circuit-breaker-settings,Circuit breaker settings>>
 * <<cloud-disk-based-shard-allocation-settings,Disk-based shard allocation settings>>
 * <<cloud-http-settings,HTTP settings>>
 * <<cloud-index-settings,Index settings>>
 * <<cloud-machine-learning-settings,Machine learning settings>>
 * <<cloud-monitoring-collection-settings,Monitoring collection settings>>
+* <<cloud-node-settings,Node settings>>
 * <<cloud-reindex-settings,Reindex settings>>
 * <<cloud-snapshot-restore-settings,Snapshot and restore settings>>
 * <<cloud-watcher-settings,Watcher settings>>
 
+[[cloud-auditing-settings]]
+==== Auditing settings
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=auditing-settings-description-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-security-audit-enabled-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-events-include-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-events-exclude-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-events-emit-request-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-emit-node-name-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-emit-node-host-address-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-emit-node-host-name-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-emit-node-id-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-events-ignore-users-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-events-ignore-realms-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-events-ignore-roles-tag]
+include::{es-repo-dir}/settings/audit-settings.asciidoc[tag=xpack-sa-lf-events-ignore-indices-tag]
+
+<<cloud-settings,Back to top>>
 
 [[cloud-circuit-breaker-settings]]
 ==== Circuit breaker settings
@@ -22,6 +41,8 @@ include::{es-repo-dir}/modules/indices/circuit_breaker.asciidoc[tag=fielddata-ci
 include::{es-repo-dir}/modules/indices/circuit_breaker.asciidoc[tag=request-breaker-limit-tag]
 include::{es-repo-dir}/modules/indices/circuit_breaker.asciidoc[tag=request-breaker-overhead-tag]
 
+<<cloud-settings,Back to top>>
+
 [[cloud-disk-based-shard-allocation-settings]]
 ==== Disk-based shard allocation settings
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=disk-based-shard-allocation-description-tag]
@@ -29,6 +50,8 @@ include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routi
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-watermark-low-tag]
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-watermark-high-tag]
 include::{es-repo-dir}/modules/cluster/disk_allocator.asciidoc[tag=cluster-routing-flood-stage-tag]
+
+<<cloud-settings,Back to top>>
 
 [[cloud-http-settings]]
 ==== HTTP settings
@@ -41,6 +64,8 @@ include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-methods-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-headers-tag]
 include::{es-repo-dir}/modules/http.asciidoc[tag=http-cors-allow-credentials-tag]
 
+<<cloud-settings,Back to top>>
+
 [[cloud-index-settings]]
 ==== Index settings
 include::{es-repo-dir}/index-modules.asciidoc[tag=index-modules-settings-description-tag]
@@ -50,10 +75,14 @@ include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-action-destructive-
 include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-cluster-indices-close-enable-tag]
 include::{es-repo-dir}/index-modules.asciidoc[tag=index-number-of-shards-tag]
 
+<<cloud-settings,Back to top>>
+
 [[cloud-machine-learning-settings]]
 ==== Machine learning settings
 include::{es-repo-dir}/settings/ml-settings.asciidoc[tag=ml-settings-description-tag]
 include::{es-repo-dir}/settings/ml-settings.asciidoc[tag=interference-model-ttl-tag]
+
+<<cloud-settings,Back to top>>
 
 [[cloud-monitoring-collection-settings]]
 ==== Monitoring collection settings
@@ -61,23 +90,33 @@ include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-sett
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-collection-interval-tag]
 include::{es-repo-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-history-duration-tag]
 
+<<cloud-settings,Back to top>>
+
 [[cloud-node-settings]]
 ==== Node settings
 include::{es-repo-dir}/modules/node.asciidoc[tag=modules-node-description-tag]
 include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-node-ingest-tag]
+
+<<cloud-settings,Back to top>>
 
 [[cloud-reindex-settings]]
 ==== Reindex settings
 include::{es-repo-dir}/docs/reindex.asciidoc[tag=docs-reindex-api-desc-tag]
 include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-reindex-remote-whitelist]
 
+<<cloud-settings,Back to top>>
+
 [[cloud-snapshot-restore-settings]]
 ==== Snapshot and restore settings
 include::{es-repo-dir}/snapshot-restore/register-repository.asciidoc[tag=snapshots-register-repository-tag]
 include::{es-repo-dir}/warehouse/wh_cloud.asciidoc[tag=cloud-repositories-url-allowed]
+
+<<cloud-settings,Back to top>>
 
 [[cloud-watcher-settings]]
 ==== Watcher settings
 include::{es-repo-dir}/settings/notification-settings.asciidoc[tag=notification-settings-description-tag]
 include::{es-repo-dir}/settings/notification-settings.asciidoc[tag=watcher-history-cleaner-service-tag]
 include::{es-repo-dir}/settings/notification-settings.asciidoc[tag=watcher-encrypt-sensitive-data-tag]
+
+<<cloud-settings,Back to top>>

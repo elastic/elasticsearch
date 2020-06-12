@@ -37,6 +37,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -57,11 +58,13 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -233,6 +236,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationP
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
+import org.elasticsearch.xpack.ml.inference.aggs.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -351,7 +355,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        AnalysisPlugin,
                                                        CircuitBreakerPlugin,
                                                        IngestPlugin,
-                                                       PersistentTaskPlugin {
+                                                       PersistentTaskPlugin,
+                                                       SearchPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
@@ -468,6 +473,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
     private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
     private final SetOnce<CircuitBreaker> inferenceModelBreaker = new SetOnce<>();
+    private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -696,6 +702,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             settings,
             clusterService.getNodeName(),
             inferenceModelBreaker.get());
+        this.modelLoadingService.set(modelLoadingService);
 
         // Data frame analytics components
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
@@ -969,6 +976,18 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return Collections.singletonMap(MlClassicTokenizer.NAME, MlClassicTokenizerFactory::new);
+    }
+
+    @Override
+    public List<PipelineAggregationSpec> getPipelineAggregations() {
+        return Collections.singletonList(new PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
+            in -> new InferencePipelineAggregationBuilder(in, modelLoadingService),
+            aggParser()
+            ));
+    }
+
+    public ContextParser<String, ? extends PipelineAggregationBuilder> aggParser() {
+        return (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, name, parser);
     }
 
     @Override

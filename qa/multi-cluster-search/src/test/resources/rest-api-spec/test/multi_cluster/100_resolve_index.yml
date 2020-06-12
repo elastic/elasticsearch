@@ -1,7 +1,7 @@
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: "* - *"
+      version: "all"
       reason: muting
 
   - do:

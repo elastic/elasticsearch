@@ -43,13 +43,13 @@ public class ModelPlotConfig implements ToXContentObject, Writeable {
     private final boolean annotationsEnabled;
 
     public ModelPlotConfig() {
-        this(true, null, true);
+        this(true, null, null);
     }
 
     public ModelPlotConfig(boolean enabled, String terms, Boolean annotationsEnabled) {
         this.enabled = enabled;
         this.terms = terms;
-        this.annotationsEnabled = Boolean.TRUE.equals(annotationsEnabled);
+        this.annotationsEnabled = annotationsEnabled != null ? annotationsEnabled : enabled;
     }
 
     public ModelPlotConfig(StreamInput in) throws IOException {

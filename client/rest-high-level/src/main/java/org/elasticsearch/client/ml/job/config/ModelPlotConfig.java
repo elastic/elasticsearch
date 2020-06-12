@@ -45,12 +45,12 @@ public class ModelPlotConfig implements ToXContentObject {
 
     private final boolean enabled;
     private final String terms;
-    private final boolean annotationsEnabled;
+    private final Boolean annotationsEnabled;
 
     public ModelPlotConfig(boolean enabled, String terms, Boolean annotationsEnabled) {
         this.enabled = enabled;
         this.terms = terms;
-        this.annotationsEnabled = Boolean.TRUE.equals(annotationsEnabled);
+        this.annotationsEnabled = annotationsEnabled;
     }
 
     @Override
@@ -60,7 +60,9 @@ public class ModelPlotConfig implements ToXContentObject {
         if (terms != null) {
             builder.field(TERMS_FIELD.getPreferredName(), terms);
         }
-        builder.field(ANNOTATIONS_ENABLED_FIELD.getPreferredName(), annotationsEnabled);
+        if (annotationsEnabled != null) {
+            builder.field(ANNOTATIONS_ENABLED_FIELD.getPreferredName(), annotationsEnabled);
+        }
         builder.endObject();
         return builder;
     }
@@ -73,7 +75,7 @@ public class ModelPlotConfig implements ToXContentObject {
         return this.terms;
     }
 
-    public boolean annotationsEnabled() {
+    public Boolean annotationsEnabled() {
         return annotationsEnabled;
     }
 
@@ -88,7 +90,9 @@ public class ModelPlotConfig implements ToXContentObject {
         }
 
         ModelPlotConfig that = (ModelPlotConfig) other;
-        return this.enabled == that.enabled && Objects.equals(this.terms, that.terms) && this.annotationsEnabled == that.annotationsEnabled;
+        return this.enabled == that.enabled
+            && Objects.equals(this.terms, that.terms)
+            && Objects.equals(this.annotationsEnabled, that.annotationsEnabled);
     }
 
     @Override

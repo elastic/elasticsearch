@@ -1455,18 +1455,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         /**
          * Validates there isn't any index with a name that would clash with the future backing indices of the existing data streams.
          *
-         * For eg. if data stream `foo` has backing indices [`foo-000001`, `foo-000002`] and the indices lookup contains indices
-         * `foo-000001`, `foo-000002` and `foo-000006` this will throw an IllegalStateException (as attempting to rollover the `foo` data
-         * stream from generation 5 to 6 will not be possible)
+         * E.g., if data stream `foo` has backing indices [`.ds-foo-000001`, `.ds-foo-000002`] and the indices lookup contains indices
+         * `.ds-foo-000001`, `.ds-foo-000002` and `.ds-foo-000006` this will throw an IllegalStateException (as attempting to rollover the
+         * `foo` data stream from generation 5 to 6 will not be possible)
          *
-         * @param indicesLookup the indices in the system (this includes the data streams backing indices)
+         * @param indicesLookup the indices in the system (this includes the data stream backing indices)
          * @param dsMetadata    the data streams in the system
          */
         static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
             if (dsMetadata != null) {
                 for (DataStream ds : dsMetadata.dataStreams().values()) {
                     Map<String, IndexAbstraction> conflicts =
-                        indicesLookup.subMap(ds.getName() + "-", ds.getName() + ".") // '.' is the char after '-'
+                        indicesLookup.subMap(DataStream.BACKING_INDEX_PREFIX + ds.getName() + "-",
+                            DataStream.BACKING_INDEX_PREFIX + ds.getName() + ".") // '.' is the char after '-'
                             .entrySet().stream()
                             .filter(entry -> {
                                 if (entry.getValue().getType() != IndexAbstraction.Type.CONCRETE_INDEX) {

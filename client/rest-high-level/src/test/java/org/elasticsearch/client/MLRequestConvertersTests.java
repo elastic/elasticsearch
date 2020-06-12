@@ -216,14 +216,23 @@ public class MLRequestConvertersTests extends ESTestCase {
 
     public void testDeleteExpiredData() throws Exception {
         float requestsPerSec = randomBoolean() ? -1.0f : (float)randomDoubleBetween(0.0, 100000.0, false);
+        String jobId = randomBoolean() ? null : randomAlphaOfLength(8);
         DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest(
+            jobId,
             requestsPerSec,
             TimeValue.timeValueHours(1));
 
         Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/_delete_expired_data", request.getEndpoint());
-        assertEquals("{\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}", requestEntityToString(request));
+
+        String expectedPath = jobId == null ? "/_ml/_delete_expired_data" : "/_ml/_delete_expired_data/" + jobId;
+        assertEquals(expectedPath, request.getEndpoint());
+        if (jobId == null) {
+            assertEquals("{\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}", requestEntityToString(request));
+        } else {
+            assertEquals("{\"job_id\":\"" + jobId + "\",\"requests_per_second\":" + requestsPerSec + ",\"timeout\":\"1h\"}",
+                requestEntityToString(request));
+        }
     }
 
     public void testDeleteJob() {
@@ -946,7 +955,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         }
     }
 
-    public void testGetFilter() throws IOException {
+    public void testGetFilter() {
         String id = randomAlphaOfLength(10);
         GetFiltersRequest getFiltersRequest = new GetFiltersRequest();
 

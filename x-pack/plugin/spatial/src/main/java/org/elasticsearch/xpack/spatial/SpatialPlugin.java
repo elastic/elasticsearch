@@ -24,11 +24,10 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSuppli
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -106,17 +105,15 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoBoundsAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoBoundsAggregatorSupplier) (name, aggregationContext, parent, valuesSource, wrapLongitude, metadata)
-                -> new GeoShapeBoundsAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource,
-                wrapLongitude, metadata));
+            (GeoBoundsAggregatorSupplier) GeoShapeBoundsAggregator::new);
     }
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (GeoCentroidAggregatorSupplier) (name, aggregationContext, parent, valuesSource, metadata)
+            (MetricAggregatorSupplier) (name, valuesSourceConfig, aggregationContext, parent, metadata)
                 -> {
                 if (getLicenseState().isAllowed(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
-                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, (GeoShapeValuesSource) valuesSource, metadata);
+                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
             });
@@ -166,7 +163,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private static void registerValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME, GeoShapeValuesSourceType.instance(),
-            (ValueCountAggregatorSupplier) ValueCountAggregator::new
+            (MetricAggregatorSupplier) ValueCountAggregator::new
         );
     }
 

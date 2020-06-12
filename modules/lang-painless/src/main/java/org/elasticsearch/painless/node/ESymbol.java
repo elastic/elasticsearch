@@ -33,20 +33,24 @@ import java.util.Objects;
 /**
  * Represents a variable load/store.
  */
-public class EVariable extends AExpression {
+public class ESymbol extends AExpression {
 
-    protected final String name;
+    private final String symbol;
 
-    public EVariable(Location location, String name) {
-        super(location);
+    public ESymbol(int identifer, Location location, String symbol) {
+        super(identifer, location);
 
-        this.name = Objects.requireNonNull(name);
+        this.symbol = Objects.requireNonNull(symbol);
+    }
+
+    public String getSymbol() {
+        return symbol;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
-        Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(name);
+        Class<?> type = scriptRoot.getPainlessLookup().canonicalTypeNameToType(symbol);
 
         if (type != null)  {
             if (input.write) {
@@ -64,16 +68,16 @@ public class EVariable extends AExpression {
 
             StaticNode staticNode = new StaticNode();
 
-            staticNode.setLocation(location);
+            staticNode.setLocation(getLocation());
             staticNode.setExpressionType(output.actual);
 
             output.expressionNode = staticNode;
-        } else if (scope.isVariableDefined(name)) {
+        } else if (scope.isVariableDefined(symbol)) {
             if (input.read == false && input.write == false) {
-                throw createError(new IllegalArgumentException("not a statement: variable [" + name + "] not used"));
+                throw createError(new IllegalArgumentException("not a statement: variable [" + symbol + "] not used"));
             }
 
-            Variable variable = scope.getVariable(location, name);
+            Variable variable = scope.getVariable(getLocation(), symbol);
 
             if (input.write && variable.isFinal()) {
                 throw createError(new IllegalArgumentException("Variable [" + variable.getName() + "] is read-only."));
@@ -83,13 +87,13 @@ public class EVariable extends AExpression {
 
             VariableNode variableNode = new VariableNode();
 
-            variableNode.setLocation(location);
+            variableNode.setLocation(getLocation());
             variableNode.setExpressionType(output.actual);
-            variableNode.setName(name);
+            variableNode.setName(symbol);
 
             output.expressionNode = variableNode;
         } else {
-            output.partialCanonicalTypeName = name;
+            output.partialCanonicalTypeName = symbol;
         }
 
         return output;

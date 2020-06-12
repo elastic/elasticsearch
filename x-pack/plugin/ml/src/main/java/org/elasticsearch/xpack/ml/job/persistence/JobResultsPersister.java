@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -194,6 +195,13 @@ public class JobResultsPersister {
         public Builder persistModelPlot(ModelPlot modelPlot) {
             logger.trace("[{}] ES BULK ACTION: index model plot to index [{}] with ID [{}]", jobId, indexName, modelPlot.getId());
             indexResult(modelPlot.getId(), modelPlot, "model plot");
+            return this;
+        }
+
+        public Builder persistCategorizerStats(CategorizerStats categorizerStats) {
+            logger.trace("[{}] ES BULK ACTION: index categorizer stats to index [{}] with ID [{}]",
+                jobId, indexName, categorizerStats.getId());
+            indexResult(categorizerStats.getId(), categorizerStats, "categorizer stats");
             return this;
         }
 

@@ -37,11 +37,15 @@ Response:
         "prices" : {
             "buckets": [
                 {
-                    "key": 10.0,
+                    "min": 10.0,
+                    "key": 30.0,
+                    "max": 50.0,
                     "doc_count": 2
                 },
                 {
-                    "key": 150.0,
+                    "min": 150.0,
+                    "key": 185.0,
+                    "max": 200.0,
                     "doc_count": 5
                 }
             ]

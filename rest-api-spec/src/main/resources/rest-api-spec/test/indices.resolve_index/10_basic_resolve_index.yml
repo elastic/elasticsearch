@@ -1,6 +1,8 @@
 ---
 setup:
   - skip:
+      version: "* - *"
+      reason: muting
       features: allowed_warnings
 
   - do:
@@ -64,8 +66,8 @@ setup:
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: " - 7.99.99"
-      reason: not backported yet
+      version: "* - *"
+      reason: muting
 
   - do:
       indices.resolve_index:
@@ -108,8 +110,8 @@ setup:
 ---
 "Resolve index with hidden and closed indices":
   - skip:
-      version: " - 7.99.99"
-      reason: not backported yet
+      version: "* - *"
+      reason: muting
 
   - do:
       indices.resolve_index:

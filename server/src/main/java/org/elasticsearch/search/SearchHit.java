@@ -168,7 +168,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             documentFields = new HashMap<>();
             metaFields = new HashMap<>();
             fields.forEach((fieldName, docField) ->
-                (MapperService.isMetadataFieldStatic(fieldName) ? metaFields : documentFields).put(fieldName, docField));
+                (MapperService.META_FIELDS_BEFORE_7DOT8.contains(fieldName) ? metaFields : documentFields).put(fieldName, docField));
         }
 
         int size = in.readVInt();

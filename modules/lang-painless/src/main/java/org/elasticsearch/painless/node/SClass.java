@@ -23,7 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.symbol.ScriptRoot;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,15 +32,20 @@ import java.util.Objects;
  */
 public class SClass extends ANode {
 
-    protected final List<SFunction> functions = new ArrayList<>();
+    private final List<SFunction> functionNodes;
 
-    public SClass(Location location, List<SFunction> functions) {
-        super(location);
-        this.functions.addAll(Objects.requireNonNull(functions));
+    public SClass(int identifier, Location location, List<SFunction> functionNodes) {
+        super(identifier, location);
+
+        this.functionNodes = Collections.unmodifiableList(Objects.requireNonNull(functionNodes));
+    }
+
+    public List<SFunction> getFunctionNodes() {
+        return functionNodes;
     }
 
     public void buildClassScope(ScriptRoot scriptRoot) {
-        for (SFunction function : functions) {
+        for (SFunction function : functionNodes) {
             function.buildClassScope(scriptRoot);
         }
     }
@@ -50,11 +55,11 @@ public class SClass extends ANode {
 
         ClassNode classNode = new ClassNode();
 
-        for (SFunction function : functions) {
+        for (SFunction function : functionNodes) {
             classNode.addFunctionNode(function.writeFunction(classNode, scriptRoot));
         }
 
-        classNode.setLocation(location);
+        classNode.setLocation(getLocation());
         classNode.setScriptRoot(scriptRoot);
 
         return classNode;

@@ -95,7 +95,7 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
             this.minAsString = minAsString;
         }
 
-        public Object getMin() {
+        public double getMin() {
             return min;
         }
 
@@ -117,7 +117,7 @@ public class ParsedVariableWidthHistogram extends ParsedMultiBucketAggregation<P
             this.maxAsString = maxAsString;
         }
 
-        public Object getMax() {
+        public double getMax() {
             return max;
         }
 

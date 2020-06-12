@@ -104,10 +104,16 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedDocCount.put(-2.5, 2);
         expectedDocCount.put(1d, 1);
         expectedDocCount.put(4.5, 2);
+
         final Map<Double, Double> expectedMins = new HashMap<>();
         expectedMins.put(-2.5, -3d);
         expectedMins.put(1d, 1d);
         expectedMins.put(4.5, 4d);
+
+        final Map<Double, Double> expectedMaxes = new HashMap<>();
+        expectedMaxes.put(-2.5, -2d);
+        expectedMaxes.put(1d, 1d);
+        expectedMaxes.put(4.5, 5d);
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(3).setShardSize(6).setInitialBuffer(3),
@@ -117,6 +123,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 buckets.forEach(bucket -> {
                     assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount());
                     assertEquals(expectedMins.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.min(), doubleError);
+                    assertEquals(expectedMaxes.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.max(), doubleError);
                 });
             });
     }
@@ -137,11 +144,18 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedDocCountOnlySearch.put(2.26, 2);
         expectedDocCountOnlySearch.put(5.3, 2);
         expectedDocCountOnlySearch.put(8.8, 1);
-        final Map<Double, Double> expectedCentroidsOnlySearch = new HashMap<>(); // Index centroids by min
+
+        // Index these by min, rather than centroid, to avoid slight precision errors (Ex. 3.999999 vs 4.0) that arise from double division
+        final Map<Double, Double> expectedCentroidsOnlySearch = new HashMap<>();
         expectedCentroidsOnlySearch.put(-0.4, 0.4);
         expectedCentroidsOnlySearch.put(2.26, 2.78);
         expectedCentroidsOnlySearch.put(5.3, 5.6);
         expectedCentroidsOnlySearch.put(8.8, 8.8);
+        final Map<Double, Double> expectedMaxesOnlySearch = new HashMap<>();
+        expectedMaxesOnlySearch.put(-0.4, 1.2);
+        expectedMaxesOnlySearch.put(2.26, 3.3);
+        expectedMaxesOnlySearch.put(5.3, 5.9);
+        expectedMaxesOnlySearch.put(8.8, 8.8);
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(6).setInitialBuffer(4),
@@ -151,6 +165,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 buckets.forEach(bucket -> {
                     assertEquals(expectedDocCountOnlySearch.getOrDefault(bucket.min(), 0).longValue(), bucket.getDocCount(), doubleError);
                     assertEquals(expectedCentroidsOnlySearch.getOrDefault(bucket.min(), 0d).doubleValue(), bucket.centroid(), doubleError);
+                    assertEquals(expectedMaxesOnlySearch.getOrDefault(bucket.min(), 0d).doubleValue(), bucket.max(), doubleError);
                 });
             });
 
@@ -164,11 +179,19 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedDocCountSearchReduce.put(2.26, 2);
         expectedDocCountSearchReduce.put(5.3, 2);
         expectedDocCountSearchReduce.put(8.8, 1);
-        final Map<Double, Double> expectedCentroidsSearchReduce = new HashMap<>(); // Indexed by min
+
+        // Indexed by min
+        final Map<Double, Double> expectedCentroidsSearchReduce = new HashMap<>();
         expectedCentroidsSearchReduce.put(-0.4, 0.4);
         expectedCentroidsSearchReduce.put(2.26,2.78);
         expectedCentroidsSearchReduce.put(5.3, 5.6);
         expectedCentroidsSearchReduce.put(8.8, 8.8);
+        final Map<Double, Double> expectedMaxesSearchReduce = new HashMap<>();
+        expectedMaxesSearchReduce.put(-0.4, 1.2);
+        expectedMaxesSearchReduce.put(2.26,3.3);
+        expectedMaxesSearchReduce.put(5.3, 5.9);
+        expectedMaxesSearchReduce.put(8.8, 8.8);
+
         testSearchAndReduceCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(4).setShardSize(6).setInitialBuffer(4),
             histogram -> {
@@ -177,6 +200,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 buckets.forEach(bucket -> {
                     assertEquals(expectedDocCountSearchReduce.getOrDefault(bucket.min(), 0).longValue(), bucket.getDocCount(), doubleError);
                     assertEquals(expectedCentroidsSearchReduce.getOrDefault(bucket.min(), 0d).doubleValue(), bucket.centroid(), doubleError);
+                    assertEquals(expectedMaxesSearchReduce.getOrDefault(bucket.min(), 0d).doubleValue(), bucket.max(), doubleError);
                 });
             });
     }
@@ -195,14 +219,17 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         // Note: New buckets are created for 30, 50, and 80 because they are distant from the other buckets
         final List<Double> keys = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 29d, 39d, 50d, 77.5d);
         final List<Double> mins = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 25d, 38d, 50d, 75d);
+        final List<Double> maxes = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 32d, 40d, 50d, 80d);
         final List<Integer> docCounts = Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 1, 2);
         assert keys.size() == docCounts.size() && keys.size() == keys.size();
 
         final Map<Double, Integer> expectedDocCountOnlySearch = new HashMap<>();
         final Map<Double, Double> expectedMinsOnlySearch = new HashMap<>();
+        final Map<Double, Double> expectedMaxesOnlySearch = new HashMap<>();
         for(int i=0; i<keys.size(); i++){
             expectedDocCountOnlySearch.put(keys.get(i), docCounts.get(i));
             expectedMinsOnlySearch.put(keys.get(i), mins.get(i));
+            expectedMaxesOnlySearch.put(keys.get(i), maxes.get(i));
         }
 
         testSearchCase(DEFAULT_QUERY, dataset, false,
@@ -213,6 +240,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 buckets.forEach(bucket -> {
                     assertEquals(expectedDocCountOnlySearch.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount());
                     assertEquals(expectedMinsOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.min(), doubleError);
+                    assertEquals(expectedMaxesOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.max(), doubleError);
                 });
             });
     }
@@ -236,6 +264,12 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         expectedMins.put(5d, 5d);
         expectedMins.put(1116d, 10d);
 
+        final Map<Double, Double> expectedMaxes = new HashMap<>();
+        expectedMaxes.put(-299d, 2d);
+        expectedMaxes.put(3.5d, 4d);
+        expectedMaxes.put(5d, 5d);
+        expectedMaxes.put(1116d, 5400d);
+
         testSearchCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD) .setNumBuckets(2).setShardSize(4).setInitialBuffer(5),
             histogram -> {
@@ -244,6 +278,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 buckets.forEach(bucket -> {
                     assertEquals(expectedDocCount.getOrDefault(bucket.getKey(), 0).longValue(), bucket.getDocCount());
                     assertEquals(expectedMins.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.min(), doubleError);
+                    assertEquals(expectedMaxes.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.max(), doubleError);
                 });
             });
 
@@ -253,7 +288,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     public void testSimpleSubAggregations() throws IOException{
         final List<Number> dataset =  Arrays.asList(5, 1, 9, 2, 8);
 
-        testSearchAndReduceCase(DEFAULT_QUERY, dataset, true,
+        testSearchAndReduceCase(DEFAULT_QUERY, dataset, false,
             aggregation -> aggregation.field(NUMERIC_FIELD)
                 .setNumBuckets(3)
                 .setInitialBuffer(3)
@@ -372,10 +407,12 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 // The smaller cluster
                 assertEquals(4 <= buckets.get(0).getDocCount() && buckets.get(0).getDocCount() <= 6, true);
                 assertEquals(0 <= buckets.get(0).centroid() && buckets.get(0).centroid() <= 200d, true);
+                assertEquals(1, buckets.get(0).min(), deltaError);
 
                 // The bigger cluster
                 assertEquals(4 <= buckets.get(1).getDocCount() && buckets.get(1).getDocCount() <= 6, true);
                 assertEquals(800d <= buckets.get(1).centroid() && buckets.get(1).centroid() <= 1005d, true);
+                assertEquals(1005, buckets.get(1).max(), deltaError);
             });
 
     }

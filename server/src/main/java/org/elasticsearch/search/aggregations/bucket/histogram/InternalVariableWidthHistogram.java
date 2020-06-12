@@ -551,7 +551,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
 
         if(reduceContext.isFinalReduce()) {

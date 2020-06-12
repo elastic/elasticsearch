@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -348,17 +349,17 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         // First one with ok
         ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.OK).build();
+            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.OK).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
         // Now one with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
+        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
         // Another with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
+        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 
@@ -374,7 +375,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
 
         // First one with warn - this works because a default constructed ModelSizeStats has CategorizationStatus.OK
         ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN).build();
+            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(result);
 

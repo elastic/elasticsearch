@@ -154,9 +154,4 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
     }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // do nothing here, no merging, but also no exception
-    }
 }

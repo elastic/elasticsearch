@@ -87,19 +87,18 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            CardinalityUpperBound cardinality,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
-            .getAggregator(config.valueSourceType(), GeoDistanceAggregationBuilder.NAME);
+            .getAggregator(config, GeoDistanceAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoDistanceAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected "
                 + GeoDistanceAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((GeoDistanceAggregatorSupplier) aggregatorSupplier).build(name,  factories, distanceType, origin, unit,
-            config.toValuesSource(), config.format(), rangeFactory, ranges, keyed, searchContext, parent, cardinality, metadata);
+        return ((GeoDistanceAggregatorSupplier) aggregatorSupplier).build(name,  factories, distanceType,  origin,
+            unit, config.getValuesSource(), config.format(), rangeFactory, ranges, keyed, searchContext, parent, cardinality, metadata);
     }
 
     private static class DistanceSource extends ValuesSource.Numeric {

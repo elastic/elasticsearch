@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
@@ -141,13 +142,13 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected String contentType() {
-        return CONTENT_TYPE;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
+    protected String contentType() {
+        return CONTENT_TYPE;
     }
 
     @Override

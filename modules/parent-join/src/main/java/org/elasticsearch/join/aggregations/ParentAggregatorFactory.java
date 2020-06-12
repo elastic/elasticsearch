@@ -69,23 +69,19 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
-                                          SearchContext searchContext, Aggregator children,
+    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator children,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
+        ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
                 "is not supported for aggregation " + this.name());
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        if (cardinality == CardinalityUpperBound.MANY) {
-            return asMultiBucketAggregator(this, searchContext, children);
-        } else {
-            return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
-                parentFilter, valuesSource, maxOrd, metadata);
-        }
+        return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
+            parentFilter, valuesSource, maxOrd, cardinality, metadata);
     }
 
     @Override

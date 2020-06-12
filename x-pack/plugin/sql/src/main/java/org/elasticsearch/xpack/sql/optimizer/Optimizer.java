@@ -66,7 +66,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
@@ -784,14 +783,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     /**
      * Any numeric aggregates (avg, min, max, sum) acting on literals are converted to an iif(count(1)=0, null, literal*count(1)) for sum,
      * and to iif(count(1)=0,null,literal) for the other three.
+     * Additionally count(DISTINCT literal) is converted to iif(count(1)=0, 0, 1).
      */
     private static class ReplaceAggregatesWithLiterals extends OptimizerRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan p) {
             return p.transformExpressionsDown(e -> {
-                if (e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum) {
-                    NumericAggregate a = (NumericAggregate) e;
+                if (e instanceof Min || e instanceof Max || e instanceof Avg || e instanceof Sum ||
+                    (e instanceof Count && ((Count) e).distinct())) {
+
+                    AggregateFunction a = (AggregateFunction) e;
 
                     if (a.field().foldable()) {
                         Expression countOne = new Count(a.source(), new Literal(Source.EMPTY, 1, a.dataType()), false);
@@ -799,12 +801,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         Expression argument = a.field();
                         Literal foldedArgument = new Literal(argument.source(), argument.fold(), a.dataType());
 
+                        Expression iifResult = Literal.NULL;
                         Expression iifElseResult = foldedArgument;
                         if (e instanceof Sum) {
                             iifElseResult = new Mul(a.source(), countOne, foldedArgument);
+                        } else if (e instanceof Count) {
+                            iifResult =  new Literal(Source.EMPTY, 0, e.dataType());
+                            iifElseResult = new Literal(Source.EMPTY, 1, e.dataType());
                         }
 
-                        return new Iif(a.source(), countEqZero, Literal.NULL, iifElseResult);
+                        return new Iif(a.source(), countEqZero, iifResult, iifElseResult);
                     }
                 }
                 return e;

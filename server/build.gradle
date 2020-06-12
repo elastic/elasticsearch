@@ -131,11 +131,11 @@ dependencies {
     java12Compile sourceSets.main.output
   }
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
   }
-  internalClusterTestCompile(project(":test:framework")) {
+  internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
 
@@ -336,11 +336,13 @@ dependencyLicenses {
   }
 }
 
+licenseHeaders {
+  // Ignore our vendored version of Google Guice
+  excludes << 'org/elasticsearch/common/inject/**/*'
+}
 
 tasks.named('internalClusterTest').configure {
   if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.datastreams_feature_enabled', 'true'
   }
 }
-
-

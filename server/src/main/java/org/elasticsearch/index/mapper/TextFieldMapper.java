@@ -69,7 +69,6 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -480,6 +479,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
+        }
+
+        @Override
         protected String contentType() {
             return "phrase";
         }
@@ -498,6 +502,11 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         protected void parseCreateField(ParseContext context) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+
         }
 
         @Override
@@ -754,35 +763,14 @@ public class TextFieldMapper extends FieldMapper {
                     + "keyword field instead. Alternatively, set fielddata=true on [" + name() + "] in order to load "
                     + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
-            return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
+            return new PagedBytesIndexFieldData.Builder(
+                fielddataMinFrequency,
+                fielddataMaxFrequency,
+                fielddataMinSegmentSize,
+                CoreValuesSourceType.BYTES
+            );
         }
 
-        @Override
-        public ValuesSourceType getValuesSourceType() {
-            return CoreValuesSourceType.BYTES;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            TextFieldType tft = (TextFieldType) other;
-            if (tft.indexPhrases != this.indexPhrases) {
-                conflicts.add("mapper [" + name() + "] has different [index_phrases] values");
-            }
-            if (Objects.equals(this.prefixFieldType, tft.prefixFieldType) == false) {
-                if (this.prefixFieldType == null) {
-                    conflicts.add("mapper [" + name()
-                        + "] has different [index_prefixes] settings, cannot change from disabled to enabled");
-                }
-                else if (tft.prefixFieldType == null) {
-                    conflicts.add("mapper [" + name()
-                        + "] has different [index_prefixes] settings, cannot change from enabled to disabled");
-                }
-                else {
-                    conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
-                }
-            }
-        }
     }
 
     private int positionIncrementGap;
@@ -861,34 +849,20 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
-        TextFieldMapper mapper = (TextFieldMapper) super.updateFieldType(fullNameToFieldType);
-        if (mapper.prefixFieldMapper != null) {
-            mapper.prefixFieldMapper = (PrefixFieldMapper) mapper.prefixFieldMapper.updateFieldType(fullNameToFieldType);
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        TextFieldMapper mw = (TextFieldMapper) other;
+        if (mw.fieldType().indexPhrases != this.fieldType().indexPhrases) {
+            conflicts.add("mapper [" + name() + "] has different [index_phrases] settings");
         }
-        if (mapper.phraseFieldMapper != null) {
-            mapper.phraseFieldMapper = (PhraseFieldMapper) mapper.phraseFieldMapper.updateFieldType(fullNameToFieldType);
+        if (Objects.equals(mw.fieldType().prefixFieldType, this.fieldType().prefixFieldType) == false) {
+            conflicts.add("mapper [" + name() + "] has different [index_prefixes] settings");
         }
-        return mapper;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        TextFieldMapper mw = (TextFieldMapper) mergeWith;
-
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
             this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper);
-        } else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
-            throw new IllegalArgumentException("mapper [" + name() + "] has different index_prefix settings, current ["
-                + this.prefixFieldMapper + "], merged [" + mw.prefixFieldMapper + "]");
         }
 
         if (this.phraseFieldMapper != null && mw.phraseFieldMapper != null) {
             this.phraseFieldMapper = (PhraseFieldMapper) this.phraseFieldMapper.merge(mw.phraseFieldMapper);
-        } else if (this.fieldType().indexPhrases != mw.fieldType().indexPhrases) {
-            throw new IllegalArgumentException("mapper [" + name() + "] has different index_phrases settings, current ["
-                + this.fieldType().indexPhrases + "], merged [" + mw.fieldType().indexPhrases + "]");
         }
     }
 

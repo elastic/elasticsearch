@@ -45,6 +45,4 @@ interface TermsAggregatorSupplier extends AggregatorSupplier {
                      boolean showTermDocCountError,
                      CardinalityUpperBound cardinality,
                      Map<String, Object> metadata) throws IOException;
-
-    boolean needsToCollectFromSingleBucket();
 }

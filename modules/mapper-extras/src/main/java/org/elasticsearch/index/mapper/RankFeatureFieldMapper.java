@@ -135,14 +135,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
-            super.checkCompatibility(other, conflicts);
-            if (positiveScoreImpact != ((RankFeatureFieldType) other).positiveScoreImpact()) {
-                conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
-            }
-        }
-
-        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
@@ -228,6 +220,14 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
         if (includeDefaults || fieldType().positiveScoreImpact() == false) {
             builder.field("positive_score_impact", fieldType().positiveScoreImpact());
+        }
+    }
+
+    @Override
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        RankFeatureFieldType ft = (RankFeatureFieldType) other.fieldType();
+        if (fieldType().positiveScoreImpact != ft.positiveScoreImpact()) {
+            conflicts.add("mapper [" + name() + "] has different [positive_score_impact] values");
         }
     }
 }

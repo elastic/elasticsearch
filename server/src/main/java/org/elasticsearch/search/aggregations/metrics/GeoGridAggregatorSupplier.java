@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregator;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -33,7 +34,17 @@ import java.util.Map;
 @FunctionalInterface
 public interface GeoGridAggregatorSupplier extends AggregatorSupplier {
 
-    GeoGridAggregator build(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                            int precision, GeoBoundingBox geoBoundingBox, int requiredSize, int shardSize,
-                            SearchContext aggregationContext, Aggregator parent, Map<String, Object> metadata) throws IOException;
+    GeoGridAggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource valuesSource,
+        int precision,
+        GeoBoundingBox geoBoundingBox,
+        int requiredSize,
+        int shardSize,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

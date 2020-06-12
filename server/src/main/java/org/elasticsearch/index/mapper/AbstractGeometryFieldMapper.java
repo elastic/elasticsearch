@@ -280,9 +280,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        AbstractGeometryFieldMapper gsfm = (AbstractGeometryFieldMapper)mergeWith;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        AbstractGeometryFieldMapper gsfm = (AbstractGeometryFieldMapper)other;
 
         if (gsfm.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gsfm.ignoreMalformed;
@@ -305,6 +304,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected abstract void addStoredFields(ParseContext context, Processed geometry);
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
     protected abstract void addMultiFields(ParseContext context, Processed geometry) throws IOException;
+
+    @Override
+    public final boolean parsesArrayValue() {
+        return true;
+    }
 
     /** parsing logic for geometry indexing */
     @Override

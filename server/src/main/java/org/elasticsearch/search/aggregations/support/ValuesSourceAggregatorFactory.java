@@ -43,11 +43,10 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
                                      Map<String, Object> metadata) throws IOException {
-        ValuesSource vs = config.toValuesSource();
-        if (vs == null) {
+        if (config.hasValues() == false) {
             return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(vs, searchContext, parent, cardinality, metadata);
+        return doCreateInternal(searchContext, parent, cardinality, metadata);
     }
 
     /**
@@ -66,8 +65,7 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
      *                    that the {@link Aggregator} created by this method
      *                    will be asked to collect.
      */
-    protected abstract Aggregator doCreateInternal(ValuesSource valuesSource,
-                                                   SearchContext searchContext,
+    protected abstract Aggregator doCreateInternal(SearchContext searchContext,
                                                    Aggregator parent,
                                                    CardinalityUpperBound cardinality,
                                                    Map<String, Object> metadata) throws IOException;

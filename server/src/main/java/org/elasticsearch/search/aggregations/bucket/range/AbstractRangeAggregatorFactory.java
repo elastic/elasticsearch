@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -53,6 +52,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (RangeAggregatorSupplier) RangeAggregator::new);
     }
+
     public AbstractRangeAggregatorFactory(String name,
                                           String aggregationTypeName,
                                           ValuesSourceConfig config,
@@ -78,19 +78,29 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            CardinalityUpperBound cardinality,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config.valueSourceType(),
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             aggregationTypeName);
         if (aggregatorSupplier instanceof RangeAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected RangeAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((RangeAggregatorSupplier)aggregatorSupplier).build(name, factories, (Numeric) valuesSource, config.format(), rangeFactory,
-            ranges, keyed, searchContext, parent, cardinality, metadata);
+        return ((RangeAggregatorSupplier) aggregatorSupplier).build(
+            name,
+            factories,
+            (Numeric) config.getValuesSource(),
+            config.format(),
+            rangeFactory,
+            ranges,
+            keyed,
+            searchContext,
+            parent,
+            cardinality,
+            metadata
+        );
     }
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -20,7 +19,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/56882")
 public class VersionTests extends ESTestCase {
 
     public void testCurrent() {

@@ -329,6 +329,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final ActiveShardCount waitForActiveShards;
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
+    private final boolean isSystem;
 
     private IndexMetadata(
             final Index index,
@@ -354,7 +355,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int routingNumShards,
             final int routingPartitionSize,
             final ActiveShardCount waitForActiveShards,
-            final ImmutableOpenMap<String, RolloverInfo> rolloverInfos) {
+            final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
+            final boolean isSystem) {
 
         this.index = index;
         this.version = version;
@@ -386,6 +388,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingPartitionSize = routingPartitionSize;
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
+        this.isSystem = isSystem;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -785,6 +788,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            builder.system(in.readBoolean());
+        }
         return builder.build();
     }
 
@@ -823,6 +829,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
             cursor.value.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(isSystem);
+        }
+    }
+
+    public boolean isSystem() {
+        return isSystem;
     }
 
     public static Builder builder(String index) {
@@ -849,6 +862,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final ImmutableOpenIntMap.Builder<Set<String>> inSyncAllocationIds;
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
+        private boolean isSystem;
 
         public Builder(String index) {
             this.index = index;
@@ -857,6 +871,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.customMetadata = ImmutableOpenMap.builder();
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder();
             this.rolloverInfos = ImmutableOpenMap.builder();
+            this.isSystem = false;
         }
 
         public Builder(IndexMetadata indexMetadata) {
@@ -874,6 +889,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards = indexMetadata.routingNumShards;
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
+            this.isSystem = indexMetadata.isSystem;
         }
 
         public Builder index(String index) {
@@ -1077,6 +1093,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Arrays.fill(primaryTerms, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         }
 
+        public Builder system(boolean system) {
+            this.isSystem = system;
+            return this;
+        }
+
+        public boolean isSystem() {
+            return isSystem;
+        }
+
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1181,7 +1206,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     getRoutingNumShards(),
                     routingPartitionSize,
                     waitForActiveShards,
-                    rolloverInfos.build());
+                    rolloverInfos.build(),
+                    isSystem);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1281,6 +1307,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 cursor.value.toXContent(builder, params);
             }
             builder.endObject();
+            builder.field("system", indexMetadata.isSystem);
 
             builder.endObject();
         }
@@ -1408,6 +1435,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         builder.aliasesVersion(parser.longValue());
                     } else if (KEY_ROUTING_NUM_SHARDS.equals(currentFieldName)) {
                         builder.setRoutingNumShards(parser.intValue());
+                    } else if ("system".equals(currentFieldName)) {
+                        builder.system(parser.booleanValue());
                     } else {
                         throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }

@@ -184,7 +184,8 @@ public class MetadataCreateIndexService {
      * @param index The name of the index in question
      * @param isHidden Whether or not this is a hidden index
      */
-    public void validateDotIndex(String index, @Nullable Boolean isHidden) {
+    public boolean validateDotIndex(String index, @Nullable Boolean isHidden) {
+        boolean isSystem = false;
         if (index.charAt(0) == '.') {
             Collection<SystemIndexDescriptor> matchingDescriptors = systemIndices.findMatchingDescriptors(index);
             if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
@@ -203,8 +204,11 @@ public class MetadataCreateIndexService {
                 // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
                 assert false : errorMessage.toString();
                 throw new IllegalStateException(errorMessage.toString());
+            } else {
+                isSystem = true;
             }
         }
+        return isSystem;
     }
 
     /**
@@ -403,7 +407,8 @@ public class MetadataCreateIndexService {
             final IndexMetadata indexMetadata;
             try {
                 indexMetadata = buildIndexMetadata(request.index(), aliases, indexService.mapperService()::documentMapper,
-                    temporaryIndexMeta.getSettings(), temporaryIndexMeta.getRoutingNumShards(), sourceMetadata);
+                    temporaryIndexMeta.getSettings(), temporaryIndexMeta.getRoutingNumShards(), sourceMetadata,
+                    temporaryIndexMeta.isSystem());
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
                 throw e;
@@ -429,7 +434,7 @@ public class MetadataCreateIndexService {
                                                                  final int routingNumShards) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
-        validateDotIndex(request.index(), isHiddenAfterTemplates);
+        final boolean isSystem = validateDotIndex(request.index(), isHiddenAfterTemplates);
 
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
@@ -439,6 +444,7 @@ public class MetadataCreateIndexService {
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
+        tmpImdBuilder.system(isSystem);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -860,7 +866,14 @@ public class MetadataCreateIndexService {
     static IndexMetadata buildIndexMetadata(String indexName, List<AliasMetadata> aliases,
                                             Supplier<DocumentMapper> documentMapperSupplier, Settings indexSettings, int routingNumShards,
                                             @Nullable IndexMetadata sourceMetadata) {
+        return buildIndexMetadata(indexName, aliases, documentMapperSupplier, indexSettings, routingNumShards, sourceMetadata, false);
+    }
+
+    static IndexMetadata buildIndexMetadata(String indexName, List<AliasMetadata> aliases,
+                                            Supplier<DocumentMapper> documentMapperSupplier, Settings indexSettings, int routingNumShards,
+                                            @Nullable IndexMetadata sourceMetadata, boolean isSystem) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
+        indexMetadataBuilder.system(isSystem);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper mapper = documentMapperSupplier.get();

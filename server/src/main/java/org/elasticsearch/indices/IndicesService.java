@@ -670,11 +670,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private boolean isSystemIndex(IndexMetadata indexMetadata) {
-        return isSystemIndex(indexMetadata.getIndex());
-    }
-
-    public boolean isSystemIndex(Index index) {
-        return systemIndices.isSystemIndex(index);
+        return indexMetadata.isSystem();
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {

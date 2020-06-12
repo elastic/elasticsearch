@@ -314,10 +314,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexSortSupplier;
     }
 
-    public boolean isSystem() {
-        return isSystem;
-    }
-
     public synchronized void close(final String reason, boolean delete) throws IOException {
         if (closed.compareAndSet(false, true)) {
             deleted.compareAndSet(false, delete);

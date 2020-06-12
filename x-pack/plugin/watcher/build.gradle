@@ -28,8 +28,8 @@ dependencies {
   compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
   compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(xpackModule('ilm'))
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('ilm'))
 
   // watcher deps
   compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20191001.1'
@@ -40,9 +40,9 @@ dependencies {
   compileOnly "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compileOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
-  testCompile 'org.subethamail:subethasmtp:3.1.7'
+  testImplementation 'org.subethamail:subethasmtp:3.1.7'
   // needed for subethasmtp, has @GuardedBy annotation
-  testCompile 'com.google.code.findbugs:jsr305:3.0.2'
+  testImplementation 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

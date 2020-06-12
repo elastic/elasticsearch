@@ -153,11 +153,11 @@ public class AnalyticsResultProcessor {
     }
 
     private void updateResultsProgress(int progress) {
-        statsHolder.getProgressTracker().writingResultsPercent.set(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
+        statsHolder.getProgressTracker().updateWritingResultsProgress(Math.min(progress, MAX_PROGRESS_BEFORE_COMPLETION));
     }
 
     private void completeResultsProgress() {
-        statsHolder.getProgressTracker().writingResultsPercent.set(100);
+        statsHolder.getProgressTracker().updateWritingResultsProgress(100);
     }
 
     private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {
@@ -169,7 +169,7 @@ public class AnalyticsResultProcessor {
         if (phaseProgress != null) {
             LOGGER.debug("[{}] progress for phase [{}] updated to [{}]", analytics.getId(), phaseProgress.getPhase(),
                 phaseProgress.getProgressPercent());
-            statsHolder.getProgressTracker().analyzingPercent.set(phaseProgress.getProgressPercent());
+            statsHolder.getProgressTracker().updatePhase(phaseProgress);
         }
         TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();
         if (inferenceModelBuilder != null) {

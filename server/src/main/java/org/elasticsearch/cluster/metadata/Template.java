@@ -53,7 +53,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
     private static final ParseField ALIASES = new ParseField("aliases");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>("template", false,
+    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>("template", false,
         a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2]));
 
     static {
@@ -83,7 +83,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         this.aliases = aliases;
     }
 
-    Template(StreamInput in) throws IOException {
+    public Template(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             this.settings = Settings.readSettingsFromStream(in);
         } else {

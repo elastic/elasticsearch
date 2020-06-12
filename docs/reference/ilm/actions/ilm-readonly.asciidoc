@@ -1,17 +1,17 @@
 [role="xpack"]
 [[ilm-readonly]]
-=== Read-only
+=== Read only
 
 Phases allowed: warm.
 
-Sets an index as read-only. See <<dynamic-index-settings,`index.blocks.write`>>.
+Makes the index <<dynamic-index-settings,read-only>>.
 
-[[ilm-read-only-action-options]]
-==== Read-only options
+[[ilm-read-only-options]]
+==== Options
 
 None.
 
-[[ilm-read-only-action-example]]
+[[ilm-read-only-ex]]
 ==== Example
 
 [source,console]

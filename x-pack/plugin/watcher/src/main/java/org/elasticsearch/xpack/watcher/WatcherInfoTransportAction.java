@@ -35,7 +35,7 @@ public class WatcherInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Override
     public boolean available() {
-        return licenseState.isWatcherAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.WATCHER);
     }
 
     @Override

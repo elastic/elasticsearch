@@ -38,9 +38,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -101,13 +99,9 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     continue;
                 }
 
-                Map<String, DocumentField> fields = hit.fieldsOrNull();
-                if (fields == null) {
-                    fields = new HashMap<>();
-                    hit.fields(fields);
-                }
                 IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
-                hit.setField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                // _percolator_document_slot fields are document fields and should be under "fields" section in a hit
+                hit.setDocumentField(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
             }
         }
     }

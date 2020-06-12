@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.ConstantKeywordEsField;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -267,7 +266,7 @@ public class IndexResolver {
         if (indicesNames != null) {
             for (String indexName : indicesNames) {
                 boolean isFrozen = retrieveFrozenIndices
-                        && IndexSettings.INDEX_SEARCH_THROTTLED.get(indices.getSettings().get(indexName)) == Boolean.TRUE;
+                        && indices.getSettings().get(indexName).getAsBoolean("index.frozen", false);
 
                 if (pattern == null || pattern.matcher(indexName).matches()) {
                     result.add(new IndexInfo(indexName, isFrozen ? IndexType.FROZEN_INDEX : IndexType.STANDARD_INDEX));

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -35,6 +34,7 @@ import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class QueryContainer {
 
+    private final FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
     private final Query query;
     // attributes found in the tree
     private final AttributeMap<Expression> attributes;
@@ -98,7 +98,7 @@ public class QueryContainer {
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }
-            return new Tuple<>(this, topHitFieldRef(fa));
+            return new Tuple<>(this, extractorRegistry.fieldExtraction(expression));
         }
 
         if (expression.foldable()) {
@@ -117,42 +117,6 @@ public class QueryContainer {
     //
     // reference methods
     //
-    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        FieldAttribute actualField = fieldAttr;
-        FieldAttribute rootField = fieldAttr;
-        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
-        // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
-        // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
-        // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
-        // the root field to which those sub-fields belong to, are. Instead of "text_field.keyword_subfield" for _source extraction,
-        // we use "text_field", because there is no source for "keyword_subfield".
-        /*
-         *    "text_field": {
-         *       "type": "text",
-         *       "fields": {
-         *         "keyword_subfield": {
-         *           "type": "keyword"
-         *         }
-         *       }
-         *     }
-         */
-        if (fieldAttr.field().isAlias() == false) {
-            while (actualField.parent() != null
-                    && actualField.parent().field().getDataType() != DataTypes.OBJECT
-                    && actualField.parent().field().getDataType() != DataTypes.NESTED
-                    && actualField.field().getDataType().hasDocValues() == false) {
-                actualField = actualField.parent();
-            }
-        }
-        while (rootField.parent() != null) {
-            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
-            rootField = rootField.parent();
-        }
-
-        return new SearchHitFieldRef(actualField.name(), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                                     fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
-    }
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
         return new QueryContainer(query, combine(fields, new Tuple<>(ref, id)), attributes, sort, trackHits, includeFrozen);

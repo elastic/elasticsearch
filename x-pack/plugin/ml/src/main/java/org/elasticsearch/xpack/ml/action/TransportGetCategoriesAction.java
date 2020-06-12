@@ -37,8 +37,8 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
                 jobExists -> {
                     Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
                     Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
-                    jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), true, from, size,
-                            r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
+                    jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), request.getPartitionFieldValue(),
+                        true, from, size, r -> listener.onResponse(new GetCategoriesAction.Response(r)), listener::onFailure, client);
                 },
                 listener::onFailure
         ));

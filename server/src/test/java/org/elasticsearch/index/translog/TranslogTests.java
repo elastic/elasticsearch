@@ -100,9 +100,12 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -3187,6 +3190,7 @@ public class TranslogTests extends ESTestCase {
 
         try (Translog brokenTranslog = create(filterFileSystemProvider.getPath(path.toUri()))) {
             failOnCopy.set(true);
+            primaryTerm.incrementAndGet(); // increment primary term to force rolling generation
             assertThat(expectThrows(IOException.class, brokenTranslog::rollGeneration).getMessage(), equalTo(expectedExceptionMessage));
             assertFalse(brokenTranslog.isOpen());
 
@@ -3262,5 +3266,63 @@ public class TranslogTests extends ESTestCase {
                 thread.join();
             }
         }
+    }
+
+    public void testEnsureNoCircularException() throws Exception {
+        final AtomicBoolean failedToSyncCheckpoint = new AtomicBoolean();
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            final FileChannel channel = FileChannel.open(file, openOption);
+            return new FilterFileChannel(channel) {
+                @Override
+                public void force(boolean metaData) throws IOException {
+                    if (failedToSyncCheckpoint.get()) {
+                        throw new IOException("simulated");
+                    }
+                    super.force(metaData);
+                }
+            };
+        };
+        final TranslogConfig config = getTranslogConfig(createTempDir());
+        final String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory, primaryTerm.get());
+        final Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get,
+            seqNo -> {}) {
+            @Override
+            ChannelFactory getChannelFactory() {
+                return channelFactory;
+            }
+
+            @Override
+            void syncBeforeRollGeneration() {
+                // make it a noop like the old versions
+            }
+        };
+        try (translog) {
+            translog.add(new Translog.Index("1", 1, primaryTerm.get(), new byte[]{1}));
+            failedToSyncCheckpoint.set(true);
+            expectThrows(IOException.class, translog::rollGeneration);
+            final AlreadyClosedException alreadyClosedException = expectThrows(AlreadyClosedException.class, translog::rollGeneration);
+            if (hasCircularReference(alreadyClosedException)) {
+                throw new AssertionError("detect circular reference exception", alreadyClosedException);
+            }
+        }
+    }
+
+    static boolean hasCircularReference(Exception cause) {
+        final Queue<Throwable> queue = new LinkedList<>();
+        queue.add(cause);
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        while (queue.isEmpty() == false) {
+            final Throwable current = queue.remove();
+            if (seen.add(current) == false) {
+                return true;
+            }
+            Collections.addAll(queue, current.getSuppressed());
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return false;
     }
 }

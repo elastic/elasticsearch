@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,10 +29,14 @@ import java.io.IOException;
 public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     private boolean restActions;
+    private boolean aggregations;
 
     public NodesUsageRequest(StreamInput in) throws IOException {
         super(in);
         this.restActions = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            this.aggregations = in.readBoolean();
+        }
     }
 
     /**
@@ -47,6 +52,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
      */
     public NodesUsageRequest all() {
         this.restActions = true;
+        this.aggregations = true;
         return this;
     }
 
@@ -73,9 +79,28 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
         return this;
     }
 
+
+    /**
+     * Should the node rest actions usage statistics be returned.
+     */
+    public boolean aggregations() {
+        return this.aggregations;
+    }
+
+    /**
+     * Should the node rest actions usage statistics be returned.
+     */
+    public NodesUsageRequest aggregations(boolean aggregations) {
+        this.aggregations = aggregations;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(restActions);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeBoolean(aggregations);
+        }
     }
 }

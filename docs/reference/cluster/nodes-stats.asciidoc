@@ -109,29 +109,29 @@ using metrics.
     * `warmer`
 --
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=level]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
 
 `types`::
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
@@ -224,11 +224,11 @@ node.
 =======
 `count`::
 (integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted`::
 (integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 =======
 
 `store`::

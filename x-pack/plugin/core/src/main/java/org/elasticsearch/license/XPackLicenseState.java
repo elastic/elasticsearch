@@ -36,6 +36,7 @@ public class XPackLicenseState {
      * Each value defines the licensed state necessary for the feature to be allowed.
      */
     public enum Feature {
+        SECURITY(OperationMode.BASIC, false),
         SECURITY_IP_FILTERING(OperationMode.GOLD, false),
         SECURITY_AUDITING(OperationMode.GOLD, false),
         SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
@@ -45,7 +46,52 @@ public class XPackLicenseState {
         SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
         SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
-        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true);
+        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
+        SECURITY_STATS_AND_HEALTH(OperationMode.MISSING, true),
+
+        WATCHER(OperationMode.STANDARD, true),
+        MONITORING(OperationMode.MISSING, true),
+        // TODO: should just check WATCHER directly?
+        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
+        MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
+
+        CCR(OperationMode.PLATINUM, true),
+
+        GRAPH(OperationMode.PLATINUM, true),
+
+        MACHINE_LEARNING(OperationMode.PLATINUM, true),
+
+        TRANSFORM(OperationMode.MISSING, true),
+
+        ROLLUP(OperationMode.MISSING, true),
+
+        VOTING_ONLY(OperationMode.MISSING, true),
+
+        LOGSTASH(OperationMode.STANDARD, true),
+
+        DEPRECATION(OperationMode.MISSING, true),
+
+        ILM(OperationMode.MISSING, true),
+
+        ENRICH(OperationMode.MISSING, true),
+
+        EQL(OperationMode.MISSING, true),
+
+        SQL(OperationMode.MISSING, true),
+
+        JDBC(OperationMode.PLATINUM, true),
+
+        ODBC(OperationMode.PLATINUM, true),
+
+        VECTORS(OperationMode.MISSING, true),
+
+        SPATIAL(OperationMode.MISSING, true),
+
+        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
+
+        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
+
+        ANALYTICS(OperationMode.MISSING, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;
@@ -431,55 +477,8 @@ public class XPackLicenseState {
         return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
 
-    public boolean isStatsAndHealthAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isWatcherAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD);
-    }
-
-    public boolean isMonitoringAllowed() {
-        return allowForAllLicenses();
-    }
-
-    /**
-     * Monitoring Cluster Alerts requires the equivalent license to use Watcher.
-     *
-     * @return {@link #isWatcherAllowed()}
-     * @see #isWatcherAllowed()
-     */
-    public boolean isMonitoringClusterAlertsAllowed() {
-        return isWatcherAllowed();
-    }
-
-    /**
-     * Determine if the current license allows the retention of indices to be modified.
-     * <p>
-     * Only users with a non-{@link OperationMode#BASIC} license can update the retention period.
-     * <p>
-     * Note: This does not consider the <em>state</em> of the license so that any change is remembered for when they fix their license.
-     *
-     * @return {@code true} if the user is allowed to modify the retention. Otherwise {@code false}.
-     */
-    public boolean isUpdateRetentionAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD, false);
-    }
-
-    public boolean isGraphAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
-    public boolean isMachineLearningAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public boolean isTransformAllowed() {
-        return allowForAllLicenses();
     }
 
     public static boolean isTransformAllowedForOperationMode(final OperationMode operationMode) {
@@ -489,91 +488,6 @@ public class XPackLicenseState {
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public boolean isRollupAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isVotingOnlyAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isLogstashAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD);
-    }
-
-    public boolean isBeatsAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD);
-    }
-
-    public boolean isDeprecationAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isUpgradeAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isIndexLifecycleAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isEnrichAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isEqlAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isSqlAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isJdbcAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
-    public boolean isFlattenedAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isVectorsAllowed() {
-        return allowForAllLicenses();
-    }
-
-
-    /**
-     * Determine if Wildcard support should be enabled.
-     * <p>
-     *  Wildcard is available for all license types except {@link OperationMode#MISSING}
-     */
-    public synchronized boolean isWildcardAllowed() {
-        return status.active;
-    }
-
-    public boolean isOdbcAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
-    public boolean isSpatialAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isAnalyticsAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isConstantKeywordAllowed() {
-        return allowForAllLicenses();
-    }
-
-    /**
-     * @return true if security is available to be used with the current license type
-     */
-    public boolean isSecurityAvailable() {
-        return checkAgainstStatus(status -> status.mode != OperationMode.MISSING);
     }
 
     /**
@@ -613,13 +527,6 @@ public class XPackLicenseState {
             default:
                 return isSecurityEnabled;
         }
-    }
-
-    /**
-     * Determine if cross-cluster replication is allowed
-     */
-    public boolean isCcrAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
     }
 
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {

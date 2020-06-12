@@ -30,10 +30,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
@@ -51,6 +54,27 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg")
                     .fields(Collections.singletonList("field"));
+                InternalMatrixStats stats = search(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
+                assertNull(stats.getStats());
+                assertFalse(MatrixAggregationInspectionHelper.hasValue(stats));
+            }
+        }
+    }
+
+    public void testUnmapped() throws Exception {
+        MappedFieldType ft =
+            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+        ft.setName("field");
+
+        try (Directory directory = newDirectory();
+             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            if (randomBoolean()) {
+                indexWriter.addDocument(Collections.singleton(new StringField("another_field", "value", Field.Store.NO)));
+            }
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg")
+                    .fields(Collections.singletonList("bogus"));
                 InternalMatrixStats stats = search(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
                 assertNull(stats.getStats());
                 assertFalse(MatrixAggregationInspectionHelper.hasValue(stats));
@@ -136,4 +160,8 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    @Override
+    protected List<SearchPlugin> getSearchPlugins() {
+        return Collections.singletonList(new MatrixAggregationPlugin());
+    }
 }

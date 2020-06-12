@@ -28,13 +28,16 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         StepKey expectedSixthStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey expectedSeventhStep = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey expectedEighthStep = new StepKey(phase, NAME, CopySettingsStep.NAME);
-        StepKey expectedNinthStep = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
+        StepKey expectedNinthStep = new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
+        StepKey expectedTenthStep = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
+        StepKey expectedElevenStep = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey expectedTwelveStep = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
 
         SearchableSnapshotAction action = createTestInstance();
         StepKey nextStepKey = new StepKey(phase, randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
 
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertThat(steps.size(), is(9));
+        assertThat(steps.size(), is(12));
 
         assertThat(steps.get(0).getKey(), is(expectedFirstStep));
         assertThat(steps.get(1).getKey(), is(expectedSecondStep));
@@ -45,6 +48,9 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         assertThat(steps.get(6).getKey(), is(expectedSeventhStep));
         assertThat(steps.get(7).getKey(), is(expectedEighthStep));
         assertThat(steps.get(8).getKey(), is(expectedNinthStep));
+        assertThat(steps.get(9).getKey(), is(expectedTenthStep));
+        assertThat(steps.get(10).getKey(), is(expectedElevenStep));
+        assertThat(steps.get(11).getKey(), is(expectedTwelveStep));
 
         AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(3);
         assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedThirdStep));

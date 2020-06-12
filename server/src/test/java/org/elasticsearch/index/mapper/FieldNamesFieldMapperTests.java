@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -38,7 +38,22 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
+public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFieldMapper.Builder> {
+
+    @Override
+    protected FieldNamesFieldMapper.Builder newBuilder() {
+        return new FieldNamesFieldMapper.Builder(null);
+    }
+
+    @Before
+    public void addModifiers() {
+        addBooleanModifier("enabled", true, FieldNamesFieldMapper.Builder::enabled);
+    }
+
+    @Override
+    protected boolean supportsDocValues() {
+        return false;
+    }
 
     private static SortedSet<String> extract(String path) {
         SortedSet<String> set = new TreeSet<>();

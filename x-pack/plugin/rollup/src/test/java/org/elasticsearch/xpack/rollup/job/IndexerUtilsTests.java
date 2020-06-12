@@ -114,7 +114,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -182,7 +182,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -238,7 +238,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -305,7 +305,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -496,7 +496,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 
@@ -574,7 +574,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
         aggregator.postCollection();
-        CompositeAggregation composite = (CompositeAggregation) aggregator.buildAggregation(0L);
+        CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
 

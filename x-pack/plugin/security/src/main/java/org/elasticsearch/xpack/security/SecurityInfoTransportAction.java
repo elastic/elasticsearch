@@ -34,7 +34,7 @@ public class SecurityInfoTransportAction extends XPackInfoFeatureTransportAction
 
     @Override
     public boolean available() {
-        return licenseState.isSecurityAvailable();
+        return licenseState.isAllowed(XPackLicenseState.Feature.SECURITY);
     }
 
     @Override

@@ -529,7 +529,7 @@ s|Description
 |45s
 |The timeout before a pagination request fails.
 
-|time_zone
+|[[sql-rest-fields-timezone]]time_zone
 |`Z` (or `UTC`)
 |Time-zone in ISO 8601 used for executing the query on the server.
 More information available https://docs.oracle.com/javase/8/docs/api/java/time/ZoneId.html[here].

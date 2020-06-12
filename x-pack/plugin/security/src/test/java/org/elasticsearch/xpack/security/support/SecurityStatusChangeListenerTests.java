@@ -30,7 +30,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
     @Before
     public void setup() throws IllegalAccessException {
         licenseState = Mockito.mock(XPackLicenseState.class);
-        when(licenseState.isSecurityAvailable()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
 
         listener = new SecurityStatusChangeListener(licenseState);
 

@@ -21,13 +21,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.vectors.Vectors;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -36,10 +37,24 @@ import java.util.Collection;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
+public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVectorFieldMapper.Builder> {
+
+    @Override
+    protected DenseVectorFieldMapper.Builder newBuilder() {
+        return new DenseVectorFieldMapper.Builder("densevector");
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
+    }
+
+    @Before
+    public void addModifiers() {
+        addModifier("dims", false, (a, b) -> {
+            a.dims(3);
+            b.dims(4);
+        });
     }
 
     // this allows to set indexVersion as it is a private setting

@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.eql.parser.AbstractBuilder.unquoteString;
+import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -144,12 +145,12 @@ public class ExpressionTests extends ESTestCase {
         Expression field = expr(fieldText);
         Expression value = expr(valueText);
 
-        assertEquals(new Equals(null, field, value), expr(fieldText + "==" + valueText));
-        assertEquals(new NotEquals(null, field, value), expr(fieldText + "!=" + valueText));
-        assertEquals(new LessThanOrEqual(null, field, value), expr(fieldText + "<=" + valueText));
-        assertEquals(new GreaterThanOrEqual(null, field, value), expr(fieldText + ">=" + valueText));
-        assertEquals(new GreaterThan(null, field, value), expr(fieldText + ">" + valueText));
-        assertEquals(new LessThan(null, field, value), expr(fieldText + "<" + valueText));
+        assertEquals(new Equals(null, field, value, UTC), expr(fieldText + "==" + valueText));
+        assertEquals(new NotEquals(null, field, value, UTC), expr(fieldText + "!=" + valueText));
+        assertEquals(new LessThanOrEqual(null, field, value, UTC), expr(fieldText + "<=" + valueText));
+        assertEquals(new GreaterThanOrEqual(null, field, value, UTC), expr(fieldText + ">=" + valueText));
+        assertEquals(new GreaterThan(null, field, value, UTC), expr(fieldText + ">" + valueText));
+        assertEquals(new LessThan(null, field, value, UTC), expr(fieldText + "<" + valueText));
     }
 
     public void testBoolean() {

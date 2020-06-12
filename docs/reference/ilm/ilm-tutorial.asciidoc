@@ -261,7 +261,7 @@ DELETE /_index_template/timeseries_template
 //////////////////////////
 
 [discrete]
-[[ilm-gs-create-policy]]
+[[manage-time-series-data-without-data-streams]]
 === Manage time-series data without data streams
 
 Even though <<data-streams, data streams>> are a convenient way to scale

@@ -91,6 +91,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -924,18 +925,19 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
-        long seqNo = randomIntBetween(0, 1);
+        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
+            final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), "{}".getBytes(), null, -1);
+                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
             } else if (randomBoolean()) {
                 op = new Translog.Delete("id", new Term("_id", "id"), seqNo, randomNonNegativeLong(), randomNonNegativeLong());
             } else {
                 op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
             }
             operations.add(op);
-            seqNo += randomIntBetween(1, 2);
         }
         return operations;
     }

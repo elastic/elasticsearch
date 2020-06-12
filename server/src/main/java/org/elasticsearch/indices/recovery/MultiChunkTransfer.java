@@ -175,7 +175,7 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
      * this method to reset the file offset or close the previous file and open a new file if needed.
      */
     protected void onNewResource(Source resource) throws IOException {
-        
+
     }
 
     protected abstract Request nextChunkRequest(Source resource) throws IOException;

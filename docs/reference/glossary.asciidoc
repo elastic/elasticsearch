@@ -352,11 +352,20 @@ during the following processes:
 --
 
 [[glossary-reindex]] reindex ::
-
++
+--
 // tag::reindex-def[]
-To cycle through some or all documents in one or more indices, re-writing them into the same 
-or new index in a local or remote cluster. This is most commonly done to update mappings, or to upgrade {es} between two incompatible index versions.
+Copies documents from a _source_ to a _destination_. The source and
+destination can be any pre-existing index, index alias, or
+{ref}/data-streams.html[data stream].
+
+You can reindex all documents from a source or select a subset of documents to
+copy. You can also reindex to a destination in a remote cluster.
+
+A reindex is often performed to update mappings, change static index settings,
+or upgrade {es} between incompatible versions.
 // end::reindex-def[]
+--
 
 [[glossary-remote-cluster]] remote cluster ::
 

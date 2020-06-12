@@ -146,7 +146,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
                 }
 
-                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource; 
+                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
                 IncludeExclude.LongFilter longFilter = null;
                 Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy;
                 if (numericValuesSource.isFloatingPoint()) {
@@ -223,8 +223,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
+    protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
@@ -246,7 +245,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
         bucketCountThresholds.ensureValidity();
 
-        return termsAggregatorSupplier.build(name, factories, valuesSource, order, config.format(),
+        return termsAggregatorSupplier.build(name, factories, config.getValuesSource(), order, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent, collectMode,
             showTermDocCountError, collectsFromSingleBucket, metadata);
     }

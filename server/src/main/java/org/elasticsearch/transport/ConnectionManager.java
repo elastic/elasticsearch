@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
 import java.io.Closeable;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public interface ConnectionManager extends Closeable {
@@ -42,6 +43,8 @@ public interface ConnectionManager extends Closeable {
     boolean nodeConnected(DiscoveryNode node);
 
     void disconnectFromNode(DiscoveryNode node);
+
+    Set<DiscoveryNode> getAllConnectedNodes();
 
     int size();
 

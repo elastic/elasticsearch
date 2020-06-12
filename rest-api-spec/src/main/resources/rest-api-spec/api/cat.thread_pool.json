@@ -32,16 +32,17 @@
         "type":"string",
         "description":"a short version of the Accept header, e.g. json, yaml"
       },
-      "size":{
+      "time":{
         "type":"enum",
-        "description":"The multiplier in which to display values",
+        "description":"The unit in which to display time values",
         "options":[
-          "",
-          "k",
+          "d",
+          "h",
           "m",
-          "g",
-          "t",
-          "p"
+          "s",
+          "ms",
+          "micros",
+          "nanos"
         ]
       },
       "local":{

@@ -123,5 +123,5 @@ ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode AFTER_DOT;
 
-DOTINTEGER: ( '0' | [1-9] [0-9]* )                                            -> mode(DEFAULT_MODE);
-DOTID: [_a-zA-Z] [_a-zA-Z0-9]*                                                -> mode(DEFAULT_MODE);
+DOTINTEGER: ( '0' | [1-9] [0-9]* ) -> mode(DEFAULT_MODE);
+DOTID: [_a-zA-Z] [_a-zA-Z0-9]*     -> mode(DEFAULT_MODE);

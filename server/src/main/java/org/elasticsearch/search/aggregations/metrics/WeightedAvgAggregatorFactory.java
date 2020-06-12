@@ -32,6 +32,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder.VALUE_FIELD;
+
 class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
@@ -61,5 +63,10 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
             return createUnmapped(searchContext, parent, metadata);
         }
         return new WeightedAvgAggregator(name, numericMultiVS, format, searchContext, parent, metadata);
+    }
+
+    @Override
+    public String getStatsSubtype() {
+        return configs.get(VALUE_FIELD.getPreferredName()).valueSourceType().typeName();
     }
 }

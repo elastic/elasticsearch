@@ -81,6 +81,11 @@ public class DataFrameAnalyticsManager {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
+                // At this point we have the config at hand and we can reset the progress tracker
+                // to use the analyses phases. We preserve reindexing progress as if reindexing was
+                // finished it will not be reset.
+                task.getStatsHolder().resetProgressTrackerPreservingReindexingProgress(config.getAnalysis().getProgressPhases());
+
                 switch(currentState) {
                     // If we are STARTED, it means the job was started because the start API was called.
                     // We should determine the job's starting state based on its previous progress.
@@ -217,7 +222,6 @@ public class DataFrameAnalyticsManager {
                     return;
                 }
                 task.setReindexingTaskId(null);
-                task.setReindexingFinished();
                 auditor.info(
                     config.getId(),
                     Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex(),
@@ -225,7 +229,7 @@ public class DataFrameAnalyticsManager {
                 startAnalytics(task, config);
             },
             error -> {
-                if (ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException && task.isStopping()) {
+                if (task.isStopping() && isTaskCancelledException(error)) {
                     LOGGER.debug(new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping",
                         config.getId()), error);
                     task.markAsCompleted();
@@ -290,12 +294,18 @@ public class DataFrameAnalyticsManager {
                 new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
     }
 
+    private static boolean isTaskCancelledException(Exception error) {
+        return ExceptionsHelper.unwrapCause(error) instanceof TaskCancelledException
+            || ExceptionsHelper.unwrapCause(error.getCause()) instanceof TaskCancelledException;
+    }
+
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
         if (task.isStopping()) {
             LOGGER.debug("[{}] task is stopping. Marking as complete before starting analysis.", task.getParams().getId());
             task.markAsCompleted();
             return;
         }
+
         final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
@@ -327,7 +337,7 @@ public class DataFrameAnalyticsManager {
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
             refreshResponse -> {
-                // Ensure we mark reindexing is finished for the case we are recovering a task that had finished reindexing
+                // Now we can ensure reindexing progress is complete
                 task.setReindexingFinished();
 
                 // TODO This could fail with errors. In that case we get stuck with the copied index.

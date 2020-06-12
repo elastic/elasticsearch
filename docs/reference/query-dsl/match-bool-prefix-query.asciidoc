@@ -44,7 +44,7 @@ An important difference between the `match_bool_prefix` query and
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix`>> is that the
 `match_phrase_prefix` query matches its terms as a phrase, but the
 `match_bool_prefix` query can match its terms in any position. The example
-`match_bool_prefix` query above could match a field containing containing
+`match_bool_prefix` query above could match a field containing
 `quick brown fox`, but it could also match `brown fox quick`. It could also
 match a field containing the term `quick`, the term `brown` and a term
 starting with `f`, appearing in any position.

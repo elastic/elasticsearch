@@ -23,14 +23,10 @@ import org.gradle.util.GradleVersion
 plugins {
   id 'java-gradle-plugin'
   id 'groovy'
+  id 'java-test-fixtures'
 }
 
 group = 'org.elasticsearch.gradle'
-
-String minimumGradleVersion = file('src/main/resources/minimumGradleVersion').text.trim()
-if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
-   throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
-}
 
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean
@@ -48,7 +44,7 @@ if (project == rootProject) {
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
 version = props.getProperty("elasticsearch")
 
-task generateVersionProperties(type: WriteProperties) {
+def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   outputFile = "${buildDir}/version.properties"
   comment = 'Generated version properties'
   properties(props)
@@ -75,6 +71,11 @@ allprojects {
 sourceSets {
   // We have a few classes that need to be compiled for older java versions
   minimumRuntime {}
+
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
 }
 
 compileMinimumRuntimeJava {
@@ -118,16 +119,18 @@ dependencies {
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
-  compile 'de.thetaphi:forbiddenapis:2.7'
+  compile 'de.thetaphi:forbiddenapis:3.0'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   compile 'org.apache.maven:maven-model:3.6.2'
   compile 'com.networknt:json-schema-validator:1.0.36'
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testCompile "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testCompile "junit:junit:${props.getProperty('junit')}"
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-  testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-  testCompile 'org.mockito:mockito-core:1.9.5'
+  testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  testFixturesApi "junit:junit:${props.getProperty('junit')}"
+  testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+  testFixturesApi gradleApi()
+  testFixturesApi gradleTestKit()
+  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testImplementation 'org.mockito:mockito-core:1.9.5'
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
   minimumRuntimeCompile gradleApi()
@@ -159,7 +162,7 @@ if (project == rootProject) {
 // to enforce precommit checks like forbidden apis, as well as setup publishing
 if (project != rootProject) {
   apply plugin: 'elasticsearch.build'
-  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'elasticsearch.publish'
 
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false
@@ -167,17 +170,19 @@ if (project != rootProject) {
   // build-tools is not ready for primetime with these...
   dependencyLicenses.enabled = false
   dependenciesInfo.enabled = false
-  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime', 'forbiddenApisTest')
+  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime',
+    'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
-  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))){
+  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
+    // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
+    // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
     test.enabled = false
+    testingConventions.enabled = false
   }
 
-  configurations {
-    distribution
-    reaper
-  }
+  configurations.register("distribution")
+  configurations.register("reaper")
 
   dependencies {
     reaper project('reaper')
@@ -217,6 +222,8 @@ if (project != rootProject) {
   forbiddenPatterns {
     exclude '**/*.wav'
     exclude '**/*.p12'
+    exclude '**/*.jks'
+    exclude '**/*.crt'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
     exclude '**/*.bcfks'
@@ -234,13 +241,15 @@ if (project != rootProject) {
     }
   }
 
-  task integTest(type: Test) {
+  tasks.register("integTest", Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
     onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+    testClassesDirs = sourceSets.integTest.output.classesDirs
+    classpath = sourceSets.integTest.runtimeClasspath
   }
-  check.dependsOn(integTest)
+  check.dependsOn("integTest")
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
@@ -253,6 +262,11 @@ if (project != rootProject) {
    */
   afterEvaluate {
     generatePomFileForPluginMavenPublication.enabled = false
+  }
+
+  publishing.publications.named("nebula").configure {
+    suppressPomMetadataWarningsFor("testFixturesApiElements")
+    suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
   }
 }
 

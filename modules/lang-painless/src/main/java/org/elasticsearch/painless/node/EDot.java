@@ -230,8 +230,7 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            if ((input.read || input.write)
-                                    && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                            if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(
@@ -280,8 +279,7 @@ public class EDot extends AExpression {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
 
-                            if ((input.read || input.write)
-                                    && (input.read == false || getter != null) && (input.write == false || setter != null)) {
+                            if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
                                 output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {
                                 throw createError(new IllegalArgumentException(

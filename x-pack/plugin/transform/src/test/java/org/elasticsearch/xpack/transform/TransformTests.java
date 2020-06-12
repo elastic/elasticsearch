@@ -6,11 +6,9 @@
 
 package org.elasticsearch.xpack.transform;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -35,12 +33,9 @@ public class TransformTests extends ESTestCase {
         Transform transform = createTransform(builder.build());
         assertNotNull(transform.additionalSettings());
         assertEquals(
-            transformPluginEnabled && transformEnabled,
+            transformEnabled,
             Boolean.parseBoolean(transform.additionalSettings().get("node.attr.transform.node"))
         );
-        if (transformPluginEnabled == false) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{XPackSettings.TRANSFORM_ENABLED});
-        }
     }
 
     public void testNodeAttributesDirectlyGiven() {

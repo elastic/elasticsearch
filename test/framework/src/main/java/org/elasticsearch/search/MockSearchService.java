@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public class MockSearchService extends SearchService {
     /**
@@ -41,6 +42,8 @@ public class MockSearchService extends SearchService {
     public static class TestPlugin extends Plugin {}
 
     private static final Map<SearchContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+
+    private Consumer<SearchContext> onPutContext = context -> {};
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
@@ -75,6 +78,7 @@ public class MockSearchService extends SearchService {
 
     @Override
     protected void putContext(SearchContext context) {
+        onPutContext.accept(context);
         addActiveContext(context);
         super.putContext(context);
     }
@@ -86,5 +90,9 @@ public class MockSearchService extends SearchService {
             removeActiveContext(removed);
         }
         return removed;
+    }
+
+    public void setOnPutContext(Consumer<SearchContext> onPutContext) {
+        this.onPutContext = onPutContext;
     }
 }

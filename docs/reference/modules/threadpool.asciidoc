@@ -1,11 +1,9 @@
 [[modules-threadpool]]
-== Thread Pool
+=== Thread pools
 
-A node holds several thread pools in order to improve how threads memory consumption
-are managed within a node. Many of these pools also have queues associated with them,
-which allow pending requests to be held instead
-of discarded.
-
+A node uses several thread pools to manage memory consumption. 
+Queues associated with many of the thread pools enable pending requests 
+to be held instead of discarded. 
 
 There are several thread pools, but the important ones include:
 
@@ -35,7 +33,7 @@ There are several thread pools, but the important ones include:
 `write`::
     For single-document index/delete/update and bulk requests. Thread pool type
     is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
-    queue_size of `200`. The maximum size for this pool is 
+    queue_size of `200`. The maximum size for this pool is
     `pass:[1 + ]`<<node.processors, `# of allocated processors`>>.
 
 `snapshot`::
@@ -94,15 +92,13 @@ thread_pool:
         size: 30
 --------------------------------------------------
 
-[float]
-[[types]]
-=== Thread pool types
+[[thread-pool-types]]
+==== Thread pool types
 
 The following are the types of thread pools and their respective parameters:
 
-[float]
-[[fixed]]
-==== `fixed`
+[[fixed-thread-pool]]
+===== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the
 requests with a queue (optionally bounded) for pending requests that
@@ -123,9 +119,8 @@ thread_pool:
         queue_size: 1000
 --------------------------------------------------
 
-[float]
-[[scaling]]
-==== `scaling`
+[[scaling-thread-pool]]
+===== `scaling`
 
 The `scaling` thread pool holds a dynamic number of threads. This
 number is proportional to the workload and varies between the value of
@@ -143,9 +138,8 @@ thread_pool:
         keep_alive: 2m
 --------------------------------------------------
 
-[float]
 [[node.processors]]
-=== Allocated processors setting
+==== Allocated processors setting
 
 The number of processors is automatically detected, and the thread pool settings
 are automatically set based on it. In some cases it can be useful to override

@@ -127,8 +127,10 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         if (metadata == null) {
             throw new IndexNotFoundException(sourceIndexName);
         }
-        final Settings targetIndexSettings = Settings.builder().put(targetIndex.settings())
-            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+        final Settings.Builder targetIndexSettingsBuilder = Settings.builder().put(targetIndex.settings())
+            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+        targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
+        final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);

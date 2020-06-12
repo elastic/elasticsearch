@@ -18,19 +18,19 @@
  */
 package org.elasticsearch.index.mapper;
 
-import java.net.InetAddress;
-import java.util.Arrays;
-
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 
-public class IpFieldTypeTests extends FieldTypeTestCase {
+import java.net.InetAddress;
+import java.util.Arrays;
+
+public class IpFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new IpFieldMapper.IpFieldType();

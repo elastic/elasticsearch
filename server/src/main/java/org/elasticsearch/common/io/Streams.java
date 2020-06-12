@@ -51,6 +51,19 @@ public abstract class Streams {
 
     public static final int BUFFER_SIZE = 1024 * 8;
 
+    /**
+     * OutputStream that just throws all the bytes away
+     */
+    public static final OutputStream NULL_OUTPUT_STREAM = new OutputStream() {
+        @Override
+        public void write(int b) {
+            // no-op
+        }
+        @Override
+        public void write(byte[] b, int off, int len) {
+            // no-op
+        }
+    };
 
     //---------------------------------------------------------------------
     // Copy methods for java.io.InputStream / java.io.OutputStream
@@ -209,7 +222,7 @@ public abstract class Streams {
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
     public static long consumeFully(InputStream inputStream) throws IOException {
-        return copy(inputStream, new NullOutputStream());
+        return copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -382,22 +395,6 @@ public abstract class Streams {
             if (limitOnLastMark != NO_MARK) {
                 currentLimit = limitOnLastMark;
             }
-        }
-    }
-
-    /**
-     * OutputStream that just throws all the bytes away
-     */
-    static class NullOutputStream extends OutputStream {
-
-        @Override
-        public void write(int b) {
-
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) {
-
         }
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -70,7 +71,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private volatile boolean isReindexingFinished;
     private volatile boolean isStopping;
     private volatile boolean isMarkAsCompletedCalled;
-    private final StatsHolder statsHolder = new StatsHolder();
+    private final StatsHolder statsHolder;
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                                   Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
@@ -81,6 +82,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         this.analyticsManager = Objects.requireNonNull(analyticsManager);
         this.auditor = Objects.requireNonNull(auditor);
         this.taskParams = Objects.requireNonNull(taskParams);
+        this.statsHolder = new StatsHolder(taskParams.getProgressOnStart());
     }
 
     public StartDataFrameAnalyticsAction.TaskParams getParams() {
@@ -106,7 +108,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     @Override
     protected void onCancelled() {
-        stop(getReasonCancelled(), TimeValue.ZERO);
+        stop(getReasonCancelled(), StopDataFrameAnalyticsAction.DEFAULT_TIMEOUT);
         markAsCompleted();
     }
 
@@ -222,7 +224,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             // We set reindexing progress at least to 1 for a running process to be able to
             // distinguish a job that is running for the first time against a job that is restarting.
             reindexTaskProgress -> {
-                statsHolder.getProgressTracker().reindexingPercent.set(Math.max(1, reindexTaskProgress));
+                statsHolder.getProgressTracker().updateReindexingProgress(Math.max(1, reindexTaskProgress));
                 listener.onResponse(null);
             },
             listener::onFailure
@@ -232,8 +234,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private void getReindexTaskProgress(ActionListener<Integer> listener) {
         TaskId reindexTaskId = getReindexTaskId();
         if (reindexTaskId == null) {
-            // The task is not present which means either it has not started yet or it finished.
-            // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
             listener.onResponse(isReindexingFinished ? 100 : 0);
             return;
         }
@@ -250,7 +250,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             error -> {
                 if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
-                    // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
                     listener.onResponse(isReindexingFinished ? 100 : 0);
                 } else {
                     listener.onFailure(error);
@@ -366,17 +365,10 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         LOGGER.debug("[{}] Last incomplete progress [{}, {}]", jobId, lastIncompletePhase.getPhase(),
             lastIncompletePhase.getProgressPercent());
 
-        switch (lastIncompletePhase.getPhase()) {
-            case ProgressTracker.REINDEXING:
-                return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
-            case ProgressTracker.LOADING_DATA:
-            case ProgressTracker.ANALYZING:
-            case ProgressTracker.WRITING_RESULTS:
-                return StartingState.RESUMING_ANALYZING;
-            default:
-                LOGGER.warn("[{}] Unexpected progress phase [{}]", jobId, lastIncompletePhase.getPhase());
-                return StartingState.FIRST_TIME;
+        if (ProgressTracker.REINDEXING.equals(lastIncompletePhase.getPhase())) {
+            return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
         }
+        return StartingState.RESUMING_ANALYZING;
     }
 
 }

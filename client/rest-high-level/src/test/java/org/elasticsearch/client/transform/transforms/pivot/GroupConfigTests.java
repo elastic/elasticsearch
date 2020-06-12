@@ -55,8 +55,11 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
                         groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
                         break;
                     case DATE_HISTOGRAM:
-                    default:
                         groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
+                        break;
+                    case GEOTILE_GRID:
+                    default:
+                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
                 }
                 groups.put(targetFieldName, groupBy);
             }

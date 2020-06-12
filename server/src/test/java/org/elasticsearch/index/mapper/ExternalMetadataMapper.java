@@ -21,14 +21,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class ExternalMetadataMapper extends MetadataFieldMapper {
@@ -48,7 +46,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // handled in post parse
     }
 
@@ -76,7 +74,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
         context.doc().add(new StringField(FIELD_NAME, FIELD_VALUE, Store.YES));
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, ExternalMetadataMapper> {
+    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
         protected Builder() {
             super(FIELD_NAME, FIELD_TYPE, FIELD_TYPE);
@@ -92,7 +90,7 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
 
         @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                        ParserContext parserContext) throws MapperParsingException {
             return new Builder();
         }

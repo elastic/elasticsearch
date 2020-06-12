@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -58,7 +59,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "config-id";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null);
+    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null, null);
 
     private Client client;
     private DataFrameAnalyticsAuditor auditor;
@@ -94,7 +95,8 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
         task = mock(DataFrameAnalyticsTask.class);
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
-        when(task.getStatsHolder()).thenReturn(new StatsHolder());
+        when(task.getStatsHolder()).thenReturn(new StatsHolder(
+            ProgressTracker.fromZeroes(Collections.singletonList("analyzing")).report()));
         when(task.getParentTaskId()).thenReturn(new TaskId(""));
         dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
             false,
@@ -108,7 +110,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         resultsPersisterService = mock(ResultsPersisterService.class);
 
         processManager = new AnalyticsProcessManager(client, executorServiceForJob, executorServiceForProcess, processFactory, auditor,
-            trainedModelProvider, resultsPersisterService);
+            trainedModelProvider, resultsPersisterService, 1);
     }
 
     public void testRunJob_TaskIsStopping() {

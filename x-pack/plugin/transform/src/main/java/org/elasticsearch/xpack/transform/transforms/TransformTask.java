@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
@@ -48,7 +50,6 @@ import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_ST
 public class TransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener, TransformContext.Listener {
 
     // Default interval the scheduler sends an event if the config does not specify a frequency
-    private static final long SCHEDULER_NEXT_MILLISECONDS = 60000;
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
     private static final IndexerState[] RUNNING_STATES = new IndexerState[] { IndexerState.STARTED, IndexerState.INDEXING };
     public static final String SCHEDULE_NAME = TransformField.TASK_NAME + "/schedule";
@@ -369,6 +370,10 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         }
     }
 
+    public synchronized void applyNewSettings(SettingsConfig newSettings) {
+        getIndexer().applyNewSettings(newSettings);
+    }
+
     @Override
     protected void init(
         PersistentTasksService persistentTasksService,
@@ -533,12 +538,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
             TimeValue frequency = transform.getFrequency();
-            return now + (frequency == null ? SCHEDULER_NEXT_MILLISECONDS : frequency.getMillis());
+            return now + (frequency == null ? Transform.DEFAULT_TRANSFORM_FREQUENCY.getMillis() : frequency.getMillis());
         };
     }
 
     synchronized void initializeIndexer(ClientTransformIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(getThreadPool().executor(ThreadPool.Names.GENERIC), context));
+        indexer.set(indexerBuilder.build(getThreadPool(), ThreadPool.Names.GENERIC, context));
     }
 
     ThreadPool getThreadPool() {

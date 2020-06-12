@@ -27,17 +27,25 @@ public class SequenceStateMachine {
     /** this ignores the key */
     private final long[] timestampMarkers;
 
+    private final Comparable<Object>[] tiebreakerMarkers;
+    private final boolean hasTieBreaker;
+
     private final int completionStage;
 
     /** list of completed sequences - separate to avoid polluting the other stages */
     private final List<Sequence> completed;
 
-    public SequenceStateMachine(int stages) {
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    public SequenceStateMachine(int stages, boolean hasTiebreaker) {
         this.completionStage = stages - 1;
+
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
         this.timestampMarkers = new long[completionStage];
+        this.tiebreakerMarkers = new Comparable[completionStage];
         this.completed = new LinkedList<>();
+
+        this.hasTieBreaker = hasTiebreaker;
     }
 
     public List<Sequence> completeSequences() {
@@ -48,8 +56,22 @@ public class SequenceStateMachine {
         return timestampMarkers[stage];
     }
 
+    public Comparable<?> getTiebreakerMarker(int stage) {
+        return tiebreakerMarkers[stage];
+    }
+
     public void setTimestampMarker(int stage, long timestamp) {
         timestampMarkers[stage] = timestamp;
+    }
+
+    public void setTiebreakerMarker(int stage, Comparable<Object> tiebreaker) {
+        tiebreakerMarkers[stage] = tiebreaker;
+    }
+
+    public Object[] getMarkers(int stage) {
+        long ts = timestampMarkers[stage];
+        Comparable<Object> tb = tiebreakerMarkers[stage];
+        return hasTieBreaker ? new Object[] { ts, tb } : new Object[] { ts };
     }
 
     public void trackSequence(Sequence sequence, long tMin, long tMax) {
@@ -62,10 +84,10 @@ public class SequenceStateMachine {
     }
 
     /**
-     * Match the given hit (based on key and timestamp) with any potential sequence from the previous
+     * Match the given hit (based on key and timestamp and potential tiebreaker) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
-    public boolean match(int stage, SequenceKey key, long timestamp, SearchHit hit) {
+    public boolean match(int stage, SequenceKey key, long timestamp, Comparable<Object> tiebreaker, SearchHit hit) {
         int previousStage = stage - 1;
         // check key presence to avoid creating a collection
         SequenceFrame frame = keyToSequences.frameIfPresent(previousStage, key);
@@ -73,7 +95,7 @@ public class SequenceStateMachine {
             return false;
         }
         // pick the sequence with the highest timestamp lower than current match timestamp
-        Tuple<Sequence, Integer> before = frame.before(timestamp);
+        Tuple<Sequence, Integer> before = frame.before(timestamp, tiebreaker);
         if (before == null) {
             return false;
         }
@@ -81,7 +103,7 @@ public class SequenceStateMachine {
         // eliminate the match and all previous values from the frame
         frame.trim(before.v2() + 1);
         // update sequence
-        sequence.putMatch(stage, hit, timestamp);
+        sequence.putMatch(stage, hit, timestamp, tiebreaker);
 
         // remove the frame and keys early (as the key space is large)
         if (frame.isEmpty()) {

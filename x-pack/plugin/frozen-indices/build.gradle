@@ -11,7 +11,7 @@ archivesBaseName = 'x-pack-frozen-indices'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierD
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,6 +32,7 @@ public class AnalyticsResult implements ToXContentObject {
 
     private static final ParseField PHASE_PROGRESS = new ParseField("phase_progress");
     private static final ParseField INFERENCE_MODEL = new ParseField("inference_model");
+    private static final ParseField MODEL_SIZE_INFO = new ParseField("model_size_info");
     private static final ParseField ANALYTICS_MEMORY_USAGE = new ParseField("analytics_memory_usage");
     private static final ParseField OUTLIER_DETECTION_STATS = new ParseField("outlier_detection_stats");
     private static final ParseField CLASSIFICATION_STATS = new ParseField("classification_stats");
@@ -44,7 +46,8 @@ public class AnalyticsResult implements ToXContentObject {
                 (MemoryUsage) a[3],
                 (OutlierDetectionStats) a[4],
                 (ClassificationStats) a[5],
-                (RegressionStats) a[6]
+                (RegressionStats) a[6],
+                (ModelSizeInfo) a[7]
             ));
 
     static {
@@ -56,6 +59,7 @@ public class AnalyticsResult implements ToXContentObject {
         PARSER.declareObject(optionalConstructorArg(), OutlierDetectionStats.STRICT_PARSER, OUTLIER_DETECTION_STATS);
         PARSER.declareObject(optionalConstructorArg(), ClassificationStats.STRICT_PARSER, CLASSIFICATION_STATS);
         PARSER.declareObject(optionalConstructorArg(), RegressionStats.STRICT_PARSER, REGRESSION_STATS);
+        PARSER.declareObject(optionalConstructorArg(), ModelSizeInfo.PARSER, MODEL_SIZE_INFO);
     }
 
     private final RowResults rowResults;
@@ -66,6 +70,7 @@ public class AnalyticsResult implements ToXContentObject {
     private final OutlierDetectionStats outlierDetectionStats;
     private final ClassificationStats classificationStats;
     private final RegressionStats regressionStats;
+    private final ModelSizeInfo modelSizeInfo;
 
     public AnalyticsResult(@Nullable RowResults rowResults,
                            @Nullable PhaseProgress phaseProgress,
@@ -73,7 +78,8 @@ public class AnalyticsResult implements ToXContentObject {
                            @Nullable MemoryUsage memoryUsage,
                            @Nullable OutlierDetectionStats outlierDetectionStats,
                            @Nullable ClassificationStats classificationStats,
-                           @Nullable RegressionStats regressionStats) {
+                           @Nullable RegressionStats regressionStats,
+                           @Nullable ModelSizeInfo modelSizeInfo) {
         this.rowResults = rowResults;
         this.phaseProgress = phaseProgress;
         this.inferenceModelBuilder = inferenceModelBuilder;
@@ -82,6 +88,7 @@ public class AnalyticsResult implements ToXContentObject {
         this.outlierDetectionStats = outlierDetectionStats;
         this.classificationStats = classificationStats;
         this.regressionStats = regressionStats;
+        this.modelSizeInfo = modelSizeInfo;
     }
 
     public RowResults getRowResults() {
@@ -112,6 +119,10 @@ public class AnalyticsResult implements ToXContentObject {
         return regressionStats;
     }
 
+    public ModelSizeInfo getModelSizeInfo() {
+        return modelSizeInfo;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -138,6 +149,9 @@ public class AnalyticsResult implements ToXContentObject {
         if (regressionStats != null) {
             builder.field(REGRESSION_STATS.getPreferredName(), regressionStats, params);
         }
+        if (modelSizeInfo != null) {
+            builder.field(MODEL_SIZE_INFO.getPreferredName(), modelSizeInfo);
+        }
         builder.endObject();
         return builder;
     }
@@ -158,6 +172,7 @@ public class AnalyticsResult implements ToXContentObject {
             && Objects.equals(memoryUsage, that.memoryUsage)
             && Objects.equals(outlierDetectionStats, that.outlierDetectionStats)
             && Objects.equals(classificationStats, that.classificationStats)
+            && Objects.equals(modelSizeInfo, that.modelSizeInfo)
             && Objects.equals(regressionStats, that.regressionStats);
     }
 

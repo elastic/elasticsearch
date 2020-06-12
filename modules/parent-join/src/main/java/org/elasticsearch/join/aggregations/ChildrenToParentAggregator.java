@@ -40,8 +40,8 @@ public class ChildrenToParentAggregator extends ParentJoinAggregator {
     public ChildrenToParentAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
-            long maxOrd, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, metadata);
+            long maxOrd, boolean collectsFromSingleBucket, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, collectsFromSingleBucket, metadata);
     }
 
     @Override

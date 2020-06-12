@@ -12,7 +12,8 @@ setup:
             "input": {"field_names": ["avg_cost"]},
             "inference_config": {
               "regression": {
-                "results_field": "regression-value"
+                "results_field": "regression-value",
+                "num_top_feature_importance_values": 2
               }
             },
             "definition": {
@@ -108,7 +109,7 @@ setup:
                       "field": "cost"
                     }
                   },
-                  "regression" : {
+                  "regression_agg" : {
                     "inference_model": {
                       "model_id": "a-complex-regression-model",
                       "buckets_path": {

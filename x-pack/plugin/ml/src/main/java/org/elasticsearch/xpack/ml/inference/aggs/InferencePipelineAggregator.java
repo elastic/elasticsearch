@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.ml.inference.aggs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -29,6 +31,8 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 
 public class InferencePipelineAggregator extends PipelineAggregator {
 
+    private static final Logger logger = LogManager.getLogger(InferencePipelineAggregator.class);
+
     private Map<String, String> bucketPathMap;
     private InferenceConfigUpdate configUpdate;
     private final BucketHelpers.GapPolicy gapPolicy;
@@ -48,6 +52,8 @@ public class InferencePipelineAggregator extends PipelineAggregator {
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
+        logger.warn("starting agg");
+
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
             (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
@@ -64,6 +70,8 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     skipBucket = true;
                     break;
                 }
+
+                logger.warn("got field {} : {}", aggName, value);
                 inputFields.put(aggName, value);
             }
             if (skipBucket) {
@@ -82,8 +90,8 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                 (p) -> (InternalAggregation) p).collect(Collectors.toList());
 
 
-            InternalSimpleValue simpleValue = new InternalSimpleValue(name(), 10.1, DocValueFormat.RAW, metadata());
-            aggs.add(simpleValue);
+            InternalInferenceAggregation infResult = new InternalInferenceAggregation(name(), metadata(), inference);
+            aggs.add(infResult);
             InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(new InternalAggregations(aggs),
                 bucket);
             newBuckets.add(newBucket);

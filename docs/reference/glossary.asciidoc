@@ -67,6 +67,19 @@ multiple clusters.
 See {ref}/modules-cross-cluster-search.html[Search across clusters].
 // end::ccs-def[]
 
+[[glossary-data-stream]] data stream ::
++
+--
+// tag::data-stream-def[]
+A named resource used to ingest, search, and manage time-series data in {es}. A
+data stream's data is stored across multiple hidden, auto-generated
+<<glossary-index,indices>>. You can automate management of these indices to more
+efficiently store large data volumes.
+
+See {ref}/data-streams.html[Data streams].
+// end::data-stream-def[]
+--
+
 [[glossary-delete-phase]] delete phase ::
 // tag::delete-phase-def[]
 The last possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 

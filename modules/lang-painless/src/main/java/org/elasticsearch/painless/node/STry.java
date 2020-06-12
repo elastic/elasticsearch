@@ -30,27 +30,28 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents the try block as part of a try-catch block.
  */
 public class STry extends AStatement {
 
-    protected final SBlock block;
-    protected final List<SCatch> catches;
+    private final SBlock blockNode;
+    private final List<SCatch> catcheNodes;
 
-    public STry(Location location, SBlock block, List<SCatch> catches) {
-        super(location);
+    public STry(int identifier, Location location, SBlock blockNode, List<SCatch> catcheNodes) {
+        super(identifier, location);
 
-        this.block = block;
-        this.catches = Collections.unmodifiableList(catches);
+        this.blockNode = blockNode;
+        this.catcheNodes = Collections.unmodifiableList(Objects.requireNonNull(catcheNodes));
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         Output output = new Output();
 
-        if (block == null) {
+        if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
@@ -59,7 +60,7 @@ public class STry extends AStatement {
         blockInput.inLoop = input.inLoop;
         blockInput.lastLoop = input.lastLoop;
 
-        Output blockOutput = block.analyze(classNode, scriptRoot, scope.newLocalScope(), blockInput);
+        Output blockOutput = blockNode.analyze(classNode, scriptRoot, scope.newLocalScope(), blockInput);
 
         output.methodEscape = blockOutput.methodEscape;
         output.loopEscape = blockOutput.loopEscape;
@@ -71,7 +72,7 @@ public class STry extends AStatement {
 
         List<Output> catchOutputs = new ArrayList<>();
 
-        for (SCatch catc : catches) {
+        for (SCatch catc : catcheNodes) {
             Input catchInput = new Input();
             catchInput.lastSource = input.lastSource;
             catchInput.inLoop = input.inLoop;
@@ -99,7 +100,7 @@ public class STry extends AStatement {
         }
 
         tryNode.setBlockNode((BlockNode)blockOutput.statementNode);
-        tryNode.setLocation(location);
+        tryNode.setLocation(getLocation());
 
         output.statementNode = tryNode;
 

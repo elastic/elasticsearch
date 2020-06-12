@@ -87,10 +87,10 @@ Because it's the only index capable of ingesting new documents, you cannot
 perform operations on a write index that might hinder indexing. These
 prohibited operations include:
 
-* <<indices-close,Closing the write index>>
-* <<indices-delete-index,Deleting the write index>>
-* <<freeze-index-api,Freezing the write index>>
-* <<indices-shrink-index,Shrinking the write index>>
+* <<indices-close,Close>>
+* <<indices-delete-index,Delete>>
+* <<freeze-index-api,Freeze>>
+* <<indices-shrink-index,Shrink>>
 
 [discrete]
 [[data-streams-rollover]]

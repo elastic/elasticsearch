@@ -37,14 +37,22 @@ import java.util.Objects;
  */
 public class EUnary extends AExpression {
 
-    protected final Operation operation;
-    protected final AExpression child;
+    private final AExpression childNode;
+    private final Operation operation;
 
-    public EUnary(Location location, Operation operation, AExpression child) {
-        super(location);
+    public EUnary(int identifier, Location location, AExpression childNode, Operation operation) {
+        super(identifier, location);
 
+        this.childNode = Objects.requireNonNull(childNode);
         this.operation = Objects.requireNonNull(operation);
-        this.child = Objects.requireNonNull(child);
+    }
+
+    public AExpression getChildNode() {
+        return childNode;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
@@ -67,25 +75,27 @@ public class EUnary extends AExpression {
         Input childInput = new Input();
         Output childOutput;
 
-        ENumeric numeric = (ENumeric)child.getChildIf(ENumeric.class);
-        EDecimal decimal = (EDecimal)child.getChildIf(EDecimal.class);
-
-        if ((operation == Operation.SUB || operation == Operation.ADD) && (numeric != null || decimal != null)) {
+        if ((operation == Operation.SUB || operation == Operation.ADD) &&
+                (childNode instanceof ENumeric || childNode instanceof EDecimal)) {
             childInput.expected = input.expected;
             childInput.explicit = input.explicit;
             childInput.internal = input.internal;
 
-            if (numeric != null) {
+            if (childNode instanceof ENumeric) {
+                ENumeric numeric = (ENumeric)childNode;
+
                 if (operation == Operation.SUB) {
-                    childOutput = numeric.analyze(classNode, scriptRoot, scope, childInput, numeric.value.charAt(0) != '-');
+                    childOutput = numeric.analyze(childInput, numeric.getNumeric().charAt(0) != '-');
                 } else {
-                    childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+                    childOutput = childNode.analyze(classNode, scriptRoot, scope, childInput);
                 }
-            } else if (decimal != null) {
+            } else if (childNode instanceof EDecimal) {
+                EDecimal decimal = (EDecimal)childNode;
+
                 if (operation == Operation.SUB) {
-                    childOutput = decimal.analyze(classNode, scriptRoot, scope, childInput, decimal.value.charAt(0) != '-');
+                    childOutput = decimal.analyze(childInput, decimal.getDecimal().charAt(0) != '-');
                 } else {
-                    childOutput = child.analyze(classNode, scriptRoot, scope, childInput);
+                    childOutput = childNode.analyze(classNode, scriptRoot, scope, childInput);
                 }
             } else {
                 throw createError(new IllegalArgumentException("illegal tree structure"));
@@ -98,13 +108,13 @@ public class EUnary extends AExpression {
 
             if (operation == Operation.NOT) {
                 childInput.expected = boolean.class;
-                childOutput = analyze(child, classNode, scriptRoot, scope, childInput);
-                childCast = AnalyzerCaster.getLegalCast(child.location,
+                childOutput = analyze(childNode, classNode, scriptRoot, scope, childInput);
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 output.actual = boolean.class;
             } else if (operation == Operation.BWNOT || operation == Operation.ADD || operation == Operation.SUB) {
-                childOutput = analyze(child, classNode, scriptRoot, scope, new Input());
+                childOutput = analyze(childNode, classNode, scriptRoot, scope, new Input());
 
                 promote = AnalyzerCaster.promoteNumeric(childOutput.actual, operation != Operation.BWNOT);
 
@@ -115,7 +125,7 @@ public class EUnary extends AExpression {
                 }
 
                 childInput.expected = promote;
-                childCast = AnalyzerCaster.getLegalCast(child.location,
+                childCast = AnalyzerCaster.getLegalCast(childNode.getLocation(),
                         childOutput.actual, childInput.expected, childInput.explicit, childInput.internal);
 
                 if (promote == def.class && input.expected != null) {
@@ -129,7 +139,7 @@ public class EUnary extends AExpression {
 
             UnaryMathNode unaryMathNode = new UnaryMathNode();
             unaryMathNode.setChildNode(cast(childOutput.expressionNode, childCast));
-            unaryMathNode.setLocation(location);
+            unaryMathNode.setLocation(getLocation());
             unaryMathNode.setExpressionType(output.actual);
             unaryMathNode.setUnaryType(promote);
             unaryMathNode.setOperation(operation);

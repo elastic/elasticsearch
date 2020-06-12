@@ -13,6 +13,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -24,6 +26,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
@@ -78,6 +83,25 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRefreshingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
+        {
+            Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+            assertThat("this branch is not needed if we aren't compatible with 6.0",
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+            if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
+                XContentBuilder template = jsonBuilder();
+                template.startObject();
+                {
+                    template.field("index_patterns", "token_backwards_compatibility_it");
+                    template.startObject("settings");
+                    template.field("number_of_shards", 5);
+                    template.endObject();
+                }
+                template.endObject();
+                Request createTemplate = new Request("PUT", "/_template/refresh-tokens-old-cluster-template");
+                createTemplate.setJsonEntity(Strings.toString(template));
+                client().performRequest(createTemplate);
+            }
+        }
         // Creates access and refresh tokens and uses the refresh token. The new resulting tokens are used in different phases
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         String accessToken = (String) responseMap.get("access_token");
@@ -166,7 +190,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRefreshingTokensInMixedCluster() throws Exception {
-        // verify new nodes can refresh tokens created by old nodes and vice versa 
+        // verify new nodes can refresh tokens created by old nodes and vice versa
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         for (RestClient client1 : twoClients) {
             Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");

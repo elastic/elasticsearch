@@ -25,20 +25,16 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -74,25 +70,6 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            {
-                Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-                assertThat("this branch is not needed if we aren't compatible with 6.0",
-                        minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
-                if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
-                    XContentBuilder template = jsonBuilder();
-                    template.startObject();
-                    {
-                        template.field("index_patterns", "*");
-                        template.startObject("settings");
-                        template.field("number_of_shards", 5);
-                        template.endObject();
-                    }
-                    template.endObject();
-                    Request createTemplate = new Request("PUT", "/_template/template");
-                    createTemplate.setJsonEntity(Strings.toString(template));
-                    client().performRequest(createTemplate);
-                }
-            }
 
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");

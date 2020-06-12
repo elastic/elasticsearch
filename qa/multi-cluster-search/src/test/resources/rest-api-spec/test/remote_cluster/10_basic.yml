@@ -10,6 +10,11 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
           data_stream:
             timestamp_field: '@timestamp'
   - do:
@@ -19,6 +24,11 @@
         name: my-template2
         body:
           index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp2':
+                  type: date
           data_stream:
             timestamp_field: '@timestamp2'
 
@@ -173,5 +183,3 @@
   - match: { hits.total: 2 }
   - match: { hits.hits.0._source.filter_field: 1 }
   - match: { hits.hits.0._index: "test_index" }
-
-

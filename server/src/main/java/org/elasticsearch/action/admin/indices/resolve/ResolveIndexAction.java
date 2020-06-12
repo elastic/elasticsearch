@@ -45,10 +45,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -124,7 +122,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public int hashCode() {
-            return Objects.hash((Object[]) names);
+            return Arrays.hashCode(names);
         }
 
         @Override
@@ -146,7 +144,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     public static class ResolvedIndexAbstraction {
 
-        protected static final ParseField NAME_FIELD = new ParseField("name");
+        static final ParseField NAME_FIELD = new ParseField("name");
 
         private String name;
 
@@ -167,9 +165,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     public static class ResolvedIndex extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
-        private static final ParseField ALIASES_FIELD = new ParseField("aliases");
-        private static final ParseField ATTRIBUTES_FIELD = new ParseField("attributes");
-        private static final ParseField DATA_STREAM_FIELD = new ParseField("data_stream");
+        static final ParseField ALIASES_FIELD = new ParseField("aliases");
+        static final ParseField ATTRIBUTES_FIELD = new ParseField("attributes");
+        static final ParseField DATA_STREAM_FIELD = new ParseField("data_stream");
 
         private final String[] aliases;
         private final String[] attributes;
@@ -195,6 +193,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         public String[] getAliases() {
             return aliases;
+        }
+
+        public String[] getAttributes() {
+            return attributes;
         }
 
         public String getDataStream() {
@@ -224,23 +226,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return builder;
         }
 
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ResolvedIndex, Void> PARSER = new ConstructingObjectParser<>(
-            "resolved_index",
-            args -> new ResolvedIndex((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY),
-                ((List<String>) args[2]).toArray(Strings.EMPTY_ARRAY), (String) args[3]));
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ALIASES_FIELD);
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ATTRIBUTES_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), DATA_STREAM_FIELD);
-        }
-
-        public static ResolvedIndex fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -252,13 +237,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public int hashCode() {
-            return Objects.hash(getName(), aliases, attributes, dataStream);
+            int result = Objects.hash(getName(), dataStream);
+            result = 31 * result + Arrays.hashCode(aliases);
+            result = 31 * result + Arrays.hashCode(attributes);
+            return result;
         }
     }
 
     public static class ResolvedAlias extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
-        private static final ParseField INDICES_FIELD = new ParseField("indices");
+        static final ParseField INDICES_FIELD = new ParseField("indices");
 
         private final String[] indices;
 
@@ -297,20 +285,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return builder;
         }
 
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ResolvedAlias, Void> PARSER = new ConstructingObjectParser<>(
-            "resolved_alias",
-            args -> new ResolvedAlias((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY)));
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
-        }
-
-        public static ResolvedAlias fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -321,14 +295,16 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public int hashCode() {
-            return Objects.hash(getName(), indices);
+            int result = Objects.hash(getName());
+            result = 31 * result + Arrays.hashCode(indices);
+            return result;
         }
     }
 
     public static class ResolvedDataStream extends ResolvedIndexAbstraction implements Writeable, ToXContentObject {
 
-        private static final ParseField BACKING_INDICES_FIELD = new ParseField("backing_indices");
-        private static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
+        static final ParseField BACKING_INDICES_FIELD = new ParseField("backing_indices");
+        static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
 
         private final String[] backingIndices;
         private final String timestampField;
@@ -374,21 +350,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return builder;
         }
 
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ResolvedDataStream, Void> PARSER = new ConstructingObjectParser<>(
-            "resolved_data_stream",
-            args -> new ResolvedDataStream((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY), (String) args[2]));
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), BACKING_INDICES_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD);
-        }
-
-        public static ResolvedDataStream fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -400,15 +361,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public int hashCode() {
-            return Objects.hash(getName(), backingIndices, timestampField);
+            int result = Objects.hash(getName(), timestampField);
+            result = 31 * result + Arrays.hashCode(backingIndices);
+            return result;
         }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private static final ParseField INDICES_FIELD = new ParseField("indices");
-        private static final ParseField ALIASES_FIELD = new ParseField("aliases");
-        private static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
+        static final ParseField INDICES_FIELD = new ParseField("indices");
+        static final ParseField ALIASES_FIELD = new ParseField("aliases");
+        static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
 
         private final List<ResolvedIndex> indices;
         private final List<ResolvedAlias> aliases;
@@ -476,22 +439,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             return builder;
         }
 
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-            "resolve_index_response",
-            args -> new Response((List<ResolvedIndex>) args[0], (List<ResolvedAlias>) args[1], (List<ResolvedDataStream>) args[2]));
-
-        static {
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResolvedIndex.fromXContent(p), INDICES_FIELD);
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResolvedAlias.fromXContent(p), ALIASES_FIELD);
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> ResolvedDataStream.fromXContent(p),
-                DATA_STREAMS_FIELD);
-        }
-
-        public static Response fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -534,14 +481,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedAlias> aliases = new ArrayList<>();
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             if (localIndices != null) {
-                List<String> resolvedIndexAbstractions = resolveIndexAbstractions(localIndices.indices(), request.indicesOptions, metadata);
-                SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
-                for (String s : resolvedIndexAbstractions) {
-                    enrichIndexAbstraction(s, lookup, indices, aliases, dataStreams);
-                }
-                indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
-                aliases.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
-                dataStreams.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
+                resolveIndices(localIndices.indices(), request.indicesOptions, metadata, indexNameExpressionResolver, indices, aliases,
+                    dataStreams);
             }
 
             if (remoteClusterIndices.size() > 0) {
@@ -571,6 +512,31 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
+        /**
+         * Resolves the specified names and/or wildcard expressions to index abstractions. Returns results in the supplied lists.
+         *
+         * @param names          The names and wildcard expressions to resolve
+         * @param indicesOptions Options for expanding wildcards to indices with different states
+         * @param metadata       Cluster metadata
+         * @param resolver       Resolver instance for matching names
+         * @param indices        List containing any matching indices
+         * @param aliases        List containing any matching aliases
+         * @param dataStreams    List containing any matching data streams
+         */
+        // visible for testing
+        static void resolveIndices(String[] names, IndicesOptions indicesOptions, Metadata metadata, IndexNameExpressionResolver resolver,
+                                   List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
+            List<String> resolvedIndexAbstractions = resolveIndexAbstractions(names, indicesOptions, metadata, resolver);
+            SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+            for (String s : resolvedIndexAbstractions) {
+                enrichIndexAbstraction(s, lookup, indices, aliases, dataStreams);
+            }
+            indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
+            aliases.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
+            dataStreams.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
+
+        }
+
         private static void mergeResults(Map<String, Response> remoteResponses, List<ResolvedIndex> indices, List<ResolvedAlias> aliases,
                                          List<ResolvedDataStream> dataStreams) {
             for (Map.Entry<String, Response> responseEntry: remoteResponses.entrySet()) {
@@ -588,7 +554,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             }
         }
 
-        private List<String> resolveIndexAbstractions(String[] indices, IndicesOptions indicesOptions, Metadata metadata) {
+        private static List<String> resolveIndexAbstractions(String[] indices, IndicesOptions indicesOptions, Metadata metadata,
+                                                             IndexNameExpressionResolver indexNameExpressionResolver) {
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
             Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
             List<String> finalIndices = new ArrayList<>();

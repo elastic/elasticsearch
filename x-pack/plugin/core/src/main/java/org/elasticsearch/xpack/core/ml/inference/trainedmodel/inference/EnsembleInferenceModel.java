@@ -84,6 +84,7 @@ public class EnsembleInferenceModel implements InferenceModel {
     private final TargetType targetType;
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
+    private volatile boolean preparedForInference = false;
 
     EnsembleInferenceModel(@Nullable List<String> featureNames,
                            List<InferenceModel> models,
@@ -135,6 +136,9 @@ public class EnsembleInferenceModel implements InferenceModel {
         if (config.isTargetTypeSupported(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
+        }
+        if (preparedForInference == false) {
+            throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
         double[][] inferenceResults = new double[this.models.size()][];
         double[][] featureInfluence = new double[features.length][];
@@ -233,6 +237,10 @@ public class EnsembleInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
+        if (preparedForInference) {
+            return;
+        }
+        preparedForInference = true;
         if (newFeatureIndexMapping == null || newFeatureIndexMapping.isEmpty()) {
             Set<String> referencedFeatures = subModelFeatures();
             int newFeatureIndex = 0;

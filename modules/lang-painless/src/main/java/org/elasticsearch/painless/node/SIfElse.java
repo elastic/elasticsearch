@@ -35,16 +35,28 @@ import java.util.Objects;
  */
 public class SIfElse extends AStatement {
 
-    protected final AExpression condition;
-    protected final SBlock ifblock;
-    protected final SBlock elseblock;
+    private final AExpression conditionNode;
+    private final SBlock ifblockNode;
+    private final SBlock elseblockNode;
 
-    public SIfElse(Location location, AExpression condition, SBlock ifblock, SBlock elseblock) {
-        super(location);
+    public SIfElse(int identifier, Location location, AExpression conditionNode, SBlock ifblockNode, SBlock elseblockNode) {
+        super(identifier, location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.ifblock = ifblock;
-        this.elseblock = elseblock;
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.ifblockNode = ifblockNode;
+        this.elseblockNode = elseblockNode;
+    }
+
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public SBlock getIfblockNode() {
+        return ifblockNode;
+    }
+
+    public SBlock getElseblockNode() {
+        return elseblockNode;
     }
 
     @Override
@@ -53,16 +65,16 @@ public class SIfElse extends AStatement {
 
         AExpression.Input conditionInput = new AExpression.Input();
         conditionInput.expected = boolean.class;
-        AExpression.Output conditionOutput = AExpression.analyze(condition, classNode, scriptRoot, scope, conditionInput);
-        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(condition.location,
+        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, scriptRoot, scope, conditionInput);
+        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
                 conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
 
 
-        if (condition.getChildIf(EBoolean.class) != null) {
+        if (conditionNode instanceof EBoolean) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
-        if (ifblock == null) {
+        if (ifblockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -71,13 +83,13 @@ public class SIfElse extends AStatement {
         ifblockInput.inLoop = input.inLoop;
         ifblockInput.lastLoop = input.lastLoop;
 
-        Output ifblockOutput = ifblock.analyze(classNode, scriptRoot, scope.newLocalScope(), ifblockInput);
+        Output ifblockOutput = ifblockNode.analyze(classNode, scriptRoot, scope.newLocalScope(), ifblockInput);
 
         output.anyContinue = ifblockOutput.anyContinue;
         output.anyBreak = ifblockOutput.anyBreak;
         output.statementCount = ifblockOutput.statementCount;
 
-        if (elseblock == null) {
+        if (elseblockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous else statement."));
         }
 
@@ -86,7 +98,7 @@ public class SIfElse extends AStatement {
         elseblockInput.inLoop = input.inLoop;
         elseblockInput.lastLoop = input.lastLoop;
 
-        Output elseblockOutput = elseblock.analyze(classNode, scriptRoot, scope.newLocalScope(), elseblockInput);
+        Output elseblockOutput = elseblockNode.analyze(classNode, scriptRoot, scope.newLocalScope(), elseblockInput);
 
         output.methodEscape = ifblockOutput.methodEscape && elseblockOutput.methodEscape;
         output.loopEscape = ifblockOutput.loopEscape && elseblockOutput.loopEscape;
@@ -99,7 +111,7 @@ public class SIfElse extends AStatement {
         ifElseNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
         ifElseNode.setBlockNode((BlockNode)ifblockOutput.statementNode);
         ifElseNode.setElseBlockNode((BlockNode)elseblockOutput.statementNode);
-        ifElseNode.setLocation(location);
+        ifElseNode.setLocation(getLocation());
 
         output.statementNode = ifElseNode;
 

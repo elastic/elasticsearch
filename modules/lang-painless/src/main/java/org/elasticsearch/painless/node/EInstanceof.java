@@ -37,25 +37,34 @@ import java.util.Objects;
  */
 public class EInstanceof extends AExpression {
 
-    protected final AExpression expression;
-    protected final String type;
+    private final AExpression expressionNode;
+    private final String canonicalTypeName;
 
-    public EInstanceof(Location location, AExpression expression, String type) {
-        super(location);
-        this.expression = Objects.requireNonNull(expression);
-        this.type = Objects.requireNonNull(type);
+    public EInstanceof(int identifier, Location location, AExpression expression, String canonicalTypeName) {
+        super(identifier, location);
+
+        this.expressionNode = Objects.requireNonNull(expression);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
     }
 
     @Override
     Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
         if (input.write) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to instanceof with target type [" + type + "]"));
+                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
         }
 
         if (input.read == false) {
             throw createError(new IllegalArgumentException(
-                    "not a statement: result not used from instanceof with target type [" + type + "]"));
+                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
         }
 
         Class<?> resolvedType;
@@ -65,10 +74,10 @@ public class EInstanceof extends AExpression {
         Output output = new Output();
 
         // ensure the specified type is part of the definition
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
         // map to wrapped type for primitive types
@@ -77,9 +86,9 @@ public class EInstanceof extends AExpression {
 
         // analyze and cast the expression
         Input expressionInput = new Input();
-        Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
+        Output expressionOutput = analyze(expressionNode, classNode, scriptRoot, scope, expressionInput);
         expressionInput.expected = expressionOutput.actual;
-        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
+        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expressionNode.getLocation(),
                 expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
 
         // record if the expression returns a primitive
@@ -94,7 +103,7 @@ public class EInstanceof extends AExpression {
 
         instanceofNode.setChildNode(cast(expressionOutput.expressionNode, expressionCast));
 
-        instanceofNode.setLocation(location);
+        instanceofNode.setLocation(getLocation());
         instanceofNode.setExpressionType(output.actual);
         instanceofNode.setInstanceType(expressionType);
         instanceofNode.setResolvedType(resolvedType);

@@ -30,8 +30,8 @@ import org.elasticsearch.painless.symbol.ScriptRoot;
  */
 public class SContinue extends AStatement {
 
-    public SContinue(Location location) {
-        super(location);
+    public SContinue(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
@@ -51,7 +51,7 @@ public class SContinue extends AStatement {
         output.statementCount = 1;
 
         ContinueNode continueNode = new ContinueNode();
-        continueNode.setLocation(location);
+        continueNode.setLocation(getLocation());
 
         output.statementNode = continueNode;
 

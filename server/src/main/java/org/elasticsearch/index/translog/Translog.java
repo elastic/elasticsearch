@@ -805,7 +805,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         // we only need to sync the max location since it will sync all other
         // locations implicitly
         if (max.isPresent()) {
-            return ensureSynced(max.get());
+            Location location = max.get();
+            if (location == Location.MAX_LOCATION) {
+                sync();
+                return true;
+            } else {
+                return ensureSynced(location);
+            }
         } else {
             return false;
         }
@@ -861,6 +867,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     public static class Location implements Comparable<Location> {
+
+        public static final Location MAX_LOCATION = new Location(Long.MAX_VALUE, Long.MAX_VALUE, 0);
 
         public final long generation;
         public final long translogLocation;

@@ -46,10 +46,8 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
-import org.elasticsearch.index.bulk.stats.BulkOperationListener;
-import org.elasticsearch.index.bulk.stats.BulkStats;
-import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -73,10 +71,9 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.NewAsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
@@ -86,6 +83,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.bulk.stats.BulkOperationListener;
+import org.elasticsearch.index.bulk.stats.BulkStats;
+import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -180,6 +180,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
@@ -310,7 +311,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
-        this.translogSyncProcessor = createTranslogSyncProcessor(logger, threadPool.getThreadContext(), this::getEngine);
+        this.translogSyncProcessor = createTranslogSyncProcessor(logger, threadPool, this::getEngine);
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
@@ -3011,15 +3012,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexShardOperationPermits.getActiveOperations();
     }
 
-    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor;
+    private final NewAsyncIOProcessor<Translog.Location> translogSyncProcessor;
 
-    private static AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(Logger logger, ThreadContext threadContext,
-                                                                                   Supplier<Engine> engineSupplier) {
-        return new AsyncIOProcessor<>(logger, 1024, threadContext) {
+    private static NewAsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(Logger logger, ThreadPool threadPool,
+                                                                                      Supplier<Engine> engineSupplier) {
+        return new NewAsyncIOProcessor<>(logger, 1024, threadPool) {
             @Override
             protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
                 try {
-                    engineSupplier.get().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
+                    final Optional<Translog.Location> max = candidates.stream().map(Tuple::v1).max(Translog.Location::compareTo);
+                    if (max.isPresent()) {
+                        if (max.get() == Translog.Location.MAX_LOCATION) {
+                            engineSupplier.get().syncTranslog();
+                        } else {
+                            engineSupplier.get().ensureTranslogSynced(Stream.of(max.get()));
+                        }
+                    }
                 } catch (AlreadyClosedException ex) {
                     // that's fine since we already synced everything on engine close - this also is conform with the methods
                     // documentation
@@ -3047,7 +3055,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void sync() throws IOException {
         verifyNotClosed();
-        getEngine().syncTranslog();
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        translogSyncProcessor.put(Translog.Location.MAX_LOCATION, e -> {
+            if (e == null) {
+                future.onResponse(null);
+            } else {
+                future.onFailure(e);
+            }
+        });
+        try {
+            future.actionGet();
+        } catch (Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IOException) {
+                throw (IOException) cause;
+            } else {
+                throw e;
+            }
+        }
     }
 
     /**

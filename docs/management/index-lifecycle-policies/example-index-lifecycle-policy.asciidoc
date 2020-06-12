@@ -59,7 +59,7 @@ output as described in {filebeat-ref}/filebeat-getting-started.html[Getting Star
 {filebeat} includes a default {ilm-init} policy that enables rollover. {ilm-init}
 is enabled automatically if you’re using the default `filebeat.yml` and index template.
 
-To view the default policy in {kib}, go to *Management > Index Lifecycle Policies*,
+To view the default policy in {kib}, open the menu, go to * Stack Management > {es} > Index Lifecycle Policies*,
 search for _filebeat_, and choose the _filebeat-version_ policy.
 
 This policy initiates the rollover action when the index size reaches 50GB or
@@ -114,8 +114,8 @@ If meeting a specific retention time period is most important, you can create a
 custom policy.  For this option, you will use {filebeat} daily indices without
 rollover.
 
-. Create a custom policy in {kib}, go to *Management > Index Lifecycle Policies >
-Create Policy*.
+. To create a custom policy, open the menu, go to *Stack Management > {es} > Index Lifecycle Policies*, then click 
+*Create policy*.
 
 . Activate the warm phase and configure it as follows:
 +
@@ -156,8 +156,8 @@ image::images/tutorial-ilm-custom-policy.png["Modify the custom policy to add a 
 [role="screenshot"]
 image::images/tutorial-ilm-delete-phase-creation.png["Delete phase"]
 
-. Configure the index to use the new policy in *{kib} > Management > Index Lifecycle
-Policies*
+. To configure the index to use the new policy, open the menu, then go to *Stack Management > {es} > Index Lifecycle
+Policies*.
 
 .. Find your {ilm-init} policy.
 .. Click the *Actions* link next to your policy name.

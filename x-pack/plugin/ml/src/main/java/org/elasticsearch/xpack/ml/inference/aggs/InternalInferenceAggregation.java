@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.aggs;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.io.IOException;
@@ -36,8 +37,24 @@ public class InternalInferenceAggregation extends InternalAggregation {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Object getProperty(List<String> path) {
-        throw new UnsupportedOperationException();
+        Map<String, Object> resultMap = this.inferenceResult.writeResultToMap();
+
+        for (int i=0; i<path.size() -1; i++) {
+            Object value = resultMap.get(path.get(i));
+            if (value == null) {
+                throw new InvalidAggregationPathException("Cannot find an key [" + path.get(i) + "] in " + path);
+            }
+
+            if (value instanceof Map<?, ?>) {
+                resultMap = (Map<String, Object>)value;
+            } else {
+                throw new InvalidAggregationPathException("Expected object at [" + path.get(i) + "] in " + path);
+            }
+        }
+
+        return resultMap.get(path.get(path.size()-1));
     }
 
     @Override

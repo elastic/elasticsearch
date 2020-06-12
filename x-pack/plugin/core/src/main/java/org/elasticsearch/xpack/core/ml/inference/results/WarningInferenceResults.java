@@ -12,6 +12,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 public class WarningInferenceResults implements InferenceResults {
@@ -55,12 +57,16 @@ public class WarningInferenceResults implements InferenceResults {
     public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(parentResultField, "resultField");
-        document.setFieldValue(parentResultField + "." + "warning", warning);
+        document.setFieldValue(parentResultField + "." + NAME, warning);
+    }
+
+    @Override
+    public Map<String, Object> writeResultToMap() {
+        return Collections.singletonMap(NAME, warning);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
     }
-
 }

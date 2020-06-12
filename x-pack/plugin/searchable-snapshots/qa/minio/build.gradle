@@ -9,8 +9,8 @@ final Project fixture = project(':test:fixtures:minio-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
 
 dependencies {
-  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
-  testCompile repositoryPlugin
+  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation repositoryPlugin
 }
 
 restResources {

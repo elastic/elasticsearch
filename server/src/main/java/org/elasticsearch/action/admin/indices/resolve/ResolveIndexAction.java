@@ -474,7 +474,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(),
-                request.indices());
+                request.indices(), idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState));
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             final Metadata metadata = clusterState.metadata();
             List<ResolvedIndex> indices = new ArrayList<>();

@@ -39,7 +39,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return org.elasticsearch.common.collect.List.of(
             new Route(RestRequest.Method.GET, "/_resolve/index/{name}")
         );
     }

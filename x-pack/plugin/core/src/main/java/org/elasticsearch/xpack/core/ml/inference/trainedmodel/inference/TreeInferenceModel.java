@@ -80,6 +80,7 @@ public class TreeInferenceModel implements InferenceModel {
     private final double highOrderCategory;
     private final int maxDepth;
     private final int leafSize;
+    private volatile boolean preparedForInference = false;
 
     TreeInferenceModel(List<String> featureNames, List<NodeBuilder> nodes, TargetType targetType, List<String> classificationLabels) {
         this.featureNames = ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES).toArray(String[]::new);
@@ -135,6 +136,9 @@ public class TreeInferenceModel implements InferenceModel {
         if (config.isTargetTypeSupported(targetType) == false) {
             throw ExceptionsHelper.badRequestException(
                 "Cannot infer using configuration for [{}] when model target_type is [{}]", config.getName(), targetType.toString());
+        }
+        if (preparedForInference == false) {
+            throw ExceptionsHelper.serverError("model is not prepared for inference");
         }
         double[][] featureImportance = config.requestingImportance() ?
             featureImportance(features) :
@@ -288,6 +292,10 @@ public class TreeInferenceModel implements InferenceModel {
 
     @Override
     public void rewriteFeatureIndices(Map<String, Integer> newFeatureIndexMapping) {
+        if (preparedForInference) {
+            return;
+        }
+        preparedForInference = true;
         if (newFeatureIndexMapping == null || newFeatureIndexMapping.isEmpty()) {
             return;
         }

@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -1098,6 +1099,37 @@ public class JobResultsProvider {
                 results.add(modelPlot);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse modelPlot", e);
+            }
+        }
+
+        return new QueryPage<>(results, searchResponse.getHits().getTotalHits().value, ModelPlot.RESULTS_FIELD);
+    }
+
+    public QueryPage<CategorizerStats> categorizerStats(String jobId, int from, int size) {
+        SearchResponse searchResponse;
+        String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        LOGGER.trace("ES API CALL: search categorizer stats from index {} from {} size {}", indexName, from, size);
+
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            searchResponse = client.prepareSearch(indexName)
+                .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
+                .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), CategorizerStats.RESULT_TYPE_VALUE))
+                .setFrom(from).setSize(size)
+                .setTrackTotalHits(true)
+                .get();
+        }
+
+        List<CategorizerStats> results = new ArrayList<>();
+
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            BytesReference source = hit.getSourceRef();
+            try (InputStream stream = source.streamInput();
+                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                CategorizerStats categorizerStats = CategorizerStats.LENIENT_PARSER.apply(parser, null).build();
+                results.add(categorizerStats);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to parse categorizerStats", e);
             }
         }
 

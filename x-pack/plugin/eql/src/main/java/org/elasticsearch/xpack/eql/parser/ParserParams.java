@@ -19,7 +19,7 @@ public class ParserParams {
     private final ZoneId zoneId;
     private String fieldEventCategory = FIELD_EVENT_CATEGORY;
     private String fieldTimestamp = FIELD_TIMESTAMP;
-    private String fieldTieBreaker = null;
+    private String fieldTiebreaker = null;
     private String implicitJoinKey = FIELD_IMPLICIT_JOIN_KEY;
     private List<Object> queryParams = emptyList();
 
@@ -45,12 +45,12 @@ public class ParserParams {
         return this;
     }
 
-    public String fieldTieBreaker() {
-        return fieldTieBreaker;
+    public String fieldTiebreaker() {
+        return fieldTiebreaker;
     }
 
-    public ParserParams fieldTieBreaker(String fieldTieBreaker) {
-        this.fieldTieBreaker = fieldTieBreaker;
+    public ParserParams fieldTiebreaker(String fieldTiebreaker) {
+        this.fieldTiebreaker = fieldTiebreaker;
         return this;
     }
 

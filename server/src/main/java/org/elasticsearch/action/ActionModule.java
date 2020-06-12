@@ -133,6 +133,7 @@ import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -322,6 +323,7 @@ import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
+import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
@@ -597,6 +599,7 @@ public class ActionModule extends AbstractModule {
             actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
             actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
             actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
+            actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
         }
 
         // Persistent tasks:
@@ -759,6 +762,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestCreateDataStreamAction());
             registerHandler.accept(new RestDeleteDataStreamAction());
             registerHandler.accept(new RestGetDataStreamsAction());
+            registerHandler.accept(new RestResolveIndexAction());
         }
 
         // CAT API

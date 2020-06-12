@@ -124,13 +124,13 @@ dependencies {
   compile 'org.apache.maven:maven-model:3.6.2'
   compile 'com.networknt:json-schema-validator:1.0.36'
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testCompile "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
-  testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-  testCompile 'org.mockito:mockito-core:1.9.5'
+  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testImplementation 'org.mockito:mockito-core:1.9.5'
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
   minimumRuntimeCompile gradleApi()

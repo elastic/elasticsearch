@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -76,18 +75,21 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(
+        SearchContext searchContext,
+        Aggregator parent,
+        boolean collectsFromSingleBucket,
+        Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             DateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof DateHistogramAggregationSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected DateHistogramAggregationSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        Rounding.Prepared preparedRounding = valuesSource.roundingPreparer(queryShardContext.getIndexReader()).apply(shardRounding);
+        // TODO: Is there a reason not to get the prepared rounding in the supplier itself?
+        Rounding.Prepared preparedRounding = config.getValuesSource()
+            .roundingPreparer(queryShardContext.getIndexReader())
+            .apply(shardRounding);
         return ((DateHistogramAggregationSupplier) aggregatorSupplier).build(
             name,
             factories,
@@ -97,8 +99,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             keyed,
             minDocCount,
             extendedBounds,
-            valuesSource,
-            config.format(),
+            config,
             searchContext,
             parent,
             collectsFromSingleBucket,
@@ -111,6 +112,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds,
-            null, config.format(), searchContext, parent, false, metadata);
+            config, searchContext, parent, false, metadata);
     }
 }

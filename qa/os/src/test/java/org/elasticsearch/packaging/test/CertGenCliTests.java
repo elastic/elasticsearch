@@ -51,9 +51,6 @@ public class CertGenCliTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        // Muted on Windows see: https://github.com/elastic/elasticsearch/issues/50825
-        Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"));
-
         assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
         assumeTrue("no docker", distribution.packaging != Distribution.Packaging.DOCKER);
     }

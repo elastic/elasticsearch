@@ -88,7 +88,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String REASON = "reason";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
-    private static final String STACK_TRACE = "stack_trace";
+    public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";

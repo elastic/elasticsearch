@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -29,7 +30,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -55,6 +58,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -290,6 +294,54 @@ public class TransportBulkActionTests extends ESTestCase {
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
         }
+    }
+
+    public void testProhibitAppendWritesInBackingIndices() throws Exception {
+        String dataStreamName = "logs-foobar";
+        ClusterState clusterState = createDataStream(dataStreamName);
+        Metadata metadata = clusterState.metadata();
+
+        // Testing create op against backing index fails:
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, metadata));
+        assertThat(e.getMessage(), equalTo("index request with op_type=create targeting backing indices is disallowed, " +
+            "target corresponding data stream [logs-foobar] instead"));
+
+        // Testing index op against backing index fails:
+        IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
+        e = expectThrows(IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, metadata));
+        assertThat(e.getMessage(), equalTo("index request with op_type=index and no if_primary_term and if_seq_no set " +
+            "targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead"));
+
+        // Testing valid writes ops against a backing index:
+        DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
+            .setIfSeqNo(1).setIfPrimaryTerm(1);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        validRequest = new DeleteRequest(backingIndexName);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        validRequest = new UpdateRequest(backingIndexName, "_id");
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+
+        // Testing append only write via ds name
+        validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+
+        validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+
+        // Append only for a backing index that doesn't exist is allowed:
+        validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1))
+            .opType(DocWriteRequest.OpType.CREATE);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+
+        // Some other index names:
+        validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
+        validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
     }
 
 }

@@ -28,9 +28,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -193,6 +195,13 @@ public class JobResultsPersister {
         public Builder persistModelPlot(ModelPlot modelPlot) {
             logger.trace("[{}] ES BULK ACTION: index model plot to index [{}] with ID [{}]", jobId, indexName, modelPlot.getId());
             indexResult(modelPlot.getId(), modelPlot, "model plot");
+            return this;
+        }
+
+        public Builder persistCategorizerStats(CategorizerStats categorizerStats) {
+            logger.trace("[{}] ES BULK ACTION: index categorizer stats to index [{}] with ID [{}]",
+                jobId, indexName, categorizerStats.getId());
+            indexResult(categorizerStats.getId(), categorizerStats, "categorizer stats");
             return this;
         }
 
@@ -384,6 +393,21 @@ public class JobResultsPersister {
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            client.admin().indices().refresh(refreshRequest).actionGet();
+        }
+    }
+
+    /**
+     * Makes annotations searchable as they are considered part of a job's results
+     * to fulfil the contract that job results are searchable immediately after a
+     * close or flush.
+     */
+    public void commitAnnotationWrites() {
+        // We refresh using the read alias in order to ensure all indices will
+        // be refreshed even if a rollover occurs in between.
+        RefreshRequest refreshRequest = new RefreshRequest(AnnotationIndex.READ_ALIAS_NAME);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();

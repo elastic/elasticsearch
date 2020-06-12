@@ -1,0 +1,124 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: a-complex-regression-model
+        body: >
+          {
+            "description": "super complex model for tests",
+            "input": {"field_names": ["avg_cost"]},
+            "inference_config": {
+              "regression": {
+                "results_field": "regression-value"
+              }
+            },
+            "definition": {
+              "trained_model": {
+                "ensemble": {
+                  "feature_names": [],
+                  "target_type": "regression",
+                  "trained_models": [
+                  {
+                    "tree": {
+                      "feature_names": [
+                        "avg_cost"
+                      ],
+                      "tree_structure": [
+                      {
+                        "node_index": 0,
+                        "split_feature": 0,
+                        "split_gain": 12,
+                        "threshold": 38,
+                        "decision_type": "lte",
+                        "default_left": true,
+                        "left_child": 1,
+                        "right_child": 2
+                      },
+                      {
+                        "node_index": 1,
+                        "leaf_value": 5.0
+                      },
+                      {
+                        "node_index": 2,
+                        "leaf_value": 2.0
+                      }
+                      ],
+                      "target_type": "regression"
+                    }
+                  }
+                  ]
+                }
+              }
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              product:
+                type: keyword
+              cost:
+                type: integer
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          { "index": {} }
+          { "product": "TV", "cost": 300 }
+          { "index": {} }
+          { "product": "TV", "cost": 400 }
+          { "index": {} }
+          { "product": "VCR", "cost": 150 }
+          { "index": {} }
+          { "product": "VCR", "cost": 180 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 15000 }
+---
+"Test pipeline regression":
+
+  - do:
+      search:
+        index: store
+        body: |
+          {
+            "size": 0,
+            "query": { "match_all" : { } },
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "avg_cost_agg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  },
+                  "regression" : {
+                    "inference_model": {
+                      "model_id": "a-complex-regression-model",
+                      "buckets_path": {
+                        "avg_cost" : "avg_cost_agg"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { aggregations.good.buckets.0.key: "VVVCR" }
+

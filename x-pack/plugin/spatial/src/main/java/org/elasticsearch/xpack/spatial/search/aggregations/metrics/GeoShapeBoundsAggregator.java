@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
@@ -33,10 +34,16 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
     private DoubleArray negLefts;
     private DoubleArray negRights;
 
-    public GeoShapeBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
-                             GeoShapeValuesSource valuesSource, boolean wrapLongitude, Map<String, Object> metadata) throws IOException {
+    public GeoShapeBoundsAggregator(
+        String name,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        ValuesSourceConfig valuesSourceConfig,
+        boolean wrapLongitude,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = valuesSourceConfig.hasValues() ? (GeoShapeValuesSource) valuesSourceConfig.getValuesSource() : null;
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();

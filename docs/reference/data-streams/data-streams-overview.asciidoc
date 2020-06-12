@@ -5,8 +5,8 @@
 ++++
 
 A data stream consists of one or more _backing indices_. Backing indices are
-<<index-hidden,hidden>>, automatically-generated indices used to store a
-stream's documents.
+<<index-hidden,hidden>>, auto-generated indices used to store a stream's
+documents.
 
 image::images/data-streams/data-streams-diagram.svg[align="center"]
 
@@ -78,10 +78,10 @@ You cannot add new documents to a stream's other backing indices, even by
 sending requests directly to the index. This means you cannot submit the
 following requests directly to any backing index except the write index:
 
-* An <<docs-index_,Index API>> request with an
+* An <<docs-index_,index API>> request with an
   <<docs-index-api-op_type,`op_type`>> of `create`. The `op_type` parameter
   defaults to `create` when adding new documents.
-* A <<docs-bulk,Bulk API>> request using a `create` action
+* A <<docs-bulk,bulk API>> request using a `create` action
 
 Because it's the only index capable of ingesting new documents, you cannot
 perform operations on a write index that might hinder indexing. These
@@ -124,17 +124,17 @@ cannot send update or deletion requests for existing documents to a data stream.
 To update or delete specific documents in a data stream, submit one of the
 following requests to the backing index containing the document:
 
-* An <<docs-index_,Index API>> request with an
+* An <<docs-index_,index API>> request with an
   <<docs-index-api-op_type,`op_type`>> of `index`.
   These requests must include valid <<optimistic-concurrency-control,`if_seq_no`
   and `if_primary_term`>> arguments.
 
-* A <<docs-bulk,Bulk API>> request using the `delete`, `index`, or `update`
+* A <<docs-bulk,bulk API>> request using the `delete`, `index`, or `update`
   action. If the action type is `index`, the action must include valid
   <<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
   arguments.
 
-* A <<docs-delete,Delete API>> request
+* A <<docs-delete,delete API>> request
 
 TIP: If you need to frequently update or delete existing documents across
 multiple indices, we recommend using an <<indices-add-alias,index alias>> and

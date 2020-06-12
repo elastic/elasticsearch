@@ -139,8 +139,7 @@ public class ArchiveTests extends PackagingTestCase {
             throw e;
         }
 
-        final String gcLogName = Platforms.LINUX && distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
-
+        final String gcLogName = distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
         assertThat(installation.logs.resolve(gcLogName), fileExists());
         ServerUtils.runElasticsearchTests();
 

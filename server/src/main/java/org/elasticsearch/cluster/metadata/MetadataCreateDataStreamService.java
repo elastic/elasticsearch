@@ -172,8 +172,8 @@ public class MetadataCreateDataStreamService {
         }
         String type = timestampFieldMapper.typeName();
         if (ALLOWED_TIMESTAMPFIELD_TYPES.contains(type) == false) {
-            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types [" +
-                ALLOWED_TIMESTAMPFIELD_TYPES + "], but instead found type [" + type  + "]");
+            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types " +
+                ALLOWED_TIMESTAMPFIELD_TYPES + ", but instead found type [" + type  + "]");
         }
     }
 

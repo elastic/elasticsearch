@@ -174,7 +174,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         String mapping = generateMapping("@timestamp", "keyword");
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
-        assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp] to be of types [[date, date_nanos]], " +
+        assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp] to be of types [date, date_nanos], " +
             "but instead found type [keyword]"));
     }
 
@@ -199,7 +199,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         validateTimestampFieldMapping("event.@timestamp", mapperService);
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> validateTimestampFieldMapping("event.another_field", mapperService));
-        assertThat(e.getMessage(), equalTo("expected timestamp field [event.another_field] to be of types [[date, date_nanos]], " +
+        assertThat(e.getMessage(), equalTo("expected timestamp field [event.another_field] to be of types [date, date_nanos], " +
             "but instead found type [keyword]"));
     }
 

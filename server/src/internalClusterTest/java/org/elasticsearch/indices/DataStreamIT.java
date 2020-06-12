@@ -342,7 +342,7 @@ public class DataStreamIT extends ESIntegTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet());
         assertThat(e.getCause().getCause().getMessage(), equalTo("expected timestamp field [@timestamp] to be of types " +
-            "[[date, date_nanos]], but instead found type [keyword]"));
+            "[date, date_nanos], but instead found type [keyword]"));
     }
 
     public void testResolvabilityOfDataStreamsInAPIs() throws Exception {

@@ -31,14 +31,14 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestAddIndexBlockAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/{index}/_blocks/{block}"));
+            new Route(PUT, "/{index}/_blocks/{block}"));
     }
 
     @Override

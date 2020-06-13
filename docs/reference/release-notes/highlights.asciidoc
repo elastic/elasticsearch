@@ -1,6 +1,8 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
+coming[{minor-version}]
+
 Here are the highlights of what's new and improved in {es} {minor-version}! 
 For detailed information about this release, see the 
 <<release-notes-{elasticsearch_version}, Release notes >>  and 
@@ -17,7 +19,6 @@ Other versions:
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
-coming[{minor-version}]
 
 // tag::notable-highlights[]
 [float]

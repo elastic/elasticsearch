@@ -239,7 +239,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     dataStreams = indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices());
                 }
 
-                userMeta.put(DataStream.DATA_STREAMS_METADATA_FIELD, dataStreams);
+                if (dataStreams.size() > 0) {
+                    userMeta.put(DataStream.DATA_STREAMS_METADATA_FIELD, dataStreams);
+                }
 
                 logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
 

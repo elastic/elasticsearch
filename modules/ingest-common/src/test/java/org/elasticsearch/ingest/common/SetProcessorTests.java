@@ -126,7 +126,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadataIfSeqNo() throws Exception {
         long ifSeqNo = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, true);
+        Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
@@ -134,7 +134,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetMetadataIfPrimaryTerm() throws Exception {
         long ifPrimaryTerm = randomNonNegativeLong();
-        Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, true);
+        Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));

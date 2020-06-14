@@ -35,6 +35,10 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -218,8 +222,19 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                             unwrappedCause instanceof ElasticsearchTimeoutException) {
                             nodeEntry.restartFetching();
                         } else {
-                            logger.warn(() -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
-                                shardId, type, failure.nodeId()), failure);
+                            Throwable cause = failure.getCause();
+                            if (cause instanceof NodeClosedException ||
+                                cause instanceof NodeDisconnectedException ||
+                                cause instanceof NodeNotConnectedException) {
+                                logger.debug(() -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
+                                    shardId, type, failure.nodeId()), failure);
+                            } else if (cause instanceof CircuitBreakingException) {
+                                logger.warn(() -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}] Caused by: {}",
+                                    shardId, type, failure.nodeId(), cause.getMessage()));
+                            } else {
+                                logger.warn(() -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
+                                    shardId, type, failure.nodeId()), failure);
+                            }
                             nodeEntry.doneFetching(failure.getCause());
                         }
                     }

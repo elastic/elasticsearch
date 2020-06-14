@@ -57,6 +57,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -145,10 +146,13 @@ public class FetchPhase implements SearchPhase {
             Arrays.sort(sortedDocIds);
 
             // preserve the original order of hits in inverted index
-            Map<Integer, Integer> docIdToIndex = new HashMap<>();
+            Map<Integer, ArrayList<Integer>> docIdToIndex = new HashMap<>();
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
-                docIdToIndex.put(docId, index);
+                if (docIdToIndex.get(docId) == null) {
+                    docIdToIndex.put(docId, new ArrayList<>());
+                }
+                docIdToIndex.get(docId).add(index);
             }
 
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
@@ -174,7 +178,9 @@ public class FetchPhase implements SearchPhase {
                 }
 
                 sortedHits[index] = searchHit;
-                hits[docIdToIndex.get(docId)] = searchHit;
+                for (int i = 0; i < docIdToIndex.get(docId).size(); i++) {
+                    hits[docIdToIndex.get(docId).get(i)] = searchHit;
+                }
                 hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
                 for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                     fetchSubPhase.hitExecute(context, hitContext);

@@ -63,7 +63,7 @@ dependencies {
   compile 'io.opencensus:opencensus-contrib-http-util:0.18.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev20200226-1.30.9'
 
-  testCompile project(':test:fixtures:gcs-fixture')
+  testImplementation project(':test:fixtures:gcs-fixture')
 }
 
 restResources {

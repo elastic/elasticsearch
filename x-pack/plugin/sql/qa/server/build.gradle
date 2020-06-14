@@ -64,10 +64,10 @@ subprojects {
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
      * them explicitly for non-es projects. */
-    testCompile(xpackProject('plugin:sql:qa:server')) {
+    testImplementation(xpackProject('plugin:sql:qa:server')) {
       transitive = false
     }
-    testCompile project(":test:framework")
+    testImplementation project(":test:framework")
 
     // JDBC testing dependencies
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"

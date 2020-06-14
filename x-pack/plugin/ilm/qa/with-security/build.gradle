@@ -3,8 +3,8 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
-  testCompile project(":client:rest-high-level")
+  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation project(":client:rest-high-level")
 }
 
 def clusterCredentials = [username: System.getProperty('tests.rest.cluster.username', 'test_admin'),

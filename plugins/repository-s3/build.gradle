@@ -50,7 +50,7 @@ dependencies {
   // and whitelist this hack in JarHell
   compile 'javax.xml.bind:jaxb-api:2.2.2'
 
-  testCompile project(':test:fixtures:s3-fixture')
+  testImplementation project(':test:fixtures:s3-fixture')
 }
 
 dependencyLicenses {

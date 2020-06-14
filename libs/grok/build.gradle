@@ -22,7 +22,7 @@ dependencies {
   // joni dependencies:
   compile 'org.jruby.jcodings:jcodings:1.0.44'
 
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-grok'
   }
 }

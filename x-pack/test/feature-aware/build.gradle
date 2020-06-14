@@ -4,7 +4,7 @@ dependencies {
   compile 'org.ow2.asm:asm:7.1'
   compile project(':server')
   compile project(':x-pack:plugin:core')
-  testCompile project(':test:framework')
+  testImplementation project(':test:framework')
 }
 
 forbiddenApisMain.enabled = true

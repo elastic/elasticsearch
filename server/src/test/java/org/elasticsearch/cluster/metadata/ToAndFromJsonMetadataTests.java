@@ -101,8 +101,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         .putAlias(newAliasMetadataBuilder("alias-bar3").routing("routing-bar")))
                 .put(idx1, false)
                 .put(idx2, false)
-                .put(new DataStream("data-stream1", "@timestamp", List.of(idx1.getIndex())))
-                .put(new DataStream("data-stream2", "@timestamp2", List.of(idx2.getIndex())))
+                .put(new DataStream("data-stream1", new DataStream.TimestampField("@timestamp", "{}"), List.of(idx1.getIndex())))
+                .put(new DataStream("data-stream2", new DataStream.TimestampField("@timestamp2", "{}"), List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

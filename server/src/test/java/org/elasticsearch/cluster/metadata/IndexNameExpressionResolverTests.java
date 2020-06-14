@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -1770,7 +1771,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)
-            .put(new DataStream(dataStreamName, "ts", List.of(index1.getIndex(), index2.getIndex()), 2));
+            .put(new DataStream(dataStreamName, new TimestampField("ts", "{}"), List.of(index1.getIndex(), index2.getIndex()), 2));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -1852,8 +1853,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index2, false)
             .put(index3, false)
             .put(index4, false)
-            .put(new DataStream(dataStream1, "ts", List.of(index1.getIndex(), index2.getIndex())))
-            .put(new DataStream(dataStream2, "ts", List.of(index3.getIndex(), index4.getIndex())));
+            .put(new DataStream(dataStream1, new TimestampField("@timestamp", "{}"), List.of(index1.getIndex(), index2.getIndex())))
+            .put(new DataStream(dataStream2, new TimestampField("@timestamp", "{}"), List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
@@ -1899,7 +1900,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(index1, false)
                 .put(index2, false)
                 .put(justAnIndex, false)
-                .put(new DataStream(dataStream1, "ts", List.of(index1.getIndex(), index2.getIndex())))).build();
+                .put(new DataStream(dataStream1, new TimestampField("@timestamp", "{}"),
+                    List.of(index1.getIndex(), index2.getIndex())))).build();
 
         IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
         Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");

@@ -30,17 +30,29 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,13 +63,16 @@ public class MetadataCreateDataStreamService {
         new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
     public MetadataCreateDataStreamService(ThreadPool threadPool,
                                            ClusterService clusterService,
+                                           IndicesService indicesService,
                                            MetadataCreateIndexService metadataCreateIndexService) {
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
@@ -89,7 +104,8 @@ public class MetadataCreateDataStreamService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
+                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request,
+                        createTempMapperServiceProvider(indicesService));
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
                 }
@@ -102,7 +118,7 @@ public class MetadataCreateDataStreamService {
     }
 
     public ClusterState createDataStream(CreateDataStreamClusterStateUpdateRequest request, ClusterState current) throws Exception {
-        return createDataStream(metadataCreateIndexService, current, request);
+        return createDataStream(metadataCreateIndexService, current, request, createTempMapperServiceProvider(indicesService));
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
@@ -120,7 +136,10 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request) throws Exception {
+                                         CreateDataStreamClusterStateUpdateRequest request,
+                                         CheckedBiConsumer<IndexMetadata, CheckedConsumer<MapperService, Exception>, Exception> tmsp)
+        throws Exception {
+
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
             throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
         }
@@ -145,9 +164,32 @@ public class MetadataCreateDataStreamService {
         currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
         assert firstBackingIndex != null;
+        assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
-        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
-            new DataStream(request.name, template.getDataStreamTemplate().getTimestampField(), List.of(firstBackingIndex.getIndex())));
+        XContentBuilder fieldMapperSourceBuilder = XContentFactory.jsonBuilder();
+        String fieldName = template.getDataStreamTemplate().getTimestampField();
+        tmsp.accept(firstBackingIndex, tempMapperService -> {
+            Mapper timestampFieldMapper = tempMapperService.documentMapper().mappers().getMapper(fieldName);
+            assert timestampFieldMapper != null : "no timestamp_field mapper found for backing index [" + firstBackingIndexName + "]";
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            timestampFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+
+            // Extract the actual mapping config from the json content of field mapping:
+            // When serializing a field mapper the field name also gets included (which is the only top level field)
+            Map<String, Object> fieldMapperContents =
+                XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+            assert fieldMapperContents.size() == 1 : "expected a single key, but got " + fieldMapperContents;
+            fieldMapperSourceBuilder.map(fieldMapperContents);
+        });
+
+        DataStream.TimestampField timestampField = new DataStream.TimestampField(
+            fieldName,
+            Strings.toString(fieldMapperSourceBuilder)
+        );
+        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
+        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
     }
@@ -175,6 +217,19 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types " +
                 ALLOWED_TIMESTAMPFIELD_TYPES + ", but instead found type [" + type  + "]");
         }
+    }
+
+    private static CheckedBiConsumer<IndexMetadata, CheckedConsumer<MapperService, Exception>, Exception> createTempMapperServiceProvider(
+        IndicesService indicesService) {
+        return  (imd, c) -> {
+            indicesService.withTempIndexService(imd, indexShards -> {
+                MapperService mapperService = indexShards.mapperService();
+                Map<String, Object> mapping = imd.mapping().getSourceAsMap();
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.MAPPING_UPDATE);
+                c.accept(mapperService);
+                return null;
+            });
+        };
     }
 
 }

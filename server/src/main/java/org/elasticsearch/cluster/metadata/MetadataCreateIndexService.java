@@ -51,6 +51,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -58,7 +59,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -486,6 +489,15 @@ public class MetadataCreateIndexService {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
         final Map<String, Object> mappings = resolveV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
+
+        if (request.dataStreamName() != null) {
+            DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
+            if (dataStream != null) {
+                Map<String, Object> x = ObjectPath.eval("_doc.properties", mappings);
+                String mapping = dataStream.getTimeStampField().getFieldMapping();
+                x.putAll(XContentHelper.convertToMap(new BytesArray(mapping), false, XContentType.JSON).v2());
+            }
+        }
 
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,

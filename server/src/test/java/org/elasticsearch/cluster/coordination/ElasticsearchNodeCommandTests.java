@@ -110,7 +110,8 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             for (int i = 0; i < numDataStreams; i++) {
                 String dataStreamName = "name" + 1;
                 IndexMetadata backingIndex = createFirstBackingIndex(dataStreamName).build();
-                mdBuilder.put(new DataStream(dataStreamName, "ts", List.of(backingIndex.getIndex())));
+                mdBuilder.put(new DataStream(dataStreamName, new DataStream.TimestampField("@timestamp", "{}"),
+                    List.of(backingIndex.getIndex())));
             }
         }
         mdBuilder.indexGraveyard(graveyard.build());

@@ -238,7 +238,7 @@ public class ResolveIndexTests extends ESTestCase {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dataStreamName, timestampField,
+            DataStream ds = new DataStream(dataStreamName, new DataStream.TimestampField(timestampField, "{}"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
             builder.put(ds);
         }

@@ -130,7 +130,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dsTuple.v1(), "@timestamp",
+            DataStream ds = new DataStream(dsTuple.v1(), new DataStream.TimestampField("@timestamp", "{}"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
             builder.put(ds);
         }

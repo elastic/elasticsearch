@@ -88,7 +88,9 @@ public final class RepositoryData {
      * The indices found in the repository across all snapshots, as a name to {@link IndexId} mapping
      */
     private final Map<String, IndexId> indices;
-
+    /**
+     * The snapshots that each index belongs to.
+     */
     private final Map<IndexId, List<SnapshotId>> indexSnapshots;
 
     private final Map<String, Version> snapshotVersions;
@@ -110,13 +112,13 @@ public final class RepositoryData {
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
         this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
-                .collect(Collectors.toMap(IndexId::getName, Function.identity())));
+            .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
         this.shardGenerations = Objects.requireNonNull(shardGenerations);
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.snapshotVersions = snapshotVersions;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
-                + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
+            + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
         assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size()) :
                 "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
     }
@@ -128,7 +130,6 @@ public final class RepositoryData {
 
     /**
      * Creates a copy of this instance that contains updated version data.
-     *
      * @param versions map of snapshot versions
      * @return copy with updated version data
      */

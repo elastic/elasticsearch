@@ -62,7 +62,7 @@ public abstract class MappedFieldType {
 
     private final String name;
     private final boolean docValues;
-    private final boolean isSearchable;
+    private final boolean isIndexed;
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private NamedAnalyzer searchAnalyzer;
@@ -75,7 +75,7 @@ public abstract class MappedFieldType {
     protected MappedFieldType(MappedFieldType ref) {
         this.name = ref.name();
         this.boost = ref.boost();
-        this.isSearchable = ref.isSearchable;
+        this.isIndexed = ref.isIndexed;
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
@@ -86,10 +86,10 @@ public abstract class MappedFieldType {
         this.hasPositions = ref.hasPositions;
     }
 
-    public MappedFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+    public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
         setBoost(1.0f);
         this.name = Objects.requireNonNull(name);
-        this.isSearchable = isSearchable;
+        this.isIndexed = isIndexed;
         this.docValues = hasDocValues;
         this.meta = meta;
     }
@@ -112,7 +112,7 @@ public abstract class MappedFieldType {
 
     @Override
     public boolean equals(Object o) {
-        if (o instanceof MappedFieldType == false) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
         MappedFieldType fieldType = (MappedFieldType) o;
@@ -202,7 +202,7 @@ public abstract class MappedFieldType {
      * Returns true if the field is searchable.
      */
     public boolean isSearchable() {
-        return isSearchable;
+        return isIndexed;
     }
 
     /** Returns true if the field is aggregatable.
@@ -342,7 +342,7 @@ public abstract class MappedFieldType {
     }
 
     protected final void failIfNotIndexed() {
-        if (isSearchable == false) {
+        if (isIndexed == false) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
             throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }

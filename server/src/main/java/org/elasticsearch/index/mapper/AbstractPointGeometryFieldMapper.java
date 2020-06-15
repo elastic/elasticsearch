@@ -111,7 +111,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
     }
 
-    final ParsedPoint nullValue;
+    ParsedPoint nullValue;
 
     public abstract static class AbstractPointGeometryFieldType<Parsed, Processed>
             extends AbstractGeometryFieldType<Parsed, Processed> {
@@ -134,8 +134,9 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         AbstractPointGeometryFieldMapper gpfm = (AbstractPointGeometryFieldMapper)other;
-        if (gpfm.nullValue != this.nullValue) {
-            conflicts.add("mapper [" + name() + "] has different [null_value] values");
+        // TODO make this un-updateable
+        if (gpfm.nullValue != null) {
+            this.nullValue = gpfm.nullValue;
         }
     }
 

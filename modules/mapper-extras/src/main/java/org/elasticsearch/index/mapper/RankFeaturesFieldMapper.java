@@ -60,14 +60,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues) {
-                throw new IllegalArgumentException("mapper [" + name() + "] of type [rank_features] does not support doc values");
-            }
-            return this;
-        }
-
-        @Override
         public RankFeaturesFieldMapper build(BuilderContext context) {
             return new RankFeaturesFieldMapper(
                     name, fieldType, new RankFeaturesFieldType(buildFullName(context), meta),

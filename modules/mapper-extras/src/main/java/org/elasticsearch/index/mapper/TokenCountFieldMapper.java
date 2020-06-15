@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -123,7 +122,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     private NamedAnalyzer analyzer;
     private final boolean enablePositionIncrements;
-    private final Integer nullValue;
+    private Integer nullValue;
 
     protected TokenCountFieldMapper(String simpleName, FieldType fieldType, MappedFieldType defaultFieldType,
             Settings indexSettings, NamedAnalyzer analyzer, boolean enablePositionIncrements, Integer nullValue,
@@ -212,12 +211,9 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        // TODO we should ban updating analyzers as well
+        // TODO we should ban updating analyzers and null values as well
         if (this.enablePositionIncrements != ((TokenCountFieldMapper)other).enablePositionIncrements) {
             conflicts.add("mapper [" + name() + "] has a different [enable_position_increments] setting");
-        }
-        if (Objects.equals(this.nullValue, ((TokenCountFieldMapper)other).nullValue) == false) {
-            conflicts.add("mapper [" + name() + "] has a different [null_value] setting");
         }
         this.analyzer = ((TokenCountFieldMapper)other).analyzer;
     }

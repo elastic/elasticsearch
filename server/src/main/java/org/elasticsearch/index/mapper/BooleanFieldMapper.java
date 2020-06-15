@@ -46,7 +46,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -264,10 +263,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        BooleanFieldMapper fm = (BooleanFieldMapper) other;
-        if (Objects.equals(fm.nullValue, this.nullValue) == false) {
-            conflicts.add("mapper [" + name() + "] has different [null_value] values");
-        }
+        // TODO ban updating null values
     }
 
     @Override
